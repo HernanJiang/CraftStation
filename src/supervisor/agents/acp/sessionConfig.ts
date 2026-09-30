@@ -280,7 +280,10 @@ function modelOptionAliases(option: AcpConfigSelectOptionLike): string[] {
   return [...aliases].map(normalizeConfigOptionAlias);
 }
 
-function modelConfigTargetAliases(config: ThreadConfig): string[] {
+function modelConfigTargetAliases(
+  config: ThreadConfig,
+  fastVariantByBase?: Record<string, string>,
+): string[] {
   const aliases = new Set<string>();
   const modelId = config.model;
   if (!modelId) {
@@ -337,6 +340,15 @@ function modelConfigTargetAliases(config: ThreadConfig): string[] {
     aliases.add(prefix);
   }
 
+  // A config.model that only suffix-matches the catalog base (custom entries
+  // like bare `kimi-for-coding` for `kimi-code/kimi-for-coding`) resolves to
+  // the canonical variant id through the probed map — add it so the
+  // configOption path picks the advertised `kimi-code/…-highspeed` value.
+  if (config.fast === true) {
+    const variant = fastVariantModelId(modelId, fastVariantByBase);
+    if (variant) aliases.add(variant);
+  }
+
   return [...aliases].map(normalizeConfigOptionAlias);
 }
 
@@ -358,8 +370,9 @@ export function resolveAcpSessionModelId(
 export function resolveModelConfigValue(
   config: ThreadConfig,
   configOptions: unknown,
+  fastVariantByBase?: Record<string, string>,
 ): { configId: string; value: string; currentValue?: string } | undefined {
-  const targets = modelConfigTargetAliases(config);
+  const targets = modelConfigTargetAliases(config, fastVariantByBase);
   if (targets.length === 0) {
     return undefined;
   }

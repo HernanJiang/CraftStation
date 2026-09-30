@@ -64,7 +64,40 @@ export function fastVariantModelId(
   if (FAST_VARIANT_SUFFIXES.some((suffix) => modelId.endsWith(suffix))) return null;
   const mapped = fastVariantByBase?.[modelId];
   if (mapped !== undefined) return mapped;
+  // Custom models can carry an id spelling that differs from the catalog base
+  // only by prefix (`kimi-for-coding` vs `kimi-code/kimi-for-coding`). Match the
+  // catalog base so the wire keeps the canonical variant id instead of a bare
+  // suffix guess the provider cannot resolve.
+  const catalogBase = Object.keys(fastVariantByBase ?? {}).find(
+    (base) => base.endsWith(`/${modelId}`) || modelId.endsWith(`/${base}`),
+  );
+  if (catalogBase) return fastVariantByBase![catalogBase]!;
   if (/(^|\/)kimi-for-coding$/.test(modelId)) return `${modelId}-highspeed`;
   if (/^grok-\d/.test(modelId)) return `${modelId}-build-fast`;
   return null;
+}
+
+/**
+ * Vendor fast lanes whose variant ids follow a fixed convention, so the Fast
+ * toggle is offered even when the probed catalog omitted the variant row (an
+ * older Grok CLI that predates `-build-fast`, or a Kimi `session/new` list
+ * that drops the `-highspeed` sibling). The wire layer resolves the same
+ * spelling through `fastVariantModelId`; if the installed CLI truly lacks the
+ * lane its launch error is honest — the toggle is a vendor guarantee, not a
+ * per-catalog advertisement. Returns base ids only (variant-shaped ids are
+ * already fast lanes, not models that gain one).
+ */
+export function vendorConventionFastBases(
+  agentKind: string,
+  modelIds: readonly string[],
+): string[] {
+  const isVariant = (id: string) => FAST_VARIANT_SUFFIXES.some((s) => id.endsWith(s));
+  switch (agentKind) {
+    case "grok":
+      return modelIds.filter((id) => /^grok-\d/.test(id) && !isVariant(id));
+    case "kimi":
+      return modelIds.filter((id) => /(^|\/)kimi-for-coding$/.test(id));
+    default:
+      return [];
+  }
 }

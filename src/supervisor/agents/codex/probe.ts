@@ -40,7 +40,7 @@ interface CodexModelEntry {
   // marks a model that honors `service_tier="fast"`; the `serviceTiers` list
   // carries the matching tier descriptor (e.g. the "priority"/Fast tier).
   additionalSpeedTiers?: string[];
-  serviceTiers?: Array<{ id: string }>;
+  serviceTiers?: Array<{ id: string; name?: string | undefined; description?: string | undefined }>;
 }
 
 /** Raw requirements from `configRequirements/read`. */
@@ -56,6 +56,12 @@ export interface CodexProbeResult {
   modelEfforts?: Record<string, string[]>;
   /** Visible model ids that support the Fast/priority service tier. */
   fastModels?: string[];
+  /**
+   * Per-model selectable service-tier lanes (e.g. `priority`/Fast plus
+   * `ultrafast` on gpt-5.6-sol). Drives the composer's Fast tier picker;
+   * absent for CLIs that predate `serviceTiers`.
+   */
+  modelFastTiers?: Record<string, Array<{ id: string; label: string }>>;
   approvalPolicies?: Array<{ id: string; label: string }>;
   sandboxModes?: Array<{ id: string; label: string }>;
   slashCommands?: AgentSlashCommand[];
@@ -109,7 +115,9 @@ const EFFORT_ORDER: Record<string, number> = {
   xhigh: 5,
 };
 
-const PREFERRED_CODEX_DEFAULT_MODEL = "gpt-5.5";
+// Upstream default since codex-cli 0.159.1 (bundled catalog); older CLIs
+// without it in `model/list` fall back to `isDefault`/first entry.
+const PREFERRED_CODEX_DEFAULT_MODEL = "gpt-6.1-sol";
 
 // ── Mapping helpers ─────────────────────────────────────────────
 
@@ -236,12 +244,28 @@ export function mapCodexModels(
     ? visible.filter((m) => codexModelSupportsFast(m)).map((m) => m.id)
     : visible.map((m) => m.id);
 
+  // Selectable lanes beyond the default tier (priority/Fast, ultrafast, ...).
+  // `serviceTiers` is the canonical source — ids and display names ride the
+  // wire value unchanged, so no client-side renaming is needed.
+  const modelFastTiers: Record<string, Array<{ id: string; label: string }>> = {};
+  for (const m of visible) {
+    const tiers = (m.serviceTiers ?? [])
+      .filter((tier) => tier.id.trim().length > 0)
+      .map((tier) => {
+        const id = tier.id.trim();
+        const label = tier.name?.trim() || id[0]!.toUpperCase() + id.slice(1);
+        return { id, label };
+      });
+    if (tiers.length > 0) modelFastTiers[m.id] = tiers;
+  }
+
   return {
     models: mapped,
     efforts: sortedEfforts,
     defaultEffort,
     ...(Object.keys(modelEfforts).length > 0 ? { modelEfforts } : {}),
     ...(fastModels.length > 0 ? { fastModels } : {}),
+    ...(Object.keys(modelFastTiers).length > 0 ? { modelFastTiers } : {}),
   };
 }
 
@@ -254,7 +278,7 @@ interface CodexCatalogModel {
   default_reasoning_level?: string;
   supported_reasoning_levels?: Array<{ effort?: string; description?: string }>;
   additional_speed_tiers?: string[];
-  service_tiers?: Array<{ id?: string }>;
+  service_tiers?: Array<{ id?: string; name?: string; description?: string }>;
   minimal_client_version?: string;
   priority?: number;
 }
@@ -284,9 +308,12 @@ function catalogModelToEntry(model: CodexCatalogModel): CodexModelEntry | undefi
     }))
     .filter((level) => level.reasoningEffort.length > 0);
   const serviceTiers = (model.service_tiers ?? [])
-    .map((tier) => tier.id?.trim())
-    .filter((id): id is string => Boolean(id))
-    .map((id) => ({ id }));
+    .map((tier) => ({
+      id: tier.id?.trim() ?? "",
+      name: tier.name?.trim() || undefined,
+      description: tier.description?.trim() || undefined,
+    }))
+    .filter((tier) => tier.id.length > 0);
   return {
     id: slug,
     model: slug,

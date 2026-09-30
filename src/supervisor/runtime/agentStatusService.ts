@@ -67,8 +67,15 @@ const execFileAsync = promisify(execFile);
  * cached Antigravity statuses without them must not advertise unsafe servers.
  * v18 adds Devin `defaultHiddenModels` so cached catalogs that dumped every
  * ACP variant into the homepage picker are re-probed.
+ * v19 adds fast-tier variant folding (`fastModels` / `fastModelVariants`
+ * derived from advertised `-fast` / `-build-fast` / `-highspeed` rows), so
+ * cached Grok/Kimi capabilities without those fields must not hide the Fast
+ * toggle behind a stale probe. v20 adds the vendor-convention fast fallback
+ * (`grok-\d` / `kimi-for-coding` bases are fast-capable even when the probed
+ * catalog omitted the variant row) — capabilities cached without it would
+ * keep the Fast switch hidden for catalogs that never advertised a sibling.
  */
-export const STATUS_CACHE_VERSION = 18;
+export const STATUS_CACHE_VERSION = 21;
 const WSL_AGENT_DETECTION_TIMEOUT_MS = 60_000;
 const NATIVE_AGENT_DETECTION_TIMEOUT_MS = 60_000;
 const WSL_LXSS_REGISTRY_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss";

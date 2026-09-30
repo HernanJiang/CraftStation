@@ -64,8 +64,12 @@ function buildCodexArgs(opts: BuildCodexArgsOptions): string[] {
       args.push("-c", `model_reasoning_effort="${config.effort}"`);
     }
     if (config.fast) {
-      // Codex's `service_tier="fast"` selects the priority lane on supported models.
-      args.push("-c", 'service_tier="fast"');
+      // Codex service tier must be the model's catalog tier id — upstream
+      // compares strictly against `service_tiers[].id` ("priority"/"ultrafast")
+      // and silently drops unknown values, so the legacy "fast" alias maps to
+      // "priority" here too.
+      const tier = config.speedTier && config.speedTier !== "fast" ? config.speedTier : "priority";
+      args.push("-c", `service_tier="${tier}"`);
     }
     const contextWindow = codexContextWindowOverrides(config.contextSize);
     args.push(

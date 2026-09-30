@@ -1,4 +1,5 @@
 import type { AgentCapability } from "@/shared/contracts";
+import { fastVariantModelId } from "@/shared/fastModelVariants";
 import type { SharedSettings } from "@/shared/settings";
 
 export type CustomModel = SharedSettings["customModels"][number];
@@ -96,6 +97,39 @@ export function mergeCustomModelsIntoCapabilities(
           ...capabilities,
           models: [...capabilities.models, ...appended],
         };
+
+  // 自定义模型的 Fast 行：渠道绑定条目（accountId）由第三方后端执行，只有
+  // 「与模型无关」的请求级机制（目录内每个模型都 fast 且无变体映射，如
+  // Codex 的 service_tier）可以安全透传；变体改写机制（Kimi -highspeed /
+  // Grok -build-fast 是换模型 id）对渠道不适用——渠道后端没有那个 id。
+  // 其余条目在两种情况下获得开关——原厂 fast 机制与模型无关
+  // （allCatalogFast），或自定义 id 能解析出 fast 变体（`kimi-for-coding`
+  // 这类裸 id 经 fastVariantModelId 的后缀匹配命中 `kimi-code/…-highspeed`）。
+  const catalogFast = capabilities.fastModels ?? [];
+  const variantByBase = capabilities.fastModelVariants ?? {};
+  const allCatalogFast =
+    capabilities.models.length > 0 &&
+    capabilities.models.every((model) => catalogFast.includes(model.id));
+  const channelFastAllowed = allCatalogFast && Object.keys(variantByBase).length === 0;
+  const extraFast: string[] = [];
+  const extraVariants: Record<string, string> = {};
+  for (const model of mine) {
+    if (catalogFast.includes(model.modelId)) continue;
+    if (model.accountId !== undefined && !channelFastAllowed) continue;
+    const variant =
+      model.accountId === undefined ? fastVariantModelId(model.modelId, variantByBase) : null;
+    if (variant === null && !allCatalogFast) continue;
+    extraFast.push(model.modelId);
+    if (variant !== null) extraVariants[model.modelId] = variant;
+  }
+  const withFast: AgentCapability =
+    extraFast.length === 0
+      ? withModels
+      : {
+          ...withModels,
+          fastModels: [...catalogFast, ...extraFast],
+          fastModelVariants: { ...variantByBase, ...extraVariants },
+        };
   const customEfforts = collectCustomModelEfforts(mine);
 
   const contextValues = [
@@ -103,15 +137,15 @@ export function mergeCustomModelsIntoCapabilities(
   ];
   const noContextWork = contextValues.length === 0;
   const noEffortWork = !customEfforts;
-  if (noContextWork && noEffortWork) return withModels;
+  if (noContextWork && noEffortWork) return withFast;
 
-  const baseSizes = withModels.contextSizes ?? [];
+  const baseSizes = withFast.contextSizes ?? [];
   const sizeIds = new Set(baseSizes.map((size) => size.id));
   const extraSizes = contextValues
     .filter((value) => !sizeIds.has(value))
     .map((value) => ({ id: value, label: contextLabel(value) }));
 
-  const modelContextSizes = { ...(withModels.modelContextSizes ?? {}) };
+  const modelContextSizes = { ...(withFast.modelContextSizes ?? {}) };
   for (const model of mine) {
     const value = model.contextSize.trim();
     if (value === "") continue;
@@ -120,16 +154,16 @@ export function mergeCustomModelsIntoCapabilities(
   }
 
   return {
-    ...withModels,
+    ...withFast,
     contextSizes: [...baseSizes, ...extraSizes],
     modelContextSizes,
     // 自定义档位与内置档位合并（内置同名优先，自定义只补缺）。
     ...(customEfforts
       ? {
-          modelEfforts: { ...customEfforts.modelEfforts, ...withModels.modelEfforts },
+          modelEfforts: { ...customEfforts.modelEfforts, ...withFast.modelEfforts },
           modelDefaultEfforts: {
             ...customEfforts.modelDefaultEfforts,
-            ...withModels.modelDefaultEfforts,
+            ...withFast.modelDefaultEfforts,
           },
         }
       : {}),

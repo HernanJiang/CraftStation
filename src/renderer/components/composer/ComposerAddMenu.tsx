@@ -16,6 +16,7 @@ import { Dropdown, Label, Separator, Tooltip } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { isRemoteSession } from "@/renderer/bridge";
 import { Button } from "@/renderer/components/common/Button";
+import { MenuSwitch } from "@/renderer/components/common/MenuSwitch";
 import {
   ResponsiveMenuSurface,
   useResponsiveMenu,
@@ -49,38 +50,6 @@ export type ComposerCustomMcpItem = {
 
 /** Menu-selection key prefix so custom ids can never collide with registry ids. */
 const CUSTOM_KEY_PREFIX = "custom:";
-
-/**
- * Presentational switch used inside the MCP rows. The desktop rows are a
- * multi-selection menu, so the accessible checked state comes from selection;
- * this visual is aria-hidden. In `readOnly` mode the track is muted so it
- * does not read as an interactive control.
- */
-function MenuSwitch(props: { checked: boolean; readOnly?: boolean }) {
-  const { checked, readOnly = false } = props;
-  return (
-    <span
-      aria-hidden
-      className={`relative ms-auto h-4 w-7 shrink-0 rounded-full ${
-        readOnly ? "" : "transition-colors"
-      } ${
-        checked
-          ? readOnly
-            ? "bg-success/45"
-            : "bg-success"
-          : readOnly
-            ? "bg-surface-tertiary/70"
-            : "bg-surface-tertiary"
-      }`}
-    >
-      <span
-        className={`absolute top-0.5 size-3 rounded-full bg-white ${
-          readOnly ? "opacity-90" : "transition-transform"
-        } ${checked ? "translate-x-3.5" : "translate-x-0.5"}`}
-      />
-    </span>
-  );
-}
 
 /** Static row chrome for session-bound MCP entries (no hover/press affordance). */
 const readOnlyRowClassName =
@@ -140,7 +109,14 @@ export function ComposerAddMenu(props: {
   readOnly?: boolean;
   readOnlyCaption?: ReactNode;
 }) {
-  const { mcpServers, showFileOption = true, onPickFiles, computerUse, experiment, workbench } = props;
+  const {
+    mcpServers,
+    showFileOption = true,
+    onPickFiles,
+    computerUse,
+    experiment,
+    workbench,
+  } = props;
   const customMcpServers = props.customMcpServers ?? [];
   const readOnly = props.readOnly === true;
   const { t } = useLingui();
@@ -262,9 +238,18 @@ export function ComposerAddMenu(props: {
         </button>
       ) : null}
       {workbench ? (
-        <button type="button" className="m-sheet-action" onClick={() => { setIsOpen(false); workbench.onOpen(); }}>
+        <button
+          type="button"
+          className="m-sheet-action"
+          onClick={() => {
+            setIsOpen(false);
+            workbench.onOpen();
+          }}
+        >
           <Hammer className="size-4 text-muted" />
-          <span className="flex-1 truncate"><Trans>Crafting Workbench</Trans></span>
+          <span className="flex-1 truncate">
+            <Trans>Crafting Workbench</Trans>
+          </span>
         </button>
       ) : null}
       {hasMcpMenu ? (
@@ -417,7 +402,10 @@ export function ComposerAddMenu(props: {
               experiment.onToggle(!experiment.enabled);
             }
           }}
-          className={withOverlayClass("craftstation-menu min-w-52 bg-[var(--composer-surface)]", overlayZoom.content)}
+          className={withOverlayClass(
+            "craftstation-menu min-w-52 bg-[var(--composer-surface)]",
+            overlayZoom.content,
+          )}
         >
           {showFileOption ? (
             <Dropdown.Item id="file" textValue={t`File`}>
@@ -447,7 +435,9 @@ export function ComposerAddMenu(props: {
           {workbench ? (
             <Dropdown.Item id="workbench" textValue={t`Crafting Workbench`}>
               <Hammer className="size-4 text-muted" />
-              <Label className="flex-1 truncate"><Trans>Crafting Workbench</Trans></Label>
+              <Label className="flex-1 truncate">
+                <Trans>Crafting Workbench</Trans>
+              </Label>
             </Dropdown.Item>
           ) : null}
           {(showFileOption || experiment || workbench) && hasMcpMenu ? <Separator /> : null}
@@ -464,7 +454,12 @@ export function ComposerAddMenu(props: {
                 <Dropdown.SubmenuIndicator />
               </Dropdown.Item>
               <Dropdown.Popover {...(overlayZoom.root ? { className: overlayZoom.root } : {})}>
-                <div className={withOverlayClass("flex flex-col bg-[var(--composer-surface)]", overlayZoom.content)}>
+                <div
+                  className={withOverlayClass(
+                    "flex flex-col bg-[var(--composer-surface)]",
+                    overlayZoom.content,
+                  )}
+                >
                   {readOnly ? (
                     // Session bindings are fixed at launch — render a static list
                     // (not menu items) so rows do not look or act clickable.

@@ -117,6 +117,7 @@ export async function performInitialThreadLaunch(input: {
         presentation,
         effectiveThread.config.effort,
         effectiveThread.config.fast,
+        effectiveThread.config.speedTier,
       );
   }
 
@@ -322,6 +323,8 @@ export interface CraftedSessionLaunchOptions {
    * CraftPlan runtime overrides so the Supervisor resolver honors it.
    */
   capabilityMode?: "auto" | "efficient" | "creative";
+  /** Fast-lane catalog id (e.g. "priority"/"ultrafast"), or "default" for an explicit opt-out. */
+  serviceTier?: string;
 }
 
 /** 缺省采用设置；已有且目标 CLI 支持的显式权限不被设置覆盖。 */
@@ -531,6 +534,16 @@ export async function startThreadFromDraft(
         await startThreadFromCraft(project, craftResult, input.prompt, {
           ...options,
           permissionConfig: permissionConfigSchema.parse(input.config),
+          ...(input.config.fast === true
+            ? {
+                serviceTier:
+                  input.config.speedTier && input.config.speedTier !== "fast"
+                    ? input.config.speedTier
+                    : "priority",
+              }
+            : input.config.fast === false
+              ? { serviceTier: "default" }
+              : {}),
           ...(accountId ? { accountId } : {}),
         });
         return;
@@ -1052,6 +1065,7 @@ export async function startThreadFromCraft(
       ...originalPlan.overrides,
       permissionConfig: permissionConfigSchema.parse(config),
       ...(options.capabilityMode ? { capabilityMode: options.capabilityMode } : {}),
+      ...(options.serviceTier ? { serviceTier: options.serviceTier } : {}),
     },
   };
   const agentKind = plan.runtimeBinding.harnessKind;
@@ -1228,6 +1242,19 @@ async function resumeCraftedThread(input: {
         permissionConfig:
           recoveredCraftPlan.overrides?.permissionConfig ??
           permissionConfigSchema.parse(input.thread.config),
+        // ThreadConfig is the user's latest Fast-lane choice; a persisted plan
+        // predating `speedTier` (or a mid-thread toggle) must not resurrect a
+        // stale tier on resume.
+        ...(input.thread.config.fast === true
+          ? {
+              serviceTier:
+                input.thread.config.speedTier && input.thread.config.speedTier !== "fast"
+                  ? input.thread.config.speedTier
+                  : "priority",
+            }
+          : input.thread.config.fast === false
+            ? { serviceTier: "default" }
+            : {}),
       },
     },
     projectLocation: input.projectLocation,

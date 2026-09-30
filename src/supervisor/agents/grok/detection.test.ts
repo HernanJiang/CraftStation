@@ -127,8 +127,34 @@ describe("Grok capability detection", () => {
     });
 
     expect(result?.models?.map((model) => model.id)).toEqual(["grok-4.7", "grok-4.6"]);
-    expect(result?.fastModels).toEqual(["grok-4.7"]);
+    expect(result?.fastModels).toEqual(["grok-4.7", "grok-4.6"]);
     expect(result?.fastModelVariants).toEqual({ "grok-4.7": "grok-4.7-build-fast" });
+  });
+
+  it("offers Fast on grok-N bases even when the catalog omits the variant row", async () => {
+    // Older CLIs (or a `session/new` model list that drops the sibling) never
+    // advertise `grok-X-build-fast` — the Fast lane is a fixed vendor
+    // convention, so the toggle must not disappear with the catalog row.
+    probeAcpCapabilitiesMock.mockResolvedValue({
+      models: [
+        { id: "grok-4.7", label: "Grok 4.7" },
+        { id: "grok-4.6", label: "Grok 4.6" },
+        { id: "grok-code-fast-1", label: "Grok Code Fast" },
+      ],
+    });
+
+    const result = await grokDetectionSpec.capabilitiesProbe?.({
+      location: { kind: "posix", path: "/repo" },
+      executablePath: "grok",
+    });
+
+    expect(result?.models?.map((model) => model.id)).toEqual([
+      "grok-4.7",
+      "grok-4.6",
+      "grok-code-fast-1",
+    ]);
+    expect(result?.fastModels).toEqual(["grok-4.7", "grok-4.6"]);
+    expect(result?.fastModelVariants).toBeUndefined();
   });
 
   it("forwards the login-shell environment to the ACP process", async () => {

@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Button, Dropdown, Input, Label, Modal, TextField } from "@heroui/react";
-import { Check, ChevronDown, Cpu, Gauge, Sparkles } from "lucide-react";
+import { Check, ChevronDown, Cpu, Gauge, Sparkles, Zap } from "lucide-react";
+import { MenuSwitch } from "@/renderer/components/common/MenuSwitch";
 import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
 import { overlayZoomClasses, withOverlayClass } from "@/renderer/components/common/overlayZoom";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
@@ -46,6 +47,12 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
   );
   const modelControl = props.controls.find((control) => control.kind === "provider-model");
   const effortControl = props.controls.find((control) => control.kind === "effort-context");
+  // The Fast toggle arrives as a generic toggle control; in menu mode it is a
+  // row with a switch, parallel to 模型列表 / 推理强度.
+  const fastControl = props.controls.find(
+    (control): control is Extract<ComposerControl, { kind: "toggle" }> =>
+      control.kind === "toggle" && control.iconKind === "fast",
+  );
   const selectedProvider = modelControl?.providers.find(
     (provider) =>
       provider.kind === modelControl.currentAgentKind &&
@@ -189,7 +196,16 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
         (identityRecipe ? recipeLaunchModelId(identityRecipe) : undefined) ?? currentModelLabel,
       )
     : undefined;
-  const label = [modelDisplayName, effortLabel].filter(Boolean).join(" · ");
+  const fastTierLabel = fastControl?.speedTiers?.find(
+    (tier) => tier.id === fastControl.speedTierValue,
+  )?.label;
+  const label = [
+    modelDisplayName,
+    effortLabel,
+    ...(fastControl?.isSelected ? [fastTierLabel ?? "Fast"] : []),
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const familyLabel = currentModelLabel
     ? COMPATIBILITY_FAMILY_LABELS[resolveCompatibilityFamily(currentModelLabel)]
     : undefined;
@@ -473,6 +489,106 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   </Dropdown.Menu>
                 </Dropdown.Popover>
               </Dropdown.SubmenuTrigger>
+            ) : null}
+
+            {fastControl ? (
+              fastControl.speedTiers && fastControl.speedTiers.length > 1 ? (
+                // 多速度档（Codex priority + ultrafast）：档位选择与开关合一,
+                // 与「推理强度」同构的子菜单，首项为关闭（标准档）。
+                <Dropdown.SubmenuTrigger>
+                  <Dropdown.Item
+                    id="fast"
+                    textValue={
+                      fastControl.disabledReason
+                        ? `快速模式 ${fastControl.disabledReason}`
+                        : "快速模式"
+                    }
+                    isDisabled={
+                      fastControl.isDisabled === true || Boolean(fastControl.disabledReason)
+                    }
+                  >
+                    <Zap
+                      className={`size-4 ${
+                        fastControl.isSelected ? "text-amber-300" : "text-muted"
+                      }`}
+                    />
+                    <Label>快速模式</Label>
+                    {fastControl.disabledReason ? (
+                      <span
+                        className="ml-auto max-w-44 truncate whitespace-nowrap text-[10px] text-muted"
+                        title={fastControl.disabledReason}
+                      >
+                        {fastControl.disabledReason}
+                      </span>
+                    ) : (
+                      <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
+                        {fastControl.isSelected ? (fastTierLabel ?? "Fast") : "关闭"}
+                      </span>
+                    )}
+                    <Dropdown.SubmenuIndicator />
+                  </Dropdown.Item>
+                  <Dropdown.Popover
+                    placement="left top"
+                    className={withOverlayClass(
+                      "craftstation-composer-menu-surface w-max min-w-[12rem] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-[14px]",
+                      overlayZoom.root,
+                    )}
+                  >
+                    <Dropdown.Menu
+                      aria-label="快速模式"
+                      onAction={(key) =>
+                        fastControl.onSpeedTierChange?.(
+                          String(key) === "__off__" ? undefined : String(key),
+                        )
+                      }
+                      {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
+                    >
+                      <Dropdown.Item id="__off__" textValue="标准">
+                        <Label>标准</Label>
+                        {!fastControl.isSelected ? (
+                          <Check className="ml-auto size-3.5 text-emerald-400" />
+                        ) : null}
+                      </Dropdown.Item>
+                      {fastControl.speedTiers.map((tier) => (
+                        <Dropdown.Item key={tier.id} id={tier.id} textValue={tier.label}>
+                          <Label>{tier.label}</Label>
+                          {fastControl.isSelected && fastControl.speedTierValue === tier.id ? (
+                            <Check className="ml-auto size-3.5 text-emerald-400" />
+                          ) : null}
+                        </Dropdown.Item>
+                      ))}
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown.SubmenuTrigger>
+              ) : (
+                <Dropdown.Item
+                  id="fast"
+                  textValue={
+                    fastControl.disabledReason
+                      ? `快速模式 ${fastControl.disabledReason}`
+                      : "快速模式"
+                  }
+                  isDisabled={
+                    fastControl.isDisabled === true || Boolean(fastControl.disabledReason)
+                  }
+                  onPress={() => fastControl.onChange?.(!fastControl.isSelected)}
+                >
+                  <Zap
+                    className={`size-4 ${fastControl.isSelected ? "text-amber-300" : "text-muted"}`}
+                  />
+                  <Label>快速模式</Label>
+                  {fastControl.disabledReason ? (
+                    <span
+                      className="ml-auto max-w-44 truncate whitespace-nowrap text-[10px] text-muted"
+                      title={fastControl.disabledReason}
+                    >
+                      {fastControl.disabledReason}
+                    </span>
+                  ) : (
+                    <MenuSwitch checked={fastControl.isSelected} />
+                  )}
+                </Dropdown.Item>
+              )
             ) : null}
           </Dropdown.Menu>
         </Dropdown.Popover>

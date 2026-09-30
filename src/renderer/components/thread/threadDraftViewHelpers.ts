@@ -93,6 +93,7 @@ export function resolveProviderModelPreference(
   return {
     ...(legacy.effort ? { effort: legacy.effort } : {}),
     ...(legacy.fast !== undefined ? { fast: legacy.fast } : {}),
+    ...(legacy.speedTier ? { speedTier: legacy.speedTier } : {}),
   };
 }
 
@@ -126,6 +127,7 @@ export function resolveSavedProviderDraftConfig(
     const projectConfig = { ...lastDraftConfig };
     delete projectConfig.effort;
     delete projectConfig.fast;
+    delete projectConfig.speedTier;
     const modelPreference = resolveProviderModelPreference(
       agentKind,
       lastDraftConfig.model,
@@ -142,6 +144,7 @@ export function resolveSavedProviderDraftConfig(
         : {}),
       ...(modelPreference?.effort !== undefined ? { effort: modelPreference.effort } : {}),
       ...(modelPreference?.fast !== undefined ? { fast: modelPreference.fast } : {}),
+      ...(modelPreference?.speedTier !== undefined ? { speedTier: modelPreference.speedTier } : {}),
     };
   }
 
@@ -156,6 +159,7 @@ export function resolveSavedProviderDraftConfig(
     ...providerConfig,
     ...(modelPreference?.effort !== undefined ? { effort: modelPreference.effort } : {}),
     ...(modelPreference?.fast !== undefined ? { fast: modelPreference.fast } : {}),
+    ...(modelPreference?.speedTier !== undefined ? { speedTier: modelPreference.speedTier } : {}),
   };
 }
 
@@ -195,6 +199,22 @@ export function resolveContextSizeValue(
 export function resolveFastValue(agent: AgentStatus, model: string, preferred?: boolean): boolean {
   if (!supportsUsableFastMode(agent.capabilities, model)) return false;
   return preferred === true;
+}
+
+/**
+ * Keep a saved speed-tier pick only when the model still advertises that lane
+ * (Codex `priority`/`ultrafast` are per-model). Models without tier data —
+ * including all variant-based fast lanes — always resolve to undefined so the
+ * wire sends the provider default rather than a stale id.
+ */
+export function resolveSpeedTierValue(
+  agent: Pick<AgentStatus, "capabilities">,
+  model: string,
+  preferred?: string,
+): string | undefined {
+  const tiers = agent.capabilities.modelFastTiers?.[model];
+  if (!preferred || !tiers?.length) return undefined;
+  return tiers.some((tier) => tier.id === preferred) ? preferred : undefined;
 }
 
 /**
@@ -313,6 +333,9 @@ export function resolveProviderDraftConfig(
   // only an explicitly saved `true` turns it on (Kimi HighSpeed spends ~3x
   // quota per request, so we never opt the user in silently).
   const nextFast = resolveFastValue(agent, nextModel, normalizedPreferred?.fast ?? false);
+  const nextSpeedTier = nextFast
+    ? resolveSpeedTierValue(agent, nextModel, normalizedPreferred?.speedTier)
+    : undefined;
   // Thinking starts enabled for every model that offers the toggle. An
   // explicitly saved `false` remains authoritative.
   const nextThinking = resolveThinkingValue(
@@ -335,6 +358,7 @@ export function resolveProviderDraftConfig(
     ...(nextEffort ? { effort: nextEffort } : {}),
     ...(nextContext ? { contextSize: nextContext } : {}),
     ...(supportsFast ? { fast: nextFast } : {}),
+    ...(nextSpeedTier ? { speedTier: nextSpeedTier } : {}),
     ...(supportsThinking ? { thinking: nextThinking } : {}),
     mode: nextMode,
     approvalPolicy: nextApproval,

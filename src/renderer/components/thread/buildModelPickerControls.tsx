@@ -35,6 +35,7 @@ import {
 } from "./threadDraftViewHelpers";
 import type { ProviderModelPreference } from "@/shared/settings";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { mergeCustomModelsIntoCapabilities } from "./customModelCatalog";
 import {
   channelInfoFromCustomModels,
   composerPickerAgentKind,
@@ -51,6 +52,7 @@ export type ModelPickerConfigPatch = {
   effort?: string | undefined;
   contextSize?: string;
   fast?: boolean;
+  speedTier?: string | undefined;
   thinking?: boolean;
 };
 
@@ -62,6 +64,7 @@ export type BuildModelPickerControlsInput = {
   effort?: string;
   contextSize?: string;
   fast?: boolean;
+  speedTier?: string;
   thinking?: boolean;
   capabilities: AgentCapability;
   presentationMode?: ThreadPresentationMode;
@@ -194,6 +197,7 @@ export function patchConfigForModelChange(
     effort?: string;
     contextSize?: string;
     fast?: boolean;
+    speedTier?: string;
     thinking?: boolean;
   },
 ): ModelPickerConfigPatch {
@@ -203,11 +207,17 @@ export function patchConfigForModelChange(
   // 切换模型不断上下文：能沿用就保持，否则按 token 语义映射到新模型最接近
   // 且不超过的档（默认 256K，超上限自动取模型最大档）。
   const nextContextSize = resolveKeptContextSize(capabilities, model, current.contextSize);
+  const nextFastTiers = capabilities.modelFastTiers?.[model];
+  const nextSpeedTier =
+    current.speedTier && nextFastTiers?.some((tier) => tier.id === current.speedTier)
+      ? current.speedTier
+      : undefined;
   return {
     model,
     effort,
     ...(nextContextSize ? { contextSize: nextContextSize } : {}),
     fast: supportsUsableFastMode(capabilities, model) ? (current.fast ?? false) : false,
+    speedTier: nextSpeedTier,
     thinking: capabilities.thinkingModels?.includes(model) ?? false,
   };
 }
@@ -235,6 +245,7 @@ export function buildModelPickerControls(input: BuildModelPickerControlsInput): 
     effort,
     contextSize,
     fast,
+    speedTier,
     thinking,
     capabilities: filteredCaps,
     presentationMode,
@@ -308,6 +319,7 @@ export function buildModelPickerControls(input: BuildModelPickerControlsInput): 
 
   if (supportsFast) {
     const fastDisabledReason = modelSelection.fast.disabledReason;
+    const speedTiers = modelSelection.fast.tiers;
     controls.push({
       kind: "toggle",
       label: "Fast",
@@ -319,6 +331,14 @@ export function buildModelPickerControls(input: BuildModelPickerControlsInput): 
       isSelected: fast === true,
       ...(isDisabled !== undefined ? { isDisabled } : {}),
       ...(fastDisabledReason ? { disabledReason: fastDisabledReason } : {}),
+      ...(speedTiers && speedTiers.length > 1
+        ? {
+            speedTiers,
+            ...(speedTier ? { speedTierValue: speedTier } : {}),
+            onSpeedTierChange: (tierId: string | undefined) =>
+              onConfigPatch(tierId ? { fast: true, speedTier: tierId } : { fast: false }),
+          }
+        : {}),
       onChange: (selected) => onConfigPatch({ fast: selected }),
     });
   }
@@ -434,7 +454,14 @@ export function buildControls(
     agentStatus.capabilities,
     presentationMode,
   );
-  const filteredCaps = filterHiddenModels(presentationCapabilities, hiddenModelIds, shownModelIds);
+  // Draft merge parity: custom models (管理模型) are appendable in a running
+  // thread too — and only this merge marks custom ids fast-capable
+  // (`fastModels` is detection-time data that predates the custom merge).
+  const filteredCaps = mergeCustomModelsIntoCapabilities(
+    pickerAgentKind,
+    filterHiddenModels(presentationCapabilities, hiddenModelIds, shownModelIds),
+    useSharedSettings.getState().customModels ?? [],
+  );
   const effectiveConfig = normalizeCursorComposerConfig(
     thread.agentKind,
     thread.config,
@@ -447,6 +474,7 @@ export function buildControls(
     onModelPreferenceChange?.(config.model, {
       ...(config.effort ? { effort: config.effort } : {}),
       ...(config.fast !== undefined ? { fast: config.fast } : {}),
+      ...(config.speedTier !== undefined ? { speedTier: config.speedTier } : {}),
     });
   };
   const currentProvider: ProviderModelMenuProvider = {
@@ -468,6 +496,7 @@ export function buildControls(
       ...(effectiveConfig.effort ? { effort: effectiveConfig.effort } : {}),
       ...(effectiveConfig.contextSize ? { contextSize: effectiveConfig.contextSize } : {}),
       ...(effectiveConfig.fast ? { fast: effectiveConfig.fast } : {}),
+      ...(effectiveConfig.speedTier ? { speedTier: effectiveConfig.speedTier } : {}),
       ...(effectiveConfig.thinking ? { thinking: effectiveConfig.thinking } : {}),
       capabilities: filteredCaps,
       ...(lockToCurrentAgent ? { lockedAgentKind: thread.agentKind } : {}),
@@ -485,6 +514,7 @@ export function buildControls(
             ...(preference?.effort !== undefined ? { effort: preference.effort } : {}),
             ...(effectiveConfig.contextSize ? { contextSize: effectiveConfig.contextSize } : {}),
             ...(preference?.fast !== undefined ? { fast: preference.fast } : {}),
+            ...(preference?.speedTier !== undefined ? { speedTier: preference.speedTier } : {}),
             ...(effectiveConfig.thinking ? { thinking: effectiveConfig.thinking } : {}),
           }),
         );

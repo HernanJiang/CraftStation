@@ -50,6 +50,8 @@ export const agentSelectionUsageEntrySchema = z.object({
   modelId: z.string().min(1),
   effort: z.string().optional(),
   fast: z.boolean().default(false),
+  /** Picked fast lane for service-tier providers (e.g. Codex "ultrafast"). */
+  speedTier: z.string().optional(),
   count: z.number().int().positive(),
   lastUsedAt: z.number().int().nonnegative(),
 });
@@ -58,6 +60,7 @@ export type AgentSelectionUsageEntry = z.infer<typeof agentSelectionUsageEntrySc
 export const providerModelPreferenceSchema = z.object({
   effort: z.string().optional(),
   fast: z.boolean().optional(),
+  speedTier: z.string().optional(),
 });
 export type ProviderModelPreference = z.infer<typeof providerModelPreferenceSchema>;
 

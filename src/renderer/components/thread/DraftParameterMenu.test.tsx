@@ -89,6 +89,20 @@ function makeModelControl(overrides?: {
   };
 }
 
+function makeFastControl(overrides?: {
+  isSelected?: boolean;
+  disabledReason?: string;
+}): ComposerControl {
+  return {
+    kind: "toggle",
+    label: "Fast",
+    iconKind: "fast",
+    isSelected: overrides?.isSelected ?? false,
+    ...(overrides?.disabledReason ? { disabledReason: overrides.disabledReason } : {}),
+    onChange: vi.fn<(selected: boolean) => void>(),
+  };
+}
+
 function makeControls(): ComposerControl[] {
   return [makeModelControl()];
 }
@@ -483,7 +497,7 @@ describe("DraftParameterMenu", () => {
         {
           id: "recipe:harness:opencode:agent:antigravity:gui:gemini-3.8-flash",
           version: "1.0.0",
-          systemName: "OpenCode Native Harness · Gemini 3.8 Flash",
+          systemName: "OpenCode Harness · Gemini 3.8 Flash",
           modelEntryRef: "agent:antigravity:gui:gemini-3.8-flash",
           harnessRef: "harness:opencode",
           homepageVisible: true,
@@ -496,7 +510,7 @@ describe("DraftParameterMenu", () => {
             providerLabel: "Antigravity",
           },
           lastKnownHarness: {
-            displayName: "OpenCode Native Harness",
+            displayName: "OpenCode Harness",
             harnessKind: "opencode",
           },
         },
@@ -537,9 +551,7 @@ describe("DraftParameterMenu", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: /OpenCode Native Harness · Gemini 3.8 Flash/ }),
-    );
+    fireEvent.click(screen.getByRole("menuitem", { name: /OpenCode Harness · Gemini 3.8 Flash/ }));
     expect(onChange).toHaveBeenCalledWith({
       agentKind: "opencode",
       model: "gemini-3.8-flash",
@@ -553,7 +565,7 @@ describe("DraftParameterMenu", () => {
         {
           id: "recipe:harness:opencode:agent:opencode:gui:gemini-3.8-flash",
           version: "1.0.0",
-          systemName: "OpenCode Native Harness · Gemini 3.8 Flash",
+          systemName: "OpenCode Harness · Gemini 3.8 Flash",
           modelEntryRef: "agent:opencode:gui:gemini-3.8-flash",
           harnessRef: "harness:opencode",
           homepageVisible: true,
@@ -566,7 +578,7 @@ describe("DraftParameterMenu", () => {
             providerLabel: "OpenCode",
           },
           lastKnownHarness: {
-            displayName: "OpenCode Native Harness",
+            displayName: "OpenCode Harness",
             harnessKind: "opencode",
           },
         },
@@ -589,9 +601,7 @@ describe("DraftParameterMenu", () => {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: /OpenCode Native Harness · Gemini 3.8 Flash/ }),
-    );
+    fireEvent.click(screen.getByRole("menuitem", { name: /OpenCode Harness · Gemini 3.8 Flash/ }));
 
     expect(control.kind === "provider-model" ? control.onChange : undefined).toHaveBeenCalledWith({
       agentKind: "opencode",
@@ -608,7 +618,7 @@ describe("DraftParameterMenu", () => {
         {
           id: "recipe:harness:opencode:agent:antigravity:gui:gemini-3.8-flash",
           version: "1.0.0",
-          systemName: "OpenCode Native Harness · Gemini 3.8 Flash",
+          systemName: "OpenCode Harness · Gemini 3.8 Flash",
           modelEntryRef: "agent:antigravity:gui:gemini-3.8-flash",
           harnessRef: "harness:opencode",
           homepageVisible: true,
@@ -621,7 +631,7 @@ describe("DraftParameterMenu", () => {
             providerLabel: "Antigravity",
           },
           lastKnownHarness: {
-            displayName: "OpenCode Native Harness",
+            displayName: "OpenCode Harness",
             harnessKind: "opencode",
           },
         },
@@ -642,11 +652,115 @@ describe("DraftParameterMenu", () => {
       />,
     );
 
-    expect(screen.getByTestId("auto-harness-name")).toHaveTextContent("OpenCode Native Harness");
+    expect(screen.getByTestId("auto-harness-name")).toHaveTextContent("OpenCode Harness");
     expect(screen.getByTestId("auto-harness-name")).not.toHaveTextContent("Antigravity");
     expect(screen.getByTestId("auto-model-name")).toHaveTextContent("Gemini 3.8 Flash");
     expect(screen.getByTestId("auto-harness-model").getAttribute("title")).toContain(
-      "Harness: OpenCode Native Harness",
+      "Harness: OpenCode Harness",
+    );
+  });
+
+  it("renders the Fast toggle as a 快速模式 switch row that flips on press", () => {
+    const fast = makeFastControl();
+    render(<DraftParameterMenu controls={[makeModelControl(), fast]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /ChatGPT-5.6-Sol/ }));
+    const row = screen.getByRole("menuitem", { name: "快速模式" });
+    fireEvent.click(row);
+
+    expect(fast.kind === "toggle" ? fast.onChange : undefined).toHaveBeenCalledWith(true);
+  });
+
+  it("appends · Fast to the capsule label while fast mode is on", () => {
+    render(
+      <DraftParameterMenu
+        controls={[
+          makeModelControl(),
+          makeEffortControl({ effortValue: "max" }),
+          makeFastControl({ isSelected: true }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("auto-model-name")).toHaveTextContent("ChatGPT-5.6-Sol · Max · Fast");
+  });
+
+  it("renders the gated Fast row inert with its reason instead of a switch", () => {
+    const fast = makeFastControl({ disabledReason: "该账号不支持快速模式" });
+    render(<DraftParameterMenu controls={[makeModelControl(), fast]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /ChatGPT-5.6-Sol/ }));
+    const row = screen.getByRole("menuitem", { name: /快速模式/ });
+    expect(row).toHaveAttribute("aria-disabled", "true");
+    expect(row).toHaveTextContent("该账号不支持快速模式");
+    fireEvent.click(row);
+
+    expect(fast.kind === "toggle" ? fast.onChange : undefined).not.toHaveBeenCalled();
+  });
+
+  it("offers a tier submenu when the model advertises multiple speed tiers", async () => {
+    vi.useFakeTimers();
+    const onSpeedTierChange = vi.fn<(tierId: string | undefined) => void>();
+    const fast: ComposerControl = {
+      kind: "toggle",
+      label: "Fast",
+      iconKind: "fast",
+      isSelected: true,
+      speedTiers: [
+        { id: "priority", label: "Fast" },
+        { id: "ultrafast", label: "Ultrafast" },
+      ],
+      speedTierValue: "ultrafast",
+      onChange: vi.fn<(selected: boolean) => void>(),
+      onSpeedTierChange,
+    };
+    render(<DraftParameterMenu controls={[makeModelControl(), fast]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /ChatGPT-5.6-Sol/ }));
+    const row = screen.getByRole("menuitem", { name: /快速模式/ });
+    expect(row).toHaveTextContent("Ultrafast");
+
+    fireEvent.click(row);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "Fast" }));
+    expect(onSpeedTierChange).toHaveBeenCalledWith("priority");
+
+    // Picking a tier closes the whole menu; reopen to exercise the off row.
+    fireEvent.click(screen.getByRole("button", { name: /ChatGPT-5.6-Sol/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /快速模式/ }));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(0);
+    });
+    fireEvent.click(screen.getByRole("menuitem", { name: "标准" }));
+    expect(onSpeedTierChange).toHaveBeenCalledWith(undefined);
+  });
+
+  it("shows the selected tier label on the capsule instead of a plain · Fast", () => {
+    render(
+      <DraftParameterMenu
+        controls={[
+          makeModelControl(),
+          makeEffortControl({ effortValue: "max" }),
+          {
+            kind: "toggle",
+            label: "Fast",
+            iconKind: "fast",
+            isSelected: true,
+            speedTiers: [
+              { id: "priority", label: "Fast" },
+              { id: "ultrafast", label: "Ultrafast" },
+            ],
+            speedTierValue: "ultrafast",
+            onChange: vi.fn<(selected: boolean) => void>(),
+          },
+        ]}
+      />,
+    );
+
+    expect(screen.getByTestId("auto-model-name")).toHaveTextContent(
+      "ChatGPT-5.6-Sol · Max · Ultrafast",
     );
   });
 });

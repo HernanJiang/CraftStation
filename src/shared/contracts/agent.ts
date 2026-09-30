@@ -177,6 +177,9 @@ const agentPresentationCapabilityOverrideSchema = z
     defaultContextSize: z.string().optional(),
     fastModels: z.array(z.string().min(1)).optional(),
     fastModelVariants: z.record(z.string(), z.string().min(1)).optional(),
+    modelFastTiers: z
+      .record(z.string(), z.array(z.object({ id: z.string().min(1), label: z.string().min(1) })))
+      .optional(),
     fastDisabledReason: z.string().optional(),
     thinkingModels: z.array(z.string().min(1)).optional(),
     modes: z.array(threadModeSchema),
@@ -270,6 +273,16 @@ export const agentCapabilitySchema = z.object({
    * to vendor naming heuristics, so real variant spellings are never guessed.
    */
   fastModelVariants: z.record(z.string(), z.string().min(1)).optional(),
+  /**
+   * Per-model selectable fast-lane tiers (e.g. Codex `serviceTiers` →
+   * `[{id:"priority",label:"Fast"},{id:"ultrafast",label:"Ultrafast"}]`).
+   * Only present for models whose fast mechanism is a request-level tier
+   * rather than a model-id variant; a >1 entry upgrades the composer Fast
+   * switch into a tier picker.
+   */
+  modelFastTiers: z
+    .record(z.string(), z.array(z.object({ id: z.string().min(1), label: z.string().min(1) })))
+    .optional(),
   /**
    * Set when a `fastModels` model technically supports fast mode but it is
    * unavailable for the authenticated account (e.g. disabled by the org). The

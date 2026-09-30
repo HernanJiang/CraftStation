@@ -207,7 +207,9 @@ export const nativeRuntimeExecutionConfigSchema = z.object({
   model: z.string().min(1),
   capabilityMode: z.enum(["auto", "efficient", "creative"]).optional(),
   reasoningEffort: z.enum(["low", "medium", "high"]).optional(),
-  serviceTier: z.enum(["default", "flex", "fast", "priority"]).optional(),
+  // Free-form like `runtimeOverridesSchema.serviceTier` — catalog tier ids
+  // must not be gated by a client-side enum.
+  serviceTier: z.string().min(1).optional(),
   approvalPolicy: z.enum(["always", "auto", "never", "on-demand"]).optional(),
   permissionConfig: permissionConfigSchema.optional(),
   permissionProfile: z.string().min(1).optional(),

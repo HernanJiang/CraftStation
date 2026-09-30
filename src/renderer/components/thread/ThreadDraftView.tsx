@@ -65,6 +65,7 @@ import {
   resolveProviderDraftConfig,
   resolveProviderModelPreference,
   resolveSavedProviderDraftConfig,
+  resolveSpeedTierValue,
   supportsUsableFastMode,
   resolveThinkingValue,
   withPreferredModel,
@@ -281,6 +282,7 @@ export function ThreadDraftView(props: {
     return useSharedSettings.getState().providerConfigs[preferredAgentKind]?.contextSize;
   });
   const [fast, setFast] = useState(false);
+  const [speedTier, setSpeedTier] = useState<string | undefined>(undefined);
   const [thinking, setThinking] = useState(false);
   const [mode, setMode] = useState<"agent" | "plan" | "autopilot">("agent");
   const [approvalPolicy, setApprovalPolicy] = useState("");
@@ -322,10 +324,31 @@ export function ThreadDraftView(props: {
         // 下拉里有模型却没有强度可以切（与 mergeCustomModelsIntoCapabilities 一致，内置同名优先）。
         const accountEfforts = collectCustomModelEfforts(accountModels);
         const baseCapabilities = presentationAgent.capabilities;
+        // 渠道后端只认「与模型无关」的请求级 fast（如 Codex service_tier——
+        // 目录内每个模型都 fast 且无变体映射时判定）；换模型 id 的变体机制
+        // （Kimi -highspeed / Grok -build-fast）对渠道条目一律剥掉，第三方
+        // 后端没有那个 id。
+        const catalogFast = baseCapabilities.fastModels ?? [];
+        const channelFastAllowed =
+          Object.keys(baseCapabilities.fastModelVariants ?? {}).length === 0 &&
+          baseCapabilities.models.length > 0 &&
+          baseCapabilities.models.every((entry) => catalogFast.includes(entry.id));
+        const accountModelIds = accountModels.map((entry) => entry.modelId);
         return {
           ...presentationAgent,
           capabilities: {
             ...baseCapabilities,
+            fastModels: channelFastAllowed ? accountModelIds : undefined,
+            fastModelVariants: undefined,
+            fastDisabledReason: undefined,
+            modelFastTiers:
+              channelFastAllowed && baseCapabilities.modelFastTiers
+                ? Object.fromEntries(
+                    Object.entries(baseCapabilities.modelFastTiers).filter(([id]) =>
+                      accountModelIds.includes(id),
+                    ),
+                  )
+                : undefined,
             models: accountModels.map((entry) => ({
               id: entry.modelId,
               label: entry.displayName,
@@ -413,6 +436,9 @@ export function ThreadDraftView(props: {
     const preference: ProviderModelPreference = {
       ...(config.effort ? { effort: config.effort } : {}),
       ...(config.fast !== undefined ? { fast: config.fast } : {}),
+      ...(config.fast === true && config.speedTier !== undefined
+        ? { speedTier: config.speedTier }
+        : {}),
     };
     providerModelPreferencesRef.current = {
       ...providerModelPreferencesRef.current,
@@ -510,6 +536,7 @@ export function ThreadDraftView(props: {
     const nextEffort = resolved.effort;
     const nextContext = resolved.contextSize;
     const nextFast = resolved.fast ?? false;
+    const nextSpeedTier = resolved.speedTier;
     const nextThinking = resolved.thinking ?? false;
     const nextMode = (resolved.mode ?? "agent") as "agent" | "plan" | "autopilot";
     const nextApproval = resolved.approvalPolicy ?? "";
@@ -520,6 +547,7 @@ export function ThreadDraftView(props: {
     setEffort(nextEffort);
     setContextSize(nextContext);
     setFast(nextFast);
+    setSpeedTier(nextSpeedTier);
     setThinking(nextThinking);
     setMode(nextMode);
     setApprovalPolicy(nextApproval);
@@ -539,6 +567,7 @@ export function ThreadDraftView(props: {
         effort: nextEffort,
         ...(nextContext ? { contextSize: nextContext } : {}),
         ...(resolved.fast !== undefined ? { fast: resolved.fast } : {}),
+        ...(resolved.speedTier !== undefined ? { speedTier: resolved.speedTier } : {}),
         ...(resolved.thinking !== undefined ? { thinking: resolved.thinking } : {}),
         mode: nextMode,
         approvalPolicy: nextApproval,
@@ -575,18 +604,23 @@ export function ThreadDraftView(props: {
     const nextEffort = resolveEffortValue(selectedAgentForConfig, nextModel, effort);
     const nextContext = resolveContextSizeValue(selectedAgentForConfig, nextModel, contextSize);
     const nextFast = resolveFastValue(selectedAgentForConfig, nextModel, fast);
+    const nextSpeedTier = nextFast
+      ? resolveSpeedTierValue(selectedAgentForConfig, nextModel, speedTier)
+      : undefined;
     const nextThinking = resolveThinkingValue(selectedAgentForConfig, nextModel, thinking);
     if (
       nextModel !== model ||
       nextEffort !== effort ||
       nextContext !== contextSize ||
       nextFast !== fast ||
+      nextSpeedTier !== speedTier ||
       nextThinking !== thinking
     ) {
       if (nextModel !== model) setModel(nextModel);
       if (nextEffort !== effort) setEffort(nextEffort);
       if (nextContext !== contextSize) setContextSize(nextContext);
       if (nextFast !== fast) setFast(nextFast);
+      if (nextSpeedTier !== speedTier) setSpeedTier(nextSpeedTier);
       if (nextThinking !== thinking) setThinking(nextThinking);
 
       // Persist the corrected values — same rule as the mount effect: never
@@ -602,6 +636,7 @@ export function ThreadDraftView(props: {
         effort: nextEffort,
         ...(nextContext ? { contextSize: nextContext } : {}),
         fast: nextFast,
+        ...(nextSpeedTier !== undefined ? { speedTier: nextSpeedTier } : {}),
         thinking: nextThinking,
       };
       persistProviderConfigRef.current(effectiveAgentKind, corrected);
@@ -611,6 +646,7 @@ export function ThreadDraftView(props: {
         effort: nextEffort,
         ...(nextContext ? { contextSize: nextContext } : {}),
         fast: nextFast,
+        ...(nextSpeedTier !== undefined ? { speedTier: nextSpeedTier } : {}),
         thinking: nextThinking,
         mode,
         approvalPolicy,
@@ -623,6 +659,7 @@ export function ThreadDraftView(props: {
     effort,
     contextSize,
     fast,
+    speedTier,
     thinking,
     model,
     selectedAgentForConfig,
@@ -661,6 +698,7 @@ export function ThreadDraftView(props: {
       ...(preference.effort !== undefined ? { effort: preference.effort } : {}),
       ...(contextSize ? { contextSize } : {}),
       ...(preference.fast !== undefined ? { fast: preference.fast } : {}),
+      ...(preference.speedTier !== undefined ? { speedTier: preference.speedTier } : {}),
       thinking,
       mode,
       approvalPolicy,
@@ -669,15 +707,18 @@ export function ThreadDraftView(props: {
     });
     const nextEffort = resolved.effort;
     const nextFast = resolved.fast ?? false;
-    if (nextEffort === effort && nextFast === fast) return;
+    const nextSpeedTier = resolved.speedTier;
+    if (nextEffort === effort && nextFast === fast && nextSpeedTier === speedTier) return;
 
     setEffort(nextEffort);
     setFast(nextFast);
+    setSpeedTier(nextSpeedTier);
     const corrected: ProviderDraftConfig = {
       model,
       effort: nextEffort,
       ...(contextSize ? { contextSize } : {}),
       ...(resolved.fast !== undefined ? { fast: resolved.fast } : {}),
+      ...(resolved.speedTier !== undefined ? { speedTier: resolved.speedTier } : {}),
       ...(resolved.thinking !== undefined ? { thinking: resolved.thinking } : {}),
       mode,
       approvalPolicy,
@@ -698,6 +739,7 @@ export function ThreadDraftView(props: {
     effort,
     contextSize,
     fast,
+    speedTier,
     thinking,
     mode,
     approvalPolicy,
@@ -778,6 +820,7 @@ export function ThreadDraftView(props: {
     const nextEffort = resolved.effort;
     const nextContext = resolved.contextSize;
     const nextFast = resolved.fast ?? false;
+    const nextSpeedTier = resolved.speedTier;
     const nextThinking = resolved.thinking ?? false;
     const nextMode = (resolved.mode ?? "agent") as "agent" | "plan" | "autopilot";
     const nextApproval = resolved.approvalPolicy ?? "";
@@ -789,6 +832,7 @@ export function ThreadDraftView(props: {
       nextEffort === effort &&
       nextContext === contextSize &&
       nextFast === fast &&
+      nextSpeedTier === speedTier &&
       nextThinking === thinking &&
       nextMode === mode &&
       nextApproval === approvalPolicy &&
@@ -802,6 +846,7 @@ export function ThreadDraftView(props: {
     setEffort(nextEffort);
     setContextSize(nextContext);
     setFast(nextFast);
+    setSpeedTier(nextSpeedTier);
     setThinking(nextThinking);
     setMode(nextMode);
     setApprovalPolicy(nextApproval);
@@ -815,6 +860,7 @@ export function ThreadDraftView(props: {
         providerConfig.effort !== nextEffort ||
         providerConfig.contextSize !== nextContext ||
         providerConfig.fast !== nextFast ||
+        providerConfig.speedTier !== nextSpeedTier ||
         providerConfig.thinking !== nextThinking ||
         providerConfig.mode !== nextMode ||
         providerConfig.approvalPolicy !== nextApproval ||
@@ -830,6 +876,7 @@ export function ThreadDraftView(props: {
       effort: nextEffort,
       ...(nextContext ? { contextSize: nextContext } : {}),
       ...(resolved.fast !== undefined ? { fast: resolved.fast } : {}),
+      ...(resolved.speedTier !== undefined ? { speedTier: resolved.speedTier } : {}),
       ...(resolved.thinking !== undefined ? { thinking: resolved.thinking } : {}),
       mode: nextMode,
       approvalPolicy: nextApproval,
@@ -847,6 +894,7 @@ export function ThreadDraftView(props: {
     effort,
     contextSize,
     fast,
+    speedTier,
     thinking,
     mode,
     approvalPolicy,
@@ -1047,6 +1095,7 @@ export function ThreadDraftView(props: {
     effort,
     ...(contextSize ? { contextSize } : {}),
     fast,
+    ...(speedTier !== undefined ? { speedTier } : {}),
     thinking,
     mode,
     approvalPolicy,
@@ -1091,6 +1140,11 @@ export function ThreadDraftView(props: {
         ? { contextSize: patch.contextSize }
         : { contextSize: current?.contextSize ?? contextSize }),
       ...(patch.fast !== undefined ? { fast: patch.fast } : { fast: current?.fast ?? fast }),
+      // Same contract as effort: explicit key (even undefined) re-resolves,
+      // omission keeps the current tier across unrelated patches.
+      ...("speedTier" in patch
+        ? { speedTier: patch.speedTier }
+        : { speedTier: current?.speedTier ?? speedTier }),
       ...(patch.thinking !== undefined
         ? { thinking: patch.thinking }
         : { thinking: current?.thinking ?? thinking }),
@@ -1105,6 +1159,7 @@ export function ThreadDraftView(props: {
     setEffort(resolved.effort);
     setContextSize(resolved.contextSize);
     setFast(resolved.fast ?? false);
+    setSpeedTier(resolved.speedTier);
     setThinking(resolved.thinking ?? false);
     setMode((resolved.mode ?? "agent") as "agent" | "plan" | "autopilot");
     setApprovalPolicy(resolved.approvalPolicy ?? "");
@@ -1124,6 +1179,7 @@ export function ThreadDraftView(props: {
         effort: resolved.effort,
         ...(resolved.contextSize ? { contextSize: resolved.contextSize } : {}),
         ...(resolved.fast !== undefined ? { fast: resolved.fast } : {}),
+        ...(resolved.speedTier !== undefined ? { speedTier: resolved.speedTier } : {}),
         ...(resolved.thinking !== undefined ? { thinking: resolved.thinking } : {}),
         mode: resolved.mode,
         approvalPolicy: resolved.approvalPolicy,
@@ -1184,6 +1240,7 @@ export function ThreadDraftView(props: {
           effort,
           ...(contextSize ? { contextSize } : {}),
           fast,
+          ...(speedTier !== undefined ? { speedTier } : {}),
           thinking,
           mode,
           approvalPolicy,
@@ -1202,6 +1259,7 @@ export function ThreadDraftView(props: {
       const targetBase = { ...targetSaved };
       delete targetBase.effort;
       delete targetBase.fast;
+      delete targetBase.speedTier;
       const resolved = resolveProviderDraftConfig(
         targetAgentForConfig,
         {
@@ -1209,6 +1267,9 @@ export function ThreadDraftView(props: {
           model: nextModel,
           ...(targetPreference?.effort !== undefined ? { effort: targetPreference.effort } : {}),
           ...(targetPreference?.fast !== undefined ? { fast: targetPreference.fast } : {}),
+          ...(targetPreference?.speedTier !== undefined
+            ? { speedTier: targetPreference.speedTier }
+            : {}),
         },
         defaultPermissionMode,
       );
@@ -1219,6 +1280,7 @@ export function ThreadDraftView(props: {
       setEffort(resolved.effort);
       setContextSize(resolved.contextSize);
       setFast(resolved.fast ?? false);
+      setSpeedTier(resolved.speedTier);
       setThinking(resolved.thinking ?? false);
       setMode((resolved.mode ?? "agent") as "agent" | "plan" | "autopilot");
       setApprovalPolicy(resolved.approvalPolicy ?? "");
@@ -1232,6 +1294,7 @@ export function ThreadDraftView(props: {
         effort: resolved.effort,
         ...(resolved.contextSize ? { contextSize: resolved.contextSize } : {}),
         ...(resolved.fast !== undefined ? { fast: resolved.fast } : {}),
+        ...(resolved.speedTier !== undefined ? { speedTier: resolved.speedTier } : {}),
         ...(resolved.thinking !== undefined ? { thinking: resolved.thinking } : {}),
         mode: resolved.mode,
         approvalPolicy: resolved.approvalPolicy,
@@ -1260,6 +1323,9 @@ export function ThreadDraftView(props: {
         ...(modelPreference?.effort !== undefined ? { effort: modelPreference.effort } : {}),
         ...(contextSize ? { contextSize } : {}),
         ...(modelPreference?.fast !== undefined ? { fast: modelPreference.fast } : {}),
+        ...(modelPreference?.speedTier !== undefined
+          ? { speedTier: modelPreference.speedTier }
+          : {}),
       });
       const resolved = resolveProviderDraftConfig(
         { ...selectedAgentForConfig, capabilities: targetCapabilities },
@@ -1273,6 +1339,7 @@ export function ThreadDraftView(props: {
       setEffort(resolved.effort);
       setContextSize(resolved.contextSize);
       setFast(resolved.fast ?? false);
+      setSpeedTier(resolved.speedTier);
       setThinking(resolved.thinking ?? false);
       setMode((resolved.mode ?? "agent") as "agent" | "plan" | "autopilot");
       setApprovalPolicy(resolved.approvalPolicy ?? "");
@@ -1291,6 +1358,7 @@ export function ThreadDraftView(props: {
           effort: resolved.effort,
           ...(resolved.contextSize ? { contextSize: resolved.contextSize } : {}),
           ...(resolved.fast !== undefined ? { fast: resolved.fast } : {}),
+          ...(resolved.speedTier !== undefined ? { speedTier: resolved.speedTier } : {}),
           ...(resolved.thinking !== undefined ? { thinking: resolved.thinking } : {}),
           mode: resolved.mode,
           approvalPolicy: resolved.approvalPolicy,
@@ -1313,6 +1381,7 @@ export function ThreadDraftView(props: {
       ...(effort ? { effort } : {}),
       ...(contextSize ? { contextSize } : {}),
       fast,
+      ...(speedTier !== undefined ? { speedTier } : {}),
       thinking,
       capabilities: filteredCaps,
       presentationMode,
@@ -1328,6 +1397,7 @@ export function ThreadDraftView(props: {
     effort,
     contextSize,
     fast,
+    speedTier,
     thinking,
     presentationMode,
     selectedAccountId,
@@ -1344,6 +1414,7 @@ export function ThreadDraftView(props: {
         effort,
         ...(contextSize ? { contextSize } : {}),
         ...(fast ? { fast } : {}),
+        ...(speedTier !== undefined ? { speedTier } : {}),
         ...(thinking ? { thinking } : {}),
         mode,
         approvalPolicy,
@@ -1362,6 +1433,7 @@ export function ThreadDraftView(props: {
     effort,
     contextSize,
     fast,
+    speedTier,
     thinking,
     mode,
     approvalPolicy,

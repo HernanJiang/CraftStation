@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { fastVariantModelId, splitFastModelVariants } from "./fastModelVariants";
+import {
+  fastVariantModelId,
+  splitFastModelVariants,
+  vendorConventionFastBases,
+} from "./fastModelVariants";
 
 describe("splitFastModelVariants", () => {
   it("folds -fast variants into their advertised base model", () => {
@@ -75,5 +79,39 @@ describe("fastVariantModelId", () => {
     expect(fastVariantModelId("k3")).toBeNull();
     expect(fastVariantModelId("kimi-code/k3-256k")).toBeNull();
     expect(fastVariantModelId("claude-opus-4.6")).toBeNull();
+  });
+});
+
+describe("vendorConventionFastBases", () => {
+  it("offers fast on every grok-N base even without an advertised variant row", () => {
+    expect(vendorConventionFastBases("grok", ["grok-4.7", "grok-4.6", "grok-code-fast-1"])).toEqual(
+      ["grok-4.7", "grok-4.6"],
+    );
+  });
+
+  it("does not return variant-shaped ids as bases", () => {
+    expect(vendorConventionFastBases("grok", ["grok-4.7-build-fast"])).toEqual([]);
+  });
+
+  it("marks kimi-for-coding with or without the catalog prefix", () => {
+    expect(
+      vendorConventionFastBases("kimi", [
+        "kimi-code/k3-256k",
+        "kimi-code/kimi-for-coding",
+        "kimi-for-coding",
+      ]),
+    ).toEqual(["kimi-code/kimi-for-coding", "kimi-for-coding"]);
+  });
+
+  it("excludes the advertised -highspeed sibling and unknown kimi models", () => {
+    expect(
+      vendorConventionFastBases("kimi", ["kimi-code/kimi-for-coding-highspeed", "kimi-code/k3"]),
+    ).toEqual([]);
+  });
+
+  it("is inert for vendors without a fixed fast-lane convention", () => {
+    expect(vendorConventionFastBases("codex", ["gpt-5.5"])).toEqual([]);
+    expect(vendorConventionFastBases("claude", ["claude-opus-4.6"])).toEqual([]);
+    expect(vendorConventionFastBases("grok", [])).toEqual([]);
   });
 });

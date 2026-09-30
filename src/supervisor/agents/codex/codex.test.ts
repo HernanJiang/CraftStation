@@ -1723,7 +1723,7 @@ describe("CodexStructuredSession", () => {
     });
   });
 
-  it("forces serviceTier each turn: null when Fast is off (incl. the first turn), 'fast' when on", async () => {
+  it("forces serviceTier each turn: null when Fast is off (incl. the first turn), catalog tier id when on", async () => {
     const requests: Array<{ method: string; params: Record<string, unknown> }> = [];
     const structuredSession = makeStructuredSession(requests);
 
@@ -1732,13 +1732,22 @@ describe("CodexStructuredSession", () => {
     expect(requests[0]?.method).toBe("turn/start");
     expect(requests[0]?.params?.serviceTier).toBeNull();
 
-    // On → force "fast".
+    // On with no explicit tier → the "priority" catalog id (upstream matches
+    // tier ids strictly; the legacy "fast" alias falls back to default).
     await structuredSession.startTurn("go fast", { model: "gpt-5.4", fast: true });
-    expect(requests[1]?.params?.serviceTier).toBe("fast");
+    expect(requests[1]?.params?.serviceTier).toBe("priority");
+
+    // An explicit tier id (e.g. Ultrafast) passes through untouched.
+    await structuredSession.startTurn("go ultrafast", {
+      model: "gpt-5.4",
+      fast: true,
+      speedTier: "ultrafast",
+    });
+    expect(requests[2]?.params?.serviceTier).toBe("ultrafast");
 
     // Back off → force null again to clear the sticky server-side override.
     await structuredSession.startTurn("back to normal", { model: "gpt-5.4", fast: false });
-    expect(requests[2]?.params?.serviceTier).toBeNull();
+    expect(requests[3]?.params?.serviceTier).toBeNull();
   });
 
   it("falls back to the last working model when turn/start rejects the model as unsupported", async () => {
@@ -3789,7 +3798,7 @@ describe("mapCodexModels", () => {
     expect(catalog).toEqual({ models: [{ slug: "gpt-6-sol" }] });
   });
 
-  it("promotes GPT-5.5 to the Codex default model when available", () => {
+  it("promotes GPT-6.1 Sol to the Codex default model when available", () => {
     expect(
       mapCodexModels([
         {
@@ -3805,9 +3814,9 @@ describe("mapCodexModels", () => {
           ],
         },
         {
-          id: "gpt-5.5",
-          model: "gpt-5.5",
-          displayName: "gpt-5.5",
+          id: "gpt-6.1-sol",
+          model: "gpt-6.1-sol",
+          displayName: "gpt-6.1-sol",
           hidden: false,
           isDefault: false,
           defaultReasoningEffort: "medium",
@@ -3819,10 +3828,49 @@ describe("mapCodexModels", () => {
       ]),
     ).toMatchObject({
       models: [
-        { id: "gpt-5.5", label: "5.5" },
+        { id: "gpt-6.1-sol", label: "6.1 Sol" },
         { id: "gpt-5.4", label: "5.4" },
       ],
       defaultEffort: "high",
+    });
+  });
+
+  it("maps serviceTiers into per-model Fast tier lanes (Fast + Ultrafast)", () => {
+    expect(
+      mapCodexModels([
+        {
+          id: "gpt-5.6-sol",
+          model: "gpt-5.6-sol",
+          displayName: "GPT-5.6 Sol",
+          hidden: false,
+          isDefault: true,
+          defaultReasoningEffort: "medium",
+          supportedReasoningEfforts: [{ reasoningEffort: "medium", description: "Medium" }],
+          serviceTiers: [
+            { id: "priority", name: "Fast", description: "Faster responses" },
+            { id: "ultrafast", name: "Ultrafast", description: "Fastest lane" },
+          ],
+        },
+        {
+          id: "gpt-5.4",
+          model: "gpt-5.4",
+          displayName: "gpt-5.4",
+          hidden: false,
+          isDefault: false,
+          defaultReasoningEffort: "medium",
+          supportedReasoningEfforts: [{ reasoningEffort: "medium", description: "Medium" }],
+          serviceTiers: [{ id: "priority", name: "Fast", description: "Faster responses" }],
+        },
+      ]),
+    ).toMatchObject({
+      fastModels: ["gpt-5.6-sol", "gpt-5.4"],
+      modelFastTiers: {
+        "gpt-5.6-sol": [
+          { id: "priority", label: "Fast" },
+          { id: "ultrafast", label: "Ultrafast" },
+        ],
+        "gpt-5.4": [{ id: "priority", label: "Fast" }],
+      },
     });
   });
 

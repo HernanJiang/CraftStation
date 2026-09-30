@@ -6,6 +6,13 @@ const threadConfigShape = {
   effort: z.string().optional(),
   contextSize: z.string().optional(),
   fast: z.boolean().optional(),
+  /**
+   * Selected fast-lane tier id when the model advertises more than one
+   * (`capabilities.modelFastTiers`, e.g. Codex `priority` / `ultrafast`).
+   * Only meaningful while `fast` is true; persisted so re-enabling Fast keeps
+   * the user's lane.
+   */
+  speedTier: z.string().optional(),
   thinking: z.boolean().optional(),
   mode: threadModeSchema.optional(),
   approvalPolicy: z.string().optional(),
@@ -76,6 +83,7 @@ export function isThreadConfigEqual(
     left.effort === right.effort &&
     left.contextSize === right.contextSize &&
     left.fast === right.fast &&
+    left.speedTier === right.speedTier &&
     left.thinking === right.thinking &&
     left.mode === right.mode &&
     left.approvalPolicy === right.approvalPolicy &&

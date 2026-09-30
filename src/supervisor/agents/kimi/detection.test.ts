@@ -350,6 +350,23 @@ describe("buildKimiProbeCapabilities", () => {
     expect(buildKimiProbeCapabilities(undefined, noCredentials).models).toBeUndefined();
   });
 
+  it("offers Fast on kimi-for-coding even when the catalog omits -highspeed", () => {
+    // The HighSpeed sibling id is a fixed vendor convention — a probed list
+    // that drops the variant row must not hide the toggle.
+    const capabilities = buildKimiProbeCapabilities(
+      {
+        models: [
+          { id: "kimi-code/k3", label: "Kimi K3" },
+          { id: "kimi-code/kimi-for-coding", label: "Kimi For Coding" },
+        ],
+      },
+      noCredentials,
+    );
+    expect(capabilities.models).toHaveLength(2);
+    expect(capabilities.fastModels).toEqual(["kimi-code/kimi-for-coding"]);
+    expect(capabilities.fastModelVariants).toBeUndefined();
+  });
+
   it("lets a size-suffixed model id win over the probed family window", () => {
     // The probe reports the K3 family window (1M) for every K3 variant; the
     // `-256k` suffix in the variant id is the actual product contract.

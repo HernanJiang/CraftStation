@@ -183,6 +183,7 @@ export function incrementAgentSelectionUsage(
     modelId: string;
     effort?: string;
     fast: boolean;
+    speedTier?: string;
   }[],
   now = Date.now(),
 ): AgentSelectionUsageEntry[] {
@@ -193,7 +194,8 @@ export function incrementAgentSelectionUsage(
         entry.agentKind === selection.agentKind &&
         entry.modelId === selection.modelId &&
         entry.effort === selection.effort &&
-        entry.fast === selection.fast,
+        entry.fast === selection.fast &&
+        entry.speedTier === selection.speedTier,
     );
     const updated: AgentSelectionUsageEntry = {
       ...selection,
@@ -839,19 +841,18 @@ export function rankCrossagentCandidates(
     .toSorted(
       (left, right) => compareRankedScores(left, right) || left.builtInIndex - right.builtInIndex,
     );
-  return applyOwnSubagentsRouteOrder(scored, preferences.routeOrder)
-    .map(
-      (
-        {
-          bucket: _bucket,
-          recency: _recency,
-          tagScore: _tagScore,
-          builtInIndex: _builtInIndex,
-          ...entry
-        },
-        index,
-      ) => ({ ...entry, rank: index + 1 }),
-    );
+  return applyOwnSubagentsRouteOrder(scored, preferences.routeOrder).map(
+    (
+      {
+        bucket: _bucket,
+        recency: _recency,
+        tagScore: _tagScore,
+        builtInIndex: _builtInIndex,
+        ...entry
+      },
+      index,
+    ) => ({ ...entry, rank: index + 1 }),
+  );
 }
 
 /**
@@ -861,9 +862,10 @@ export function rankCrossagentCandidates(
  * is skipped here — selection consults it separately. An empty order keeps
  * learned ranking untouched.
  */
-export function applyOwnSubagentsRouteOrder<
-  T extends { provider: string },
->(entries: readonly T[], routeOrder: readonly string[] | undefined): T[] {
+export function applyOwnSubagentsRouteOrder<T extends { provider: string }>(
+  entries: readonly T[],
+  routeOrder: readonly string[] | undefined,
+): T[] {
   if (!routeOrder || routeOrder.length === 0) return [...entries];
   const position = new Map<string, number>();
   for (const raw of routeOrder) {

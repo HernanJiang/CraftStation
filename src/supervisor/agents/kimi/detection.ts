@@ -7,7 +7,7 @@ import type {
   AuthState,
   ProjectLocation,
 } from "@/shared/contracts";
-import { splitFastModelVariants } from "@/shared/fastModelVariants";
+import { splitFastModelVariants, vendorConventionFastBases } from "@/shared/fastModelVariants";
 import { probeAcpCapabilities, type AcpProbeResult } from "../acp";
 import {
   batchWslCommandsAsync,
@@ -174,19 +174,24 @@ export function buildKimiProbeCapabilities(
   // Kimi's HighSpeed tier is a separate advertised model id
   // (`kimi-code/kimi-for-coding-highspeed`). Fold it into the base row's Fast
   // toggle instead of listing it twice — `config.fast` rewrites the wire id
-  // back to the variant on apply.
+  // back to the variant on apply. The `-highspeed` spelling is a fixed vendor
+  // convention, so `kimi-for-coding` offers the toggle even when the probed
+  // catalog omits the sibling row.
   const probedModelIds = (probe?.models ?? []).map((model) => model.id);
   const fastCaps = splitFastModelVariants(probedModelIds);
   const models =
     fastCaps.fastModels.length > 0
       ? (probe?.models ?? []).filter((model) => fastCaps.models.includes(model.id))
       : probe?.models;
+  const fastModels = [
+    ...new Set([...fastCaps.fastModels, ...vendorConventionFastBases("kimi", probedModelIds)]),
+  ];
 
   return {
     // 0.33.0 carries no model list on `initialize`; models arrive on
     // `session/new` configOptions, which the shared probe already maps.
     ...(models?.length ? { models } : {}),
-    ...(fastCaps.fastModels.length > 0 ? { fastModels: fastCaps.fastModels } : {}),
+    ...(fastModels.length > 0 ? { fastModels } : {}),
     ...(Object.keys(fastCaps.fastVariantByBase).length > 0
       ? { fastModelVariants: fastCaps.fastVariantByBase }
       : {}),

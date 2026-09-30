@@ -237,6 +237,7 @@ export function probeResultToCapabilityPartial(probe: CodexProbeResult): Partial
     // tier can opt into Fast — the probe filters these from per-model tier data
     // (with a legacy fallback to all models when the CLI omits the fields).
     ...(probe.fastModels?.length ? { fastModels: probe.fastModels } : {}),
+    ...(probe.modelFastTiers ? { modelFastTiers: probe.modelFastTiers } : {}),
   };
 }
 

@@ -231,7 +231,19 @@ export const useAgentStatusesStore = create<AgentStatusesStore>()(
     }),
     {
       name: "craftstation-agent-statuses-v1",
-      version: 14,
+      version: 17,
+      // v17 invalidates cached capabilities that predate per-model service
+      // tiers (supervisor STATUS_CACHE_VERSION 21): `modelFastTiers` drives
+      // the Fast/Ultrafast tier picker, and a stale cache would keep the
+      // extra tiers hidden.
+      // v16 invalidates cached Grok/Kimi capabilities that predate the
+      // vendor-convention fast fallback (supervisor STATUS_CACHE_VERSION 20):
+      // `grok-\d` / `kimi-for-coding` bases now advertise `fastModels` even
+      // when the probed catalog omitted the variant row, and a stale cache
+      // would keep the Fast switch hidden.
+      // v15 invalidates cached Grok/Kimi capabilities that predate fast-tier
+      // variant folding (`fastModels` / `fastModelVariants`) so a stale probe
+      // cannot hide the Fast toggle.
       // v14 invalidates cached Devin catalogs that lacked defaultHiddenModels
       // (ACP reports dozens of Claude/Gemini variants; only the curated default
       // belongs in the homepage picker until the user checks more in 管理模型).

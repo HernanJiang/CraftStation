@@ -73,6 +73,14 @@ export type ComposerControl =
        * hoverable rather than natively `disabled` so the tooltip still shows.
        */
       disabledReason?: string;
+      /**
+       * Selectable fast lanes when the model advertises >1 service tier
+       * (Codex `priority` + `ultrafast`). Menu surfaces render a tier picker
+       * instead of a bare switch; `onSpeedTierChange` receives the tier id.
+       */
+      speedTiers?: readonly { id: string; label: string }[];
+      speedTierValue?: string;
+      onSpeedTierChange?: (tierId: string | undefined) => void;
       iconOnly?: boolean;
       fillIconOnSelect?: boolean;
       isCurrentState?: boolean;
@@ -711,8 +719,14 @@ export function ThreadComposer(props: {
         ? `craftstation-composer-label-hideable${hideLabel ? " is-hidden" : ""}`
         : undefined;
       // `label` is the stable English logic key; `displayLabel` (when present)
-      // is the localized text actually shown to the user.
-      const toggleLabel = control.displayLabel ? t(control.displayLabel) : control.label;
+      // is the localized text actually shown to the user. For multi-lane fast
+      // toggles the pill names the picked lane ("Ultrafast"), not the group.
+      const selectedTierLabel =
+        control.isSelected && control.speedTiers
+          ? control.speedTiers.find((tier) => tier.id === control.speedTierValue)?.label
+          : undefined;
+      const toggleLabel =
+        selectedTierLabel ?? (control.displayLabel ? t(control.displayLabel) : control.label);
       // A `disabledReason` toggle stays hoverable (not natively `disabled`) so
       // its explanatory tooltip still fires; it's dimmed and click is a no-op.
       const gated = Boolean(control.disabledReason);

@@ -26,10 +26,21 @@ import {
 } from "@/supervisor/agents/base";
 
 function configForPlan(plan: CraftPlan): ThreadConfig {
+  const serviceTier = plan.overrides?.serviceTier;
   return {
     model: plan.overrides?.model ?? plan.runtimeBinding.modelId,
     ...(plan.overrides?.reasoningEffort ? { effort: plan.overrides.reasoningEffort } : {}),
     ...(plan.overrides?.approvalPolicy ? { approvalPolicy: plan.overrides.approvalPolicy } : {}),
+    // Same Fast-lane mapping as the structured adapter — argv builders read
+    // `config.fast`/`config.speedTier`, not the crafting-side `serviceTier`.
+    ...(serviceTier && serviceTier !== "default"
+      ? {
+          fast: true,
+          speedTier: serviceTier === "fast" ? "priority" : serviceTier,
+        }
+      : serviceTier === "default"
+        ? { fast: false }
+        : {}),
     ...plan.overrides?.permissionConfig,
   };
 }

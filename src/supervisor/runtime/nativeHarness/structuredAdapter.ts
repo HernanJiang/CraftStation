@@ -36,12 +36,23 @@ function configForPlan(plan: CraftPlan, defaultApprovalPolicy?: string): ThreadC
   const runtime = nativeRuntimeExecutionConfigForPlan(plan);
   const approvalPolicy =
     overrides?.approvalPolicy ?? runtime.approvalPolicy ?? defaultApprovalPolicy;
+  const serviceTier = overrides?.serviceTier ?? runtime.serviceTier;
   return {
     model: overrides?.model ?? plan.runtimeBinding.modelId,
     ...((overrides?.reasoningEffort ?? runtime.reasoningEffort)
       ? { effort: overrides?.reasoningEffort ?? runtime.reasoningEffort }
       : {}),
     ...(approvalPolicy ? { approvalPolicy } : {}),
+    // `serviceTier` is the crafting-side spelling of the Fast lanes; map it
+    // onto the generic config fields the agent adapters consume.
+    ...(serviceTier && serviceTier !== "default"
+      ? {
+          fast: true,
+          speedTier: serviceTier === "fast" ? "priority" : serviceTier,
+        }
+      : serviceTier === "default"
+        ? { fast: false }
+        : {}),
     ...runtime.permissionConfig,
   };
 }
@@ -318,10 +329,19 @@ class StructuredNativeCraftSession implements CraftSession {
     };
     command.signal?.addEventListener("abort", onAbort, { once: true });
     try {
+      const overrideServiceTier = command.overrides?.serviceTier;
       Object.assign(this.config, {
         ...(command.overrides?.model ? { model: command.overrides.model } : {}),
         ...(command.overrides?.reasoningEffort
           ? { effort: command.overrides.reasoningEffort }
+          : {}),
+        ...(overrideServiceTier
+          ? overrideServiceTier === "default"
+            ? { fast: false, speedTier: undefined }
+            : {
+                fast: true,
+                speedTier: overrideServiceTier === "fast" ? "priority" : overrideServiceTier,
+              }
           : {}),
         ...(command.overrides?.approvalPolicy
           ? { approvalPolicy: command.overrides.approvalPolicy }

@@ -17,6 +17,12 @@ export interface AgentModelSelection {
     supported: boolean;
     available: boolean;
     disabledReason?: string;
+    /**
+     * Selectable fast lanes for this model (e.g. Codex `[Fast, Ultrafast]`).
+     * Only present when the provider advertises request-level service tiers;
+     * variant-based fast (Kimi/Grok model-id rewrite) has no tiers.
+     */
+    tiers?: Array<{ id: string; label: string }>;
   };
 }
 
@@ -125,6 +131,9 @@ export function capabilitiesForPresentation(
     modelContextSizes: _modelContextSizes,
     defaultContextSize: _defaultContextSize,
     fastModels: _fastModels,
+    fastModelVariants: _fastModelVariants,
+    fastDisabledReason: _fastDisabledReason,
+    modelFastTiers: _modelFastTiers,
     thinkingModels: _thinkingModels,
     subProviders: _subProviders,
     modelSubProvider: _modelSubProvider,
@@ -285,6 +294,7 @@ export function modelSelectionFor(
         ? capabilities.defaultEffort
         : highTier);
   const fastSupported = capabilities.fastModels?.includes(model) === true;
+  const fastTiers = capabilities.modelFastTiers?.[model];
   return {
     reasoning: {
       values: reasoningValues,
@@ -296,6 +306,7 @@ export function modelSelectionFor(
       ...(fastSupported && capabilities.fastDisabledReason
         ? { disabledReason: capabilities.fastDisabledReason }
         : {}),
+      ...(fastSupported && fastTiers && fastTiers.length > 0 ? { tiers: fastTiers } : {}),
     },
   };
 }
@@ -501,12 +512,22 @@ export function adaptThreadConfigForCapabilities(
     config.fast === true && capabilities.fastModels?.includes(config.model) === true
       ? true
       : undefined;
+  // The chosen lane is per-model too: a `speedTier` picked for one catalog
+  // (e.g. Codex `ultrafast`) must not leak onto a model that never advertised
+  // it, or the wire would send an unknown service_tier.
+  const speedTier =
+    fast === true &&
+    config.speedTier &&
+    (capabilities.modelFastTiers?.[config.model] ?? []).some((tier) => tier.id === config.speedTier)
+      ? config.speedTier
+      : undefined;
   const {
     approvalPolicy: _approvalPolicy,
     sandboxMode: _sandboxMode,
     effort: _effort,
     mode: _mode,
     fast: _fast,
+    speedTier: _speedTier,
     ...rest
   } = config;
 
@@ -517,6 +538,7 @@ export function adaptThreadConfigForCapabilities(
     ...(mode ? { mode } : {}),
     ...(effort ? { effort } : {}),
     ...(fast ? { fast } : {}),
+    ...(speedTier ? { speedTier } : {}),
   };
 }
 

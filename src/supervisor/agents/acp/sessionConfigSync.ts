@@ -184,7 +184,11 @@ export class AcpSessionConfigSync {
       }
     }
 
-    const modelConfig = resolveModelConfigValue(nextConfig, this.currentConfigOptions);
+    const modelConfig = resolveModelConfigValue(
+      nextConfig,
+      this.currentConfigOptions,
+      this.options.fastVariantByBase,
+    );
     // `fast` toggles the wire model id itself (variant suffix / service tier
     // selection), so a same-model fast flip must re-drive model application.
     const modelSelectionChanged =

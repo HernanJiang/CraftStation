@@ -109,7 +109,14 @@ export type CompositionProvenance = z.infer<typeof compositionProvenanceSchema>;
 export const reasoningEffortSchema = z.enum(["low", "medium", "high"]);
 export type ReasoningEffort = z.infer<typeof reasoningEffortSchema>;
 
-export const serviceTierSchema = z.enum(["default", "flex", "fast", "priority"]);
+/**
+ * Provider-reported service-tier ids are catalog data, not a fixed enum —
+ * Codex already ships `priority`/`ultrafast` and can add new lanes without a
+ * client update. Keep the id free-form; `"default"` remains the request
+ * sentinel for explicit standard routing and `"fast"` the legacy alias
+ * normalized to `priority` at the wire boundary.
+ */
+export const serviceTierSchema = z.string().min(1);
 export type ServiceTier = z.infer<typeof serviceTierSchema>;
 
 export const approvalPolicySchema = z.enum(["always", "auto", "never", "on-demand"]);

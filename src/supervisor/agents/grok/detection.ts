@@ -7,7 +7,7 @@ import {
   type AgentProviderMetadata,
   type ProjectLocation,
 } from "@/shared/contracts";
-import { splitFastModelVariants } from "@/shared/fastModelVariants";
+import { splitFastModelVariants, vendorConventionFastBases } from "@/shared/fastModelVariants";
 import { dedupeAcpAuthMethods, probeAcpCapabilities } from "../acp";
 import {
   batchWslCommandsAsync,
@@ -148,11 +148,18 @@ async function probeCapabilities(
     fastCaps.fastModels.length > 0
       ? (probe?.models ?? []).filter((model) => fastCaps.models.includes(model.id))
       : probe?.models;
+  // The `grok-X-build-fast` sibling id is a fixed vendor convention, so every
+  // `grok-\d` base offers the Fast toggle even when the probed catalog omits
+  // the variant row (e.g. an older CLI's model list). The wire layer spells
+  // the same convention when no advertised mapping exists.
+  const fastModels = [
+    ...new Set([...fastCaps.fastModels, ...vendorConventionFastBases("grok", probedModelIds)]),
+  ];
 
   return {
     ...grokDefaultCapabilities,
     ...(probedModels?.length ? { models: probedModels } : {}),
-    ...(fastCaps.fastModels.length > 0 ? { fastModels: fastCaps.fastModels } : {}),
+    ...(fastModels.length > 0 ? { fastModels } : {}),
     ...(Object.keys(fastCaps.fastVariantByBase).length > 0
       ? { fastModelVariants: fastCaps.fastVariantByBase }
       : {}),

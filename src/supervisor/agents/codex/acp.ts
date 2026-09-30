@@ -939,8 +939,15 @@ export class CodexStructuredSession implements StructuredSessionHandle {
           : {}),
         collaborationMode,
         // Fast toggle is authoritative and the server tier is sticky, so force it
-        // every turn: "fast" selects the Fast lane, null clears it to the default.
-        serviceTier: config.fast === true ? "fast" : null,
+        // every turn. Upstream matches the value strictly against the model's
+        // catalog `service_tiers[].id` ("priority"/"ultrafast") — anything else
+        // (including the legacy "fast" alias) is dropped to default.
+        serviceTier:
+          config.fast === true
+            ? config.speedTier && config.speedTier !== "fast"
+              ? config.speedTier
+              : "priority"
+            : null,
       });
       this.activeTurnId = extractTurnField(result, "id");
       if (this.activeTurnId) {

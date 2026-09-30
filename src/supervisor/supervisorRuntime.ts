@@ -83,6 +83,7 @@ import {
   type ResolveCompatibilityPayload,
   type ResolveCompatibilityResult,
 } from "@/shared/crafting/compatibility";
+import { resolveOpenCodeReadyVendors } from "@/shared/crafting/executionRoute";
 import {
   compatibilityBridgeStatusSchema,
   type CompatibilityBridgeStatusView,
@@ -1532,6 +1533,20 @@ export class SupervisorRuntime {
               overrides: {
                 model: payload.config.model,
                 permissionConfig: permissionConfigSchema.parse(payload.config),
+                // Crafted Codex sessions read the Fast lane off
+                // `overrides.serviceTier`; a mid-thread composer toggle
+                // otherwise never reaches turn/start. "default" is the
+                // request sentinel for "explicitly no tier".
+                ...(payload.config.fast === true
+                  ? {
+                      serviceTier:
+                        payload.config.speedTier && payload.config.speedTier !== "fast"
+                          ? payload.config.speedTier
+                          : "priority",
+                    }
+                  : payload.config.fast === false
+                    ? { serviceTier: "default" as const }
+                    : {}),
               },
             }
           : {}),
@@ -2339,6 +2354,23 @@ export class SupervisorRuntime {
     const openCodeRouteReady = entries.some(
       (entry) => entry.descriptor.harnessKind === "opencode" && entry.status === "ready",
     );
+    // Per-vendor OpenCode readiness from cached detection (no probing here):
+    // a vendor OpenCode never connected must not be claimed NATIVE, or the
+    // run dies with `Model not found <vendor>/<id>`. Absent/failed data keeps
+    // the legacy allowlist-only claim.
+    let openCodeReadyVendors: readonly string[] | undefined;
+    try {
+      const { windows } = await this.agentStatusService.getAgentStatuses({ wslDistros: [] });
+      const ids = (windows ?? [])
+        .flatMap((status) =>
+          status.kind === "opencode" ? (status.providerMetadata?.connectedProviders ?? []) : [],
+        )
+        .map((provider) => provider.id)
+        .filter((id): id is string => Boolean(id));
+      openCodeReadyVendors = ids.length > 0 ? resolveOpenCodeReadyVendors(ids) : undefined;
+    } catch {
+      openCodeReadyVendors = undefined;
+    }
     const modelVendor = modelProviderFromEntryRef(payload.modelEntryRef);
     if (!modelVendor) {
       return resolveCompatibility({
@@ -2355,6 +2387,7 @@ export class SupervisorRuntime {
         harnessRef,
         harnessReady: false,
         compatibilityBridgeReady: this.isCompatibilityBridgeStartableForHost(),
+        ...(openCodeReadyVendors ? { openCodeReadyVendors } : {}),
       });
     }
 
@@ -2376,6 +2409,7 @@ export class SupervisorRuntime {
       // Idle sidecar is startable: spawn starts it. Only a missing binary
       // fail-closes the compatibility route.
       compatibilityBridgeReady: this.isCompatibilityBridgeStartableForHost(),
+      ...(openCodeReadyVendors ? { openCodeReadyVendors } : {}),
     });
     return result;
   }
@@ -3799,6 +3833,9 @@ export class SupervisorRuntime {
     const patch: Record<string, unknown> = {};
     if (sourceConfig.capabilityMode && !targetConfig.capabilityMode) {
       patch.capabilityMode = sourceConfig.capabilityMode;
+    }
+    if (sourceConfig.serviceTier && !targetConfig.serviceTier) {
+      patch.serviceTier = sourceConfig.serviceTier;
     }
     if (sourceConfig.mcpServerIds && !targetConfig.mcpServerIds) {
       patch.mcpServerIds = sourceConfig.mcpServerIds;

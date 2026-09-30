@@ -222,6 +222,7 @@ interface SharedSettingsState extends SharedSettings {
     presentationMode: ThreadPresentationMode,
     effort?: string,
     fast?: boolean,
+    speedTier?: string,
   ) => void;
 }
 
@@ -311,6 +312,7 @@ function providerDraftConfigEqual(
     a.effort === b.effort &&
     a.contextSize === b.contextSize &&
     a.fast === b.fast &&
+    a.speedTier === b.speedTier &&
     a.thinking === b.thinking &&
     a.mode === b.mode &&
     a.approvalPolicy === b.approvalPolicy &&
@@ -830,7 +832,8 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
     const currentPreference = current[agentKind]?.[modelId];
     if (
       currentPreference?.effort === preference.effort &&
-      currentPreference?.fast === preference.fast
+      currentPreference?.fast === preference.fast &&
+      currentPreference?.speedTier === preference.speedTier
     ) {
       return;
     }
@@ -1020,7 +1023,7 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
     set({ ownSubagentRoutingGuide });
     persistSettings(selectSharedSettings(get()));
   },
-  pushRecentModel: (agentKind, modelId, presentationMode, effort, fast) => {
+  pushRecentModel: (agentKind, modelId, presentationMode, effort, fast, speedTier) => {
     const current = get().recentModels;
     const samePresentation = current.filter((m) => m.presentationMode === presentationMode);
     const otherPresentations = current.filter((m) => m.presentationMode !== presentationMode);
@@ -1038,6 +1041,7 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
         modelId,
         ...(effort ? { effort } : {}),
         fast: fast === true,
+        ...(speedTier ? { speedTier } : {}),
       },
     ]);
     const recentsUnchanged =

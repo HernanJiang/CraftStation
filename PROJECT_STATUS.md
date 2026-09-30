@@ -1,3 +1,26 @@
+## Fast 多档（Ultrafast）+ GPT-6.1 Sol + 自定义/渠道收口（2026-09-30）
+
+- **用户报告**：Kimi 自定义模型「Kimi-For-Coding」菜单里仍无快速模式行；Codex 线程报 `workspace routing discovery unauthorized (401)`；Codex 需要 Ultrafast 档与新模型 `gpt-6.1-sol`。
+- **Codex 401 根因（实测）**：单独跑 `codex exec` 同样报 `refresh token was revoked`——`~/.codex/auth.json`（9/11）的 refresh token 被服务端吊销，401 来自 Codex 上游 workspace routing 环节，与 CraftStation/Fast 无关；需重新 `codex login`。
+- **Kimi 自定义模型根因**：用户「模型管理」里存了裸 `modelId:"kimi-for-coding"`（无 `kimi-code/` 前缀）；`fastModels` 在 detection 阶段由探测目录算出（canonical `kimi-code/...`），自定义模型后合并进来 id 不匹配 → 行不渲染。
+- **自定义/渠道修复**：`fastVariantModelId` 的 variant map 支持后缀匹配（裸 id → canonical 变体）；`mergeCustomModelsIntoCapabilities` 给非渠道自定义模型补 `fastModels`/`fastModelVariants`；`resolveModelConfigValue` 透传 variant map 让 configOption 别名覆盖 canonical 变体 id；渠道账号模型剥离变体机制的 fast 字段，但保留 model-agnostic 的 service-tier 机制（Chiral `gpt-5.6-sol` 走 codex runtime，`service_tier` 有效）。
+- **多档 Fast（Ultrafast）**：`AgentCapability` 新增 `modelFastTiers`（probe 从 `serviceTiers[].{id,name}` 提取，如 `priority(Fast)`/`ultrafast(Ultrafast)`）；`ThreadConfig.speedTier`/`ProviderModelPreference.speedTier`/usage 记录全链路穿透；`DraftParameterMenu` 多档时渲染「快速模式」子菜单（标准/Fast/Ultrafast），胶囊显示档位标签（`· Ultrafast`）。
+- **wire 修正（关键）**：上游 `service_tier_for_request` 严格匹配 catalog tier id——之前发 `"fast"` 在新目录上被静默降级 default。现在 `speedTier` 存 catalog id 原样透传，无档位时 `fast:true` 映射 `"priority"`；acp turn、argv `-c service_tier`、structured/PTY native adapter、nativeCodex、crafted launch/resume/handoff 全统一。
+- **schema**：`serviceTierSchema` 从固定 enum 放开为 `z.string().min(1)`——catalog 档位是动态数据，enum 会在边界丢弃未来新档。
+- **GPT-6.1 Sol**：`PREFERRED_CODEX_DEFAULT_MODEL` → `gpt-6.1-sol`（codex-cli 0.159.x bundled catalog 默认项，本机已升 0.159.2 并验证 model/list 含该模型且 `default=true`）。
+- **缓存失效**：supervisor `STATUS_CACHE_VERSION` 20→21、renderer persist v16→v17（`modelFastTiers` 新字段不落旧盘）。
+- **验证**：typecheck 0 errors、oxlint 0 warnings；codex 135 + DraftParameterMenu 24（新增多档子菜单/胶囊档位标签用例）+ 相关套件全过；全量 12272 测试中 4 个失败均为并发时序抖动（隔离复跑全过）。Codex 真机 turn 因上游 token 吊销无法端到端验证，wire 值已由单测钉住（`priority`/`ultrafast`/`null`）。
+
+## 菜单「快速模式」行缺失修复（2026-09-30）
+
+- **用户报告**：模型/推理强度弹层截图中仍无 Fast 开关——上一轮 Fast 链路（capability 折叠 + wire 适配）已落地但菜单里看不到。
+- **根因**：草稿页与所有 GUI 线程 composer 走 `controlsDisplay="menu"`，该模式只渲染 `DraftParameterMenu`；而 `DraftParameterMenu` 原本只处理 `provider-model`/`effort-context`，`kind:"toggle"` 的 Fast 控件被整体丢弃——`fastModels` 有数据也不会出现任何 DOM。
+- **菜单修复**：`DraftParameterMenu` 按 `iconKind==="fast"` 提取 Fast toggle，新增「快速模式」`Dropdown.Item`（Zap 图标 + 右侧滑块），点击调用 `onChange(!isSelected)` 走既有 `onConfigPatch({fast})` 链路；`disabledReason` 存在时行 `aria-disabled` 并就地显示原因（不渲染开关）；触发器胶囊开启后追加 `· Fast`（`Grok 4.7 · Extra High · Fast`）。
+- **MenuSwitch 抽取**：`ComposerAddMenu` 内的滑块视觉抽到 `src/renderer/components/common/MenuSwitch.tsx`（aria-hidden 展示组件，交互归宿主行），两处共用。
+- **厂商约定兜底**：`fastModelVariants.ts` 新增 `vendorConventionFastBases(agentKind, modelIds)`——Grok 的 `grok-N*` 与 Kimi 的 `kimi-for-coding` 即使探测目录没广告变体行（旧版 CLI、session/new 漏报 sibling）也并入 `fastModels`，开关照常出现；wire 拼写同走 `fastVariantModelId`，装的老 CLI 真没有该档时启动错误如实暴露。
+- **缓存失效**：supervisor `STATUS_CACHE_VERSION` 19→20、renderer persist v15→v16——旧 capabilities（无 `fastModels`）不落盘复用，重启后重探测。
+- **验证**：`DraftParameterMenu` 新增 3 用例（开关行渲染+点击 `onChange(true)`、胶囊 `· Fast`、disabled 行显示原因且不可点）共 22 全过；`fastModelVariants`/grok/kimi detection 兜底用例通过；`agentStatusesStore` 版本断言更新为 16 后 39 全过；typecheck 0 errors、oxlint 0 warnings。菜单 act warning 为既有问题（老用例同样触发），非本次引入；未做真机桌面目视验证。
+
 ## 凭证持久化 + 完成通知卡不消失 hotfix（2026-09-30）
 
 - **用户报告**：① 任务完成通知卡（Workspace 收件箱）在用户一直停留在该线程时不自动消失，必须切走再切回；② Step Code 与 Antigravity 凭证「有时候可用、有时候重启就没了」；③ Step Code 登录后应在「模型与用量」显示额度窗口。
