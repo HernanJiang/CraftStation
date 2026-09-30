@@ -21,10 +21,8 @@ function renderHeader(props: {
       {...(props.isDone !== undefined ? { isDone: props.isDone } : {})}
       hasTerminal={false}
       isActiveTerminal={false}
-      isActiveGit={false}
       onToggleCollapse={vi.fn<() => void>()}
       onOpenFiles={vi.fn<() => void>()}
-      onOpenGitReview={vi.fn<() => void>()}
       onOpenTerminal={vi.fn<() => void>()}
       onDeleteWorktree={vi.fn<() => void>()}
       updatedAt="2026-08-08T00:00:00.000Z"

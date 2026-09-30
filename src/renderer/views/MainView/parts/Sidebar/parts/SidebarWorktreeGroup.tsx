@@ -6,7 +6,6 @@ import { ContextMenu, type ContextMenuItem } from "@/renderer/components/common/
 import { useDragSource, useIsDraggingWorktreeGroup, type DragSourceData } from "@/renderer/dnd";
 import {
   useIsWorktreeFilesPanelActive,
-  useIsWorktreeGitPanelActive,
   useIsWorktreeTerminalActive,
   useIsWorktreeTerminalBusy,
   useIsWorktreeTerminalOpen,
@@ -59,7 +58,6 @@ export function SidebarWorktreeGroup(props: {
   const isActiveTerminal = useIsWorktreeTerminalActive(group.worktreePath);
   const isBusyTerminal = useIsWorktreeTerminalBusy(group.worktreePath);
   const isActiveFiles = useIsWorktreeFilesPanelActive(group.worktreePath);
-  const isActiveGit = useIsWorktreeGitPanelActive(group.worktreePath);
   const collapsedStatusTone = getWorktreeGroupStatusTone(
     group.threads.map((thread) =>
       getStatusTone(thread, {
@@ -201,10 +199,8 @@ export function SidebarWorktreeGroup(props: {
           isActiveTerminal={isActiveTerminal}
           isBusyTerminal={isBusyTerminal}
           isActiveFiles={isActiveFiles}
-          isActiveGit={isActiveGit}
           onToggleCollapse={() => toggleWorktreeCollapsed(group.worktreePath)}
           onOpenFiles={() => openFilesPanel(project.id, group.worktreePath)}
-          onOpenGitReview={() => openGitReview(project.id, group.worktreePath)}
           onOpenTerminal={() => openWorktreeTerminal(project.id, group.worktreePath)}
           onDeleteWorktree={() =>
             deleteWorktreeGroup(project.id, group.worktreePath, groupThreadIds)

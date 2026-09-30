@@ -10,19 +10,16 @@ import {
 } from "@/renderer/components/common/ProjectRemoteServer";
 import { ContextMenu } from "@/renderer/components/common/ContextMenu";
 import { SidebarButton } from "@/renderer/components/common/SidebarButton";
-import { openGitReview } from "@/renderer/actions/panelActions";
 import {
   deleteProject,
   renameProject,
   setProjectDisabled,
 } from "@/renderer/actions/projectActions";
 import { openNewThread } from "@/renderer/actions/threadActions";
-import { useIsProjectGitPanelActive } from "@/renderer/hooks/uiSelectors";
 import { useSidebarUiStore } from "@/renderer/state/sidebarUiStore";
 import { formatProjectLocation } from "./formatProjectLocation";
 import { useProjectMenu } from "./useProjectMenu";
 import { InlineRenameInput } from "./InlineRenameInput";
-import { GitBadge } from "./GitBadge";
 
 export function SidebarProjectHeader(props: {
   project: Project;
@@ -43,7 +40,6 @@ export function SidebarProjectHeader(props: {
   const isUnavailable = isDisabled || isUnreachable;
   const showBody = !isCollapsed && !isUnavailable;
   const projectMenu = useProjectMenu(project, { isUnreachable });
-  const isActiveGitPanel = useIsProjectGitPanelActive(project.id);
   const editingProjectId = useSidebarUiStore((s) => s.editingProjectId);
   const setEditingProjectId = useSidebarUiStore((s) => s.setEditingProjectId);
   const isPinned = useSidebarUiStore((s) => s.pinnedProjectIds.includes(project.id));
@@ -169,13 +165,6 @@ export function SidebarProjectHeader(props: {
                   </Dropdown.Popover>
                 </Dropdown>
               </span>
-              <GitBadge
-                projectId={project.id}
-                projectName={project.name}
-                onPress={() => openGitReview(project.id)}
-                isActive={isActiveGitPanel}
-                alwaysVisible
-              />
             </>
           )
         }

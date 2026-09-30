@@ -27,18 +27,6 @@ vi.mock("@dnd-kit/react/sortable", () => ({
   useSortable: () => ({ ref: () => {} }),
 }));
 
-vi.mock("./GitBadge", () => ({
-  GitBadge: (props: { projectName: string; alwaysVisible?: boolean }) => (
-    <button
-      type="button"
-      aria-label={`Git status for ${props.projectName}`}
-      data-always-visible={props.alwaysVisible ? "true" : "false"}
-    >
-      git-status
-    </button>
-  ),
-}));
-
 vi.mock("@heroui/react", () => {
   const Tooltip = Object.assign((props: { children: ReactNode }) => <>{props.children}</>, {
     Trigger: (props: { children: ReactNode }) => <>{props.children}</>,
@@ -162,7 +150,7 @@ describe("SidebarProjectHeader", () => {
     expect(screen.queryByText("New thread")).not.toBeInTheDocument();
   });
 
-  it("removes project-level Files and Terminal controls, keeping new chat button and Git available", () => {
+  it("removes project-level Files, Terminal and Git controls, keeping the new chat button", () => {
     renderHeader();
 
     expect(
@@ -172,10 +160,9 @@ describe("SidebarProjectHeader", () => {
       screen.queryByRole("button", { name: `Terminal for ${project.name}` }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: `New chat in ${project.name}` })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: `Git status for ${project.name}` })).toHaveAttribute(
-      "data-always-visible",
-      "true",
-    );
+    expect(
+      screen.queryByRole("button", { name: `Git status for ${project.name}` }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("sync-status")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: `New chat in ${project.name}` }));

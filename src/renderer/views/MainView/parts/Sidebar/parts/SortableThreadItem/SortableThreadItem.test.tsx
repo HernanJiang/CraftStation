@@ -72,12 +72,6 @@ vi.mock("@/renderer/components/providers/ThreadProviderIcon", () => ({
   ThreadProviderIcon: () => null,
 }));
 
-vi.mock("@/renderer/views/MainView/parts/Sidebar/parts/GitBadge", () => ({
-  GitBadge: (props: { projectName: string }) => (
-    <button type="button" aria-label={`Git status for ${props.projectName}`} />
-  ),
-}));
-
 vi.mock("@/renderer/views/MainView/parts/Sidebar/parts/SyncBadge", () => ({
   SyncBadge: (props: { projectId: string; worktreePath?: string }) => (
     <span data-testid="sync-badge">
@@ -547,9 +541,6 @@ describe("SortableThreadItem", () => {
 
     expect(screen.queryByText("Project")).not.toBeInTheDocument();
     expect(screen.queryByTestId("sync-badge")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Git status for Project" }),
-    ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Files for Project" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Terminal for Project" })).not.toBeInTheDocument();
   });
@@ -571,9 +562,6 @@ describe("SortableThreadItem", () => {
     expect(screen.getByRole("textbox", { name: "Rename thread" })).toHaveValue("Thread 1");
     expect(screen.queryByText("Project")).not.toBeInTheDocument();
     expect(screen.queryByTestId("sync-badge")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Git status for Project" }),
-    ).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Files for Project" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Terminal for Project" })).not.toBeInTheDocument();
   });
@@ -591,9 +579,6 @@ describe("SortableThreadItem", () => {
       />,
     );
 
-    expect(
-      screen.queryByRole("button", { name: "Git status for Project" }),
-    ).not.toBeInTheDocument();
     expect(screen.queryByTestId("sync-badge")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Files for Project" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Terminal for Project" })).not.toBeInTheDocument();

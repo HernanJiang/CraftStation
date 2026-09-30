@@ -4,7 +4,6 @@ import { SidebarButton } from "@/renderer/components/common/SidebarButton";
 import { AnimatedTerminalIcon } from "@/renderer/components/common/AnimatedTerminalIcon";
 import { RelativeTime } from "@/renderer/components/common/RelativeTime";
 import type { StatusTone } from "@/renderer/components/providers/statusTone";
-import { GitBadge } from "./GitBadge";
 import { SidebarPanelDragButton } from "./SidebarPanelDragButton";
 import { SyncBadge } from "./SyncBadge";
 
@@ -28,10 +27,8 @@ export function WorktreeGroupHeader(props: {
   isActiveTerminal: boolean;
   isBusyTerminal?: boolean;
   isActiveFiles?: boolean;
-  isActiveGit: boolean;
   onToggleCollapse: () => void;
   onOpenFiles: () => void;
-  onOpenGitReview: () => void;
   onOpenTerminal: () => void;
   onDeleteWorktree: () => void;
   isDragging?: boolean;
@@ -93,18 +90,7 @@ export function WorktreeGroupHeader(props: {
     </>
   );
 
-  const gitBadges = (
-    <>
-      <SyncBadge projectId={props.projectId} worktreePath={props.worktreePath} />
-      <GitBadge
-        projectId={props.projectId}
-        projectName={props.worktreeBranch}
-        worktreePath={props.worktreePath}
-        onPress={props.onOpenGitReview}
-        isActive={props.isActiveGit}
-      />
-    </>
-  );
+  const syncBadge = <SyncBadge projectId={props.projectId} worktreePath={props.worktreePath} />;
 
   const deleteButton = (
     <div
@@ -190,7 +176,7 @@ export function WorktreeGroupHeader(props: {
             </span>
             <span className="flex h-[18px] items-center gap-1.5">
               {props.projectTag}
-              <span className="flex shrink-0 items-center gap-[3px]">{gitBadges}</span>
+              {syncBadge}
             </span>
           </span>
         ) : (
@@ -212,7 +198,7 @@ export function WorktreeGroupHeader(props: {
             suffix: (
               <>
                 {panelButtons}
-                {gitBadges}
+                {syncBadge}
                 {timeSlot}
               </>
             ),
