@@ -284,6 +284,19 @@
       ]
     },
     {
+      "version": "1.6.2",
+      "date": "2026-09-30",
+      "title": "One home for drafts, projects & recent threads",
+      "summary": "The home page and the new-thread draft are now a single screen — mascot and greeting up top, your projects and recent threads in the middle, and the composer ready at the bottom.",
+      "changes": [
+        {
+          "kind": "improved",
+          "label": "Home",
+          "text": "The standalone home page merged into the draft composer: projects and recent threads now sit under the greeting where the quick-action cards used to be, so you can start typing, pick a project, or jump back into a thread from the same screen."
+        }
+      ]
+    },
+    {
       "version": "1.6.1",
       "date": "2026-09-30",
       "title": "OpenCode console sign-in fix & tidier Command Code catalog",
