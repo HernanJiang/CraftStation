@@ -1,5 +1,34 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { Trans } from "@lingui/react/macro";
+import { readBridge } from "@/renderer/bridge";
+
+const CRASH_BREADCRUMB_KEY = "diagnostics:lastConversationCrash";
+const CRASH_BREADCRUMB_STACK_LIMIT = 4_000;
+
+/**
+ * Renderer console output never reaches main.log, so a boundary catch is the
+ * only record of a conversation render failure — and it is gone the moment the
+ * window reloads. Persist a small breadcrumb (error + component stack + which
+ * conversation) so the next crash can be diagnosed from state.sqlite.
+ */
+function persistCrashBreadcrumb(error: unknown, componentStack: string | null, resetKey: string) {
+  try {
+    if (typeof window === "undefined" || window.craftstation === undefined) return;
+    const message =
+      error instanceof Error ? `${error.name}: ${error.message}` : String(error ?? "unknown");
+    const payload = JSON.stringify({
+      at: new Date().toISOString(),
+      resetKey,
+      message: message.slice(0, 600),
+      componentStack: componentStack?.trim().slice(0, CRASH_BREADCRUMB_STACK_LIMIT) ?? null,
+    });
+    void readBridge()
+      .dbSetState(CRASH_BREADCRUMB_KEY, payload)
+      .catch(() => {});
+  } catch {
+    // Diagnostics must never throw inside an error boundary.
+  }
+}
 
 type ConversationErrorBoundaryProps = {
   children: ReactNode;
@@ -46,6 +75,7 @@ export class ConversationErrorBoundary extends Component<
     console.error("[conversation-error-boundary] Conversation view failed", error, info);
     const componentStack = typeof info?.componentStack === "string" ? info.componentStack : null;
     if (componentStack) this.setState({ componentStack });
+    persistCrashBreadcrumb(error, componentStack, this.props.resetKey);
   }
 
   private retry = () => {

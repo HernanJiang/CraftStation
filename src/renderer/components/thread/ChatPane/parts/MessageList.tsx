@@ -191,7 +191,9 @@ export function MessageList({
           return [];
         }
         const size = sizes.get(entry.id);
-        return size === undefined ? [] : [{ key: entry.id, index, size }];
+        // Sizes captured while the chat column is display:none read 0; a zero
+        // row height must never survive a remount or the restored row collapses.
+        return size === undefined || size <= 0 ? [] : [{ key: entry.id, index, size }];
       });
       writeTimelineMeasurements(threadId, signature, measurements);
     },
@@ -344,6 +346,15 @@ export function MessageList({
     (itemKey: string, element: HTMLDivElement | null, liveStreamGrowth = false) => {
       const instance = listRef.current;
       if (!element || !instance) return null;
+      // A row inside a `display:none` column (maximized side panel) measures
+      // 0 — feeding that into LegendList corrupts the size cache and can
+      // ping-pong with the virtualizer's own layout passes while hidden. Rows
+      // without boxes are simply not measurable; keep the last known size.
+      // checkVisibility is Chromium-only — absent in jsdom, where every row
+      // reads 0 and the write path is exercised by tests.
+      if (typeof element.checkVisibility === "function" && !element.checkVisibility()) {
+        return null;
+      }
       const height = element.offsetHeight;
       // A streamed store delta and the live-row ResizeObserver can report the
       // same painted size in either order. Let the first path update LegendList
