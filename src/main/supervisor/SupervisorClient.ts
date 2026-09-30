@@ -171,8 +171,7 @@ export class SupervisorClient {
     if (typeof child.pid === "number") {
       void this.options.assignPid?.(child.pid).catch((error) => {
         console.error(
-          "[craftstation] failed to assign supervisor to Windows Job Object:",
-          error instanceof Error ? error.message : String(error),
+          `[craftstation] phase=startup operation=job-object-assign status=failed code=JOB_OBJECT_ASSIGN_FAILED pid=${child.pid} reason=${error instanceof Error ? error.message : String(error)}`,
         );
         this.options.reportError?.(error, { "craftstation.feature_area": "supervisor" });
       });

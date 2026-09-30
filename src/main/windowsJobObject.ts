@@ -424,7 +424,9 @@ export class WindowsJobObjectManager {
     this.rejectPendingAssignments(error);
 
     if (!this.isDisposing && child) {
-      console.error("[craftstation] Windows Job Object helper exited:", error.message);
+      console.error(
+        `[craftstation] phase=runtime operation=job-object-helper status=exited code=JOB_OBJECT_HELPER_EXITED fallback=supervisor-orphan-watchdog reason=${error.message}`,
+      );
     }
   }
 

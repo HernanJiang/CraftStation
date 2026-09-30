@@ -102,6 +102,37 @@ describe("startDevOrphanWatchdog", () => {
     ctx.stop();
   });
 
+  it("fires on the second default-interval poll and exits by the hard deadline", () => {
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    const requestShutdown = vi.fn<() => void>();
+    const exit = vi.fn<(code: number) => void>();
+    const handle = startDevOrphanWatchdog({
+      requestShutdown,
+      exit,
+      isConnected: () => false,
+      getParentPid: () => 4242,
+      pidExists: () => true,
+    });
+
+    vi.advanceTimersByTime(1_000);
+    expect(requestShutdown).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1_000);
+    expect(requestShutdown).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining(
+        "operation=orphan-watchdog status=parent-gone code=SUPERVISOR_PARENT_GONE",
+      ),
+    );
+    expect(error).toHaveBeenCalledWith(
+      expect.stringContaining("parentPid=4242 signal=ipc-disconnected"),
+    );
+    expect(exit).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(2_000);
+    expect(exit).toHaveBeenCalledWith(1);
+    handle.stop();
+  });
+
   it("fires only once and stops polling", () => {
     const ctx = start();
     ctx.isConnected.mockReturnValue(false);

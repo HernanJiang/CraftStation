@@ -1,5 +1,5 @@
 /**
- * Dev-only guard: self-exit when the Electron main process that forked this
+ * Orphan guard: self-exit when the Electron main process that forked this
  * supervisor disappears (crash, force-quit, `kill -9`, electronmon restart).
  * macOS/Linux have no Job Object equivalent, so an orphaned supervisor is
  * reparented to launchd/init and otherwise runs forever — sometimes at 100%
@@ -7,8 +7,10 @@
  *
  * The watchdog polls cheap liveness signals and, after two consecutive
  * confirmations, requests a graceful shutdown with a hard `process.exit`
- * deadline so a wedged dispose can never block the exit. Packaged builds
- * never install it.
+ * deadline so a wedged dispose can never block the exit. It is installed in
+ * all builds: Windows TerminateProcess of main does not reliably deliver an
+ * IPC disconnect, and when the Job Object helper fails to start this is the
+ * only backstop.
  */
 
 export interface DevOrphanWatchdogOptions {
@@ -28,7 +30,7 @@ export interface DevOrphanWatchdogHandle {
   stop(): void;
 }
 
-const DEFAULT_POLL_MS = 2_000;
+const DEFAULT_POLL_MS = 1_000;
 const DEFAULT_CONFIRMATIONS = 2;
 const DEFAULT_HARD_EXIT_MS = 2_000;
 
@@ -56,25 +58,29 @@ export function startDevOrphanWatchdog(options: DevOrphanWatchdogOptions): DevOr
   let consecutiveMisses = 0;
   let fired = false;
 
-  const isParentGone = (): boolean => {
+  const isParentGone = (): "ipc-disconnected" | "reparented" | "parent-pid-gone" | null => {
     // IPC EOF is the strongest signal: the fork contract closes the channel
     // even when the parent dies hard. PID reuse cannot fool it.
     if (!isConnected()) {
-      return true;
+      return "ipc-disconnected";
     }
     // Reparented to init/launchd after the parent died. Skip the heuristic
     // when we legitimately started under pid 1 (e.g. container inits).
     if (initialParentPid !== 1 && getParentPid() === 1) {
-      return true;
+      return "reparented";
     }
-    return !pidExists(initialParentPid);
+    if (!pidExists(initialParentPid)) {
+      return "parent-pid-gone";
+    }
+    return null;
   };
 
   const timer = setInterval(() => {
     if (fired) {
       return;
     }
-    if (!isParentGone()) {
+    const signal = isParentGone();
+    if (!signal) {
       consecutiveMisses = 0;
       return;
     }
@@ -85,7 +91,7 @@ export function startDevOrphanWatchdog(options: DevOrphanWatchdogOptions): DevOr
     fired = true;
     clearInterval(timer);
     console.error(
-      `[supervisor] dev orphan watchdog: parent pid ${initialParentPid} is gone; shutting down`,
+      `[supervisor] phase=lifecycle operation=orphan-watchdog status=parent-gone code=SUPERVISOR_PARENT_GONE parentPid=${initialParentPid} signal=${signal}; shutting down`,
     );
     // Hard deadline first: the graceful shutdown below must never be able to
     // wedge the exit path.

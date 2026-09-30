@@ -842,8 +842,7 @@ if (!hasSingleInstanceLock) {
         windowsJobObjectManager = manager;
         jobObjectReady = manager.start().catch((error) => {
           console.error(
-            "[craftstation] Windows Job Object helper unavailable:",
-            error instanceof Error ? error.message : String(error),
+            `[craftstation] phase=startup operation=job-object-start status=failed code=JOB_OBJECT_HELPER_START_FAILED fallback=supervisor-orphan-watchdog reason=${error instanceof Error ? error.message : String(error)}`,
           );
           captureMainException(error, { "craftstation.feature_area": "process-lifecycle" });
           if (windowsJobObjectManager === manager) {

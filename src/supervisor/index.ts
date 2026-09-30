@@ -94,13 +94,11 @@ process.on("SIGTERM", () => {
   void shutdownSupervisor(0);
 });
 
-if (isDev) {
-  startDevOrphanWatchdog({
-    requestShutdown: () => {
-      void shutdownSupervisor(1);
-    },
-  });
-}
+startDevOrphanWatchdog({
+  requestShutdown: () => {
+    void shutdownSupervisor(1);
+  },
+});
 
 const devUncaughtStorm = createUncaughtStormDetector({ limit: 3, windowMs: 10_000 });
 
