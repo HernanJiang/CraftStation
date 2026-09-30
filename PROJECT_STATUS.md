@@ -5,6 +5,7 @@
 - **修复**：无 workspace 时改走新 Console API——`/console/api/orgs` 取 org id，带 `x-org-id` 头读 `/console/api/go/status`（`access.meters` 的 fiveHour/week/month，limit+used microCents+resetsAt）与 `/console/api/billing/status`（prepaid 余额）；映射为已有 `UsageWindow`（`unit:"usd"`+`currency:"USD"`），UI 现成渲染分支兼容；无订阅时 `go/status` 返回 `null` 按零窗口处理。旧 Zen workspace 链路保留。
 - **验证**：真实 cookie 端到端探测拿到 Rolling 5h $12 / Weekly $30 / Monthly $60（已用≈63%）三窗口；`agents-usage` 41 项 + `openCodeWebSession` 10 项 + usage 相关 124 项测试全过，typecheck、lint 0 错误。
 - **Git 图标**：橙色字形是 `GitBadge` 的 PR/分支态（`GitPullRequest` warning 色）。按用户要求从 `SidebarProjectHeader` 与 `WorktreeGroupHeader` 移除 `GitBadge`，删除孤儿组件 `GitBadge.tsx`/`GitBadge.test.tsx`（286+344 行）及连带 props（`isActiveGit`/`onOpenGitReview`）；Git 面板入口保留在工作树右键菜单（`git-review`/`create-pr`）。侧边栏 28 文件 237 项测试全过。
+- **发布**：v1.7.0（`bd27b21f`）已推送 main + tag，GitHub Release 已创建并上传 Setup/Portable x64 + blockmap + `latest.yml`；`changelog.json` 的 1.7.0 条目改写自 2026-09-03 的未发布草稿（保留 MCP/Skills capability 三 bullets，补 OpenCode 额度与侧边栏两条）。
 
 - **用户报告**：ChatGPT 账号达到 usage limit 后线程停在错误上，没有自动切换号池下一个账号（"我的号池机制呢"）。
 - **根因（双重断裂，b24f8efc 已修）**：
