@@ -3,7 +3,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resolveBetterSqliteNativeBindingOptions } from "./connection";
+import {
+  closeDatabase,
+  getSqlite,
+  initDatabase,
+  resolveBetterSqliteNativeBindingOptions,
+} from "./connection";
 import {
   DATABASE_MIGRATIONS,
   LATEST_SCHEMA_VERSION,
@@ -72,8 +77,9 @@ describe("database migration registry", () => {
       [44, "threads.goal durable slash-goal"],
       [45, "scheduled tasks unified schedule capability"],
       [46, "scheduled tasks host capability provenance and occurrence claim"],
+      [47, "usage_events ts index for retention pruning"],
     ]);
-    expect(LATEST_SCHEMA_VERSION).toBe(46);
+    expect(LATEST_SCHEMA_VERSION).toBe(47);
     expect(() => validateMigrationRegistry()).not.toThrow();
   });
 
@@ -205,6 +211,20 @@ describe("database migration upgrade path", () => {
       expect(DATABASE_MIGRATIONS.at(-1)?.version).toBe(LATEST_SCHEMA_VERSION);
     } finally {
       sqlite.close();
+    }
+  });
+
+  it("plans the usage_events retention delete through the ts index on a fresh database", () => {
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-migrations-v47-"));
+    try {
+      initDatabase(join(dir, "state.sqlite"));
+      const plan = getSqlite()
+        .prepare("EXPLAIN QUERY PLAN DELETE FROM usage_events WHERE ts < ?")
+        .all(0) as Array<{ detail: string }>;
+      expect(plan.some((row) => row.detail.includes("idx_usage_events_ts"))).toBe(true);
+    } finally {
+      closeDatabase();
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

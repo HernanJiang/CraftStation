@@ -712,6 +712,33 @@ export const DATABASE_MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 47,
+    name: "usage_events ts index for retention pruning",
+    migrate: (sqlite) => {
+      // CREATE first so minimal test baselines (or very old DBs) that lack the
+      // table still converge; existing tables keep their rows untouched.
+      sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS usage_events (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          ts INTEGER NOT NULL,
+          kind TEXT NOT NULL,
+          provider TEXT,
+          model TEXT,
+          mode TEXT,
+          fast INTEGER NOT NULL DEFAULT 0,
+          effort TEXT,
+          name TEXT,
+          project_id TEXT,
+          session_id TEXT,
+          tool TEXT,
+          account_id TEXT,
+          value INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE INDEX IF NOT EXISTS idx_usage_events_ts ON usage_events (ts);
+      `);
+    },
+  },
 ] as const satisfies readonly DatabaseMigration[];
 
 export const LATEST_SCHEMA_VERSION = DATABASE_MIGRATIONS[DATABASE_MIGRATIONS.length - 1]!.version;
