@@ -1,6 +1,48 @@
 {
   "releases": [
     {
+      "version": "1.6.7",
+      "date": "2026-09-30",
+      "title": "A tidier workbench & lighter terminals",
+      "summary": "The crafting workbench now uses matching square slots and a wider ingredients panel. Busy terminals use less CPU, startup cleanup runs after launch, Windows console hosts are reclaimed when their sessions end, and exhausted pool accounts hand off to the next one automatically.",
+      "changes": [
+        {
+          "kind": "improved",
+          "label": "Crafting",
+          "text": "Model, harness, MCP and skill slots now match the crafting grid, with clearer selection highlights, enabled-state dots and a wider Ingredients panel beside more compact result and recipe cards."
+        },
+        {
+          "kind": "improved",
+          "label": "Terminals",
+          "text": "Large bursts of terminal output are delivered in batches, reducing CPU use while preserving the complete output and scrollback."
+        },
+        {
+          "kind": "improved",
+          "label": "Startup",
+          "text": "Historical output compaction and usage cleanup now run after launch, with an index that speeds up removal of expired usage records."
+        },
+        {
+          "kind": "fixed",
+          "label": "Windows",
+          "text": "Console hosts left behind after terminal sessions close or exit naturally are now reclaimed when they can be uniquely matched to the finished session."
+        },
+        {
+          "kind": "fixed",
+          "text": "Production builds now monitor the main process so the supervisor also shuts down after a crash or force-close, reducing lingering background processes."
+        },
+        {
+          "kind": "fixed",
+          "label": "Permissions",
+          "text": "Switching a thread between agents keeps your full-access choice — it no longer silently drops to Ask for approval when the two agents name the permission differently."
+        },
+        {
+          "kind": "fixed",
+          "label": "Account pool",
+          "text": "When a ChatGPT account hits its usage limit mid-task, the thread now rotates to the next pool account and replays the prompt instead of stopping on the error."
+        }
+      ]
+    },
+    {
       "version": "1.7.0",
       "date": "2026-09-03",
       "title": "Unified MCP and Skills capability management & multi-harness injection",

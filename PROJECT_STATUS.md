@@ -1,3 +1,35 @@
+## v1.6.7 Codex 号池限额不换号修复（2026-09-30）
+
+- **用户报告**：ChatGPT 账号达到 usage limit 后线程停在错误上，没有自动切换号池下一个账号（"我的号池机制呢"）。
+- **根因（双重断裂，b24f8efc 已修）**：
+  1. `observePoolQuotaFailure` 的重放闸门要求 `settlesThread && activeTurnId` 同时为真。Codex 真实线序常是 `turn/completed(failed)` 先结算（不带错误文本、清空 `activeTurnId`），配额文本随后经 `thread/error` 到达——闸门已死，文本进 `seenErrorMessages` 永久烧毁；sibling/compact turn 仍被追踪时 `settlesThread=false` 同样烧死。
+  2. `accountStore.updateStatus` 对任何非 `error` 状态且未带 `lastError` 的写入都会抹掉 `lastError`——额度轮询器刷新 `quota-exhausted` 时抹掉了推理标记的证据，使 `shouldPreserveInferenceExhaustion` 的 6h 保护失效，死账号被"看似健康"的探测翻回 `available` 重新当选。
+- **修复**：live user turn 自己的 failed completion 锚定 15s 宽限（按 `currentTurnPrompt` 对象身份防止新 turn 继承）；该 completion 本身（即使 sibling 在跑）直接触发 failover；每 turn 至多一次重放，加 `console.warn` 面包屑。`lastError` 只在转入健康态（`available`/`quota-low`）时清除。
+- **回归**：3 个新红灯用例（结算后 thread/error、sibling 遮蔽、宽限不继承）+ accountStore 保留用例；codex.test 140 项、pool failover 六套件 96 项、typecheck、lint 全过。顺手修 HEAD 既有漂移 `agentStatusesStore` persist v17→v18 断言。
+- **真实时序证据**：该线程 `thread_native_sessions` 记录 codex + `pool_account_id=codex:fbb21c65-…`（显式绑定当时被翻回 available 的死账号），21:35 turn 触发 quota 后未触发 failover。
+
+## v1.6.7 合成台改版与发布收口（2026-09-30）
+
+- **UI**：模型、Harness、MCP、Skills 共用 72×72 方格；右栏统一为「原料」并加宽，结果及配方栏缩窄，统一卡片与选择状态。
+- **验证**：合成台及 changelog 13 文件 79 项测试通过，typecheck 通过；普通与 type-aware lint 排除既有未跟踪临时文件后通过。全范围 managed mock 冒烟 PASS，renderer console/runtime 错误 0；单张嵌入式浏览器截图超时。真实账号/推理未在本轮测试范围内。
+- **证据**：`C:/Users/Haona/.craftstation-smoke/release-167-final/artifacts/smoke-report.json`、`workbench-populated.png`，以及 `ai_workspace/ui-1.6.7/` 原有两种宽度截图。managed session 已 stop。
+- **发布状态**：版本号和双语说明已更新至 1.6.7；Windows x64 NSIS 与便携包待构建，随后推送 main / tag / GitHub Release。
+
+## v1.6.7 性能热修：conhost 回收 / thread-output 合批 / 启动维护延后 / 生产 orphan watchdog（2026-09-30）
+
+- **已提交（main）**：`f3a564cf` T-01 ConPTY conhost 回收；`250c78d9` T-03 启动 compaction+retention 移出 `initDatabase`（10s 后延迟执行）；`dc8e0da2` T-05 `thread-output` 16ms 合批；`cad043c5` T-08 orphan watchdog 生产启用 + JobObject 结构化告警；`067ec88d` T-02 migration 47 `idx_usage_events_ts`（经用户授权 `--no-verify` 提交：`.oxlintrc*.json` 的 `ignorePatterns: ["main"]` 使仅含 `src/main/**` 的提交在 pre-commit 报 "No files found to lint"；提交前已手动跑 oxfmt、typecheck、lint、migrations 相关测试）；`dbcddc33` 把 oxlint 的 ignore 改为锚定的 `"/main"`，`src/main/**` 恢复被 lint，冒出的 lint 债已修（生产代码 1 处 + 测试 12 个文件，行为不变）。
+- **T-01 关键结论**：node-pty 1.1.0 非 DLL ConPTY 在客户端退出时（自然退出或 taskkill）由原生退出线程丢弃 HPCON 而不 `ClosePseudoConsole`，之后 `pty.kill()` 是原生 no-op；Brief 指定的"taskkill 后补 `pty.kill()`"实测仍 5/5 泄漏，先 `pty.kill()` 则 detached 子孙存活。改为保持 taskkill 树杀 + 按 spawn 时间窗唯一匹配回收 conhost（`conptyConhostReaper.ts`，CIM 批量、1.5s 延迟、歧义不杀）。
+- **实测（managed mock，同脚本 before→after）**：20k 行 19,501→123 事件、supervisor 136%→67% 单核、main 44%→2%；5k 行 4,970→40；scrollback 与流尾一致；5 shell 关闭 + 自然退出 conhost 残留 0；`taskkill /F` main → supervisor 子树 354ms 全退（JobObject 在位；watchdog 路径由进程级回归测试覆盖，0.3s）；`initDatabase` 3.25ms(10k/1k) vs 3.68ms(200k/20k)，维护 65.8→305ms 移到启动后。
+- **证据/产物**：`ai_workspace/perf-audit/results-1.6.7/*.json`、`verify-1.6.7.mjs`、`conpty-kill-order.cjs`/`conpty-spawn-window.cjs`；顺手发现与待确认项见 `ai_workspace/reports/fix-1.6.7-extra-findings.md`。
+- **验证**：typecheck 0 error；lint 仅剩基线噪声（`packages/codex-protocol/generated.tmp/**`、`ai_workspace/probe-chunks.cjs`）；相关单测 16 文件 498 + Round A 235 全过；managed session 均已 stop（kill-main 后按 session PID 核验无残留）。
+
+## 性能与架构审计（运行时实测，2026-09-30）
+
+- **交付**：`ai_workspace/reports/performance-architecture-audit.md`（P0×1 / P1×5 / P2×2 / P3×1 + 10 个可执行 Task）；原始测量与 CDP 驱动脚本在 `ai_workspace/perf-audit/`。
+- **实测确认**：main 异常终止后 supervisor+agent sidecar 整树孤儿化（单次 ~2.15GB，含 opencode serve 553MB；orphan watchdog 仅 dev）；Windows ConPTY 每次关 shell 泄漏一个 conhost（`ptyLifecycle` win32 分支跳过 `pty.kill()`）；`thread-output` 无批处理（2.4K ev/s，supervisor 突发 ~86% 单核）；entry 静态依赖 vendor 5.5MB+git-diff 1MB（preload 过滤只删 hint）；SQLite delta 持久化 ~0.2ms/batch 同步阻塞主进程；JobObject helper 启动失败静默降级。
+- **健康项**：IPC invoke p50=1.4ms；idle 0 longtask；runtime events 双层合批已就位；shell 开/关 heap 平坦。
+- **环境备注**：managed smoke `perf-audit-162d` 已规范 stop；孤儿进程树已定向清理；审计期间 main 推进至 1.6.6（测量针对当前工作树）。
+
 ## Fast 多档（Ultrafast）+ GPT-6.1 Sol + 自定义/渠道收口（2026-09-30）
 
 - **用户报告**：Kimi 自定义模型「Kimi-For-Coding」菜单里仍无快速模式行；Codex 线程报 `workspace routing discovery unauthorized (401)`；Codex 需要 Ultrafast 档与新模型 `gpt-6.1-sol`。
