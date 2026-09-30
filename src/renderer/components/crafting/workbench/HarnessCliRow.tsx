@@ -12,10 +12,14 @@ export const harnessStatusMeta: Record<
   NativeHarnessControlPlaneEntry["status"],
   { label: string; icon: typeof CheckCircle2; class: string }
 > = {
-  ready: { label: "就绪", icon: CheckCircle2, class: "text-emerald-400" },
-  "not-configured": { label: "未配置", icon: Settings2, class: "text-amber-300" },
+  ready: { label: "就绪", icon: CheckCircle2, class: "text-emerald-600 dark:text-emerald-400" },
+  "not-configured": {
+    label: "未配置",
+    icon: Settings2,
+    class: "text-amber-600 dark:text-amber-300",
+  },
   unavailable: { label: "未安装", icon: XCircle, class: "text-neutral-500" },
-  error: { label: "异常", icon: AlertTriangle, class: "text-red-400" },
+  error: { label: "异常", icon: AlertTriangle, class: "text-red-600 dark:text-red-400" },
 };
 
 /**
@@ -27,6 +31,10 @@ export function HarnessCliRow(props: {
   entry: NativeHarnessControlPlaneEntry;
   highlighted?: boolean | undefined;
   installing?: boolean | undefined;
+  /** Override the row test id (per-model map rows render one cell per model). */
+  testId?: string | undefined;
+  /** Extra muted suffix appended to the transport line (e.g. "2 个模型"). */
+  metaSuffix?: string | undefined;
   /** One-click install through the shared Native Agent install seam. */
   onInstall?: ((entry: NativeHarnessControlPlaneEntry) => void) | undefined;
   onShowDetail: (entry: NativeHarnessControlPlaneEntry) => void;
@@ -52,7 +60,7 @@ export function HarnessCliRow(props: {
   return (
     <button
       type="button"
-      data-testid={`harness-cli-row-${entry.descriptor.harnessKind}`}
+      data-testid={props.testId ?? `harness-cli-row-${entry.descriptor.harnessKind}`}
       disabled={installing}
       title={
         installing
@@ -90,6 +98,7 @@ export function HarnessCliRow(props: {
         </span>
         <span className="mt-0.5 block text-[10px] text-neutral-500">
           {entry.descriptor.transport}
+          {props.metaSuffix ? ` · ${props.metaSuffix}` : ""}
         </span>
       </span>
       <span className={`flex shrink-0 items-center gap-1 text-[10px] ${meta.class}`}>
@@ -125,7 +134,7 @@ export function HarnessCliRow(props: {
               latest: availableUpdate.latest,
             });
           }}
-          className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-300 transition-colors hover:bg-amber-400/30 focus-visible:outline-2 focus-visible:outline-amber-300"
+          className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 transition-colors hover:bg-amber-500/25 focus-visible:outline-2 focus-visible:outline-amber-600 dark:bg-amber-400/15 dark:text-amber-300 dark:hover:bg-amber-400/30 dark:focus-visible:outline-amber-300"
           title={t`New version available: v${availableUpdate.version} → v${availableUpdate.latest}. Click to update now.`}
         >
           <Download className="size-3" />
@@ -152,7 +161,7 @@ export function HarnessCliRow(props: {
             event.stopPropagation();
             onInstall?.(entry);
           }}
-          className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-200 transition-colors hover:bg-amber-400/35 focus-visible:outline-2 focus-visible:outline-amber-300"
+          className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-amber-500/20 px-1.5 py-0.5 text-[10px] font-medium text-amber-800 transition-colors hover:bg-amber-500/30 focus-visible:outline-2 focus-visible:outline-amber-600 dark:bg-amber-400/20 dark:text-amber-200 dark:hover:bg-amber-400/35 dark:focus-visible:outline-amber-300"
           title={t`Download and install ${entry.descriptor.label || entry.descriptor.harnessKind} now`}
         >
           <Download className="size-3" />
@@ -160,13 +169,13 @@ export function HarnessCliRow(props: {
         </span>
       ) : null}
       {installing ? (
-        <span className="flex shrink-0 items-center gap-1 text-[10px] text-sky-300">
+        <span className="flex shrink-0 items-center gap-1 text-[10px] text-sky-700 dark:text-sky-300">
           <RefreshCw className="size-3 animate-spin" />
           {t`Installing…`}
         </span>
       ) : null}
       {updating ? (
-        <span className="flex shrink-0 items-center gap-1 text-[10px] text-sky-300">
+        <span className="flex shrink-0 items-center gap-1 text-[10px] text-sky-700 dark:text-sky-300">
           <RefreshCw className="size-3 animate-spin" />
           更新中
         </span>

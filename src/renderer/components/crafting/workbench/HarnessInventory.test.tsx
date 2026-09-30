@@ -21,23 +21,31 @@ function ref(harnessKind: string, displayName: string): HarnessReference {
 function renderInventory() {
   return render(
     <HarnessInventory
-      entries={[ref("grok", "Grok Build Native Harness"), ref("kimi", "Kimi Code Native Harness")]}
+      entries={[ref("grok", "Grok Build Harness"), ref("kimi", "Kimi Code Harness")]}
       onSelect={() => undefined}
       onAdd={() => undefined}
     />,
   );
 }
 
-describe("HarnessInventory CLI update badges", () => {
-  it("marks cards whose CLI has an available update", () => {
+describe("HarnessInventory update affordances", () => {
+  it("shows no update badge on workbench cards even with a pending CLI update", () => {
+    // Updates live on the Harness map tab — the bench is for picking.
     useUpdateStore.setState({
       availableCliUpdates: [
-        { key: "grok:windows:", agentKind: "grok", label: "Grok Build", version: "v1.0.13", latest: "v1.0.25" },
+        {
+          key: "grok:windows:",
+          agentKind: "grok",
+          label: "Grok Build",
+          version: "v1.0.13",
+          latest: "v1.0.25",
+        },
       ],
     });
     renderInventory();
 
-    expect(screen.getByLabelText("Update available")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Update available")).not.toBeInTheDocument();
+    expect(screen.getByText("Grok Build Harness")).toBeInTheDocument();
     useUpdateStore.setState({ availableCliUpdates: [] });
   });
 

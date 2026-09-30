@@ -91,8 +91,7 @@ describe("craftingWorkbenchStore", () => {
 
     useCraftingWorkbenchStore.getState().setRecipeHomepageVisible(recipe.id, true);
     expect(
-      useCraftingWorkbenchStore.getState().recipes.find((r) => r.id === recipe.id)
-        ?.homepageVisible,
+      useCraftingWorkbenchStore.getState().recipes.find((r) => r.id === recipe.id)?.homepageVisible,
     ).toBe(true);
 
     // Re-saving the same pair keeps the flag.
@@ -104,14 +103,12 @@ describe("craftingWorkbenchStore", () => {
       resolution: resolution("NATIVE"),
     });
     expect(
-      useCraftingWorkbenchStore.getState().recipes.find((r) => r.id === recipe.id)
-        ?.homepageVisible,
+      useCraftingWorkbenchStore.getState().recipes.find((r) => r.id === recipe.id)?.homepageVisible,
     ).toBe(true);
 
     useCraftingWorkbenchStore.getState().setRecipeHomepageVisible(recipe.id, false);
     expect(
-      useCraftingWorkbenchStore.getState().recipes.find((r) => r.id === recipe.id)
-        ?.homepageVisible,
+      useCraftingWorkbenchStore.getState().recipes.find((r) => r.id === recipe.id)?.homepageVisible,
     ).toBeUndefined();
   });
 
@@ -188,7 +185,7 @@ describe("craftingWorkbenchStore", () => {
       modelEntryRef: "agent:opencode:gui:gemini-3.8-flash",
       harnessRef: "harness:opencode",
       modelName: "Gemini 3.8 Flash",
-      harnessName: "OpenCode Native Harness",
+      harnessName: "OpenCode Harness",
       resolution: resolution("CRAFTABLE"),
       modelId: "gemini-3.8-flash",
       harnessKind: "opencode",

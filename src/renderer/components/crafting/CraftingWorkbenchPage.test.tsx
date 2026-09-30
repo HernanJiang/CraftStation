@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting/nativeHarness";
 import { usePanelStore } from "@/renderer/state/panelStore";
@@ -11,6 +11,8 @@ const bridgeMock = vi.hoisted(() => ({
   refreshAgentStatuses: vi.fn<(...args: unknown[]) => Promise<unknown>>(),
   resolveCraftingCompatibility: vi.fn<() => Promise<unknown>>(),
   ensureCompatibilityBridge: vi.fn<() => Promise<unknown>>(),
+  getCompatibilityBridgeStatus: vi.fn<() => Promise<unknown>>(),
+  startCompatibilityBridge: vi.fn<() => Promise<unknown>>(),
   onSupervisorEvent: vi.fn<(listener: (event: unknown) => void) => () => void>(
     () => () => undefined,
   ),
@@ -123,9 +125,9 @@ describe("CraftingWorkbenchPage", () => {
     bridgeMock.onSupervisorEvent.mockReturnValue(() => undefined);
     bridgeMock.refreshAgentStatuses.mockResolvedValue({ windows: [], wsl: [], fromCache: false });
     bridgeMock.getNativeHarnessControlPlane.mockResolvedValue([
-      entry("codex", "Codex Native Harness", "ready"),
-      entry("kimi", "Kimi Code Native Harness", "not-configured"),
-      entry("antigravity", "Antigravity Native Harness", "unavailable"),
+      entry("codex", "Codex Harness", "ready"),
+      entry("kimi", "Kimi Code Harness", "not-configured"),
+      entry("antigravity", "Antigravity Harness", "unavailable"),
       entry("deepseek-api", "DeepSeek API Runtime", "not-configured"),
     ]);
     bridgeMock.resolveCraftingCompatibility.mockResolvedValue({
@@ -139,11 +141,47 @@ describe("CraftingWorkbenchPage", () => {
       capabilities: [],
       diagnostics: [],
     });
+    bridgeMock.getCompatibilityBridgeStatus.mockResolvedValue({ running: false, installed: true });
+    bridgeMock.startCompatibilityBridge.mockResolvedValue({ running: true, installed: true });
   });
 
   afterEach(resetStores);
 
-  it("stretches the three inventory columns to the remaining page height", async () => {
+  it("auto-starts an installed bridge once CPA is auto-selected, without manual clicks", async () => {
+    bridgeMock.resolveCraftingCompatibility.mockResolvedValue({
+      resolutionKey: "auto-bridge",
+      createdAt: new Date().toISOString(),
+      status: "CRAFTABLE",
+      internalStatus: "SUPPORTED",
+      source: "compatibility-layer",
+      modelEntryRef: "agent:antigravity:gui:gemini-3.8-flash",
+      harnessRef: "harness:codex",
+      capabilities: [],
+      diagnostics: [],
+    });
+    useCraftingWorkbenchStore
+      .getState()
+      .setEfficientModel("agent:antigravity:gui:gemini-3.8-flash");
+    useCraftingWorkbenchStore.getState().setEfficientHarness("harness:codex");
+    render(
+      <CraftingWorkbenchPage
+        accounts={[]}
+        customModels={[]}
+        onUpdateCustomModels={() => {}}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+
+    await waitFor(() => expect(bridgeMock.startCompatibilityBridge).toHaveBeenCalledTimes(1));
+    // No craft click happened: the start came from auto-select, and a missing
+    // binary would never be silently installed here.
+    expect(bridgeMock.ensureCompatibilityBridge).not.toHaveBeenCalled();
+    // Guarded per resolution key — no repeated starts on re-renders.
+    expect(bridgeMock.startCompatibilityBridge).toHaveBeenCalledTimes(1);
+  });
+
+  it("stretches the bottom inventory columns to the remaining page height", async () => {
     render(
       <CraftingWorkbenchPage
         accounts={[]}
@@ -159,7 +197,32 @@ describe("CraftingWorkbenchPage", () => {
     expect(columns.className).toContain("min-h-0");
     expect(screen.getByTestId("models-inventory-grid").className).not.toContain("max-h-72");
     expect(screen.getByTestId("harness-inventory-grid").className).not.toContain("max-h-72");
-    expect(screen.getByTestId("components-inventory-grid").className).not.toContain("max-h-72");
+    expect(screen.queryByTestId("components-inventory-grid")).toBeNull();
+  });
+
+  it("places recipes under the result and components in the right rail", async () => {
+    render(
+      <CraftingWorkbenchPage
+        accounts={[]}
+        customModels={[]}
+        onUpdateCustomModels={() => undefined}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+
+    const page = await screen.findByTestId("crafting-workbench-page");
+    const rail = within(page).getByTestId("recipes-rail");
+    // Recipe list stacks directly below the result detail card.
+    expect(rail.previousElementSibling?.getAttribute("data-testid")).toBe("crafting-result-detail");
+    // Right rail hosts the components inventory (no bridge UI, no old grid).
+    const components = within(page).getByTestId("components-rail");
+    expect(within(components).getByTestId("components-rail-mcp")).toBeInTheDocument();
+    expect(within(components).getByTestId("components-rail-skills")).toBeInTheDocument();
+    expect(within(page).queryByTestId("components-inventory-grid")).toBeNull();
+    // Bottom grid keeps models + harness only.
+    const columns = within(page).getByTestId("crafting-inventory-columns");
+    expect(columns.className).toContain("grid-cols-2");
   });
 
   it("hides the retired DeepSeek API Runtime from the bench catalogue", async () => {
@@ -184,7 +247,7 @@ describe("CraftingWorkbenchPage", () => {
       modelEntryRef: "agent:opencode:gui:gemini-3.8-flash",
       harnessRef: "harness:opencode",
       modelName: "Gemini 3.8 Flash",
-      harnessName: "OpenCode Native Harness",
+      harnessName: "OpenCode Harness",
       resolution: {
         resolutionKey: "test",
         createdAt: new Date().toISOString(),
@@ -207,14 +270,10 @@ describe("CraftingWorkbenchPage", () => {
       />,
     );
 
-    expect(
-      await screen.findByText("OpenCode Native Harness · Gemini 3.8 Flash"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("OpenCode Harness · Gemini 3.8 Flash")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /删除配方/ }));
     expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(0);
-    expect(
-      screen.queryByText("OpenCode Native Harness · Gemini 3.8 Flash"),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText("OpenCode Harness · Gemini 3.8 Flash")).not.toBeInTheDocument();
   });
 
   it("deletes a saved recipe from the workbench via context menu", async () => {
@@ -222,7 +281,7 @@ describe("CraftingWorkbenchPage", () => {
       modelEntryRef: "agent:opencode:gui:gemini-3.8-flash",
       harnessRef: "harness:opencode",
       modelName: "Gemini 3.8 Flash",
-      harnessName: "OpenCode Native Harness",
+      harnessName: "OpenCode Harness",
       resolution: {
         resolutionKey: "test",
         createdAt: new Date().toISOString(),
@@ -245,7 +304,7 @@ describe("CraftingWorkbenchPage", () => {
       />,
     );
 
-    const card = await screen.findByText("OpenCode Native Harness · Gemini 3.8 Flash");
+    const card = await screen.findByText("OpenCode Harness · Gemini 3.8 Flash");
     fireEvent.contextMenu(card);
     fireEvent.click(screen.getByRole("menuitem", { name: "删除配方" }));
     expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(0);

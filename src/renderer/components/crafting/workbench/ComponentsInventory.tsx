@@ -21,6 +21,8 @@ export function ComponentsInventory(props: {
   onSelect: () => void;
   /** Pinned current-selection summary row (first row of the column). */
   summary?: ReactNode | undefined;
+  /** Narrow side-rail mode: two-column card grid instead of four. */
+  compact?: boolean | undefined;
 }) {
   const { t } = useLingui();
   const [bridge, setBridge] = useState<CompatibilityBridgeStatusView | "unknown">("unknown");
@@ -84,7 +86,9 @@ export function ComponentsInventory(props: {
       </header>
       {props.summary ? <div className="shrink-0">{props.summary}</div> : null}
       <div
-        className="grid min-h-0 flex-1 grid-cols-4 content-start gap-1.5 overflow-y-auto pr-1"
+        className={`grid min-h-0 flex-1 content-start gap-1.5 overflow-y-auto pr-1 ${
+          props.compact ? "grid-cols-2" : "grid-cols-4"
+        }`}
         data-testid="components-inventory-grid"
       >
         <button

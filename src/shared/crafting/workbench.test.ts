@@ -85,6 +85,25 @@ describe("workbench compatibility tiers", () => {
     expect(resolution.source).toBe("compatibility-layer");
   });
 
+  it("sends an allowlisted vendor to the bridge when OpenCode never connected it", () => {
+    const resolution = resolveCompatibility({
+      modelEntry: modelEntry({ providerKind: "antigravity", modelId: "gemini-3.8-flash" }),
+      harnessRef: harnessRef({
+        vendor: "opencode",
+        harnessKind: "opencode",
+        harnessItemId: "harness:opencode",
+        displayName: "OpenCode Harness",
+        status: "ready",
+      }),
+      harnessReady: true,
+      openCodeRouteReady: true,
+      openCodeReadyVendors: ["openai"],
+      compatibilityBridgeReady: true,
+    });
+    expect(resolution.status).toBe("CRAFTABLE");
+    expect(resolution.source).toBe("compatibility-layer");
+  });
+
   it("names a missing compatibility bridge so the workbench can install on craft", () => {
     const resolution = resolveCompatibility({
       modelEntry: modelEntry({ providerKind: "moonshot", modelId: "kimi-k3-256k" }),
@@ -92,7 +111,7 @@ describe("workbench compatibility tiers", () => {
         vendor: "openai",
         harnessKind: "codex",
         harnessItemId: "harness:codex",
-        displayName: "Codex Native Harness",
+        displayName: "Codex Harness",
         status: "ready",
       }),
       harnessReady: true,

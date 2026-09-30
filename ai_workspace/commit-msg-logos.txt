@@ -1,0 +1,11 @@
+fix(brands): official logos for MiniMax, Muse, Step Code, Devin
+
+Replace letter-fallback badges with vendored official marks from each
+vendor's site (minimax.io, about.meta.com, stepfun.com, devin.ai) and
+record every asset origin in sources.json. Dark tiles behind white-on-
+transparent marks (Devin, StepFun) and brand tiles behind colored marks
+(Meta blue, MiniMax gradient) keep the badges visually consistent.
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>

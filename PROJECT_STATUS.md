@@ -9,6 +9,8 @@
 - **schema**：`serviceTierSchema` 从固定 enum 放开为 `z.string().min(1)`——catalog 档位是动态数据，enum 会在边界丢弃未来新档。
 - **GPT-6.1 Sol**：`PREFERRED_CODEX_DEFAULT_MODEL` → `gpt-6.1-sol`（codex-cli 0.159.x bundled catalog 默认项，本机已升 0.159.2 并验证 model/list 含该模型且 `default=true`）。
 - **缓存失效**：supervisor `STATUS_CACHE_VERSION` 20→21、renderer persist v16→v17（`modelFastTiers` 新字段不落旧盘）。
+- **Fast 默认关（新线程）**：用户要求新建线程一律 Standard、手动开档。`resolveSavedProviderDraftConfig` 不再把偏好里的 `fast`/`speedTier` 播种进草稿；hydration 校正品 effect 改为 reconcile 当前 `fast` 状态而非偏好值（不 resurrect 也不顶掉手动开关）；草稿内切 provider/切模型不再回填 preference 的 fast——但用户在当前草稿里手动开的档会随切模型保留（`patchConfigForModelChange` 只吃当前态）。
+- **Ultrafast 约定档**：上游确认 `service_tier="ultrafast"` 为真实 catalog id（Cerebras 后端，官方先发于 gpt-5.6-sol）；bundled `model/list` 落后于远端目录，故 `mapCodexModels` 对 `gpt-5.6-sol`/`gpt-6-astra`/`gpt-6.1-sol` 在 catalog 缺省时补 `{id:"ultrafast",label:"Ultrafast"}`——无权限账号服务端静默降级 standard，不报错。
 - **验证**：typecheck 0 errors、oxlint 0 warnings；codex 135 + DraftParameterMenu 24（新增多档子菜单/胶囊档位标签用例）+ 相关套件全过；全量 12272 测试中 4 个失败均为并发时序抖动（隔离复跑全过）。Codex 真机 turn 因上游 token 吊销无法端到端验证，wire 值已由单测钉住（`priority`/`ultrafast`/`null`）。
 
 ## 菜单「快速模式」行缺失修复（2026-09-30）

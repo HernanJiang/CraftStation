@@ -101,6 +101,14 @@ export interface ExecutionRouteResolutionInput {
   harnessReady: boolean;
   openCodeRouteReady?: boolean | undefined;
   compatibilityBridgeReady?: boolean | undefined;
+  /**
+   * Canonical vendor ids OpenCode can actually serve right now (from cached
+   * detection of its connected providers). Omitted = unknown = legacy
+   * allowlist-only claim. Present = the native-vendor claim below additionally
+   * requires membership — claiming NATIVE for a vendor OpenCode never
+   * connected ends in `Model not found` at runtime.
+   */
+  openCodeReadyVendors?: readonly string[] | undefined;
 }
 
 export interface ExecutionRouteDecision {
@@ -138,6 +146,37 @@ function decision(
     isNative: routeType === "native",
     isCompatibility: routeType === "compatibility",
   };
+}
+
+/**
+ * Normalize OpenCode provider ids (as reported by `opencode providers list` /
+ * auth.json) to canonical model vendors for the readiness gate below.
+ * Unknown ids pass through `canonicalModelVendor` unchanged — they simply
+ * never match an allowlisted vendor instead of breaking the gate.
+ */
+const OPENCODE_PROVIDER_ID_TO_VENDOR: Record<string, string> = {
+  google: "google",
+  openai: "openai",
+  xai: "xai",
+  deepseek: "deepseek",
+  moonshot: "moonshot",
+  "kimi-for-coding": "moonshot",
+  opencode: "opencode",
+  "opencode-go": "opencode",
+  anthropic: "muse",
+  muse: "muse",
+};
+
+export function resolveOpenCodeReadyVendors(
+  providerIds: readonly (string | undefined)[],
+): string[] {
+  const vendors = new Set<string>();
+  for (const id of providerIds) {
+    const normalized = (id ?? "").trim().toLowerCase();
+    if (!normalized) continue;
+    vendors.add(canonicalModelVendor(OPENCODE_PROVIDER_ID_TO_VENDOR[normalized] ?? normalized));
+  }
+  return [...vendors];
 }
 
 export function resolveExecutionRoute(
@@ -198,7 +237,15 @@ export function resolveExecutionRoute(
       );
     }
     const modelVendor = openCodeNativeVendorFor(modelEntry);
-    if (modelVendor) {
+    // Claiming NATIVE needs the vendor to be connected in OpenCode, not just
+    // allowlisted: without its credentials the run dies at runtime with
+    // `Model not found <vendor>/<id>`. Unknown readiness (omitted list) keeps
+    // the legacy allowlist-only claim; a known-missing vendor falls through
+    // to the bridge / fail-closed paths below.
+    if (
+      modelVendor &&
+      (!input.openCodeReadyVendors || input.openCodeReadyVendors.includes(modelVendor))
+    ) {
       return decision(
         "native",
         "OPENCODE_NATIVE_VENDOR",

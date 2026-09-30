@@ -88,6 +88,58 @@ export function brandIdForVendorKind(id: string | undefined): string {
   return VENDOR_KIND_TO_BRAND[normalized] ?? normalized;
 }
 
+/**
+ * Per-brand edge accent for the Harness map graph (渠道 → 模型 → Harness).
+ * Badge tiles above stay monochrome for legibility, so crossing edges carry a
+ * separate characteristic hue per vendor instead. Unknown/custom channels
+ * fall back to a hash-picked vivid color. Every value must stay legible on
+ * dark surfaces.
+ */
+const BRAND_EDGE_COLORS: Record<string, string> = {
+  codex: "#10A37F",
+  "openai-compatible": "#10A37F",
+  claude: "#D97757",
+  gemini: "#4C8DFF",
+  copilot: "#A371F7",
+  cursor: "#F8FAFC",
+  grok: "#94A3B8",
+  kimi: "#E2E8F0",
+  antigravity: "#82AAFF",
+  commandcode: "#A8A29E",
+  factory: "#D6D3D1",
+  opencode: "#CBD5E1",
+  deepseek: "#4D6BFE",
+  minimax: "#F14A9B",
+  muse: "#0082FB",
+  devin: "#8EA6FF",
+  stepcode: "#FACC15",
+  stepfun: "#FACC15",
+  zai: "#38BDF8",
+  qwen: "#7C3AED",
+  volcengine: "#3B9DFF",
+  recipes: "#FBBF24",
+};
+
+const FALLBACK_EDGE_COLORS = [
+  "#22D3EE",
+  "#F472B6",
+  "#A3E635",
+  "#FB923C",
+  "#C084FC",
+  "#34D399",
+  "#FACC15",
+  "#60A5FA",
+];
+
+export function brandEdgeColor(id: string | undefined): string {
+  const direct = BRAND_EDGE_COLORS[brandIdForVendorKind(id)];
+  if (direct) return direct;
+  const key = (id ?? "").trim().toLowerCase() || "unknown";
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  return FALLBACK_EDGE_COLORS[hash % FALLBACK_EDGE_COLORS.length] ?? "#22D3EE";
+}
+
 type ProviderBrand = {
   background: string;
   logo: string;

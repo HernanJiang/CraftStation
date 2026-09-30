@@ -107,33 +107,67 @@ describe("HarnessMapPage", () => {
     bridgeMock.onSupervisorEvent.mockReturnValue(() => undefined);
     bridgeMock.refreshAgentStatuses.mockResolvedValue({ windows: [], wsl: [], fromCache: false });
     bridgeMock.getNativeHarnessControlPlane.mockResolvedValue([
-      entry("codex", "Codex Native Harness", "ready"),
-      entry("kimi", "Kimi Code Native Harness", "not-configured"),
-      entry("antigravity", "Antigravity Native Harness", "unavailable"),
-      entry("opencode", "OpenCode Native Harness", "ready"),
-      entry("stepcode", "Step Code Native Harness", "ready"),
+      entry("codex", "Codex Harness", "ready"),
+      entry("kimi", "Kimi Code Harness", "not-configured"),
+      entry("antigravity", "Antigravity Harness", "unavailable"),
+      entry("opencode", "OpenCode Harness", "ready"),
+      entry("stepcode", "Step Code Harness", "ready"),
       entry("deepseek-api", "DeepSeek API Runtime", "not-configured"),
     ]);
   });
 
   afterEach(resetStores);
 
-  it("shows only model-selected providers and converges compat providers onto the trunk", async () => {
+  it("draws channel → model → harness layers with crossing edges", async () => {
     renderPage();
-    await screen.findByTestId("harness-cli-row-kimi");
-    expect(screen.getByTestId("harness-map-row-kimi")).toBeInTheDocument();
-    expect(screen.getByTestId("harness-map-row-codex")).toBeInTheDocument();
-    // Providers with no selected model (e.g. claude/qwen) never appear.
-    expect(screen.queryByTestId("harness-map-row-claude")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("harness-map-row-qwen")).not.toBeInTheDocument();
-    // cursor has no native harness — it joins the compat trunk (OpenCode),
-    // not a per-provider placeholder.
-    const trunk = screen.getByTestId("harness-map-compat-trunk");
-    expect(trunk).toBeInTheDocument();
-    expect(trunk.textContent).toContain("Cursor");
-    expect(screen.getByTestId("harness-cli-row-opencode")).toBeInTheDocument();
+    await screen.findByTestId("harness-map-compat-trunk");
+    // Layer 1: one node per channel (custom inventory: codex/kimi/cursor).
+    expect(screen.getAllByTestId(/^harness-map-provider-/)).toHaveLength(3);
+    // Layer 2: one node per selected model.
+    expect(screen.getAllByTestId(/^harness-map-model-node-/)).toHaveLength(3);
+    expect(screen.getByText("5.6 Sol")).toBeInTheDocument();
+    expect(screen.getByText("K3")).toBeInTheDocument();
+    expect(screen.getByText("Cursor One")).toBeInTheDocument();
+    // Channels with no selected model (e.g. claude/qwen) never appear.
+    expect(screen.queryAllByTestId(/^harness-map-provider-claude/)).toHaveLength(0);
+    expect(screen.queryAllByTestId(/^harness-map-model-node-claude-/)).toHaveLength(0);
+    expect(screen.queryAllByTestId(/^harness-map-model-node-qwen-/)).toHaveLength(0);
+    // Layer 3: native models resolve onto their own harness…
+    expect(screen.getByTestId("harness-map-harness-node-codex")).toBeInTheDocument();
+    expect(screen.getByTestId("harness-map-harness-node-kimi")).toBeInTheDocument();
+    // …while cursor has no native harness, so it converges onto the compat
+    // trunk (OpenCode) — several models, one Harness node.
+    const opencodeNode = screen.getByTestId("harness-map-harness-node-opencode");
+    expect(opencodeNode.textContent).toContain("OpenCode Harness");
+    expect(opencodeNode.textContent).toContain("1 个模型");
+    const codexModels = screen.getAllByTestId(/^harness-map-model-node-codex-/);
+    expect(codexModels).toHaveLength(1);
+    expect(codexModels[0]?.textContent).toContain("原生");
+    const cursorModels = screen.getAllByTestId(/^harness-map-model-node-cursor-/);
+    expect(cursorModels).toHaveLength(1);
+    expect(cursorModels[0]?.textContent).toContain("兼容默认");
+    // Edges: one 渠道→模型 and one 模型→Harness per model; the cursor model's
+    // second-layer edge lands on opencode.
+    const page = screen.getByTestId("harness-map-page");
+    expect(page.querySelectorAll('[data-testid^="harness-map-edge-pm-"]')).toHaveLength(3);
+    expect(page.querySelectorAll('[data-testid^="harness-map-edge-mh-"]')).toHaveLength(3);
+    expect(
+      page.querySelector('[data-testid^="harness-map-edge-mh-"][data-to="opencode"]'),
+    ).not.toBeNull();
+    // Edges carry the source channel brand accent end to end.
+    expect(
+      page
+        .querySelector('[data-testid^="harness-map-edge-pm-"][data-from="codex"]')
+        ?.getAttribute("stroke"),
+    ).toBe("#10A37F");
+    expect(
+      page
+        .querySelector('[data-testid^="harness-map-edge-mh-"][data-to="opencode"]')
+        ?.getAttribute("stroke"),
+    ).toBe("#F8FAFC");
     // Retired catalogue entries stay out of the map entirely.
     expect(screen.queryByTestId("harness-cli-row-deepseek-api")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("harness-map-orphan-deepseek-api")).not.toBeInTheDocument();
   });
 
   it("lets the user repoint the compat-lane default Harness", async () => {
@@ -148,11 +182,20 @@ describe("HarnessMapPage", () => {
     // The trunk now carries Step Code; the former default drops to the
     // unlinked-harness group rather than disappearing.
     const trunk = screen.getByTestId("harness-map-compat-trunk");
-    await waitFor(() =>
-      expect(trunk.querySelector('[data-testid="harness-cli-row-stepcode"]')).not.toBeNull(),
-    );
-    expect(trunk.querySelector('[data-testid="harness-cli-row-opencode"]')).toBeNull();
+    await waitFor(() => expect(trunk.textContent).toContain("Step Code"));
+    expect(screen.getByTestId("harness-map-harness-node-stepcode")).toBeInTheDocument();
     expect(screen.getByTestId("harness-map-orphan-opencode")).toBeInTheDocument();
+    // Layer-2 routing follows the trunk: the cursor model's edge now lands on
+    // Step Code instead of OpenCode.
+    const page = screen.getByTestId("harness-map-page");
+    await waitFor(() =>
+      expect(
+        page.querySelector('[data-testid^="harness-map-edge-mh-"][data-to="stepcode"]'),
+      ).not.toBeNull(),
+    );
+    expect(
+      page.querySelector('[data-testid^="harness-map-edge-mh-"][data-to="opencode"]'),
+    ).toBeNull();
   });
 
   it("opens agent settings when the user clicks a not-configured Harness/CLI row", async () => {
@@ -250,8 +293,8 @@ describe("HarnessMapPage", () => {
     );
     bridgeMock.getNativeHarnessControlPlane.mockImplementation(async () =>
       installed
-        ? [entry("antigravity", "Antigravity Native Harness", "not-configured")]
-        : [entry("antigravity", "Antigravity Native Harness", "unavailable")],
+        ? [entry("antigravity", "Antigravity Harness", "not-configured")]
+        : [entry("antigravity", "Antigravity Harness", "unavailable")],
     );
 
     renderPage();
@@ -260,7 +303,7 @@ describe("HarnessMapPage", () => {
 
     await waitFor(() => expect(installMock.runNativeAgentInstall).toHaveBeenCalledTimes(1));
     expect(installMock.runNativeAgentInstall).toHaveBeenCalledWith(
-      expect.objectContaining({ agentKind: "antigravity", label: "Antigravity Native Harness" }),
+      expect.objectContaining({ agentKind: "antigravity", label: "Antigravity Harness" }),
     );
     const row = await screen.findByTestId("harness-cli-row-antigravity");
     await waitFor(() => expect(row.textContent).toContain("未配置"));

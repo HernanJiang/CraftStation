@@ -1,0 +1,19 @@
+feat(harness-map): selected-channel tree with repointable compat trunk
+
+Harness map now lists only providers with at least one model selected in
+管理模型 — mirroring the actual model inventory instead of the whole catalog.
+Providers with no native harness no longer render per-row placeholders; they
+converge onto a single compat trunk node whose default harness is user-
+repointable (OpenCode by default), persisted as sharedSettings.
+compatDefaultHarness. Unlinked harnesses drop into their own group.
+
+The setting is threaded through the whole third-party routing surface —
+resolveThirdPartyHarnessForModel, composerPickerAgentKind,
+resolveAutoModelBinding, resolveThirdPartyAccountForLaunch and
+applyThirdPartyPickerSelection — so composer chips, launches, handoffs,
+recipes, model management and the MCP create_thread path all honor the same
+configured compat default instead of a hardcoded OpenCode fallback.
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>

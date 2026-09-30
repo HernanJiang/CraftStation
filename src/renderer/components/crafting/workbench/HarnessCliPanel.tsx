@@ -39,7 +39,7 @@ export function HarnessCliPanel(props: {
       </header>
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
         {entries.length === 0 && !loading ? (
-          <p className="p-2 text-[11px] text-neutral-500">没有检测到 Native Harness</p>
+          <p className="p-2 text-[11px] text-neutral-500">没有检测到 Harness</p>
         ) : null}
         {entries.map((entry) => (
           <HarnessCliRow

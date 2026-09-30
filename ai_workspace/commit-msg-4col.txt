@@ -1,0 +1,11 @@
+fix(usage): account pools render four cards per row
+
+Switch the pool grid from two to four columns so large pools (Grok x8)
+take half the vertical space. Narrow cards needed two layout fixes: the
+account identity truncates instead of breaking per-character, and the
+header row wraps so the action cluster drops below the email instead of
+squeezing it to zero width.
+
+Generated with [Devin](https://devin.ai)
+
+Co-Authored-By: Devin <158243242+devin-ai-integration[bot]@users.noreply.github.com>

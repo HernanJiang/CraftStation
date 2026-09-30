@@ -297,7 +297,7 @@ export const BUILTIN_NATIVE_HARNESS_MODEL_ITEMS: Item[] = [
       version: "audit-2026-09",
       vendor: "cognition",
       source: "builtin",
-      description: "Cognition SWE model family paired with the official Devin Native Harness.",
+      description: "Cognition SWE model family paired with the official Devin Harness.",
       tags: ["coding", "cognition", "devin"],
       compatibilityStatus: "NATIVE",
     },
@@ -528,7 +528,7 @@ export const BUILTIN_OPENCODE_HARNESS_ITEM: Item = {
   kind: "harness",
   metadata: {
     id: "harness:opencode",
-    name: "OpenCode Native Harness",
+    name: "OpenCode Harness",
     version: "0.8.0",
     vendor: "opencode",
     source: "builtin",
@@ -655,7 +655,7 @@ export const BUILTIN_MUSE_HARNESS_ITEM = createNativeHarnessItem({
 
 export const BUILTIN_DEVIN_HARNESS_ITEM = createNativeHarnessItem({
   id: "harness:devin",
-  name: "Devin Native Harness",
+  name: "Devin Harness",
   vendor: "cognition",
   description: "Official Devin CLI agent runtime through its ACP stdio boundary.",
   executionMode: "structured_session",

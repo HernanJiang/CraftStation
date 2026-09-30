@@ -112,11 +112,11 @@ describe("HarnessPanel native control-plane surface", () => {
     };
     bridgeMock.onSupervisorEvent.mockReturnValue(() => undefined);
     bridgeMock.getNativeHarnessControlPlane.mockResolvedValue([
-      entry("codex", "Codex Native Harness", "ready"),
-      entry("grok", "Grok Build Native Harness", "not-configured"),
-      entry("kimi", "Kimi Code Native Harness", "ready"),
-      entry("antigravity", "Antigravity Native Harness", "error"),
-      entry("deepseek", "DeepSeek / DSH Native Harness", "unavailable"),
+      entry("codex", "Codex Harness", "ready"),
+      entry("grok", "Grok Build Harness", "not-configured"),
+      entry("kimi", "Kimi Code Harness", "ready"),
+      entry("antigravity", "Antigravity Harness", "error"),
+      entry("deepseek", "DeepSeek / DSH Harness", "unavailable"),
     ]);
     bridgeMock.getCraftingModelInventory.mockResolvedValue({
       status: "ready",

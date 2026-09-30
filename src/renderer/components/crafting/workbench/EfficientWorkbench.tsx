@@ -14,25 +14,21 @@ const uiStatusLabel: Record<CapabilityResolution["status"], string> = {
 };
 
 /**
- * 合成台：Minecraft 四格合成隐喻 —— 左侧 2×2 输入格 → 箭头 → 右侧结果格，
+ * 合成台：Minecraft 九宫格合成隐喻 —— 左侧 3×3 输入格 → 箭头 → 右侧结果格，
  * 下方是真正的主操作区（清空次按钮 + 合成主按钮）。
- * NATIVE（直连官方运行时）与 CRAFTABLE（CLIProxyAPI 兼容桥可启动或已运行，
- * spawn 时再拉起 sidecar）可执行；IMPOSSIBLE 显示真实原因，绝不伪造可执行态。
+ * 槽位 1/2 为模型 / Harness；兼容桥（CLIProxyAPI）是隐形基础设施，需要时由
+ * 合成台自动拉起，不再占用组件槽位。NATIVE（直连官方运行时）与 CRAFTABLE
+ * （兼容桥可启动或已运行，spawn 时再拉起 sidecar）可执行；IMPOSSIBLE
+ * 显示真实原因，绝不伪造可执行态。
  */
 export function EfficientWorkbench(props: {
   model?: SelectedModelEntry | undefined;
   harness?: HarnessReference | undefined;
   resolution?: CapabilityResolution | undefined;
-  /**
-   * CLIProxyAPI helper for compatibility routes. Shown only when the current
-   * resolution requires the gateway/translator; native routes pass nothing
-   * and must never auto-select CPA.
-   */
-  cpa?: { required: boolean; selected: boolean } | undefined;
   onCraft: () => void;
   onClear: () => void;
 }) {
-  const { model, harness, resolution, cpa, onCraft, onClear } = props;
+  const { model, harness, resolution, onCraft, onClear } = props;
 
   // NATIVE, CRAFTABLE, and CPA-missing (install-on-craft) are executable.
   const canCraft =
@@ -56,8 +52,8 @@ export function EfficientWorkbench(props: {
     >
       <div className="flex items-center gap-3">
         <div
-          className="grid shrink-0 grid-cols-2 content-start gap-2"
-          data-testid="crafting-grid-2x2"
+          className="grid shrink-0 grid-cols-3 content-start gap-2"
+          data-testid="crafting-grid-3x3"
         >
           <CraftingSlot
             label="模型"
@@ -75,8 +71,10 @@ export function EfficientWorkbench(props: {
             name={harness?.displayName}
             testId="crafting-slot-harness"
           />
-          <CraftingSlot label="组件" testId="crafting-slot-pack" />
-          <CraftingSlot label="预留" testId="crafting-slot-reserved" />
+          <CraftingSlot label="组件" testId="crafting-slot-component" />
+          {[4, 5, 6, 7, 8, 9].map((slot) => (
+            <CraftingSlot key={slot} label="预留" testId={`crafting-slot-reserved-${slot}`} />
+          ))}
         </div>
 
         <div className="flex shrink-0 flex-col items-center justify-center gap-1 px-1">
@@ -100,11 +98,6 @@ export function EfficientWorkbench(props: {
               title={reason}
             >
               {reason}
-            </span>
-          ) : null}
-          {cpa?.required ? (
-            <span className="text-[9px] text-sky-300/80" data-testid="cpa-helper-row">
-              {cpa.selected ? "CLIProxyAPI · 已自动选中" : "CLIProxyAPI · 按需"}
             </span>
           ) : null}
         </div>

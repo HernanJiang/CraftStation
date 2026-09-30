@@ -1,10 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
-import { EMPTY_CREATIVE_DRAFT } from "@/shared/crafting/workbenchTypes";
 import type { CapabilityResolution } from "@/shared/crafting/workbenchTypes";
 import { EfficientWorkbench } from "./EfficientWorkbench";
-import { CreativeWorkbenchShell } from "./CreativeWorkbenchShell";
 
 function resolution(status: CapabilityResolution["status"]): CapabilityResolution {
   return {
@@ -30,14 +28,14 @@ function resolution(status: CapabilityResolution["status"]): CapabilityResolutio
 }
 
 describe("EfficientWorkbench", () => {
-  it("renders a 2x2 input grid plus one result slot", () => {
+  it("renders a 3x3 input grid plus one result slot", () => {
     render(<EfficientWorkbench onCraft={() => undefined} onClear={() => undefined} />);
-    expect(screen.getByTestId("crafting-grid-2x2")).toBeInTheDocument();
-    expect(screen.queryByTestId("crafting-grid-4x4")).toBeNull();
+    expect(screen.getByTestId("crafting-grid-3x3")).toBeInTheDocument();
+    expect(screen.queryByTestId("crafting-grid-2x2")).toBeNull();
     expect(screen.getByTestId("crafting-slot-model")).toBeInTheDocument();
     expect(screen.getByTestId("crafting-slot-harness")).toBeInTheDocument();
-    expect(screen.getByTestId("crafting-slot-pack")).toBeInTheDocument();
-    expect(screen.getByTestId("crafting-slot-reserved")).toBeInTheDocument();
+    expect(screen.getByTestId("crafting-slot-component")).toBeInTheDocument();
+    expect(screen.getAllByTestId(/^crafting-slot-reserved-/)).toHaveLength(6);
     expect(screen.getByTestId("crafting-result-slot")).toBeInTheDocument();
     expect(screen.getByTestId("craft-button")).toHaveTextContent("合成");
   });
@@ -114,30 +112,9 @@ describe("EfficientWorkbench", () => {
     expect(screen.queryByTestId("compatibility-reason")).not.toBeInTheDocument();
   });
 
-  it("hides the CPA helper row without a compatibility route", () => {
+  it("keeps the component slot empty — the bridge is invisible infrastructure", () => {
     render(<EfficientWorkbench onCraft={() => undefined} onClear={() => undefined} />);
     expect(screen.queryByTestId("cpa-helper-row")).not.toBeInTheDocument();
-  });
-
-  it("auto-selects the CPA helper on compatibility routes", () => {
-    render(
-      <EfficientWorkbench
-        onCraft={() => undefined}
-        onClear={() => undefined}
-        cpa={{ required: true, selected: true }}
-      />,
-    );
-    expect(screen.getByTestId("cpa-helper-row")).toHaveTextContent("CLIProxyAPI · 已自动选中");
-  });
-});
-
-describe("CreativeWorkbenchShell", () => {
-  it("renders a 3x3 input grid plus one result slot", () => {
-    render(<CreativeWorkbenchShell draft={EMPTY_CREATIVE_DRAFT} onClear={vi.fn<() => void>()} />);
-    expect(screen.getByTestId("crafting-grid-3x3")).toBeInTheDocument();
-    expect(screen.getByTestId("crafting-slot-creative-0")).toBeInTheDocument();
-    expect(screen.getByTestId("crafting-slot-creative-8")).toBeInTheDocument();
-    expect(screen.getByTestId("crafting-result-slot")).toBeInTheDocument();
-    expect(screen.getByTestId("craft-button")).toHaveTextContent("合成");
+    expect(screen.getByTestId("crafting-slot-component")).toHaveTextContent("组件");
   });
 });

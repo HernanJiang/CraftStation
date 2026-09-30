@@ -36,6 +36,11 @@ export interface CompatibilityReadinessInput {
   harnessReady: boolean;
   /** OpenCode-specific route readiness; only meaningful when harnessKind === "opencode". */
   openCodeRouteReady?: boolean;
+  /**
+   * Canonical vendor ids OpenCode can serve (cached detection). Omitted =
+   * unknown = legacy allowlist-only native claim. See ExecutionRouteResolutionInput.
+   */
+  openCodeReadyVendors?: readonly string[] | undefined;
   /** Compatibility bridge service readiness */
   compatibilityBridgeReady?: boolean;
   /** A stable adapter id/version selected for this combination. */
@@ -92,6 +97,7 @@ export function resolveUiStatus(input: CompatibilityReadinessInput): {
     harnessReady,
     openCodeRouteReady,
     compatibilityBridgeReady,
+    ...(input.openCodeReadyVendors ? { openCodeReadyVendors: input.openCodeReadyVendors } : {}),
   });
 
   if (routeDecision.routeType === "fail-closed") {

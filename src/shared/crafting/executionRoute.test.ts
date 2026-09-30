@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveExecutionRoute } from "./executionRoute";
+import { resolveExecutionRoute, resolveOpenCodeReadyVendors } from "./executionRoute";
 import type { HarnessReference, SelectedModelEntry } from "./workbenchTypes";
 
 describe("ExecutionRouteResolver", () => {
@@ -68,25 +68,26 @@ describe("ExecutionRouteResolver", () => {
     expect(decision.isCompatibility).toBe(false);
   });
 
-  it.each([
-    ["openai"],
-    ["xai"],
-    ["google"],
-    ["moonshot"],
-    ["moonshot-openai-compatible"],
-  ])("resolves canonical vendor %s on OpenCode to native", (providerKind) => {
-    const decision = resolveExecutionRoute({
-      modelEntry: { ...openaiModel, providerKind },
-      harnessRef: opencodeHarness,
-      harnessReady: true,
-      openCodeRouteReady: true,
-    });
-    expect(decision.routeType).toBe("native");
-  });
+  it.each([["openai"], ["xai"], ["google"], ["moonshot"], ["moonshot-openai-compatible"]])(
+    "resolves canonical vendor %s on OpenCode to native",
+    (providerKind) => {
+      const decision = resolveExecutionRoute({
+        modelEntry: { ...openaiModel, providerKind },
+        harnessRef: opencodeHarness,
+        harnessReady: true,
+        openCodeRouteReady: true,
+      });
+      expect(decision.routeType).toBe("native");
+    },
+  );
 
   it("keeps OpenCode catalog models on the official OpenCode runtime", () => {
     const decision = resolveExecutionRoute({
-      modelEntry: { ...openaiModel, providerKind: "opencode", modelId: "opencode-go/muse-spark-1.3-contributor" },
+      modelEntry: {
+        ...openaiModel,
+        providerKind: "opencode",
+        modelId: "opencode-go/muse-spark-1.3-contributor",
+      },
       harnessRef: opencodeHarness,
       harnessReady: true,
       openCodeRouteReady: true,
@@ -275,5 +276,68 @@ describe("ExecutionRouteResolver", () => {
     });
     expect(decision.routeType).toBe("compatibility");
     expect(decision.isNative).toBe(false);
+  });
+
+  it("normalizes OpenCode provider ids to canonical vendors", () => {
+    expect(resolveOpenCodeReadyVendors(["kimi-for-coding", "google", undefined, "  "])).toEqual([
+      "moonshot",
+      "google",
+    ]);
+    expect(resolveOpenCodeReadyVendors(["anthropic"])).toEqual(["muse"]);
+  });
+
+  it("routes an allowlisted vendor through the bridge when OpenCode never connected it", () => {
+    // Regression: claiming NATIVE for google without google credentials ends
+    // in `Model not found google/<id>` at runtime.
+    const gatedOut = resolveExecutionRoute({
+      modelEntry: {
+        ...openaiModel,
+        providerKind: "antigravity",
+        modelId: "gemini-3.8-flash",
+        entryId: "agent:antigravity:gemini-3.8-flash",
+      },
+      harnessRef: opencodeHarness,
+      harnessReady: true,
+      openCodeRouteReady: true,
+      openCodeReadyVendors: ["openai"],
+      compatibilityBridgeReady: true,
+    });
+    expect(gatedOut.routeType).toBe("compatibility");
+    expect(gatedOut.isNative).toBe(false);
+  });
+
+  it("keeps native for a vendor OpenCode actually connected", () => {
+    const decision = resolveExecutionRoute({
+      modelEntry: {
+        ...openaiModel,
+        providerKind: "antigravity",
+        modelId: "gemini-3.8-flash",
+        entryId: "agent:antigravity:gemini-3.8-flash",
+      },
+      harnessRef: opencodeHarness,
+      harnessReady: true,
+      openCodeRouteReady: true,
+      openCodeReadyVendors: ["google"],
+      compatibilityBridgeReady: false,
+    });
+    expect(decision.routeType).toBe("native");
+  });
+
+  it("fails closed on the bridge gate when an unconnected vendor has no sidecar", () => {
+    const decision = resolveExecutionRoute({
+      modelEntry: {
+        ...openaiModel,
+        providerKind: "antigravity",
+        modelId: "gemini-3.8-flash",
+        entryId: "agent:antigravity:gemini-3.8-flash",
+      },
+      harnessRef: opencodeHarness,
+      harnessReady: true,
+      openCodeRouteReady: true,
+      openCodeReadyVendors: ["openai"],
+      compatibilityBridgeReady: false,
+    });
+    expect(decision.routeType).toBe("fail-closed");
+    expect(decision.reasonCode).toBe("BRIDGE_NOT_READY");
   });
 });

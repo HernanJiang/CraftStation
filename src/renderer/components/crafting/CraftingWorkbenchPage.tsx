@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@heroui/react";
 import type { AccountView } from "@/shared/contracts";
 import { friendlyError } from "@/shared/messages";
@@ -23,19 +23,19 @@ import { openHarnessConfiguration } from "@/renderer/crafting/openHarnessConfigu
 import { useNativeHarnessControlPlane } from "@/renderer/crafting/useNativeHarnessControlPlane";
 import { ModelsInventory } from "./workbench/ModelsInventory";
 import { HarnessInventory } from "./workbench/HarnessInventory";
-import { ComponentsInventory } from "./workbench/ComponentsInventory";
+import { ComponentsRail } from "./workbench/ComponentsRail";
 import { EfficientWorkbench } from "./workbench/EfficientWorkbench";
-import { CreativeWorkbenchShell } from "./workbench/CreativeWorkbenchShell";
 import { RecipesRail } from "./workbench/RecipesRail";
 import { RecipeSaveDialog } from "./workbench/RecipeSaveDialog";
 import { RecipeLoadConfirmDialog } from "./workbench/RecipeLoadConfirmDialog";
 
 /**
  * Crafting Workbench page: the "合成台与配方" first-level tab of the
- * model-usage workspace. It composes the two workbench modes, the
- * three-column inventory and a right rail of saved-recipe cards. Harness/CLI
- * channels moved to the dedicated Harness map tab. The single Workbench store
- * is the only source of draft/recipe state.
+ * model-usage workspace. The workbench is a single 3×3 Minecraft-style grid
+ * (model / harness / component ingredients plus reserved slots), the
+ * three-column inventory and a right rail of saved-recipe cards.
+ * Harness/CLI channels moved to the dedicated Harness map tab. The single
+ * Workbench store is the only source of draft/recipe state.
  */
 export function CraftingWorkbenchPage(props: {
   accounts: AccountView[];
@@ -43,23 +43,18 @@ export function CraftingWorkbenchPage(props: {
   onUpdateCustomModels: (next: SharedSettings["customModels"]) => void;
   configuredProviderIds: readonly string[];
   providerOrder: readonly string[];
-  entryMode?: "efficient" | "creative" | undefined;
 }) {
-  const { accounts, customModels, configuredProviderIds, providerOrder, entryMode } = props;
+  const { accounts, customModels, configuredProviderIds, providerOrder } = props;
 
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
   const hiddenModels = useSharedSettings((state) => state.hiddenModels);
   const shownModels = useSharedSettings((state) => state.shownModels);
 
-  const mode = useCraftingWorkbenchStore((state) => state.lastWorkbenchMode);
-  const setMode = useCraftingWorkbenchStore((state) => state.setMode);
   const efficientDraft = useCraftingWorkbenchStore((state) => state.efficientDraft);
-  const creativeDraft = useCraftingWorkbenchStore((state) => state.creativeDraft);
   const setEfficientModel = useCraftingWorkbenchStore((state) => state.setEfficientModel);
   const setEfficientHarness = useCraftingWorkbenchStore((state) => state.setEfficientHarness);
   const clearEfficientDraft = useCraftingWorkbenchStore((state) => state.clearEfficientDraft);
-  const clearCreativeDraft = useCraftingWorkbenchStore((state) => state.clearCreativeDraft);
   const attachResolution = useCraftingWorkbenchStore((state) => state.attachResolution);
   const saveRecipe = useCraftingWorkbenchStore((state) => state.saveRecipe);
   const loadRecipeToDraft = useCraftingWorkbenchStore((state) => state.loadRecipeToDraft);
@@ -78,12 +73,6 @@ export function CraftingWorkbenchPage(props: {
   const [loadOpen, setLoadOpen] = useState(false);
   const [loadRecipeId, setLoadRecipeId] = useState<string | undefined>(undefined);
   const [crafting, setCrafting] = useState(false);
-
-  // Enter the requested mode once when opened from a chat entry.
-  useEffect(() => {
-    if (entryMode && entryMode !== mode) setMode(entryMode);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [entryMode]);
 
   // Native harness control plane (cached paint + scoped revalidation +
   // supervisor events + install) is shared with the Harness map tab.
@@ -125,6 +114,31 @@ export function CraftingWorkbenchPage(props: {
     if (cpaRequired) ensureCliProxyApiItem();
     else clearCliProxyApiSelection();
   }, [cpaRequired, ensureCliProxyApiItem, clearCliProxyApiSelection]);
+
+  // Auto-start the bridge the moment CPA is auto-selected as a component:
+  // subscription→API conversion needs a running sidecar, not another manual
+  // click. Only starts when the binary is already installed — a missing
+  // binary stays on the manual install path (no silent downloads). Guarded
+  // per resolution key, so a manual stop afterwards always wins.
+  const autoBridgeAttemptedKey = useRef<string | null>(null);
+  useEffect(() => {
+    if (!cpaRequired || !cpaHelper.selected || !resolution || resolution.status !== "CRAFTABLE") {
+      return;
+    }
+    if (autoBridgeAttemptedKey.current === resolution.resolutionKey) return;
+    autoBridgeAttemptedKey.current = resolution.resolutionKey;
+    void (async () => {
+      try {
+        const status = await readBridge().getCompatibilityBridgeStatus({});
+        if (!status.running && status.installed === true) {
+          await readBridge().startCompatibilityBridge({});
+        }
+      } catch (error) {
+        autoBridgeAttemptedKey.current = null;
+        toast.danger(friendlyError(error));
+      }
+    })();
+  }, [cpaRequired, cpaHelper.selected, resolution]);
 
   const emptyResolution = (key: string, msg: string): CapabilityResolution => ({
     resolutionKey: key,
@@ -328,169 +342,137 @@ export function CraftingWorkbenchPage(props: {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3" data-testid="crafting-workbench-page">
-      {/* Workbench mode tabs */}
-      <div className="flex shrink-0 items-center gap-1">
-        {(["efficient", "creative"] as const).map((m) => (
-          <button
-            key={m}
-            type="button"
-            role="tab"
-            aria-selected={mode === m}
-            onClick={() => setMode(m)}
-            className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-              mode === m ? "bg-white/10 text-white" : "text-neutral-400 hover:text-white"
-            }`}
-          >
-            {m === "efficient" ? "合成" : "创造合成台"}
-          </button>
-        ))}
-      </div>
-
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
         {/* Main workbench area */}
         <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
-          {mode === "efficient" ? (
-            <>
-              {/* 顶部：合成台（主视觉） | 紧凑结果详情 */}
-              <div className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
-                <EfficientWorkbench
-                  model={selectedModel}
-                  harness={selectedHarness}
-                  resolution={resolution}
-                  cpa={cpaRequired ? { required: true, selected: cpaHelper.selected } : undefined}
-                  onCraft={handleCraft}
-                  onClear={clearEfficientDraft}
-                />
+          {/* 顶部：合成台（主视觉） | 紧凑结果详情 */}
+          <div className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
+            <EfficientWorkbench
+              model={selectedModel}
+              harness={selectedHarness}
+              resolution={resolution}
+              onCraft={handleCraft}
+              onClear={clearEfficientDraft}
+            />
 
-                <div
-                  className="min-w-0 rounded-2xl border border-white/10 bg-black/25 px-3 py-2"
-                  data-testid="crafting-result-detail"
-                  aria-label="合成结果详情"
-                >
-                  <p className="text-[10px] font-medium text-neutral-500">合成结果</p>
-                  <p className="mt-0.5 truncate text-xs font-semibold text-foreground">
-                    {resultName || "尚未放入模型与 Harness"}
-                  </p>
-                  {resolution ? (
-                    <p
-                      className={`mt-0.5 text-[10px] font-semibold ${
-                        resolution.status === "NATIVE"
-                          ? "text-emerald-400"
-                          : resolution.status === "CRAFTABLE"
-                            ? "text-amber-300"
-                            : "text-neutral-500"
-                      }`}
-                    >
-                      {resolution.status === "NATIVE"
-                        ? "原生可合成"
-                        : resolution.status === "CRAFTABLE"
-                          ? "兼容桥可合成"
-                          : "不可合成"}
-                    </p>
-                  ) : null}
-                  {resolutionReason ? (
-                    <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-neutral-400">
-                      {resolutionReason}
-                    </p>
-                  ) : null}
-                  {selectedModel ? (
-                    <p className="mt-1 truncate text-[10px] text-neutral-500">
-                      模型 · {selectedModel.displayName}（{selectedModel.modelId}）
-                    </p>
-                  ) : null}
-                  {selectedHarness ? (
-                    <p className="truncate text-[10px] text-neutral-500">
-                      Harness · {selectedHarness.displayName}（{selectedHarness.status}）
-                    </p>
-                  ) : null}
-                </div>
-              </div>
-
-              {/* 下方三列：填满剩余高度，各列内部滚动，不截断在半页 */}
+            <div className="flex min-h-0 min-w-0 flex-col gap-2">
               <div
-                className="grid min-h-0 flex-1 grid-cols-3 gap-3 overflow-hidden border-t border-white/5 pt-3"
-                data-testid="crafting-inventory-columns"
+                className="min-w-0 shrink-0 rounded-2xl border border-white/10 bg-black/25 px-3 py-2"
+                data-testid="crafting-result-detail"
+                aria-label="合成结果详情"
               >
-                <ModelsInventory
-                  entries={modelEntries}
-                  selectedEntryId={efficientDraft.modelEntryRef}
-                  onSelect={handleSelectModel}
-                  onAdd={openModelsTab}
-                  summary={
-                    selectedModel ? (
-                      <div
-                        className="rounded-lg border border-accent/40 bg-white/[0.05] px-2 py-1.5"
-                        data-testid="models-selection-summary"
-                      >
-                        <p className="truncate text-[11px] font-semibold text-foreground">
-                          {selectedModel.displayName}
-                        </p>
-                        <p className="truncate text-[9px] text-neutral-500">
-                          {selectedModel.modelId} · {selectedModel.channelLabel}
-                        </p>
-                      </div>
-                    ) : (
-                      <div
-                        className="rounded-lg border border-dashed border-white/10 px-2 py-1.5 text-[10px] text-neutral-600"
-                        data-testid="models-selection-summary"
-                      >
-                        未选择模型
-                      </div>
-                    )
-                  }
-                />
-                <HarnessInventory
-                  entries={harnessEntries}
-                  selectedRef={efficientDraft.harnessRef}
-                  onSelect={handleSelectHarness}
-                  onAdd={() =>
-                    usePanelStore.getState().openModelUsageWorkspace({ tab: "harnesses" })
-                  }
-                  summary={
-                    selectedHarness ? (
-                      <div
-                        className="rounded-lg border border-accent/40 bg-white/[0.05] px-2 py-1.5"
-                        data-testid="harness-selection-summary"
-                      >
-                        <p className="truncate text-[11px] font-semibold text-foreground">
-                          {selectedHarness.displayName}
-                        </p>
-                        <p className="truncate text-[9px] text-neutral-500">
-                          {selectedHarness.harnessKind} · {selectedHarness.status}
-                        </p>
-                      </div>
-                    ) : (
-                      <div
-                        className="rounded-lg border border-dashed border-white/10 px-2 py-1.5 text-[10px] text-neutral-600"
-                        data-testid="harness-selection-summary"
-                      >
-                        未选择 Harness
-                      </div>
-                    )
-                  }
-                />
-                <ComponentsInventory
-                  onSelect={() => setInspector(undefined)}
-                  summary={
-                    <div
-                      className="rounded-lg border border-dashed border-white/10 px-2 py-1.5 text-[10px] text-neutral-600"
-                      data-testid="components-selection-summary"
-                    >
-                      暂无已选组件（可选）
-                    </div>
-                  }
-                />
+                <p className="text-[10px] font-medium text-neutral-500">合成结果</p>
+                <p className="mt-0.5 truncate text-xs font-semibold text-foreground">
+                  {resultName || "尚未放入模型与 Harness"}
+                </p>
+                {resolution ? (
+                  <p
+                    className={`mt-0.5 text-[10px] font-semibold ${
+                      resolution.status === "NATIVE"
+                        ? "text-emerald-400"
+                        : resolution.status === "CRAFTABLE"
+                          ? "text-amber-300"
+                          : "text-neutral-500"
+                    }`}
+                  >
+                    {resolution.status === "NATIVE"
+                      ? "原生可合成"
+                      : resolution.status === "CRAFTABLE"
+                        ? "兼容桥可合成"
+                        : "不可合成"}
+                  </p>
+                ) : null}
+                {resolutionReason ? (
+                  <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-neutral-400">
+                    {resolutionReason}
+                  </p>
+                ) : null}
+                {selectedModel ? (
+                  <p className="mt-1 truncate text-[10px] text-neutral-500">
+                    模型 · {selectedModel.displayName}（{selectedModel.modelId}）
+                  </p>
+                ) : null}
+                {selectedHarness ? (
+                  <p className="truncate text-[10px] text-neutral-500">
+                    Harness · {selectedHarness.displayName}（{selectedHarness.status}）
+                  </p>
+                ) : null}
               </div>
-            </>
-          ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto">
-              <CreativeWorkbenchShell draft={creativeDraft} onClear={clearCreativeDraft} />
+              <RecipesRail variant="panel" onLoad={handleLoadRecipe} />
             </div>
-          )}
+          </div>
+
+          {/* 下方两列：填满剩余高度，各列内部滚动，不截断在半页 */}
+          <div
+            className="grid min-h-0 flex-1 grid-cols-2 gap-3 overflow-hidden border-t border-white/5 pt-3"
+            data-testid="crafting-inventory-columns"
+          >
+            <ModelsInventory
+              entries={modelEntries}
+              selectedEntryId={efficientDraft.modelEntryRef}
+              onSelect={handleSelectModel}
+              onAdd={openModelsTab}
+              summary={
+                selectedModel ? (
+                  <div
+                    className="rounded-lg border border-accent/40 bg-white/[0.05] px-2 py-1.5"
+                    data-testid="models-selection-summary"
+                  >
+                    <p className="truncate text-[11px] font-semibold text-foreground">
+                      {selectedModel.displayName}
+                    </p>
+                    <p className="truncate text-[9px] text-neutral-500">
+                      {selectedModel.modelId} · {selectedModel.channelLabel}
+                    </p>
+                  </div>
+                ) : (
+                  <div
+                    className="rounded-lg border border-dashed border-white/10 px-2 py-1.5 text-[10px] text-neutral-600"
+                    data-testid="models-selection-summary"
+                  >
+                    未选择模型
+                  </div>
+                )
+              }
+            />
+            <HarnessInventory
+              entries={harnessEntries}
+              selectedRef={efficientDraft.harnessRef}
+              onSelect={handleSelectHarness}
+              onAdd={() => usePanelStore.getState().openModelUsageWorkspace({ tab: "harnesses" })}
+              summary={
+                selectedHarness ? (
+                  <div
+                    className="rounded-lg border border-accent/40 bg-white/[0.05] px-2 py-1.5"
+                    data-testid="harness-selection-summary"
+                  >
+                    <p className="truncate text-[11px] font-semibold text-foreground">
+                      {selectedHarness.displayName}
+                    </p>
+                    <p className="truncate text-[9px] text-neutral-500">
+                      {selectedHarness.harnessKind} · {selectedHarness.status}
+                    </p>
+                  </div>
+                ) : (
+                  <div
+                    className="rounded-lg border border-dashed border-white/10 px-2 py-1.5 text-[10px] text-neutral-600"
+                    data-testid="harness-selection-summary"
+                  >
+                    未选择 Harness
+                  </div>
+                )
+              }
+            />
+          </div>
         </div>
 
-        {/* Right recipes rail */}
-        <RecipesRail onLoad={handleLoadRecipe} />
+        {/* Right components rail */}
+        <aside
+          className="flex min-h-0 w-60 shrink-0 flex-col border-l border-white/5 pl-3"
+          aria-label="组件栏"
+        >
+          <ComponentsRail />
+        </aside>
       </div>
 
       <RecipeSaveDialog

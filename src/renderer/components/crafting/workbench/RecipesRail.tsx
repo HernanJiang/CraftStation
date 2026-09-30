@@ -25,8 +25,15 @@ function statusLabel(recipe: StoredRecipe): { label: string; class: string } {
  * back into the draft (through the confirm dialog), fires it into chat, edits
  * the alias and deletes — deleting a recipe never deletes the underlying
  * Model/Harness materials or accounts.
+ *
+ * `variant="panel"` renders the same list as a bounded card for stacking under
+ * the crafting result instead of a full-height side rail.
  */
-export function RecipesRail(props: { onLoad: (recipe: StoredRecipe) => void }) {
+export function RecipesRail(props: {
+  onLoad: (recipe: StoredRecipe) => void;
+  variant?: "rail" | "panel";
+}) {
+  const variant = props.variant ?? "rail";
   const recipes = useCraftingWorkbenchStore((state) => state.recipes);
   const updateRecipeAlias = useCraftingWorkbenchStore((state) => state.updateRecipeAlias);
   const deleteRecipe = useCraftingWorkbenchStore((state) => state.deleteRecipe);
@@ -71,14 +78,24 @@ export function RecipesRail(props: { onLoad: (recipe: StoredRecipe) => void }) {
 
   return (
     <aside
-      className="flex min-h-0 w-72 shrink-0 flex-col border-l border-white/5"
+      className={
+        variant === "panel"
+          ? "flex min-h-0 min-w-0 flex-col rounded-2xl border border-white/10 bg-black/25"
+          : "flex min-h-0 w-72 shrink-0 flex-col border-l border-white/5"
+      }
       data-testid="recipes-rail"
       aria-label="配方列表"
     >
       <header className="flex h-10 shrink-0 items-center justify-between border-b border-white/5 px-3">
         <h3 className="text-xs font-semibold text-neutral-300">配方 · {recipes.length}</h3>
       </header>
-      <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2">
+      <div
+        className={
+          variant === "panel"
+            ? "flex max-h-56 min-h-0 flex-col gap-1.5 overflow-y-auto p-2"
+            : "flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto p-2"
+        }
+      >
         {recipes.length === 0 ? (
           <p className="p-2 text-[11px] text-neutral-500">还没有保存的配方</p>
         ) : null}

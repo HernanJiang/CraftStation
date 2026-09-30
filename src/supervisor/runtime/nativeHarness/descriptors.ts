@@ -40,7 +40,7 @@ const COMMON_STRUCTURED_CAPABILITIES = [
 export const CODEX_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:codex",
   harnessKind: "codex",
-  label: "Codex Native Harness",
+  label: "Codex Harness",
   vendor: "openai",
   official: true,
   transport: "codex-app-server-json-rpc",
@@ -70,7 +70,7 @@ export const CODEX_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
 export const GROK_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:grok",
   harnessKind: "grok",
-  label: "Grok Build Native Harness",
+  label: "Grok Build Harness",
   vendor: "xai",
   official: true,
   transport: "acp-stdio",
@@ -99,7 +99,7 @@ export const GROK_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
 export const KIMI_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:kimi",
   harnessKind: "kimi",
-  label: "Kimi Code Native Harness",
+  label: "Kimi Code Harness",
   vendor: "moonshot",
   official: true,
   transport: "acp-stdio",
@@ -129,7 +129,7 @@ export const KIMI_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
 export const MINIMAX_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:minimax",
   harnessKind: "minimax",
-  label: "MiniMax Code Native Harness",
+  label: "MiniMax Code Harness",
   vendor: "minimax",
   official: true,
   transport: "acp-stdio",
@@ -158,7 +158,7 @@ export const MINIMAX_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
 export const ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:antigravity",
   harnessKind: "antigravity",
-  label: "Antigravity Native Harness",
+  label: "Antigravity Harness",
   vendor: "google",
   official: true,
   transport: "official-stream-json",
@@ -209,7 +209,7 @@ export const ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
 export const DEEPSEEK_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:deepseek",
   harnessKind: "deepseek",
-  label: "DeepSeek / DSH Native Harness",
+  label: "DeepSeek / DSH Harness",
   vendor: "deepseek",
   official: true,
   transport: "deepseek-json-rpc-stdio",
@@ -278,7 +278,7 @@ export const DEEPSEEK_API_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
 export const MUSE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:muse",
   harnessKind: "muse",
-  label: "Muse Code Native Harness",
+  label: "Muse Code Harness",
   vendor: "muse",
   official: true,
   transport: "official-http-sse",
@@ -305,7 +305,7 @@ export const MUSE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
 export const DEVIN_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:devin",
   harnessKind: "devin",
-  label: "Devin Native Harness",
+  label: "Devin Harness",
   vendor: "cognition",
   official: true,
   transport: "acp-stdio",
@@ -334,7 +334,7 @@ export const DEVIN_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
 export const ZCODE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:zcode",
   harnessKind: "zcode",
-  label: "ZCode Native Harness",
+  label: "ZCode Harness",
   vendor: "zai",
   official: true,
   transport: "official-pty",
@@ -380,7 +380,7 @@ export const ZCODE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
 export const OPENCODE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:opencode",
   harnessKind: "opencode",
-  label: "OpenCode Native Harness",
+  label: "OpenCode Harness",
   vendor: "opencode",
   official: true,
   transport: "official-http-sse",
@@ -413,7 +413,7 @@ export const OPENCODE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
 export const STEPCODE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:stepcode",
   harnessKind: "stepcode",
-  label: "Step Code Native Harness",
+  label: "Step Code Harness",
   vendor: "stepfun",
   official: true,
   transport: "pi-jsonl-rpc-stdio",

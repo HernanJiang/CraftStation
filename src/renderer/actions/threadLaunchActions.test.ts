@@ -1166,7 +1166,7 @@ describe("startThreadFromDraft host transport", () => {
         {
           id: "recipe:harness:opencode:agent:antigravity:gui:gemini-3.8-flash",
           version: "1.0.0",
-          systemName: "OpenCode Native Harness · Gemini 3.8 Flash",
+          systemName: "OpenCode Harness · Gemini 3.8 Flash",
           modelEntryRef: "agent:antigravity:gui:gemini-3.8-flash",
           harnessRef: "harness:opencode",
           homepageVisible: true,
@@ -1179,7 +1179,7 @@ describe("startThreadFromDraft host transport", () => {
             providerLabel: "Antigravity",
           },
           lastKnownHarness: {
-            displayName: "OpenCode Native Harness",
+            displayName: "OpenCode Harness",
             harnessKind: "opencode",
           },
         },

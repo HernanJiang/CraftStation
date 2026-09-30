@@ -25,7 +25,7 @@ vi.mock("@/renderer/bridge", () => ({
 function status(kind: string, version: string): AgentStatus {
   return {
     kind,
-    label: kind === "codex" ? "Codex Native Harness" : kind,
+    label: kind === "codex" ? "Codex Harness" : kind,
     installed: true,
     version,
     authState: "authenticated",
@@ -87,7 +87,7 @@ describe("CliUpdateMenu", () => {
 
     fireEvent.click(screen.getByTestId("titlebar-cli-update-button"));
     const menu = await screen.findByRole("menu");
-    const item = await within(menu).findByRole("menuitem", { name: /Codex Native Harness/u });
+    const item = await within(menu).findByRole("menuitem", { name: /Codex Harness/u });
     fireEvent.click(item);
 
     // One click, one update call — no double-click required.
@@ -117,7 +117,7 @@ describe("CliUpdateMenu", () => {
     await waitFor(() => expect(bridgeMock.getLatestAgentVersion).toHaveBeenCalledTimes(1));
 
     fireEvent.click(screen.getByTestId("titlebar-cli-update-button"));
-    await screen.findByRole("menuitem", { name: /Codex Native Harness/u });
+    await screen.findByRole("menuitem", { name: /Codex Harness/u });
     const before = useUpdateStore.getState().availableCliUpdates;
 
     // Manual "Check all CLIs" re-check with identical findings must not

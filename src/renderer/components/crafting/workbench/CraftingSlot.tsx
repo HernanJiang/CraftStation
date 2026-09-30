@@ -4,7 +4,7 @@ import {
   ProviderBrandBadge,
 } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 
-/** Inventory-card sized slot used by both 2×2 efficient and 3×3 creative grids. */
+/** Inventory-card sized slot used by the 3×3 workbench grid. */
 export const CRAFTING_SLOT_SIZE_CLASS = "size-[4.5rem]";
 
 export function CraftingSlot(props: {

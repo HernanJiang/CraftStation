@@ -2612,6 +2612,20 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
                 {label}
               </button>
             ))}
+            <button
+              key="settings"
+              type="button"
+              data-testid="model-usage-settings-tab"
+              aria-label="打开设置"
+              title="打开设置"
+              onClick={() => {
+                close();
+                usePanelStore.getState().openSettings();
+              }}
+              className="rounded-md px-4 py-1.5 text-sm font-medium text-muted transition-colors hover:text-foreground"
+            >
+              设置
+            </button>
           </div>
         </div>
         <button
@@ -2637,7 +2651,6 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
           onUpdateCustomModels={setCustomModels}
           configuredProviderIds={[...configuredProviderIds]}
           providerOrder={providerOrder}
-          entryMode={usePanelStore.getState().modelUsageEntryMode ?? undefined}
         />
       ) : workspaceTab === "harnesses" ? (
         <HarnessMapPage

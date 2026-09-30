@@ -238,6 +238,20 @@ describe("SidebarProviderAccounts", () => {
     expect(usePanelStore.getState().modelUsageDialogOpen).toBe(false);
   });
 
+  it("jumps to the settings page from the workspace settings tab", async () => {
+    usePanelStore.setState({ modelUsageDialogOpen: true });
+    render(<SidebarProviderAccounts />);
+
+    const workspace = await screen.findByTestId("model-usage-workspace");
+    fireEvent.click(within(workspace).getByTestId("model-usage-settings-tab"));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("model-usage-workspace")).not.toBeInTheDocument(),
+    );
+    expect(usePanelStore.getState().modelUsageDialogOpen).toBe(false);
+    expect(usePanelStore.getState().settingsOpen).toBe(true);
+  });
+
   it("keeps the inline workspace out of the sidebar tree", () => {
     usePanelStore.setState({ modelUsageDialogOpen: true });
     renderSidebarOnly();

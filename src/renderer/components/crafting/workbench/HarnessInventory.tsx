@@ -1,13 +1,11 @@
-import { Download, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import type { ReactNode } from "react";
-import { useLingui } from "@lingui/react/macro";
 import type { HarnessReference } from "@/shared/crafting/workbenchTypes";
 import {
   brandIdForVendorKind,
   ProviderBrandBadge,
 } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 import { isHarnessSelectable } from "@/renderer/crafting/harnessInventory";
-import { findCliUpdateForAgentKind, useUpdateStore } from "@/renderer/state/updateStore";
 
 /**
  * Harness Inventory: square slots for installed harnesses. Ready harnesses are
@@ -15,6 +13,8 @@ import { findCliUpdateForAgentKind, useUpdateStore } from "@/renderer/state/upda
  * selectable (clicking them opens the inspector/diagnostic instead).
  *
  * The current selection summary stays pinned on top; candidates scroll below.
+ * CLI update/install affordances deliberately stay out of these cards — they
+ * live on the Harness map tab; the bench is for picking, not maintaining.
  */
 export function HarnessInventory(props: {
   entries: readonly HarnessReference[];
@@ -25,10 +25,6 @@ export function HarnessInventory(props: {
   summary?: ReactNode | undefined;
 }) {
   const { entries, selectedRef, onSelect, onAdd, summary } = props;
-  const { t } = useLingui();
-  const availableCliUpdates = useUpdateStore((s) => s.availableCliUpdates);
-  const updateFor = (ref: HarnessReference) =>
-    findCliUpdateForAgentKind(availableCliUpdates, ref.harnessKind);
   const selectable = entries.filter(isHarnessSelectable);
   const abnormal = entries.filter((ref) => !isHarnessSelectable(ref));
   return (
@@ -48,32 +44,19 @@ export function HarnessInventory(props: {
       >
         {selectable.map((ref) => {
           const selected = ref.harnessItemId === selectedRef;
-          const availableUpdate = updateFor(ref);
           return (
             <button
               key={ref.harnessItemId}
               type="button"
               aria-pressed={selected}
-              title={
-                availableUpdate
-                  ? `${ref.displayName} · ${ref.version ?? "?"}\n${ref.transport ?? ""}\n${t`Update available: v${availableUpdate.version} → v${availableUpdate.latest}`}`
-                  : `${ref.displayName} · ${ref.version ?? "?"}\n${ref.transport ?? ""}`
-              }
+              title={`${ref.displayName} · ${ref.version ?? "?"}\n${ref.transport ?? ""}`}
               onClick={() => onSelect(ref)}
-              className={`relative aspect-square flex flex-col items-center justify-center gap-1 rounded-lg border p-1 text-center transition-colors ${
+              className={`aspect-square flex flex-col items-center justify-center gap-1 rounded-lg border p-1 text-center transition-colors ${
                 selected
                   ? "border-accent/70 bg-white/10"
                   : "border-white/10 bg-white/[0.04] hover:bg-white/10"
               }`}
             >
-              {availableUpdate ? (
-                <span
-                  className="absolute top-1 right-1 flex items-center rounded-full bg-amber-400/20 p-0.5 text-amber-300"
-                  aria-label={t`Update available`}
-                >
-                  <Download className="size-2.5" />
-                </span>
-              ) : null}
               <ProviderBrandBadge
                 id={brandIdForVendorKind(ref.vendor)}
                 label={ref.displayName}

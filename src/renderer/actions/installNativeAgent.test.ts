@@ -112,7 +112,7 @@ describe("runNativeAgentInstall", () => {
 
     runNativeAgentInstall({
       agentKind: "devin",
-      label: "Devin Native Harness",
+      label: "Devin Harness",
       onComplete,
       onRetry,
     });

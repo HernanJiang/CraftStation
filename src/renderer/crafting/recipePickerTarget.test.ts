@@ -231,7 +231,7 @@ describe("resolveRecipePickerTarget", () => {
             providerLabel: "Antigravity",
           },
           lastKnownHarness: {
-            displayName: "OpenCode Native Harness",
+            displayName: "OpenCode Harness",
             harnessKind: "opencode",
           },
         },
@@ -413,7 +413,7 @@ describe("recipe launch identity", () => {
         providerLabel: "OpenCode",
       },
       lastKnownHarness: {
-        displayName: "OpenCode Native Harness",
+        displayName: "OpenCode Harness",
         harnessKind: "harness:opencode",
       },
     };
