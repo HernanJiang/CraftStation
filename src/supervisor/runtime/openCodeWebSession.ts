@@ -1,4 +1,5 @@
 import {
+  fetchOpenCodeConsoleUsage,
   fetchOpenCodeSubscriptionText,
   type HostPort,
   openCodeRequestCookie,
@@ -115,9 +116,16 @@ export async function fetchOpenCodeWeb(host: HostPort, nowMs: number): Promise<O
   if (!session.live) return { live: false };
   if (!session.workspaceId) {
     // New-console session (`console_session`), or a Zen account whose billing
-    // moved off the old console: authenticated, but there is no Zen workspace
-    // to read Go/Lite meters from. Report live so the card stops re-prompting.
-    return { live: true };
+    // moved off the old console: there is no Zen workspace, but the console
+    // API still exposes Go subscription meters and the prepaid balance.
+    const consoleUsage = await fetchOpenCodeConsoleUsage(host.http, cookie).catch(() => undefined);
+    return {
+      live: true,
+      ...(consoleUsage?.balance !== undefined ? { balance: consoleUsage.balance } : {}),
+      ...(consoleUsage && consoleUsage.goWindows.length > 0
+        ? { goWindows: consoleUsage.goWindows }
+        : {}),
+    };
   }
   const workspaceId = session.workspaceId;
 

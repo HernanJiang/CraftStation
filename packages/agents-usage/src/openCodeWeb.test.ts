@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { HostCacheStore, HttpClient, HttpRequest, HttpResponse } from "./host";
 import {
+  fetchOpenCodeConsoleUsage,
   fetchOpenCodeSubscriptionText,
   fetchOpenCodeWorkspaceId,
   isOpenCodeSessionLive,
   looksLikeOpenCodeSubscription,
+  openCodeConsoleBalance,
+  openCodeConsoleGoStatus,
+  openCodeConsoleOrgIds,
   openCodeEntryClientUrl,
   openCodeGoRouteChunkUrl,
   openCodeRequestCookie,
@@ -333,5 +337,154 @@ describe("opencode server-fn id re-resolution helpers", () => {
   it("resolveOpenCodeSubscriptionServerId returns undefined on network failure", async () => {
     const http: HttpClient = { request: () => Promise.reject(new Error("offline")) };
     await expect(resolveOpenCodeSubscriptionServerId(http)).resolves.toBeUndefined();
+  });
+});
+
+describe("openCodeConsoleOrgIds", () => {
+  it("collects id strings from the orgs array", () => {
+    expect(openCodeConsoleOrgIds('[{"id":"wrk_a","name":"x"},{"id":"wrk_b"},{}]')).toEqual([
+      "wrk_a",
+      "wrk_b",
+    ]);
+  });
+
+  it("returns [] for non-array / invalid bodies", () => {
+    expect(openCodeConsoleOrgIds("null")).toEqual([]);
+    expect(openCodeConsoleOrgIds("not json")).toEqual([]);
+    expect(openCodeConsoleOrgIds("{}")).toEqual([]);
+  });
+});
+
+describe("openCodeConsoleBalance", () => {
+  it("prefers availableMicroCents and converts micro-cents to USD", () => {
+    expect(
+      openCodeConsoleBalance('{"balanceMicroCents":"200000000","availableMicroCents":"150000000"}'),
+    ).toBe(1.5);
+  });
+
+  it("falls back to balanceMicroCents and handles absent fields", () => {
+    expect(openCodeConsoleBalance('{"balanceMicroCents":"1000000000"}')).toBe(10);
+    expect(openCodeConsoleBalance("{}")).toBeUndefined();
+    expect(openCodeConsoleBalance("oops")).toBeUndefined();
+  });
+});
+
+describe("openCodeConsoleGoStatus", () => {
+  const live =
+    '{"product":"go","access":{"meters":{' +
+    '"fiveHour":{"startsAt":null,"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":"0"},' +
+    '"week":{"startsAt":"2026-09-28T00:00:00.000Z","resetsAt":"2026-10-05T00:00:00.000Z","limitMicroCents":"3000000000","usedMicroCents":"0"},' +
+    '"month":{"resetsAt":"2026-10-01T00:00:00.000Z","limitMicroCents":"6000000000","usedMicroCents":"3792192729"}}}}';
+
+  it("maps fiveHour/week/month meters to the canonical window ids", () => {
+    const status = openCodeConsoleGoStatus(live);
+    expect(status?.product).toBe("go");
+    expect(status?.windows.map((w) => w.id)).toEqual(["session-5h", "weekly", "monthly"]);
+    const monthly = status?.windows.find((w) => w.id === "monthly");
+    expect(monthly).toMatchObject({
+      usedPercent: (3792192729 / 6000000000) * 100,
+      used: 37.92192729,
+      limit: 60,
+      unit: "usd",
+      currency: "USD",
+      resetsAt: Date.parse("2026-10-01T00:00:00.000Z"),
+    });
+    // Rolling 5h has no resetsAt until first use — must not fabricate one.
+    expect(status?.windows[0]?.resetsAt).toBeUndefined();
+  });
+
+  it("returns undefined for the no-subscription `null` body and non-objects", () => {
+    expect(openCodeConsoleGoStatus("null")).toBeUndefined();
+    expect(openCodeConsoleGoStatus('"go"')).toBeUndefined();
+    expect(openCodeConsoleGoStatus("not json")).toBeUndefined();
+    expect(openCodeConsoleGoStatus('{"product":"go"}')).toBeUndefined();
+  });
+
+  it("skips meters without a positive limit", () => {
+    const status = openCodeConsoleGoStatus(
+      '{"access":{"meters":{"fiveHour":{"limitMicroCents":"0","usedMicroCents":"0"},' +
+        '"week":{"limitMicroCents":"3000000000","usedMicroCents":"1500000000","resetsAt":"2026-10-05T00:00:00.000Z"}}}}',
+    );
+    expect(status?.windows.map((w) => w.id)).toEqual(["weekly"]);
+    expect(status?.windows[0]?.usedPercent).toBe(50);
+  });
+});
+
+describe("fetchOpenCodeConsoleUsage", () => {
+  const consoleSession = "console_session=live";
+  const goBody =
+    '{"product":"go","access":{"meters":{' +
+    '"fiveHour":{"limitMicroCents":"1200000000","usedMicroCents":"0"},' +
+    '"week":{"limitMicroCents":"3000000000","usedMicroCents":"0"},' +
+    '"month":{"resetsAt":"2026-10-01T00:00:00.000Z","limitMicroCents":"6000000000","usedMicroCents":"3000000000"}}}}';
+
+  function consoleResponder(over: Record<string, HttpResponse>) {
+    return (req: HttpRequest): HttpResponse => {
+      for (const [path, res] of Object.entries(over)) {
+        if (req.url === `https://opencode.ai${path}`) return res;
+      }
+      return { status: 404, headers: {}, body: "" };
+    };
+  }
+
+  it("returns undefined without a console_session cookie and makes no requests", async () => {
+    const { http, calls } = stubHttp(() => ok("ignored"));
+    await expect(fetchOpenCodeConsoleUsage(http, "auth=zen")).resolves.toBeUndefined();
+    expect(calls).toHaveLength(0);
+  });
+
+  it("returns undefined when the orgs call fails", async () => {
+    const { http } = stubHttp(() => ({
+      status: 401,
+      headers: {},
+      body: '{"_tag":"Unauthorized"}',
+    }));
+    await expect(fetchOpenCodeConsoleUsage(http, consoleSession)).resolves.toBeUndefined();
+  });
+
+  it("reads Go meters from the org that has the subscription and its balance", async () => {
+    const { http, calls } = stubHttp(
+      consoleResponder({
+        "/console/api/orgs": ok('[{"id":"wrk_idle"},{"id":"wrk_live"}]'),
+        "/console/api/billing/status": ok('{"availableMicroCents":"250000000"}'),
+      }),
+    );
+    // go/status answers null for the first org, live meters for the second —
+    // keyed on the x-org-id header.
+    const base = http.request.bind(http);
+    http.request = (req: HttpRequest) => {
+      if (req.url === "https://opencode.ai/console/api/go/status") {
+        return Promise.resolve(req.headers?.["x-org-id"] === "wrk_live" ? ok(goBody) : ok("null"));
+      }
+      return base(req);
+    };
+    const usage = await fetchOpenCodeConsoleUsage(http, consoleSession);
+    expect(usage?.product).toBe("go");
+    expect(usage?.goWindows.map((w) => w.id)).toEqual(["session-5h", "weekly", "monthly"]);
+    expect(usage?.goWindows.find((w) => w.id === "monthly")?.usedPercent).toBe(50);
+    // Balance is read from the org that owns the subscription.
+    const billingCall = calls.find((c) => c.url.endsWith("/billing/status"));
+    expect(billingCall?.headers?.["x-org-id"]).toBe("wrk_live");
+    expect(usage?.balance).toBe(2.5);
+  });
+
+  it("still reports the balance when no org has a Go subscription", async () => {
+    const { http, calls } = stubHttp(
+      consoleResponder({
+        "/console/api/orgs": ok('[{"id":"wrk_a"}]'),
+        "/console/api/go/status": ok("null"),
+        "/console/api/billing/status": ok('{"balanceMicroCents":"100000000"}'),
+      }),
+    );
+    const usage = await fetchOpenCodeConsoleUsage(http, consoleSession);
+    expect(usage).toMatchObject({ goWindows: [], balance: 1 });
+    expect(calls.find((c) => c.url.endsWith("/billing/status"))?.headers?.["x-org-id"]).toBe(
+      "wrk_a",
+    );
+  });
+
+  it("returns empty usage when the account has no orgs", async () => {
+    const { http } = stubHttp(consoleResponder({ "/console/api/orgs": ok("[]") }));
+    await expect(fetchOpenCodeConsoleUsage(http, consoleSession)).resolves.toBeUndefined();
   });
 });

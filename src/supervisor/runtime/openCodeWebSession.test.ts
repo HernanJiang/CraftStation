@@ -85,6 +85,62 @@ describe("fetchOpenCodeWeb", () => {
     expect(calls.some((c) => c.url.includes("/workspace/"))).toBe(false);
   });
 
+  it("reads Go meters from the console API when there is no zen workspace", async () => {
+    // Live evidence: migrated accounts have a dead `auth` cookie (zen probe
+    // 500s) and a live `console_session`. The workspace path is unreachable, so
+    // quota must come from /console/api/go/status + /console/api/billing/status.
+    const goBody =
+      '{"product":"go","access":{"meters":{' +
+      '"fiveHour":{"startsAt":null,"resetsAt":null,"limitMicroCents":"1200000000","usedMicroCents":"0"},' +
+      '"week":{"resetsAt":"2026-10-05T00:00:00.000Z","limitMicroCents":"3000000000","usedMicroCents":"0"},' +
+      '"month":{"resetsAt":"2026-10-01T00:00:00.000Z","limitMicroCents":"6000000000","usedMicroCents":"3792192729"}}}}';
+    const { host } = hostWith("auth=dead; console_session=s", (req) => {
+      if (req.url === "https://opencode.ai/console/auth/session") {
+        return { status: 200, headers: {}, body: '{"user":{"id":"acc_1"}}' };
+      }
+      if (req.url === "https://opencode.ai/console/api/orgs") {
+        return { status: 200, headers: {}, body: '[{"id":"wrk_live"}]' };
+      }
+      if (req.url === "https://opencode.ai/console/api/go/status") {
+        return { status: 200, headers: {}, body: goBody };
+      }
+      if (req.url === "https://opencode.ai/console/api/billing/status") {
+        return { status: 200, headers: {}, body: '{"availableMicroCents":"0"}' };
+      }
+      // Zen workspace probe: migrated billing rejects the dead auth cookie.
+      return { status: 500, headers: {}, body: "" };
+    });
+    const session = await fetchOpenCodeWeb(host, NOW);
+    expect(session.live).toBe(true);
+    expect(session.goWindows?.map((w) => w.id)).toEqual(["session-5h", "weekly", "monthly"]);
+    expect(session.goWindows?.find((w) => w.id === "monthly")).toMatchObject({
+      usedPercent: (3792192729 / 6000000000) * 100,
+      resetsAt: Date.parse("2026-10-01T00:00:00.000Z"),
+    });
+    expect(session.balance).toBe(0);
+  });
+
+  it("still reports live when the console orgs call fails", async () => {
+    const { host } = hostWith("console_session=s", (req) =>
+      req.url === "https://opencode.ai/console/auth/session"
+        ? { status: 200, headers: {}, body: "{}" }
+        : req.url === "https://opencode.ai/console/api/orgs"
+          ? { status: 401, headers: {}, body: '{"_tag":"Unauthorized"}' }
+          : { status: 500, headers: {}, body: "" },
+    );
+    await expect(fetchOpenCodeWeb(host, NOW)).resolves.toEqual({ live: true });
+  });
+
+  it("does not call the console API for a zen-redirect session without console cookies", async () => {
+    const { host, calls } = hostWith("auth=real", () => ({
+      status: 302,
+      headers: { location: "https://opencode.ai/console/login" },
+      body: "",
+    }));
+    await expect(fetchOpenCodeWeb(host, NOW)).resolves.toEqual({ live: true });
+    expect(calls.some((c) => c.url.includes("/console/api/"))).toBe(false);
+  });
+
   it("reports live when the zen session redirects to the migrated console", async () => {
     const { host } = hostWith("auth=real", () => ({
       status: 302,

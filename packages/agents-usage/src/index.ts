@@ -35,11 +35,15 @@ export type { CostEstimate } from "./cost";
 export { aggregateOpenCodeUsage, OPENCODE_LIMITS } from "./openCode";
 export type { OpenCodeCostRow } from "./openCode";
 export {
+  fetchOpenCodeConsoleUsage,
   fetchOpenCodeSubscriptionText,
   fetchOpenCodeWorkspaceId,
   isOpenCodeSessionLive,
   looksLikeOpenCodeSubscription,
   looksSignedOut,
+  openCodeConsoleBalance,
+  openCodeConsoleGoStatus,
+  openCodeConsoleOrgIds,
   openCodeRequestCookie,
   resolveOpenCodeSession,
   resolveOpenCodeSubscriptionServerId,
@@ -48,7 +52,11 @@ export {
   OPENCODE_SERVER_FN_STALE_CODE,
   OPENCODE_USER_AGENT,
 } from "./openCodeWeb";
-export type { FetchOpenCodeSubscriptionOptions, OpenCodeSessionCheck } from "./openCodeWeb";
+export type {
+  FetchOpenCodeSubscriptionOptions,
+  OpenCodeConsoleUsage,
+  OpenCodeSessionCheck,
+} from "./openCodeWeb";
 
 // Per-provider collectors + their pure parsers, for direct use and testing.
 export {

@@ -1,4 +1,5 @@
-import type { HostCacheStore, HttpClient, Logger } from "./host";
+import type { HostCacheStore, HttpClient, HttpResponse, Logger } from "./host";
+import type { UsageWindow } from "./types";
 
 /**
  * OpenCode.ai web-session primitives shared by the usage scanner (reads the Zen
@@ -440,6 +441,176 @@ export async function fetchOpenCodeSubscriptionText(
   }
   const retry = await attemptOpenCodeSubscriptionFetch(http, cookie, workspaceId, freshId);
   return retry.body;
+}
+
+/**
+ * Console money unit: micro-cents, 1e8 = 1 USD (Go's $10/mo price is stored as
+ * `recurringMicroCents: 1000000000n` in the product catalog).
+ */
+const OPENCODE_MICRO_CENTS_PER_USD = 1e8;
+
+/** `console/api/go/status` meter keys → canonical window ids (Zen-compatible). */
+const OPENCODE_CONSOLE_GO_METERS = [
+  { meter: "fiveHour", id: "session-5h", label: "Rolling" },
+  { meter: "week", id: "weekly", label: "Weekly" },
+  { meter: "month", id: "monthly", label: "Monthly" },
+] as const;
+
+/** Usage read from the new console (no Zen workspace involved). */
+export interface OpenCodeConsoleUsage {
+  /** Prepaid balance in USD from `billing/status` (`availableMicroCents` first). */
+  balance?: number;
+  /** Subscription product id reported by `go/status` ("go", "go-plus", ...). */
+  product?: string;
+  /** Go rate-limit windows mapped to the canonical ids. Empty when unsubscribed. */
+  goWindows: UsageWindow[];
+}
+
+function openCodeConsoleGet(
+  http: HttpClient,
+  cookie: string,
+  path: string,
+  orgId?: string,
+): Promise<HttpResponse | undefined> {
+  return http
+    .request({
+      url: `https://opencode.ai${path}`,
+      headers: {
+        Cookie: cookie,
+        "User-Agent": OPENCODE_USER_AGENT,
+        Accept: "application/json",
+        ...(orgId !== undefined ? { "x-org-id": orgId } : {}),
+      },
+      timeoutMs: 5000,
+    })
+    .catch(() => undefined);
+}
+
+/** Org ids from `GET /console/api/orgs` (`[{id: "wrk_…", name}]`). */
+export function openCodeConsoleOrgIds(body: string): string[] {
+  try {
+    const parsed: unknown = JSON.parse(body);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((org) => (org && typeof org === "object" ? (org as { id?: unknown }).id : undefined))
+      .filter((id): id is string => typeof id === "string" && id.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function consoleMicroCents(value: unknown): number | undefined {
+  const n = typeof value === "string" ? Number(value) : typeof value === "number" ? value : NaN;
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+}
+
+interface OpenCodeConsoleGoStatus {
+  product?: string;
+  windows: UsageWindow[];
+}
+
+/**
+ * Parse `GET /console/api/go/status`. The org without the subscription answers
+ * `200 null`; a subscribing org answers `{product, access:{meters}}` where
+ * `fiveHour`/`week`/`month` budgets are in micro-cents. `fiveHour`'s
+ * `startsAt`/`resetsAt` stay null until the rolling window first engages.
+ */
+export function openCodeConsoleGoStatus(body: string): OpenCodeConsoleGoStatus | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+  if (!parsed || typeof parsed !== "object") return undefined;
+  const product = (parsed as { product?: unknown }).product;
+  const meters = (parsed as { access?: { meters?: unknown } }).access?.meters;
+  if (!meters || typeof meters !== "object") return undefined;
+  const windows: UsageWindow[] = [];
+  for (const spec of OPENCODE_CONSOLE_GO_METERS) {
+    const meter = (meters as Record<string, unknown>)[spec.meter];
+    if (!meter || typeof meter !== "object") continue;
+    const limit = consoleMicroCents((meter as { limitMicroCents?: unknown }).limitMicroCents);
+    if (limit === undefined || limit <= 0) continue;
+    const used = consoleMicroCents((meter as { usedMicroCents?: unknown }).usedMicroCents) ?? 0;
+    const resetsAtRaw = (meter as { resetsAt?: unknown }).resetsAt;
+    const resetsAt = typeof resetsAtRaw === "string" ? Date.parse(resetsAtRaw) : NaN;
+    windows.push({
+      id: spec.id,
+      label: spec.label,
+      usedPercent: Math.min(100, Math.max(0, (used / limit) * 100)),
+      used: used / OPENCODE_MICRO_CENTS_PER_USD,
+      limit: limit / OPENCODE_MICRO_CENTS_PER_USD,
+      unit: "usd",
+      currency: "USD",
+      ...(Number.isFinite(resetsAt) ? { resetsAt } : {}),
+    });
+  }
+  return { windows, ...(typeof product === "string" ? { product } : {}) };
+}
+
+/** Prepaid balance in USD from `GET /console/api/billing/status`. */
+export function openCodeConsoleBalance(body: string): number | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return undefined;
+  }
+  if (!parsed || typeof parsed !== "object") return undefined;
+  const micro =
+    consoleMicroCents((parsed as { availableMicroCents?: unknown }).availableMicroCents) ??
+    consoleMicroCents((parsed as { balanceMicroCents?: unknown }).balanceMicroCents);
+  return micro === undefined ? undefined : micro / OPENCODE_MICRO_CENTS_PER_USD;
+}
+
+/**
+ * Usage read for `console_session` logins, which have no Zen workspace: list
+ * orgs (`/console/api/orgs`), take Go meters from the first org whose
+ * `go/status` reports `access.meters` (a subscription attaches to exactly one
+ * org — the rest answer `200 null`), then read the prepaid balance from that
+ * org (or the first one when no org has Go). Returns undefined when the cookie
+ * lacks `console_session` or the orgs call fails — the caller already knows
+ * the session is live and degrades to "live, no meters".
+ */
+export async function fetchOpenCodeConsoleUsage(
+  http: HttpClient,
+  cookieHeader: string,
+): Promise<OpenCodeConsoleUsage | undefined> {
+  const cookie = openCodeRequestCookie(cookieHeader);
+  // Console endpoints only authenticate `console_session`; skip outright for
+  // Zen-only cookies so migrated sessions don't spend requests on 401s.
+  if (!cookie || !cookieHeaderHas(cookie, OPENCODE_CONSOLE_COOKIE_NAMES)) return undefined;
+
+  const orgsRes = await openCodeConsoleGet(http, cookie, "/console/api/orgs");
+  if (!orgsRes || orgsRes.status !== 200) return undefined;
+  const orgIds = openCodeConsoleOrgIds(orgsRes.body);
+  if (orgIds.length === 0) return undefined;
+
+  // Bound the fan-out — accounts normally have 1–2 orgs.
+  const probeIds = orgIds.slice(0, 8);
+  const statuses = await Promise.all(
+    probeIds.map(async (orgId) => {
+      const res = await openCodeConsoleGet(http, cookie, "/console/api/go/status", orgId);
+      return res?.status === 200 ? openCodeConsoleGoStatus(res.body) : undefined;
+    }),
+  );
+  const goIndex = statuses.findIndex((s) => s !== undefined);
+  const go = goIndex >= 0 ? statuses[goIndex] : undefined;
+
+  const billingRes = await openCodeConsoleGet(
+    http,
+    cookie,
+    "/console/api/billing/status",
+    goIndex >= 0 ? probeIds[goIndex] : probeIds[0],
+  );
+  const balance = billingRes?.status === 200 ? openCodeConsoleBalance(billingRes.body) : undefined;
+
+  return {
+    goWindows: go?.windows ?? [],
+    ...(go?.product !== undefined ? { product: go.product } : {}),
+    ...(balance !== undefined ? { balance } : {}),
+  };
 }
 
 /**
