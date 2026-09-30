@@ -372,7 +372,16 @@ export class AccountStore {
       account.status = status;
       if (details?.lastError !== undefined) account.lastError = details.lastError;
       if (details?.lastQuotaAt !== undefined) account.lastQuotaAt = details.lastQuotaAt;
-      if (status !== "error" && details?.lastError === undefined) delete account.lastError;
+      // Only a healthy transition clears the last observed error. A
+      // degraded-state write that omits it (e.g. the quota poller refreshing
+      // an inference-marked row) must not erase the evidence
+      // `shouldPreserveInferenceExhaustion` discriminates on — losing
+      // `lastError` turns a 6h-protected inference mark back into a
+      // poller-owned row the next healthy-looking probe flips to `available`,
+      // which then re-elects the dead account and burns the failover chain.
+      if (details?.lastError === undefined && (status === "available" || status === "quota-low")) {
+        delete account.lastError;
+      }
     });
   }
 
@@ -386,7 +395,8 @@ export class AccountStore {
    * The renderer needs the provider's real identity and subscription tier on
    * the managed account row; the user-editable label remains independent.
    */
-  updateProviderMetadata(    accountId: string,
+  updateProviderMetadata(
+    accountId: string,
     metadata: { providerAccountId?: string; maskedIdentity?: string; plan?: string },
   ): AccountView {
     return this.update(accountId, (account) => {
@@ -916,9 +926,7 @@ export const QUOTA_INFERENCE_MARK_TTL_MS = 6 * 3_600_000;
  * fresh windows (bars stay truthful) and only skip the status downgrade.
  */
 export function shouldPreserveInferenceExhaustion(
-  stored:
-    | Pick<AccountRecord, "status" | "lastError" | "lastQuotaAt">
-    | undefined,
+  stored: Pick<AccountRecord, "status" | "lastError" | "lastQuotaAt"> | undefined,
   now: number,
 ): boolean {
   if (!stored || stored.status !== "quota-exhausted") return false;

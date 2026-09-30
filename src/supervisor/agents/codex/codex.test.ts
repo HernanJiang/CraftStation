@@ -3237,6 +3237,161 @@ describe("CodexStructuredSession", () => {
     expect(onPoolQuotaTurnFailed).not.toHaveBeenCalled();
   });
 
+  it("replays when the quota text lands on a thread/error after the turn already settled", () => {
+    vi.useFakeTimers();
+    try {
+      const { onMessage, session } = makeNotificationSession();
+      const internals = session as unknown as Record<string, unknown>;
+      const onPromptError = vi.fn<(error: unknown) => void>();
+      const onPoolQuotaTurnFailed = vi.fn<(failedTurn: unknown) => void>();
+      internals["onPromptError"] = onPromptError;
+      internals["onPoolQuotaTurnFailed"] = onPoolQuotaTurnFailed;
+      internals["activeTurnId"] = "turn-1";
+      internals["activeTurnIds"] = new Set(["turn-1"]);
+      internals["currentTurnPrompt"] = {
+        prompt: "hi",
+        config: { model: "gpt-5.4" },
+        userMessageItemId: "user-1",
+      };
+      const usageLimit =
+        "You've hit your usage limit. Upgrade to Pro at https://chatgpt.com/explore/pro or try again later.";
+
+      // Observed wire shape: the failed completion settles the turn first
+      // without carrying the reason, then the quota text arrives on a
+      // trailing `thread/error`. By then `activeTurnId` is cleared, so the
+      // old gate could never fire and the text was burned into the dedupe
+      // set — the failover was permanently lost.
+      onMessage({
+        jsonrpc: "2.0",
+        method: "turn/completed",
+        params: {
+          threadId: "provider-thread",
+          turn: { id: "turn-1", status: "failed" },
+        },
+      });
+      onMessage({
+        jsonrpc: "2.0",
+        method: "thread/error",
+        params: { message: usageLimit },
+      });
+
+      expect(onPromptError).toHaveBeenCalledTimes(1);
+      expect(onPoolQuotaTurnFailed).toHaveBeenCalledTimes(1);
+      expect(onPoolQuotaTurnFailed).toHaveBeenCalledWith(
+        expect.objectContaining({
+          prompt: "hi",
+          userMessageItemId: "user-1",
+          error: expect.objectContaining({ message: usageLimit }),
+        }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("replays when the live turn's failed completion is masked by a tracked sibling turn", () => {
+    const { onMessage, session } = makeNotificationSession();
+    const internals = session as unknown as Record<string, unknown>;
+    const onPromptError = vi.fn<(error: unknown) => void>();
+    const onPoolQuotaTurnFailed = vi.fn<(failedTurn: unknown) => void>();
+    internals["onPromptError"] = onPromptError;
+    internals["onPoolQuotaTurnFailed"] = onPoolQuotaTurnFailed;
+    internals["activeTurnId"] = "turn-1";
+    internals["activeTurnIds"] = new Set(["turn-1", "turn-compact"]);
+    internals["currentTurnPrompt"] = {
+      prompt: "hi",
+      config: { model: "gpt-5.4" },
+      userMessageItemId: "user-1",
+    };
+    const usageLimit =
+      "You've hit your usage limit. Upgrade to Pro at https://chatgpt.com/explore/pro or try again later.";
+
+    // A concurrent internal/compact turn keeps the completion from
+    // "settling the thread" — but the quota failure is on the USER's own
+    // turn and must still trigger the failover.
+    onMessage({
+      jsonrpc: "2.0",
+      method: "turn/completed",
+      params: {
+        threadId: "provider-thread",
+        turn: { id: "turn-1", status: "failed", error: { message: usageLimit } },
+      },
+    });
+
+    expect(onPromptError).toHaveBeenCalledTimes(1);
+    expect(onPoolQuotaTurnFailed).toHaveBeenCalledTimes(1);
+    expect(onPoolQuotaTurnFailed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        prompt: "hi",
+        userMessageItemId: "user-1",
+        error: expect.objectContaining({ message: usageLimit }),
+      }),
+    );
+  });
+
+  it("does not inherit the settle grace onto a newer turn's prompt", () => {
+    vi.useFakeTimers();
+    try {
+      const { onMessage, session } = makeNotificationSession();
+      const internals = session as unknown as Record<string, unknown>;
+      const onPromptError = vi.fn<(error: unknown) => void>();
+      const onPoolQuotaTurnFailed = vi.fn<(failedTurn: unknown) => void>();
+      internals["onPromptError"] = onPromptError;
+      internals["onPoolQuotaTurnFailed"] = onPoolQuotaTurnFailed;
+      internals["activeTurnId"] = "turn-1";
+      internals["activeTurnIds"] = new Set(["turn-1"]);
+      internals["currentTurnPrompt"] = {
+        prompt: "first",
+        config: { model: "gpt-5.4" },
+        userMessageItemId: "user-1",
+      };
+      const usageLimit =
+        "You've hit your usage limit. Upgrade to Pro at https://chatgpt.com/explore/pro or try again later.";
+
+      onMessage({
+        jsonrpc: "2.0",
+        method: "turn/completed",
+        params: {
+          threadId: "provider-thread",
+          turn: { id: "turn-1", status: "failed" },
+        },
+      });
+      // A new user turn replaces the retained prompt and completes before
+      // turn-1's stale quota text arrives — with no live turn the grace must
+      // not replay "second" (that would answer a prompt that already got
+      // its answer).
+      internals["currentTurnPrompt"] = {
+        prompt: "second",
+        config: { model: "gpt-5.4" },
+        userMessageItemId: "user-2",
+      };
+      internals["activeTurnId"] = "turn-2";
+      internals["activeTurnIds"] = new Set(["turn-2"]);
+      internals["seenErrorMessages"] = new Set<string>();
+      onMessage({
+        jsonrpc: "2.0",
+        method: "turn/completed",
+        params: {
+          threadId: "provider-thread",
+          turn: { id: "turn-2", status: "completed" },
+        },
+      });
+
+      onMessage({
+        jsonrpc: "2.0",
+        method: "thread/error",
+        params: { message: usageLimit },
+      });
+
+      // The dead account is still marked…
+      expect(onPromptError).toHaveBeenCalledTimes(1);
+      // …but nothing replays: no live turn owns the quota failure.
+      expect(onPoolQuotaTurnFailed).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("ignores retryable shapes for pool failover", () => {
     const { onMessage, session } = makeNotificationSession();
     const internals = session as unknown as Record<string, unknown>;

@@ -91,6 +91,12 @@ const CODEX_SYSTEM_ERROR_FALLBACK_DELAY_MS = 250;
 // notification with a real `turn/completed`. If it doesn't, the turn is
 // force-settled locally (see `forceSettleErroredTurns`).
 const CODEX_TURN_ERROR_SETTLE_MS = 8_000;
+// Codex often reports the quota reason on a `thread/error` that lands a beat
+// AFTER the failed `turn/completed` already settled (and cleared) the live
+// turn. The replay gate must keep accepting the text for a short window —
+// otherwise it is burned into `seenErrorMessages` and the pool failover can
+// never fire.
+const CODEX_QUOTA_FAILOVER_SETTLE_GRACE_MS = 15_000;
 const CODEX_RESUME_STATUS_REPLAY_SUPPRESSION_MS = 500;
 const CODEX_FORK_NOTIFICATION_BUFFER_LIMIT = 100;
 const CODEX_DISPOSE_INTERRUPT_TIMEOUT_MS = 2_000;
@@ -220,6 +226,15 @@ export class CodexStructuredSession implements StructuredSessionHandle {
   private currentBaseSlashCommands: AgentSlashCommand[] = [];
   private currentSkillSlashCommands: AgentSlashCommand[] = [];
   private pendingTurnInterrupt = false;
+  /**
+   * Quota-failover grace anchor: the live user turn's OWN failed
+   * `turn/completed`. A trailing `thread/error` with the quota text can land
+   * after the settle cleared `activeTurnId`; the `prompt` identity check
+   * keeps a NEWER user turn from inheriting the window.
+   */
+  private failedLiveTurnSettle: { at: number; prompt: unknown } | undefined;
+  /** Each user turn may trigger the pool-quota replay at most once. */
+  private quotaFailoverFiredForTurn = false;
   // Sticky-error gate: once a turn fails, derived status updates from
   // `thread/status/changed` (which Codex emits as `idle` after an aborted
   // turn) must not overwrite the error state. Cleared on the next user turn.
@@ -414,6 +429,20 @@ export class CodexStructuredSession implements StructuredSessionHandle {
    */
   private observePoolQuotaFailure(mappedEvents: RuntimeEvent[], settlesThread: boolean): void {
     if (!this.onPromptError && !this.onPoolQuotaTurnFailed) return;
+    // Anchor the replay grace on the live user turn's OWN failed completion.
+    // Runs before the fresh-text scan because this batch may carry no quota
+    // text at all — the reason can trail on a later `thread/error`. The
+    // tracked-id match is the only proof the failed turn is the user's turn
+    // rather than a background/compact one.
+    const liveTurnFailed = mappedEvents.some(
+      (event) =>
+        event.type === "turn.completed" &&
+        event.state === "failed" &&
+        event.turnId === this.activeTurnId,
+    );
+    if (liveTurnFailed) {
+      this.failedLiveTurnSettle = { at: Date.now(), prompt: this.currentTurnPrompt };
+    }
     const fresh = new Set<string>();
     for (const event of mappedEvents) {
       if (event.type !== "error") continue;
@@ -437,9 +466,27 @@ export class CodexStructuredSession implements StructuredSessionHandle {
       }
     }
     const retained = this.currentTurnPrompt;
-    if (!settlesThread || !this.activeTurnId || !retained || !this.onPoolQuotaTurnFailed) {
+    if (!retained || !this.onPoolQuotaTurnFailed || this.quotaFailoverFiredForTurn) {
       return;
     }
+    const settlesLiveTurn = settlesThread && this.activeTurnId !== undefined;
+    const grace = this.failedLiveTurnSettle;
+    const withinSettleGrace =
+      grace !== undefined &&
+      grace.prompt === retained &&
+      Date.now() - grace.at <= CODEX_QUOTA_FAILOVER_SETTLE_GRACE_MS;
+    if (!settlesLiveTurn && !liveTurnFailed && !withinSettleGrace) {
+      console.warn(
+        `[codex] pool quota failure observed but no live user turn owns it ` +
+          `(settles=${settlesThread} activeTurn=${this.activeTurnId ?? "none"}) — not replaying`,
+      );
+      return;
+    }
+    this.quotaFailoverFiredForTurn = true;
+    console.warn(
+      `[codex] pool quota failure settled the live turn (turn=${this.activeTurnId ?? "settled"}) ` +
+        `— replaying the retained prompt on the next pool account`,
+    );
     try {
       this.onPoolQuotaTurnFailed({ ...retained, error: quotaError });
     } catch (callbackError) {
@@ -844,6 +891,8 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     // with the per-turn error dedupe state and any pending fallback timer.
     this.errorSticky = false;
     this.seenErrorMessages.clear();
+    this.failedLiveTurnSettle = undefined;
+    this.quotaFailoverFiredForTurn = false;
     this.clearPendingSystemErrorFallback();
     this.clearTurnErrorSettle();
     const threadId = await this.waitForRemoteThreadId();

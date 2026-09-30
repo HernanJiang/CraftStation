@@ -1,4 +1,5 @@
-import { existsSync, renameSync, rmSync } from "node:fs";
+import { cpSync, existsSync, renameSync, rmSync } from "node:fs";
+import { setTimeout as delay } from "node:timers/promises";
 import { delimiter, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -62,4 +63,22 @@ if (result.status !== 0) {
 }
 
 rmSync(generatedDir, { recursive: true, force: true });
-renameSync(stagingDir, generatedDir);
+// Windows: a directory rename fails with EPERM while anything (indexer, AV,
+// a lingering generator child) still holds a handle inside the staging tree.
+// Retry briefly, then fall back to copy+remove which doesn't need the source
+// tree to be handle-free.
+let renamed = false;
+for (let attempt = 0; attempt < 10 && !renamed; attempt += 1) {
+  try {
+    renameSync(stagingDir, generatedDir);
+    renamed = true;
+  } catch (error) {
+    if (attempt === 9 || error?.code !== "EPERM") {
+      cpSync(stagingDir, generatedDir, { recursive: true });
+      rmSync(stagingDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 });
+      renamed = true;
+    } else {
+      await delay(500);
+    }
+  }
+}

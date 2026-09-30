@@ -4,7 +4,12 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { AccountControlError } from "@/shared/contracts";
 import { AccountResolver } from "./accountResolver";
-import { AccountStore, maskIdentity, QUOTA_INFERENCE_MARK_TTL_MS, shouldPreserveInferenceExhaustion } from "./accountStore";
+import {
+  AccountStore,
+  maskIdentity,
+  QUOTA_INFERENCE_MARK_TTL_MS,
+  shouldPreserveInferenceExhaustion,
+} from "./accountStore";
 
 const roots: string[] = [];
 function createStore(): AccountStore {
@@ -254,6 +259,31 @@ describe("AccountStore", () => {
     });
 
     expect(store.updateStatus(account.accountId, "available")).not.toHaveProperty("lastError");
+  });
+
+  it("keeps the inference mark's lastError across degraded-state refreshes", () => {
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "codex one" });
+
+    // The quota-inference write-back marks the dead account…
+    store.updateStatus(account.accountId, "quota-exhausted", {
+      lastError: "You've hit your usage limit.",
+      lastQuotaAt: 1,
+    });
+    // …then the quota poller re-marks the same degraded state without
+    // lastError. The evidence must survive: `shouldPreserveInferenceExhaustion`
+    // discriminates inference marks from window-derived rows by lastError, so
+    // wiping it lets the next healthy-looking probe flip the dead account
+    // back to `available` and re-elect it into the failover chain.
+    store.updateStatus(account.accountId, "quota-exhausted", { lastQuotaAt: 2 });
+    expect(store.get(account.accountId)).toMatchObject({
+      status: "quota-exhausted",
+      lastError: "You've hit your usage limit.",
+      lastQuotaAt: 2,
+    });
+    // A healthy transition still clears it.
+    store.updateStatus(account.accountId, "available");
+    expect(store.get(account.accountId)).not.toHaveProperty("lastError");
   });
 
   it("migrates legacy Grok labels and keeps the full email when the store is reopened", () => {
