@@ -74,6 +74,7 @@ import { RuntimeEventRouter } from "./threadSession/runtimeEventRouter";
 import { SessionRuntimeLifecycle } from "./threadSession/sessionRuntimeLifecycle";
 import type { ThreadSessionManagerOptions } from "./threadSession/managerOptions";
 import { PtyLifecycle } from "./threadSession/ptyLifecycle";
+import { PtyOutputBatcher } from "./threadSession/ptyOutputBatcher";
 import { describeSpawnFailure, sanitizedProcessEnv } from "./threadSession/spawnDiagnostics";
 import { CliHookSessionCoordinator } from "./threadSession/cliHookPlugin";
 import { InvalidSessionRecoveryCoordinator } from "./threadSession/invalidSessionRecovery";
@@ -126,7 +127,24 @@ export class ThreadSessionManager {
   private readonly steerCoordinator: SteerCoordinator;
   private readonly structuredInterruptWatchdog: StructuredInterruptWatchdog;
   private readonly cliHookPlugin: CliHookSessionCoordinator;
+  private readonly sessionRuntimeLifecycle: SessionRuntimeLifecycle;
   private readonly spawnPipeline: SpawnPipeline;
+  private readonly shellOutput = new PtyOutputBatcher<ShellSessionRuntime>((session, data) => {
+    if (this.shellSessions.get(session.shellId)?.instanceId !== session.instanceId) {
+      return;
+    }
+    session.outputLength += data.length;
+    session.outputTranscript.append(data);
+    if (this.options.isDev) {
+      this.logWriter.append(this.resolveLogPath(session.shellId.replace(/:/g, "_")), data);
+    }
+    this.options.emit({
+      type: "thread-output",
+      threadId: session.shellId,
+      data,
+      outputLength: session.outputLength,
+    });
+  });
   private readonly invalidSessionRecovery: InvalidSessionRecoveryCoordinator;
   private readonly structuredTurnQueue: StructuredTurnQueue;
   private readonly turnRetryCoordinator: TurnRetryCoordinator;
@@ -196,7 +214,7 @@ export class ThreadSessionManager {
       outputPipeline: this.outputPipeline,
       indexSessionRef: (session, prevId) => this.indexSessionRef(session, prevId),
     });
-    const sessionRuntimeLifecycle = new SessionRuntimeLifecycle({
+    this.sessionRuntimeLifecycle = new SessionRuntimeLifecycle({
       sessions: this.sessions,
       sessionsBySessionId: this.sessionsBySessionId,
       ptyLifecycle: this.ptyLifecycle,
@@ -219,7 +237,7 @@ export class ThreadSessionManager {
       ptyLifecycle: this.ptyLifecycle,
       outputPipeline: this.outputPipeline,
       runtimeEventRouter: this.runtimeEventRouter,
-      sessionRuntimeLifecycle,
+      sessionRuntimeLifecycle: this.sessionRuntimeLifecycle,
       cliHookPlugin: this.cliHookPlugin,
       closeThread: (payload) => this.closeThread(payload),
       failStructuredSession: (session, error) => this.failStructuredSession(session, error),
@@ -1695,20 +1713,11 @@ export class ThreadSessionManager {
       if (this.shellSessions.get(payload.shellId)?.instanceId !== session.instanceId) {
         return;
       }
-      session.outputLength += data.length;
-      session.outputTranscript.append(data);
-      if (this.options.isDev) {
-        this.logWriter.append(this.resolveLogPath(payload.shellId.replace(/:/g, "_")), data);
-      }
-      this.options.emit({
-        type: "thread-output",
-        threadId: payload.shellId,
-        data,
-        outputLength: session.outputLength,
-      });
+      this.shellOutput.append(session, data);
     });
 
     pty.onExit(({ exitCode }) => {
+      this.shellOutput.flushKey(session);
       this.ptyLifecycle.resolveExit(session);
       if (session.ignoreExit) {
         return;
@@ -1762,6 +1771,8 @@ export class ThreadSessionManager {
     }
 
     this.runtimeEventRouter.flush();
+    this.sessionRuntimeLifecycle.flushPtyOutput();
+    this.shellOutput.flush();
     await Promise.allSettled(
       [...this.sessions.values()].map(async (session) => {
         session.ignoreExit = true;

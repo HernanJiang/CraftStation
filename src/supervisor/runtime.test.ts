@@ -1627,13 +1627,19 @@ describe("SupervisorRuntime thread input", () => {
       },
     });
 
-    pty.emitData(
-      [
-        "OpenAI Codex (v0.116.0)",
-        "model: gpt-5.4-mini high /model to change",
-        "directory: ~/work/site-search-ui",
-      ].join("\n"),
-    );
+    vi.useFakeTimers();
+    try {
+      pty.emitData(
+        [
+          "OpenAI Codex (v0.116.0)",
+          "model: gpt-5.4-mini high /model to change",
+          "directory: ~/work/site-search-ui",
+        ].join("\n"),
+      );
+      await vi.advanceTimersByTimeAsync(16);
+    } finally {
+      vi.useRealTimers();
+    }
     await Promise.resolve();
 
     expect(startTurn).toHaveBeenCalledTimes(1);

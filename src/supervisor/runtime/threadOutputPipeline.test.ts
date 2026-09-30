@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { PtyOutputBatcher, PTY_OUTPUT_BATCH_MS } from "./threadSession/ptyOutputBatcher";
 import { ThreadOutputPipeline, resolveThreadStatusSource } from "./threadOutputPipeline";
 import type { SessionRuntime } from "./sessionTypes";
 
@@ -723,5 +724,58 @@ describe("ThreadOutputPipeline / user-interrupt recovery timer", () => {
     p.clearSessionTimers(session);
 
     expect(session.userInterruptRecoveryTimer).toBeUndefined();
+  });
+});
+
+describe("ThreadOutputPipeline / PtyOutputBatcher batches", () => {
+  it("reassembles an OSC sequence split across 16 ms batches into one notification", () => {
+    vi.useFakeTimers();
+    try {
+      const emit = vi.fn<(event: import("@/shared/ipc").SupervisorEvent) => void>();
+      const p = new ThreadOutputPipeline({
+        emit,
+        isDev: false,
+        logWriter: { append: vi.fn<() => void>() } as never,
+        resolveLogPath: () => "",
+        resolveHintLogPath: () => "",
+        readDisableCliHookPlugin: () => false,
+        onRecoverInvalidSessionRef: vi.fn<() => void>(),
+        onStartQueuedLaunchPrompt: vi.fn<() => void>(),
+        onStartSessionRefDiscovery: vi.fn<() => void>(),
+      });
+      const batcher = new PtyOutputBatcher<SessionRuntime>((session, data) => {
+        p.handlePtyData(session, data);
+      });
+      const session = {
+        threadId: "t-batched",
+        status: "idle",
+        attention: "none",
+        config: {},
+        prevChunk: "",
+        outputLength: 0,
+        ptyOscCarry: "",
+        adapter: {
+          capabilities: { presentationMode: "terminal" },
+          isReadyForInitialPrompt: () => false,
+        },
+        pty: { write: vi.fn<(data: string) => void>() },
+      } as unknown as SessionRuntime;
+
+      const input = "\x1b]9;agent-turn-complete\x07tail";
+      batcher.append(session, "\x1b]9;agent-tu");
+      vi.advanceTimersByTime(PTY_OUTPUT_BATCH_MS);
+      batcher.append(session, "rn-complete\x07tail");
+      vi.advanceTimersByTime(PTY_OUTPUT_BATCH_MS);
+
+      const emitted = emit.mock.calls.map(([event]) => event);
+      expect(emitted.filter((event) => event.type === "thread-osc-notification")).toHaveLength(1);
+      const output = emitted
+        .filter((event) => event.type === "thread-output")
+        .map((event) => ("data" in event ? event.data : ""))
+        .join("");
+      expect(output).toBe(input);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

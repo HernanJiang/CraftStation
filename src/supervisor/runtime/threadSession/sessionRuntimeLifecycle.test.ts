@@ -414,18 +414,65 @@ describe("SessionRuntimeLifecycle", () => {
   });
 
   it("routes PTY data only for the current session", () => {
+    vi.useFakeTimers();
+    try {
+      const harness = createHarness();
+      harness.lifecycle.attach(harness.session);
+
+      harness.emitPtyData("first");
+      harness.emitPtyData("second");
+      expect(harness.mocks.handlePtyData).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(16);
+      expect(harness.mocks.handlePtyData).toHaveBeenCalledExactlyOnceWith(
+        harness.session,
+        "firstsecond",
+      );
+
+      harness.sessions.set(harness.session.threadId, {
+        ...harness.session,
+        instanceId: "instance-2",
+      } as SessionRuntime);
+      harness.emitPtyData("stale");
+      vi.advanceTimersByTime(16);
+      expect(harness.mocks.handlePtyData).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("drops buffered PTY data when the session is replaced before the flush", () => {
+    vi.useFakeTimers();
+    try {
+      const harness = createHarness();
+      harness.lifecycle.attach(harness.session);
+
+      harness.emitPtyData("pending");
+      harness.sessions.set(harness.session.threadId, {
+        ...harness.session,
+        instanceId: "instance-2",
+      } as SessionRuntime);
+      vi.advanceTimersByTime(16);
+
+      expect(harness.mocks.handlePtyData).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("flushes buffered PTY data before the exit teardown", () => {
     const harness = createHarness();
     harness.lifecycle.attach(harness.session);
 
-    harness.emitPtyData("first");
-    expect(harness.mocks.handlePtyData).toHaveBeenCalledWith(harness.session, "first");
+    harness.emitPtyData("tail");
+    harness.emitPtyExit(0);
 
-    harness.sessions.set(harness.session.threadId, {
-      ...harness.session,
-      instanceId: "instance-2",
-    } as SessionRuntime);
-    harness.emitPtyData("stale");
-    expect(harness.mocks.handlePtyData).toHaveBeenCalledTimes(1);
+    expect(harness.mocks.handlePtyData).toHaveBeenCalledExactlyOnceWith(harness.session, "tail");
+    const dataOrder = harness.mocks.handlePtyData.mock.invocationCallOrder[0] ?? -1;
+    expect(dataOrder).toBeGreaterThanOrEqual(0);
+    expect(dataOrder).toBeLessThan(harness.mocks.resolveExit.mock.invocationCallOrder[0] ?? -1);
+    expect(dataOrder).toBeLessThan(harness.mocks.updateState.mock.invocationCallOrder[0] ?? -1);
+    expect(dataOrder).toBeLessThan(harness.mocks.emit.mock.invocationCallOrder[0] ?? -1);
   });
 
   it("resolves every PTY exit but tears down state only for the active session", () => {

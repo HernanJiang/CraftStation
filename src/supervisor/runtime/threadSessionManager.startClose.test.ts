@@ -326,6 +326,69 @@ describe("ThreadSessionManager Windows shells", () => {
       /powershell\.exe$|cmd\.exe$/,
     );
   });
+
+  it("batches shell output into one thread-output per window and flushes before exit", async () => {
+    vi.useFakeTimers();
+    try {
+      let onData: ((data: string) => void) | undefined;
+      let onExit: ((event: { exitCode: number }) => void) | undefined;
+      vi.mocked(spawnPty).mockImplementationOnce(
+        () =>
+          ({
+            pid: 125,
+            kill: vi.fn<() => void>(),
+            onData: vi.fn<(listener: (data: string) => void) => void>((listener) => {
+              onData = listener;
+            }),
+            onExit: vi.fn<(listener: (event: { exitCode: number }) => void) => void>((listener) => {
+              onExit = listener;
+            }),
+            write: vi.fn<() => void>(),
+          }) as never,
+      );
+      const emit = vi.fn<(event: SupervisorEvent) => void>();
+      const adapter = createAdapter("codex", createStructuredSession(Promise.resolve()));
+      const manager = createManager("codex", adapter, emit);
+
+      await manager.startShell({
+        shellId: "shell:batched",
+        projectLocation: { kind: "windows", path: process.cwd() },
+      });
+
+      onData?.("chunk-1");
+      onData?.("chunk-2");
+      expect(emit.mock.calls.filter(([event]) => event.type === "thread-output")).toHaveLength(0);
+
+      vi.advanceTimersByTime(16);
+      let outputs = emit.mock.calls
+        .map(([event]) => event)
+        .filter((event) => event.type === "thread-output");
+      expect(outputs).toEqual([
+        expect.objectContaining({
+          type: "thread-output",
+          threadId: "shell:batched",
+          data: "chunk-1chunk-2",
+          outputLength: "chunk-1chunk-2".length,
+        }),
+      ]);
+
+      onData?.("tail");
+      onExit?.({ exitCode: 0 });
+      outputs = emit.mock.calls
+        .map(([event]) => event)
+        .filter((event) => event.type === "thread-output");
+      expect(outputs).toHaveLength(2);
+      expect(outputs[1]).toMatchObject({ data: "tail" });
+      const tailOrder = emit.mock.calls.findIndex(
+        ([event]) => event.type === "thread-output" && "data" in event && event.data === "tail",
+      );
+      const exitOrder = emit.mock.calls.findIndex(([event]) => event.type === "thread-exited");
+      expect(tailOrder).toBeGreaterThanOrEqual(0);
+      expect(exitOrder).toBeGreaterThan(tailOrder);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
 
 describe("ThreadSessionManager start guards", () => {

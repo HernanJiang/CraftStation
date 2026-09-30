@@ -10,6 +10,7 @@ import type { ThreadOutputPipeline } from "../threadOutputPipeline";
 import { shouldReleaseInitialStructuredIdleSuppression } from "./helpers";
 import type { ThreadSessionManagerOptions } from "./managerOptions";
 import type { PtyLifecycle } from "./ptyLifecycle";
+import { PtyOutputBatcher } from "./ptyOutputBatcher";
 import type { RuntimeEventRouter } from "./runtimeEventRouter";
 import { type SteerCoordinator, isSteerDrainableStatus } from "./steerCoordinator";
 import type { StructuredInterruptWatchdog } from "./structuredInterruptWatchdog";
@@ -39,7 +40,27 @@ export interface SessionRuntimeLifecycleContext {
 
 /** Registers a newly-created runtime and owns its structured-session / PTY event bindings. */
 export class SessionRuntimeLifecycle {
+  private readonly ptyOutput = new PtyOutputBatcher<SessionRuntime>((session, data) => {
+    if (!this.context.isCurrentSession(session)) return;
+    try {
+      this.context.outputPipeline.handlePtyData(session, data);
+    } catch (error) {
+      console.error(`[supervisor] uncaught error in onData for thread ${session.threadId}:`, error);
+      captureSupervisorException(new Error("PTY output pipeline failed."), {
+        "craftstation.feature_area": "thread-session-lifecycle",
+        "craftstation.presentation": session.presentationMode ?? "terminal",
+        "craftstation.provider": session.agentKind,
+        "craftstation.runtime_kind": "pty",
+      });
+    }
+  });
+
   constructor(private readonly context: SessionRuntimeLifecycleContext) {}
+
+  /** Deliver every session's buffered PTY output now (dispose path). */
+  flushPtyOutput(): void {
+    this.ptyOutput.flush();
+  }
 
   attach(session: SessionRuntime): void {
     const context = this.context;
@@ -184,24 +205,14 @@ export class SessionRuntimeLifecycle {
 
     pty.onData((data) => {
       if (!this.context.isCurrentSession(session)) return;
-      try {
-        this.context.outputPipeline.handlePtyData(session, data);
-      } catch (error) {
-        console.error(
-          `[supervisor] uncaught error in onData for thread ${session.threadId}:`,
-          error,
-        );
-        captureSupervisorException(new Error("PTY output pipeline failed."), {
-          "craftstation.feature_area": "thread-session-lifecycle",
-          "craftstation.presentation": session.presentationMode ?? "terminal",
-          "craftstation.provider": session.agentKind,
-          "craftstation.runtime_kind": "pty",
-        });
-      }
+      this.ptyOutput.append(session, data);
     });
 
     pty.onExit((event) => {
       const context = this.context;
+      // Final output must land before resolveExit / the inactive updateState /
+      // thread-exited so no trailing chunk arrives after teardown.
+      this.ptyOutput.flushKey(session);
       context.ptyLifecycle.resolveExit(session);
       try {
         session.launchCleanup?.();
