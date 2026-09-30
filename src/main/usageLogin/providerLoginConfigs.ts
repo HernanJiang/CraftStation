@@ -132,7 +132,10 @@ export const PROVIDER_CONFIGS: Record<string, ProviderLoginConfig> = {
     kind: "cookie",
     loginUrl: "https://opencode.ai/auth",
     cookieUrl: "https://opencode.ai/",
-    authCookiePattern: /^(?:auth|__Host-auth)$/i,
+    // `auth` is the legacy Zen console session; `console_session` is the new
+    // opencode.ai/console session — a login there never upgrades `auth`, so
+    // both families must count as candidates.
+    authCookiePattern: /^(?:auth|__Host-auth|console_session|__Host-console_session)$/i,
     // The OpenAuth `/authorize` page can set an `auth`-named cookie before the
     // user signs in, and stale values linger in the jar — so confirm the cookie
     // actually authenticates before prompting.

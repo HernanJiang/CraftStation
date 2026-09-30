@@ -1,9 +1,9 @@
 import {
   fetchOpenCodeSubscriptionText,
-  fetchOpenCodeWorkspaceId,
   type HostPort,
   openCodeRequestCookie,
   OPENCODE_USER_AGENT,
+  resolveOpenCodeSession,
   type UsageWindow,
 } from "@craftstation/agents-usage";
 import { parseZenBalance, workspacePageDiagnostics } from "./openCodeZenBalance";
@@ -111,8 +111,15 @@ export function parseOpenCodeGoWindows(text: string, nowMs: number): UsageWindow
 export async function fetchOpenCodeWeb(host: HostPort, nowMs: number): Promise<OpenCodeWebSession> {
   const cookie = openCodeRequestCookie(await host.credentials.getSecret("opencode", "cookie"));
   if (!cookie) return { live: false };
-  const workspaceId = await fetchOpenCodeWorkspaceId(host.http, cookie);
-  if (!workspaceId) return { live: false };
+  const session = await resolveOpenCodeSession(host.http, cookie);
+  if (!session.live) return { live: false };
+  if (!session.workspaceId) {
+    // New-console session (`console_session`), or a Zen account whose billing
+    // moved off the old console: authenticated, but there is no Zen workspace
+    // to read Go/Lite meters from. Report live so the card stops re-prompting.
+    return { live: true };
+  }
+  const workspaceId = session.workspaceId;
 
   const base = `https://opencode.ai/workspace/${workspaceId}`;
   // Subscription server-fn is the authoritative Go window source; HTML pages are

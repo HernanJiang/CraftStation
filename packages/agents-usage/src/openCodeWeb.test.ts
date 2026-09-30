@@ -2,12 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import type { HostCacheStore, HttpClient, HttpRequest, HttpResponse } from "./host";
 import {
   fetchOpenCodeSubscriptionText,
+  fetchOpenCodeWorkspaceId,
   isOpenCodeSessionLive,
   looksLikeOpenCodeSubscription,
   openCodeEntryClientUrl,
   openCodeGoRouteChunkUrl,
   openCodeRequestCookie,
   openCodeSubscriptionServerIdFromChunk,
+  resolveOpenCodeSession,
   resolveOpenCodeSubscriptionServerId,
   workspaceIdsFromText,
 } from "./openCodeWeb";
@@ -35,6 +37,16 @@ describe("openCodeRequestCookie", () => {
     expect(openCodeRequestCookie("auth=tok; theme=dark; __Host-auth=x")).toBe(
       "auth=tok; __Host-auth=x",
     );
+  });
+
+  it("keeps the new-console session cookies alongside the zen ones", () => {
+    // opencode.ai/console sessions live in console_session / __Host-console_session,
+    // not `auth` — dropping them makes a completed console login invisible.
+    expect(
+      openCodeRequestCookie(
+        "auth=anon; __Host-console_oidc_flow=state; console_session=s1; __Host-console_session=s2; ga=1",
+      ),
+    ).toBe("auth=anon; console_session=s1; __Host-console_session=s2");
   });
 
   it("returns undefined when no auth cookie is present", () => {
@@ -77,9 +89,88 @@ describe("isOpenCodeSessionLive", () => {
     expect(calls[0]?.headers?.Cookie).toBe("auth=real");
   });
 
+  it("is true when a real zen session is redirected to the new console", async () => {
+    // Migrated billing: the workspaces fn throws redirect("<console>/login")
+    // instead of the 200 public-actor body an anonymous cookie gets.
+    const { http } = stubHttp(() => ({
+      status: 302,
+      headers: { location: "https://opencode.ai/console/login" },
+      body: "",
+    }));
+    expect(await isOpenCodeSessionLive(http, "auth=real")).toBe(true);
+  });
+
+  it("is false when the zen redirect points back at the auth flow", async () => {
+    const { http } = stubHttp(() => ({
+      status: 302,
+      headers: { location: "/auth/authorize" },
+      body: "",
+    }));
+    expect(await isOpenCodeSessionLive(http, "auth=real")).toBe(false);
+  });
+
+  it("is true when only the new-console session cookie is live", async () => {
+    // Console logins set console_session, never upgrading `auth`: the zen
+    // probe must not be the sole liveness oracle.
+    const { http, calls } = stubHttp((req) =>
+      req.url === "https://opencode.ai/console/auth/session"
+        ? ok('{"session":{"id":"s1"}}')
+        : ok('actor of type "public" is not associated with an account'),
+    );
+    expect(await isOpenCodeSessionLive(http, "auth=anon; __Host-console_session=live")).toBe(true);
+    expect(calls.some((c) => c.url === "https://opencode.ai/console/auth/session")).toBe(true);
+  });
+
+  it("is false when the console session probe reports not authenticated", async () => {
+    const { http } = stubHttp((req) =>
+      req.url === "https://opencode.ai/console/auth/session"
+        ? { status: 401, headers: {}, body: '{"_tag":"SessionQueryFailed"}' }
+        : ok('actor of type "public"'),
+    );
+    expect(await isOpenCodeSessionLive(http, "console_session=dead")).toBe(false);
+  });
+
+  it("does not probe the console endpoint when no console cookie exists", async () => {
+    const { http, calls } = stubHttp(() => ok('actor of type "public"'));
+    expect(await isOpenCodeSessionLive(http, "auth=anon")).toBe(false);
+    expect(calls.some((c) => c.url.includes("/console/"))).toBe(false);
+  });
+
   it("propagates probe errors to the caller (treated as not-live upstream)", async () => {
     const http: HttpClient = { request: () => Promise.reject(new Error("network")) };
     await expect(isOpenCodeSessionLive(http, "auth=real")).rejects.toThrow("network");
+  });
+});
+
+describe("resolveOpenCodeSession", () => {
+  it("returns the workspace id when the zen session lists workspaces", async () => {
+    const { http } = stubHttp(() => ok('id:"wrk_live"'));
+    await expect(resolveOpenCodeSession(http, "auth=real")).resolves.toEqual({
+      live: true,
+      workspaceId: "wrk_live",
+    });
+  });
+
+  it("returns live without a workspace id for a console-only session", async () => {
+    const { http } = stubHttp((req) =>
+      req.url === "https://opencode.ai/console/auth/session"
+        ? ok("{}")
+        : ok('actor of type "public"'),
+    );
+    await expect(resolveOpenCodeSession(http, "console_session=s")).resolves.toEqual({
+      live: true,
+    });
+  });
+});
+
+describe("fetchOpenCodeWorkspaceId", () => {
+  it("keeps returning undefined for a migrated account redirect (no workspace)", async () => {
+    const { http } = stubHttp(() => ({
+      status: 302,
+      headers: { location: "https://opencode.ai/console/login" },
+      body: "",
+    }));
+    await expect(fetchOpenCodeWorkspaceId(http, "auth=real")).resolves.toBeUndefined();
   });
 });
 

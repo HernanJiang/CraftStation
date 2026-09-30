@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseOpenCodeGoWindows } from "./openCodeWebSession";
+import type { HostPort, HttpRequest, HttpResponse } from "@craftstation/agents-usage";
+import { fetchOpenCodeWeb, parseOpenCodeGoWindows } from "./openCodeWebSession";
 
 const NOW = 1_700_000_000_000;
 
@@ -48,5 +49,57 @@ describe("parseOpenCodeGoWindows", () => {
   it("returns [] when the two core windows are not both present (no Lite subscription)", () => {
     expect(parseOpenCodeGoWindows(`{monthlyUsage:{usagePercent:5,resetInSec:1}}`, NOW)).toEqual([]);
     expect(parseOpenCodeGoWindows(`<html>signed in, no subscription</html>`, NOW)).toEqual([]);
+  });
+});
+
+describe("fetchOpenCodeWeb", () => {
+  function hostWith(
+    cookie: string | undefined,
+    responder: (req: HttpRequest) => HttpResponse,
+  ): { host: HostPort; calls: HttpRequest[] } {
+    const calls: HttpRequest[] = [];
+    return {
+      calls,
+      host: {
+        http: {
+          request: (req: HttpRequest) => {
+            calls.push(req);
+            return Promise.resolve(responder(req));
+          },
+        },
+        credentials: { getSecret: async () => cookie },
+      } as unknown as HostPort,
+    };
+  }
+
+  it("reports live for a console_session login even without a zen workspace", async () => {
+    // A console-only login never produces a Zen workspace; the session is still
+    // signed in, so the card must not fall back to auth-missing.
+    const { host, calls } = hostWith("console_session=s; auth=anon", (req) =>
+      req.url === "https://opencode.ai/console/auth/session"
+        ? { status: 200, headers: {}, body: "{}" }
+        : { status: 200, headers: {}, body: 'actor of type "public"' },
+    );
+    await expect(fetchOpenCodeWeb(host, NOW)).resolves.toEqual({ live: true });
+    // No workspace → none of the zen meter fetches run.
+    expect(calls.some((c) => c.url.includes("/workspace/"))).toBe(false);
+  });
+
+  it("reports live when the zen session redirects to the migrated console", async () => {
+    const { host } = hostWith("auth=real", () => ({
+      status: 302,
+      headers: { location: "https://opencode.ai/console/login" },
+      body: "",
+    }));
+    await expect(fetchOpenCodeWeb(host, NOW)).resolves.toEqual({ live: true });
+  });
+
+  it("reports not-live when every session surface rejects the cookie", async () => {
+    const { host } = hostWith("auth=anon; console_session=s", () => ({
+      status: 401,
+      headers: {},
+      body: '{"_tag":"SessionQueryFailed"}',
+    }));
+    await expect(fetchOpenCodeWeb(host, NOW)).resolves.toEqual({ live: false });
   });
 });

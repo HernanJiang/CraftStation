@@ -35,7 +35,29 @@ export const OPENCODE_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36";
 
-export const OPENCODE_AUTH_COOKIE_NAMES = new Set(["auth", "__Host-auth"]);
+/**
+ * opencode.ai runs two session systems on the same host. The legacy Zen
+ * console (`/auth`, `/workspace/...`, SolidStart `useSession`) seals its session
+ * into `auth`; the new console (`/console/`, the Effect API worker) issues
+ * `console_session` (/`__Host-` variant) after its OIDC callback. A login on
+ * either surface must count as a session, so both families are forwarded.
+ */
+export const OPENCODE_AUTH_COOKIE_NAMES = new Set([
+  "auth",
+  "__Host-auth",
+  "console_session",
+  "__Host-console_session",
+]);
+
+const OPENCODE_ZEN_COOKIE_NAMES = new Set(["auth", "__Host-auth"]);
+const OPENCODE_CONSOLE_COOKIE_NAMES = new Set(["console_session", "__Host-console_session"]);
+
+function cookieHeaderHas(cookie: string, names: Set<string>): boolean {
+  return cookie.split(";").some((part) => {
+    const eq = part.indexOf("=");
+    return eq > 0 && names.has(part.slice(0, eq).trim());
+  });
+}
 
 /**
  * Reduce a full `Cookie` header to just the OpenCode auth cookies, or undefined
@@ -106,15 +128,20 @@ function serverHeaders(cookie: string, serverId: string): Record<string, string>
   };
 }
 
-/**
- * Resolve the user's workspace id from opencode.ai using the auth cookie, or
- * undefined when the cookie is missing/stale/signed-out. Doubles as the
- * authoritative "is this cookie a live session?" probe.
- */
-export async function fetchOpenCodeWorkspaceId(
-  http: HttpClient,
-  cookie: string,
-): Promise<string | undefined> {
+interface ZenWorkspaceProbe {
+  /** A workspace id listed by the `workspaces` server-fn for this session. */
+  workspaceId?: string;
+  /**
+   * The `auth` session decoded to a real account even though no workspace was
+   * returned. `getWorkspaces` throws a redirect to the new-console login for
+   * accounts whose billing moved off the Zen console; anonymous and garbage
+   * cookies instead get the 200 "public actor" error or a 500, so a redirect
+   * response is itself the authenticated signal.
+   */
+  authenticated: boolean;
+}
+
+async function probeZenWorkspace(http: HttpClient, cookie: string): Promise<ZenWorkspaceProbe> {
   const getUrl = `https://opencode.ai/_server?id=${encodeURIComponent(OPENCODE_WORKSPACES_SERVER_ID)}`;
   for (const req of [
     { method: "GET" as const, url: getUrl },
@@ -135,11 +162,81 @@ export async function fetchOpenCodeWorkspaceId(
       ...(req.body !== undefined ? { body: req.body } : {}),
       timeoutMs: 5000,
     });
-    if (res.status !== 200 || looksSignedOut(res.body)) continue;
+    const location = res.headers.location;
+    if (res.status >= 300 && res.status < 400 && location && !location.includes("/auth/")) {
+      return { authenticated: true };
+    }
+    if (res.status !== 200) continue;
+    // A workspace id in the payload is itself proof of a signed-in session;
+    // extract before the signed-out heuristic so incidental "login" text in a
+    // live response (e.g. a workspace slug) can't veto it.
     const id = workspaceIdsFromText(res.body)[0];
-    if (id) return id;
+    if (id) return { workspaceId: id, authenticated: true };
+    if (looksSignedOut(res.body)) continue;
   }
-  return undefined;
+  return { authenticated: false };
+}
+
+/**
+ * Resolve the user's workspace id from opencode.ai using the auth cookie, or
+ * undefined when the cookie is missing/stale/signed-out (or the account was
+ * migrated to the new console, which redirects instead of listing workspaces).
+ */
+export async function fetchOpenCodeWorkspaceId(
+  http: HttpClient,
+  cookie: string,
+): Promise<string | undefined> {
+  return (await probeZenWorkspace(http, cookie)).workspaceId;
+}
+
+/**
+ * New-console session probe: `GET /console/auth/session` answers 401
+ * `SessionQueryFailed` for anonymous calls and 200 with the session payload for
+ * a live `console_session` cookie — no billing/workspace membership required,
+ * so it also authenticates accounts the Zen console can no longer list.
+ */
+async function probeOpenCodeConsoleSession(http: HttpClient, cookie: string): Promise<boolean> {
+  const res = await http.request({
+    url: "https://opencode.ai/console/auth/session",
+    headers: {
+      Cookie: cookie,
+      "User-Agent": OPENCODE_USER_AGENT,
+      Accept: "application/json",
+    },
+    timeoutMs: 5000,
+  });
+  return res.status === 200 && !res.body.includes("SessionQueryFailed");
+}
+
+export interface OpenCodeSessionCheck {
+  /** The cookie authenticates a signed-in session on either console surface. */
+  live: boolean;
+  /** Zen-console workspace id, when the `auth` session still resolves one. */
+  workspaceId?: string;
+}
+
+/**
+ * Classify a captured `Cookie` header against both opencode.ai session
+ * surfaces: the Zen `workspaces` server-fn (also yields the workspace id used
+ * for usage reads) and the new console's `/console/auth/session`. A login that
+ * only set `console_session` still counts as live — the Zen surfaces simply
+ * have no meters to read for it.
+ */
+export async function resolveOpenCodeSession(
+  http: HttpClient,
+  cookieHeader: string,
+): Promise<OpenCodeSessionCheck> {
+  const cookie = openCodeRequestCookie(cookieHeader);
+  if (!cookie) return { live: false };
+  if (cookieHeaderHas(cookie, OPENCODE_ZEN_COOKIE_NAMES)) {
+    const zen = await probeZenWorkspace(http, cookie);
+    if (zen.workspaceId !== undefined) return { live: true, workspaceId: zen.workspaceId };
+    if (zen.authenticated) return { live: true };
+  }
+  if (cookieHeaderHas(cookie, OPENCODE_CONSOLE_COOKIE_NAMES)) {
+    if (await probeOpenCodeConsoleSession(http, cookie)) return { live: true };
+  }
+  return { live: false };
 }
 
 /**
@@ -347,14 +444,13 @@ export async function fetchOpenCodeSubscriptionText(
 
 /**
  * True iff the captured `Cookie` header authenticates as a live opencode.ai
- * session. Use this to gate the "Found a signed-in session" prompt so a stale
- * or in-progress-auth cookie never masquerades as a completed login.
+ * session on either console surface. Use this to gate the "Found a signed-in
+ * session" prompt so a stale or in-progress-auth cookie never masquerades as a
+ * completed login.
  */
 export async function isOpenCodeSessionLive(
   http: HttpClient,
   cookieHeader: string,
 ): Promise<boolean> {
-  const cookie = openCodeRequestCookie(cookieHeader);
-  if (!cookie) return false;
-  return (await fetchOpenCodeWorkspaceId(http, cookie)) !== undefined;
+  return (await resolveOpenCodeSession(http, cookieHeader)).live;
 }
