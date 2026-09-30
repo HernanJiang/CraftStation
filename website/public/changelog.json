@@ -1,6 +1,39 @@
 {
   "releases": [
     {
+      "version": "1.7.0",
+      "date": "2026-09-30",
+      "title": "Unified capability management, OpenCode quotas & a calmer sidebar",
+      "summary": "CraftStation manages MCP servers and Skills as one capability layer across all supported harnesses. OpenCode Go subscription meters and balance finally load on the newer console, and the sidebar no longer shows a git badge on every project and worktree row.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Capabilities",
+          "text": "Unified MCP and Skills capability foundation with Auto (enabled + compatible + available) and Efficient (Harness Profile recommended) resolution modes."
+        },
+        {
+          "kind": "added",
+          "label": "MCP & Skills",
+          "text": "Imported external MCP servers and Skills are now tracked with provenance metadata, ensuring CraftStation remains the single source of truth for managed capabilities."
+        },
+        {
+          "kind": "improved",
+          "label": "Harness Injection",
+          "text": "Launch-time capability injection automatically filters MCP transports and skills based on harness runtime compatibility and environment support."
+        },
+        {
+          "kind": "improved",
+          "label": "Sidebar",
+          "text": "Project and worktree rows no longer carry a git status badge — branch and PR details stay in the Git panel, reachable from the row's context menu."
+        },
+        {
+          "kind": "fixed",
+          "label": "OpenCode",
+          "text": "Quota windows now load for accounts on the newer console — Go subscription meters (5-hour, weekly, monthly) and your prepaid balance show correctly instead of an empty quota card."
+        }
+      ]
+    },
+    {
       "version": "1.6.7",
       "date": "2026-09-30",
       "title": "A tidier workbench & lighter terminals",
@@ -39,29 +72,6 @@
           "kind": "fixed",
           "label": "Account pool",
           "text": "When a ChatGPT account hits its usage limit mid-task, the thread now rotates to the next pool account and replays the prompt instead of stopping on the error."
-        }
-      ]
-    },
-    {
-      "version": "1.7.0",
-      "date": "2026-09-03",
-      "title": "Unified MCP and Skills capability management & multi-harness injection",
-      "summary": "CraftStation now acts as the unified management and injection layer for MCP servers and Skills across all supported harnesses, featuring Auto and Efficient capability resolution policies.",
-      "changes": [
-        {
-          "kind": "added",
-          "label": "Capabilities",
-          "text": "Unified MCP and Skills capability foundation with Auto (enabled + compatible + available) and Efficient (Harness Profile recommended) resolution modes."
-        },
-        {
-          "kind": "added",
-          "label": "MCP & Skills",
-          "text": "Imported external MCP servers and Skills are now tracked with provenance metadata, ensuring CraftStation remains the single source of truth for managed capabilities."
-        },
-        {
-          "kind": "improved",
-          "label": "Harness Injection",
-          "text": "Launch-time capability injection automatically filters MCP transports and skills based on harness runtime compatibility and environment support."
         }
       ]
     },
