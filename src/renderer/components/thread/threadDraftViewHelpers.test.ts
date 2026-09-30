@@ -239,29 +239,42 @@ describe("resolveSavedProviderDraftConfig", () => {
       model: "gpt-5.6-sol",
       effort: "medium",
       contextSize: "400k",
-      fast: false,
     });
+    // Fast is a per-thread opt-in — never seeded, even as an explicit false.
+    expect(resolved?.fast).toBeUndefined();
   });
 
-  it("uses global model preferences instead of a different project's effort and Fast", () => {
-    expect(
-      resolveSavedProviderDraftConfig(
-        "codex",
-        {
-          agentKind: "codex",
-          model: "gpt-5.6-luna",
-          effort: "low",
-          fast: false,
+  it("uses global model preferences for effort but never seeds Fast", () => {
+    // Fast is a per-thread opt-in: a saved fast:true preference must not turn
+    // it on for a new draft.
+    const resolved = resolveSavedProviderDraftConfig(
+      "codex",
+      {
+        agentKind: "codex",
+        model: "gpt-5.6-luna",
+        effort: "low",
+        fast: false,
+      },
+      { codex: { model: "gpt-5.6-sol", effort: "high", fast: false } },
+      {
+        codex: {
+          "gpt-5.6-luna": { effort: "max", fast: true, speedTier: "ultrafast" },
+          "gpt-5.6-sol": { effort: "high", fast: false },
         },
-        { codex: { model: "gpt-5.6-sol", effort: "high", fast: false } },
-        {
-          codex: {
-            "gpt-5.6-luna": { effort: "max", fast: true },
-            "gpt-5.6-sol": { effort: "high", fast: false },
-          },
-        },
-      ),
-    ).toMatchObject({ model: "gpt-5.6-luna", effort: "max", fast: true });
+      },
+    );
+    expect(resolved).toMatchObject({ model: "gpt-5.6-luna", effort: "max" });
+    expect(resolved?.fast).toBeUndefined();
+    expect(resolved?.speedTier).toBeUndefined();
+  });
+
+  it("does not carry a saved fast provider default into a fresh draft", () => {
+    const resolved = resolveSavedProviderDraftConfig("codex", undefined, {
+      codex: { model: "gpt-5.6-sol", effort: "high", fast: true, speedTier: "priority" },
+    });
+    expect(resolved).toMatchObject({ model: "gpt-5.6-sol", effort: "high" });
+    expect(resolved?.fast).toBeUndefined();
+    expect(resolved?.speedTier).toBeUndefined();
   });
 
   it("keeps an explicit last-draft context size over the provider preset", () => {

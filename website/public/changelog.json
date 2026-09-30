@@ -384,9 +384,9 @@
     },
     {
       "version": "1.6.0",
-      "date": "2026-08-03",
-      "title": "Remote machines, GitHub Actions & PR automation",
-      "summary": "CraftStation now runs agents on remote machines over SSH, manages GitHub Actions, and automates pull request fixes and merges. This release also adds project workspaces, configurable Crossagents routing, structured Cursor SDK chat, goal controls for Codex and Grok, and performance and reliability improvements.",
+      "date": "2026-09-30",
+      "title": "Remote machines, GitHub Actions, PR automation & speed tiers",
+      "summary": "CraftStation now runs agents on remote machines over SSH, manages GitHub Actions, and automates pull request fixes and merges. This release also adds project workspaces, configurable Crossagents routing, structured Cursor SDK chat, goal controls for Codex and Grok, tiered Fast/Ultrafast speed lanes with GPT-6.1 Sol, a dedicated Harness map, and performance and reliability improvements.",
       "changes": [
         {
           "kind": "added",
@@ -442,6 +442,21 @@
           "kind": "added",
           "label": "Git review",
           "text": "Add an inline comment to any diff line to place it and its context in the composer as a fix prompt."
+        },
+        {
+          "kind": "added",
+          "label": "Fast mode",
+          "text": "Models that offer more than one speed lane now show a tiered Fast mode submenu — pick Fast or Ultrafast where available — and the composer pill names the lane you picked."
+        },
+        {
+          "kind": "added",
+          "label": "Codex",
+          "text": "GPT-6.1 Sol appears in the Codex model list and becomes the default when your Codex CLI provides it (codex-cli 0.159.x or newer)."
+        },
+        {
+          "kind": "added",
+          "label": "Workbench",
+          "text": "The crafting workbench gains a dedicated Harness map — a tree of your selected channel with a repointable compatibility trunk — split out from the recipes rail."
         },
         {
           "kind": "improved",
@@ -507,6 +522,21 @@
         {
           "kind": "fixed",
           "text": "Built-in agent updates verify the installed version before reporting failure, and native and WSL environments track available updates independently."
+        },
+        {
+          "kind": "fixed",
+          "label": "Fast mode",
+          "text": "New threads start on Standard speed again — Fast is a per-thread opt-in — and the switch now appears for custom Kimi models and channel models whose runtime honors service tiers, sending the correct catalog tier id on every turn instead of silently falling back."
+        },
+        {
+          "kind": "fixed",
+          "label": "Usage",
+          "text": "Quota cards no longer flash unknown resets or token placeholders, and account pools lay out four cards per row again."
+        },
+        {
+          "kind": "fixed",
+          "label": "Notifications",
+          "text": "A notification on the thread you are already watching is marked read instead of lingering in the inbox."
         }
       ]
     },

@@ -3874,6 +3874,42 @@ describe("mapCodexModels", () => {
     });
   });
 
+  it("offers the Ultrafast lane on flagship ids even when the catalog omits it", () => {
+    expect(
+      mapCodexModels([
+        {
+          id: "gpt-6-astra",
+          model: "gpt-6-astra",
+          displayName: "GPT-6 Astra",
+          hidden: false,
+          isDefault: true,
+          defaultReasoningEffort: "medium",
+          supportedReasoningEfforts: [{ reasoningEffort: "medium", description: "Medium" }],
+          serviceTiers: [{ id: "priority", name: "Fast", description: "Faster responses" }],
+        },
+        {
+          id: "gpt-5.4",
+          model: "gpt-5.4",
+          displayName: "gpt-5.4",
+          hidden: false,
+          isDefault: false,
+          defaultReasoningEffort: "medium",
+          supportedReasoningEfforts: [{ reasoningEffort: "medium", description: "Medium" }],
+          serviceTiers: [{ id: "priority", name: "Fast", description: "Faster responses" }],
+        },
+      ]),
+    ).toMatchObject({
+      modelFastTiers: {
+        "gpt-6-astra": [
+          { id: "priority", label: "Fast" },
+          { id: "ultrafast", label: "Ultrafast" },
+        ],
+        // Non-flagship models stay strictly catalog-driven.
+        "gpt-5.4": [{ id: "priority", label: "Fast" }],
+      },
+    });
+  });
+
   it("prefers high as the default effort when the default model supports it", () => {
     expect(
       mapCodexModels([

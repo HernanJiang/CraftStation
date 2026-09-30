@@ -697,8 +697,11 @@ export function ThreadDraftView(props: {
       model,
       ...(preference.effort !== undefined ? { effort: preference.effort } : {}),
       ...(contextSize ? { contextSize } : {}),
-      ...(preference.fast !== undefined ? { fast: preference.fast } : {}),
-      ...(preference.speedTier !== undefined ? { speedTier: preference.speedTier } : {}),
+      // Fast is a per-thread opt-in: reconcile the live toggle state, never
+      // the persisted preference — otherwise a saved fast:true would flip a
+      // fresh draft back on (and strip the user's just-toggled choice).
+      fast,
+      ...(speedTier !== undefined ? { speedTier } : {}),
       thinking,
       mode,
       approvalPolicy,
@@ -1266,10 +1269,8 @@ export function ThreadDraftView(props: {
           ...targetBase,
           model: nextModel,
           ...(targetPreference?.effort !== undefined ? { effort: targetPreference.effort } : {}),
-          ...(targetPreference?.fast !== undefined ? { fast: targetPreference.fast } : {}),
-          ...(targetPreference?.speedTier !== undefined
-            ? { speedTier: targetPreference.speedTier }
-            : {}),
+          // Fast is a per-thread opt-in — a saved fast:true preference must
+          // not silently enable it on a provider switch inside a new draft.
         },
         defaultPermissionMode,
       );
@@ -1322,10 +1323,11 @@ export function ThreadDraftView(props: {
       const modelPatch = patchConfigForModelChange(targetCapabilities, nextModel, {
         ...(modelPreference?.effort !== undefined ? { effort: modelPreference.effort } : {}),
         ...(contextSize ? { contextSize } : {}),
-        ...(modelPreference?.fast !== undefined ? { fast: modelPreference.fast } : {}),
-        ...(modelPreference?.speedTier !== undefined
-          ? { speedTier: modelPreference.speedTier }
-          : {}),
+        // Fast is a per-thread opt-in: carry the draft's live toggle state so
+        // a manual pick survives a model switch, but never re-apply a saved
+        // fast:true preference to a fresh pick.
+        fast,
+        ...(speedTier !== undefined ? { speedTier } : {}),
       });
       const resolved = resolveProviderDraftConfig(
         { ...selectedAgentForConfig, capabilities: targetCapabilities },

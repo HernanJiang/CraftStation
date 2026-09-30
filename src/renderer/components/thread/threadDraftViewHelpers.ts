@@ -136,19 +136,21 @@ export function resolveSavedProviderDraftConfig(
     );
     // Older project drafts predate context-window persistence. Preserve their
     // other choices while filling only that missing field from the provider preset.
-    // Effort and Fast are app-wide model preferences rather than project state.
+    // Effort is an app-wide model preference; Fast is a per-thread opt-in —
+    // new threads always start on Standard until the user flips the switch.
     return {
       ...projectConfig,
       ...(!lastDraftConfig.contextSize && providerConfig?.contextSize
         ? { contextSize: providerConfig.contextSize }
         : {}),
       ...(modelPreference?.effort !== undefined ? { effort: modelPreference.effort } : {}),
-      ...(modelPreference?.fast !== undefined ? { fast: modelPreference.fast } : {}),
-      ...(modelPreference?.speedTier !== undefined ? { speedTier: modelPreference.speedTier } : {}),
     };
   }
 
   if (!providerConfig) return undefined;
+  const seeded = { ...providerConfig };
+  delete seeded.fast;
+  delete seeded.speedTier;
   const modelPreference = resolveProviderModelPreference(
     agentKind,
     providerConfig.model,
@@ -156,10 +158,8 @@ export function resolveSavedProviderDraftConfig(
     providerModelPreferences,
   );
   return {
-    ...providerConfig,
+    ...seeded,
     ...(modelPreference?.effort !== undefined ? { effort: modelPreference.effort } : {}),
-    ...(modelPreference?.fast !== undefined ? { fast: modelPreference.fast } : {}),
-    ...(modelPreference?.speedTier !== undefined ? { speedTier: modelPreference.speedTier } : {}),
   };
 }
 

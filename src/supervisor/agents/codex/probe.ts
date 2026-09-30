@@ -119,6 +119,11 @@ const EFFORT_ORDER: Record<string, number> = {
 // without it in `model/list` fall back to `isDefault`/first entry.
 const PREFERRED_CODEX_DEFAULT_MODEL = "gpt-6.1-sol";
 
+// Flagships that advertise (or are announced for) the Ultrafast lane —
+// `service_tier="ultrafast"` is a real catalog id, but bundled `model/list`
+// output lags the remote catalog, so offer the lane by vendor convention.
+const CODEX_ULTRAFAST_MODEL_IDS = new Set(["gpt-5.6-sol", "gpt-6-astra", "gpt-6.1-sol"]);
+
 // ── Mapping helpers ─────────────────────────────────────────────
 
 /**
@@ -256,6 +261,18 @@ export function mapCodexModels(
         const label = tier.name?.trim() || id[0]!.toUpperCase() + id.slice(1);
         return { id, label };
       });
+    // Ultrafast is access-controlled catalog data; the bundled `model/list`
+    // lags the announced lanes (Cerebras preview on GPT-5.6 Sol, then the
+    // GPT-6 flagships). Offer the lane on those ids even when the probed
+    // catalog omitted it — the server declines it cleanly when the account
+    // is not entitled, so the worst case is a standard-speed turn.
+    if (
+      CODEX_ULTRAFAST_MODEL_IDS.has(m.id) &&
+      tiers.length > 0 &&
+      !tiers.some((tier) => tier.id === "ultrafast")
+    ) {
+      tiers.push({ id: "ultrafast", label: "Ultrafast" });
+    }
     if (tiers.length > 0) modelFastTiers[m.id] = tiers;
   }
 
