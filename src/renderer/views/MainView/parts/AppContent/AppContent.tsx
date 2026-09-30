@@ -10,6 +10,7 @@ import type {
   ThreadPresentationMode,
 } from "@/shared/contracts";
 import { getProjectAgentStatuses } from "@/shared/agentStatus";
+import { isHomeProject } from "@/shared/homeScope";
 import { isDraftPaneId, parseDraftProjectId } from "@/shared/paneId";
 import { buildPaneLayoutFromLegacy, findPaneAlign, findPaneSlotId } from "@/shared/paneLayout";
 import { readBridge } from "@/renderer/bridge";
@@ -47,6 +48,14 @@ export function AppContent() {
   const draftProjectId = view.kind === "draft" ? view.projectId : undefined;
   const draftProject = useProjectWithoutDraftConfig(draftProjectId);
   const draftLastDraftConfig = useInitialProjectDraftConfig(draftProjectId);
+  // The standalone home page is merged into the draft view: `kind:"home"`
+  // renders the same composer screen bound to the Home-scope project, with
+  // the projects/recent-threads lists embedded below the hero.
+  const homeProjectId = useAppStore((state) =>
+    view.kind === "home" ? state.projects.find(isHomeProject)?.id : undefined,
+  );
+  const homeProject = useProjectWithoutDraftConfig(homeProjectId);
+  const homeLastDraftConfig = useInitialProjectDraftConfig(homeProjectId);
   const createThread = useAppStore((state) => state.createThread);
   const queueThreadLaunch = useAppStore((state) => state.queueThreadLaunch);
   // Keep-alive cache: thread panes opened then hidden stay mounted (invisible)
@@ -188,6 +197,22 @@ export function AppContent() {
           project={draftProject}
           lastDraftConfig={draftLastDraftConfig}
           onStart={(input) => startThreadFromDraft(draftProject, input)}
+        />
+      </div>
+    );
+  }
+
+  if (view.kind === "home") {
+    if (!homeProject) {
+      return <HomeView />;
+    }
+    return (
+      <div className="h-full">
+        <DraftViewContent
+          key={homeProject.id}
+          project={homeProject}
+          lastDraftConfig={homeLastDraftConfig}
+          onStart={(input) => startThreadFromDraft(homeProject, input)}
         />
       </div>
     );

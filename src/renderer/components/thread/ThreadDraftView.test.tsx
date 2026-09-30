@@ -1889,7 +1889,7 @@ describe("ThreadDraftView", () => {
     });
   });
 
-  it("recalls app-wide effort and Fast choices when switching between Codex models", async () => {
+  it("recalls app-wide effort choices when switching between Codex models while Fast stays off", async () => {
     useSharedSettings.setState({
       providerConfigs: {
         codex: {
@@ -1949,7 +1949,7 @@ describe("ThreadDraftView", () => {
       });
     };
 
-    await expectSelection("gpt-5.6-luna", "max", true);
+    await expectSelection("gpt-5.6-luna", "max", false);
     act(() => {
       currentControls()
         .find((control) => control.kind === "provider-model")
@@ -1961,7 +1961,7 @@ describe("ThreadDraftView", () => {
         .find((control) => control.kind === "provider-model")
         ?.onChange?.({ agentKind: "codex", model: "gpt-5.6-luna" });
     });
-    await expectSelection("gpt-5.6-luna", "max", true);
+    await expectSelection("gpt-5.6-luna", "max", false);
   });
 
   it("keeps simultaneously open draft configs independent while saving defaults for later drafts", async () => {

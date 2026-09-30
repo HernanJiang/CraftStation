@@ -1,4 +1,5 @@
 import { DraftHomeHero } from "@/renderer/components/thread/DraftHomeHero";
+import { HomeBrowseSections } from "@/renderer/views/HomeView";
 import type { CraftMode } from "@/renderer/components/thread/CraftModeSwitch";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@heroui/react";
@@ -1662,10 +1663,15 @@ export function ThreadDraftView(props: {
         {props.quickComposer ? null : props.compact ? (
           <ThreadDraftHero compact={props.compact} />
         ) : (
-          // Codex home: mascot + greeting + suggestion cards centered in the
-          // free space above the bottom-pinned composer.
-          <div className="flex min-h-0 flex-1 flex-col items-center justify-center">
-            <DraftHomeHero />
+          // Merged home+draft: mascot/greeting sit above the browse lists
+          // (projects + recent threads), composer pinned below. `m-auto`
+          // centers the column when it fits and lets it scroll when it
+          // overflows — plain justify-center would clip the top.
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+            <div className="m-auto flex w-full max-w-[560px] flex-col items-center gap-8 px-2 py-6">
+              <DraftHomeHero />
+              <HomeBrowseSections />
+            </div>
           </div>
         )}
 
