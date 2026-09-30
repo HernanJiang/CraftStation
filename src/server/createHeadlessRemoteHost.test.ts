@@ -43,6 +43,7 @@ vi.mock("@/main/db/connection", () => ({
 vi.mock("@/main/db", () => ({
   initDatabase: (dbPath: string) => h.initDatabase(dbPath),
   closeDatabase: () => h.closeDatabase(),
+  scheduleStartupDatabaseMaintenance: vi.fn<() => void>(),
   dbGetProjects: vi.fn<() => unknown[]>(() => h.projects),
   dbGetProject: vi.fn<(projectId: string) => unknown>(
     (projectId) =>

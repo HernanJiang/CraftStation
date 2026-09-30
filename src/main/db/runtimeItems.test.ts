@@ -6,7 +6,13 @@ import { Worker } from "node:worker_threads";
 import Database from "better-sqlite3";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Thread } from "@/shared/contracts";
-import { closeDatabase, getSqlite, initDatabase } from "./connection";
+import {
+  closeDatabase,
+  getSqlite,
+  initDatabase,
+  runStartupDatabaseMaintenance,
+  scheduleStartupDatabaseMaintenance,
+} from "./connection";
 import { MAX_RUNTIME_OUTPUT_CHARS, RUNTIME_OUTPUT_TRUNCATION_MARKER } from "@/shared/runtimeStream";
 import { dbUpsertProject, dbUpsertThread } from "./projectsThreads";
 import {
@@ -312,12 +318,43 @@ describe.skipIf(!sqliteAvailable)("runtimeItems incremental persistence", () => 
     closeDatabase();
     initDatabase(databasePath);
 
-    const compacted = getSqlite()
-      .prepare("SELECT streams FROM thread_runtime_items WHERE item_id = ?")
-      .get("startup-legacy-command") as { streams: string };
-    const output = (JSON.parse(compacted.streams) as { command_output: string }).command_output;
+    const readOutput = () => {
+      const row = getSqlite()
+        .prepare("SELECT streams FROM thread_runtime_items WHERE item_id = ?")
+        .get("startup-legacy-command") as { streams: string };
+      return (JSON.parse(row.streams) as { command_output: string }).command_output;
+    };
+    // initDatabase no longer compacts; the deferred maintenance pass does.
+    expect(readOutput()).toHaveLength(MAX_RUNTIME_OUTPUT_CHARS + 1);
+
+    runStartupDatabaseMaintenance();
+    const output = readOutput();
     expect(output).toHaveLength(MAX_RUNTIME_OUTPUT_CHARS);
     expect(output.startsWith(RUNTIME_OUTPUT_TRUNCATION_MARKER)).toBe(true);
+  });
+
+  it("prunes old usage events only through deferred startup maintenance", async () => {
+    const databasePath = join(dir, "state.sqlite");
+    const oldTs = Date.now() - 800 * 86_400_000;
+    const countStale = () =>
+      (
+        getSqlite()
+          .prepare("SELECT COUNT(*) AS count FROM usage_events WHERE ts < ?")
+          .get(Date.now() - 730 * 86_400_000) as { count: number }
+      ).count;
+    getSqlite().prepare("INSERT INTO usage_events (ts, kind) VALUES (?, 'completion')").run(oldTs);
+
+    closeDatabase();
+    initDatabase(databasePath);
+    expect(countStale()).toBe(1);
+
+    runStartupDatabaseMaintenance();
+    expect(countStale()).toBe(0);
+
+    getSqlite().prepare("INSERT INTO usage_events (ts, kind) VALUES (?, 'completion')").run(oldTs);
+    scheduleStartupDatabaseMaintenance(50);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(countStale()).toBe(0);
   });
 
   it("deduplicates repeated item starts and removes empty completed reasoning", () => {

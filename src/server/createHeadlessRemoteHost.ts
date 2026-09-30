@@ -14,6 +14,7 @@ import {
   dbUpdateScheduleRun,
   dbUpsertThread,
   initDatabase,
+  scheduleStartupDatabaseMaintenance,
 } from "@/main/db";
 import { prepareCraftStationDataRoot } from "@/main/craftstationData";
 import {
@@ -163,6 +164,7 @@ export async function createHeadlessRemoteHost(
   });
   const paths = prepareCraftStationDataRoot(options.baseDir);
   initDatabase(paths.dbPath);
+  scheduleStartupDatabaseMaintenance();
   // No agent session survived the restart; without a renderer to run
   // markThreadsInactiveOnLaunch, stale live statuses would be re-served to
   // every client snapshot until the next supervisor event for that thread.

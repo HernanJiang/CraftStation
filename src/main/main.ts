@@ -29,6 +29,7 @@ import {
   dbUpsertThread,
   initDatabase,
   onProjectThreadDataChanged,
+  scheduleStartupDatabaseMaintenance,
 } from "./db";
 import { cleanupOrphanedAttachments, prepareCraftStationDataRoot } from "./craftstationData";
 import {
@@ -852,6 +853,7 @@ if (!hasSingleInstanceLock) {
       }
 
       initDatabase(paths.dbPath);
+      scheduleStartupDatabaseMaintenance();
       const secretStorageKeychain = readSecretStorageKeychain(
         paths.baseDir,
         process.platform,

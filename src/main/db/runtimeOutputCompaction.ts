@@ -7,13 +7,14 @@ import { safeParse } from "./rowMappers";
  * This module intentionally has no dependency on the database singleton, so
  * opening a database cannot introduce a connection/runtime-items import cycle.
  */
-export function dbCompactRuntimeOutputStreams(sqlite: InstanceType<typeof Database>): void {
+export function dbCompactRuntimeOutputStreams(sqlite: InstanceType<typeof Database>): number {
   const rows = sqlite
     .prepare(
       "SELECT rowid AS rowid, streams FROM thread_runtime_items WHERE streams IS NOT NULL AND length(streams) > ?",
     )
     .all(MAX_RUNTIME_OUTPUT_CHARS) as Array<{ rowid: number; streams: string }>;
   const update = sqlite.prepare("UPDATE thread_runtime_items SET streams = ? WHERE rowid = ?");
+  let updated = 0;
   const compact = sqlite.transaction(() => {
     for (const row of rows) {
       const parsed = safeParse(row.streams);
@@ -29,8 +30,12 @@ export function dbCompactRuntimeOutputStreams(sqlite: InstanceType<typeof Databa
           changed = true;
         }
       }
-      if (changed) update.run(JSON.stringify(streams), row.rowid);
+      if (changed) {
+        update.run(JSON.stringify(streams), row.rowid);
+        updated += 1;
+      }
     }
   });
   compact();
+  return updated;
 }

@@ -10,6 +10,8 @@ export {
   resolveBetterSqliteNativeBindingOptions,
   initDatabase,
   closeDatabase,
+  runStartupDatabaseMaintenance,
+  scheduleStartupDatabaseMaintenance,
 } from "./db/connection";
 
 export {

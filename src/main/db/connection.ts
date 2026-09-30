@@ -383,23 +383,89 @@ export function initDatabase(dbPath: string) {
   runDatabaseMigrations(sqlite, storedVersion);
   repairSafeSchemaDrift(sqlite);
   assertRequiredDatabaseSchema(sqlite);
-  // Older profiles may contain multi-megabyte command output rows. Compact
-  // them before any renderer hydration, regardless of schema version.
-  dbCompactRuntimeOutputStreams(sqlite);
-
-  // Bound the durable usage log: drop events older than the retention window so
-  // a long-lived install can't accumulate unboundedly (aggregation reads scan
-  // this table). Runs once per startup; cheap on a bounded table. Migration and
-  // schema validation above guarantee this table exists, so SQLite failures here
-  // must remain observable instead of being mistaken for legacy schema drift.
-  const cutoff = Date.now() - USAGE_EVENTS_RETENTION_DAYS * 86_400_000;
-  sqlite.prepare("DELETE FROM usage_events WHERE ts < ?").run(cutoff);
-
-  const receiptCutoff = Date.now() - REMOTE_COMMAND_RECEIPTS_RETENTION_DAYS * 86_400_000;
-  sqlite.prepare("DELETE FROM remote_command_receipts WHERE updated_at < ?").run(receiptCutoff);
 
   console.log("[db] initialized");
   return _db;
+}
+
+/**
+ * Deferred startup cleanup moved off the `initDatabase` hot path: renderer
+ * hydration already bounds streams on read, so compaction and retention
+ * pruning only need to land once shortly after startup. Each step is
+ * independent — one failing must not skip the others.
+ */
+export function runStartupDatabaseMaintenance(): void {
+  const sqlite = _sqlite;
+  if (!sqlite) {
+    console.warn("[db] phase=startup-maintenance status=skipped reason=database-closed");
+    return;
+  }
+  const steps: readonly { operation: string; run: () => number }[] = [
+    {
+      // Older profiles may contain multi-megabyte command output rows; compact
+      // them here rather than during init.
+      operation: "compact-runtime-output",
+      run: () => dbCompactRuntimeOutputStreams(sqlite),
+    },
+    {
+      // Bound the durable usage log: drop events older than the retention
+      // window so a long-lived install can't accumulate unboundedly
+      // (aggregation reads scan this table). initDatabase already ran the
+      // migration and schema validation that guarantee this table exists, so
+      // SQLite failures here must remain observable instead of being mistaken
+      // for legacy schema drift.
+      operation: "prune-usage-events",
+      run: () =>
+        sqlite
+          .prepare("DELETE FROM usage_events WHERE ts < ?")
+          .run(Date.now() - USAGE_EVENTS_RETENTION_DAYS * 86_400_000).changes,
+    },
+    {
+      operation: "prune-remote-command-receipts",
+      run: () =>
+        sqlite
+          .prepare("DELETE FROM remote_command_receipts WHERE updated_at < ?")
+          .run(Date.now() - REMOTE_COMMAND_RECEIPTS_RETENTION_DAYS * 86_400_000).changes,
+    },
+  ];
+  for (const { operation, run } of steps) {
+    const startedAt = performance.now();
+    try {
+      const changes = run();
+      console.log(
+        `[db] phase=startup-maintenance operation=${operation} status=ok ` +
+          `changes=${changes} durationMs=${Math.round(performance.now() - startedAt)}`,
+      );
+    } catch (error) {
+      console.error(
+        `[db] phase=startup-maintenance operation=${operation} status=failed ` +
+          `code=DB_STARTUP_MAINTENANCE_FAILED ` +
+          `reason=${error instanceof Error ? error.message : String(error)}`,
+        error,
+      );
+    }
+  }
+}
+
+export const STARTUP_DB_MAINTENANCE_DELAY_MS = 10_000;
+let _startupMaintenanceTimer: ReturnType<typeof setTimeout> | undefined;
+
+/**
+ * Runs {@link runStartupDatabaseMaintenance} once after `delayMs` so a cold
+ * launch can paint before SQLite churns through compaction and pruning.
+ * Re-scheduling replaces any pending run; `closeDatabase` cancels it.
+ */
+export function scheduleStartupDatabaseMaintenance(
+  delayMs = STARTUP_DB_MAINTENANCE_DELAY_MS,
+): void {
+  if (_startupMaintenanceTimer) {
+    clearTimeout(_startupMaintenanceTimer);
+  }
+  _startupMaintenanceTimer = setTimeout(() => {
+    _startupMaintenanceTimer = undefined;
+    runStartupDatabaseMaintenance();
+  }, delayMs);
+  _startupMaintenanceTimer.unref();
 }
 
 export function getDb() {
@@ -417,6 +483,10 @@ export function getSqlite(): InstanceType<typeof Database> {
 }
 
 export function closeDatabase() {
+  if (_startupMaintenanceTimer) {
+    clearTimeout(_startupMaintenanceTimer);
+    _startupMaintenanceTimer = undefined;
+  }
   const sqlite = _sqlite;
   if (sqlite) {
     // With journal_mode=WAL + synchronous=NORMAL, committed transactions live
