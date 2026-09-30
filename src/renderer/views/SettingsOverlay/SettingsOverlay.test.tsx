@@ -82,6 +82,12 @@ vi.mock("@/renderer/components/providers/ProviderIcon", () => ({
   ProviderIcon: () => <span />,
 }));
 
+// The 模型与管理 workspace is embedded as section views but never mounted by
+// these tests — stub it to avoid dragging its full import graph into the suite.
+vi.mock("@/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace", () => ({
+  ModelUsageWorkspace: () => null,
+}));
+
 vi.mock("@/renderer/views/MainView/parts/AppShell/AppShell", () => ({
   useSidebar: () => ({
     isCollapsed: false,
@@ -235,7 +241,7 @@ describe("SettingsOverlay", () => {
     const { container } = render(<SettingsOverlay onClose={() => undefined} />);
 
     const headers = [...container.querySelectorAll("aside p")].map((el) => el.textContent);
-    expect(headers).toEqual(["Personal", "Workspace", "Agents", "Remote", "About"]);
+    expect(headers).toEqual(["模型与管理", "Personal", "Workspace", "Agents", "Remote", "About"]);
 
     const labels = screen.getAllByRole("button").map((button) => button.textContent);
     expect(labels.indexOf("Notifications")).toBeLessThan(labels.indexOf("Terminal"));

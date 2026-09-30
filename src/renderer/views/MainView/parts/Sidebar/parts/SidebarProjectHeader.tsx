@@ -48,7 +48,7 @@ export function SidebarProjectHeader(props: {
   const setEditingProjectId = useSidebarUiStore((s) => s.setEditingProjectId);
   const isPinned = useSidebarUiStore((s) => s.pinnedProjectIds.includes(project.id));
   const quickButtonClass =
-    "flex size-6 items-center justify-center rounded-lg text-muted opacity-0 transition-all hover:bg-[var(--row-active)] hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100";
+    "flex size-6 shrink-0 items-center justify-center rounded-lg text-muted opacity-0 transition-all hover:bg-[var(--row-active)] hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100";
 
   return (
     <ContextMenu items={projectMenu.items} onAction={projectMenu.onAction}>
@@ -109,61 +109,66 @@ export function SidebarProjectHeader(props: {
         suffix={
           isUnavailable ? null : (
             <>
-              <button
-                type="button"
-                className={`${quickButtonClass}${isPinned ? " text-foreground" : ""}`}
-                aria-label={isPinned ? t`Unpin ${project.name}` : t`Pin ${project.name}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  useSidebarUiStore.getState().toggleProjectPinned(project.id);
-                }}
-              >
-                <Pin className={`size-3.5${isPinned ? " fill-current" : ""}`} />
-              </button>
-              <button
-                type="button"
-                className={quickButtonClass}
-                aria-label={t`New chat in ${project.name}`}
-                onClick={(event) => {
-                  event.stopPropagation();
-                  useSidebarUiStore.getState().setProjectCollapsed(project.id, false);
-                  openNewThread(project.id);
-                }}
-              >
-                <Plus className="size-3.5" />
-              </button>
-              <Dropdown>
-                <Dropdown.Trigger
-                  aria-label={t`More project actions`}
-                  className={quickButtonClass}
-                  onClick={(event) => event.stopPropagation()}
+              {/* Collapsed to zero width by default so the project name gets the
+                  full row; expands on hover/focus (or while the dropdown is
+                  open) and the label truncates to make room. */}
+              <span className="flex w-0 items-center gap-[3px] overflow-hidden transition-[width] group-hover:w-[78px] group-focus-within:w-[78px] has-[[aria-expanded='true']]:w-[78px]">
+                <button
+                  type="button"
+                  className={`${quickButtonClass}${isPinned ? " text-foreground" : ""}`}
+                  aria-label={isPinned ? t`Unpin ${project.name}` : t`Pin ${project.name}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    useSidebarUiStore.getState().toggleProjectPinned(project.id);
+                  }}
                 >
-                  <Ellipsis className="size-3.5" />
-                </Dropdown.Trigger>
-                <Dropdown.Popover placement="bottom end" className="min-w-[190px] rounded-[14px]">
-                  <Dropdown.Menu
-                    aria-label={t`Project actions`}
-                    onAction={(key) => {
-                      if (key === "rename") setEditingProjectId(project.id);
-                      if (key === "archive") setProjectDisabled(project.id, true);
-                      if (key === "delete") deleteProject(project.id);
-                    }}
+                  <Pin className={`size-3.5${isPinned ? " fill-current" : ""}`} />
+                </button>
+                <button
+                  type="button"
+                  className={quickButtonClass}
+                  aria-label={t`New chat in ${project.name}`}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    useSidebarUiStore.getState().setProjectCollapsed(project.id, false);
+                    openNewThread(project.id);
+                  }}
+                >
+                  <Plus className="size-3.5" />
+                </button>
+                <Dropdown>
+                  <Dropdown.Trigger
+                    aria-label={t`More project actions`}
+                    className={quickButtonClass}
+                    onClick={(event) => event.stopPropagation()}
                   >
-                    <Dropdown.Item id="rename" textValue={t`Rename`}>
-                      <Pencil className="size-4 text-muted" />
-                      <Label>{t`Rename`}</Label>
-                    </Dropdown.Item>
-                    <Dropdown.Item id="archive" textValue={t`Archive`}>
-                      <Archive className="size-4 text-muted" />
-                      <Label>{t`Archive`}</Label>
-                    </Dropdown.Item>
-                    <Dropdown.Item id="delete" textValue={t`Delete`} variant="danger">
-                      <Trash2 className="size-4" />
-                      <Label>{t`Delete`}</Label>
-                    </Dropdown.Item>
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown>
+                    <Ellipsis className="size-3.5" />
+                  </Dropdown.Trigger>
+                  <Dropdown.Popover placement="bottom end" className="min-w-[190px] rounded-[14px]">
+                    <Dropdown.Menu
+                      aria-label={t`Project actions`}
+                      onAction={(key) => {
+                        if (key === "rename") setEditingProjectId(project.id);
+                        if (key === "archive") setProjectDisabled(project.id, true);
+                        if (key === "delete") deleteProject(project.id);
+                      }}
+                    >
+                      <Dropdown.Item id="rename" textValue={t`Rename`}>
+                        <Pencil className="size-4 text-muted" />
+                        <Label>{t`Rename`}</Label>
+                      </Dropdown.Item>
+                      <Dropdown.Item id="archive" textValue={t`Archive`}>
+                        <Archive className="size-4 text-muted" />
+                        <Label>{t`Archive`}</Label>
+                      </Dropdown.Item>
+                      <Dropdown.Item id="delete" textValue={t`Delete`} variant="danger">
+                        <Trash2 className="size-4" />
+                        <Label>{t`Delete`}</Label>
+                      </Dropdown.Item>
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown>
+              </span>
               <GitBadge
                 projectId={project.id}
                 projectName={project.name}

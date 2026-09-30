@@ -1,4 +1,4 @@
-import { Bell, FolderPlus, MessageSquarePlus, Plus, Search, Trash2 } from "lucide-react";
+import { Bell, MessageSquarePlus, Plus, Search, Trash2 } from "lucide-react";
 import { Dropdown, Label } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { ControlTooltip } from "@/renderer/components/common/ControlTooltip";
@@ -52,27 +52,17 @@ export function SidebarCodexNav() {
             type="button"
             aria-label={t`Home`}
             onClick={() => openNewThread()}
-            className="flex min-w-0 flex-1 items-center gap-2 rounded-none px-1 py-1 text-left transition-colors hover:bg-[var(--row-hover)]"
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-none px-1 py-0.5 text-left transition-colors hover:bg-[var(--row-hover)]"
           >
             <img
               src={brandLogoUrl}
               alt=""
               draggable={false}
-              className="size-5 shrink-0 rounded-none object-contain"
+              className="size-4 shrink-0 rounded-none object-contain"
             />
             <span className="min-w-0 flex-1 truncate text-sm font-semibold text-foreground">
               CraftStation
             </span>
-          </button>
-        </ControlTooltip>
-        <ControlTooltip label={t`Search`} placement="right">
-          <button
-            type="button"
-            aria-label={t`Search`}
-            onClick={() => usePanelStore.getState().openThreadSearch()}
-            className="rounded-xl p-1.5 text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
-          >
-            <Search className="size-4" />
           </button>
         </ControlTooltip>
         <Dropdown>
@@ -155,42 +145,54 @@ export function SidebarCodexNav() {
         </Dropdown>
       </div>
 
-      <Dropdown>
-        <ControlTooltip
-          label={t`New session`}
-          shortcut="Ctrl+N"
-          placement="right"
-          triggerClassName="w-full"
-        >
-          <Dropdown.Trigger className="flex h-9 w-full items-center justify-center gap-2 rounded-none bg-[var(--surface-secondary)] px-3 text-sm font-medium text-foreground transition-colors hover:bg-[var(--row-active)]">
-            <Plus className="size-4" />
-            <span>{t`New chat / project`}</span>
-          </Dropdown.Trigger>
-        </ControlTooltip>
-        <Dropdown.Popover placement="bottom start" className="min-w-[250px] rounded-none">
-          <Dropdown.Menu
-            aria-label={t`New chat / project`}
-            onAction={(key) => {
-              if (key === "thread") openNewThread();
-              if (key === "project-thread") usePanelStore.getState().openSelectProjectModal();
-              if (key === "project") usePanelStore.getState().openCreateProjectModal();
-            }}
+      <div className="flex items-center gap-1.5">
+        <div className="min-w-0 flex-1">
+          <Dropdown>
+            <ControlTooltip
+              label={t`New session`}
+              shortcut="Ctrl+N"
+              placement="right"
+              triggerClassName="w-full"
+            >
+              <Dropdown.Trigger className="flex h-8 w-full items-center justify-center gap-2 whitespace-nowrap rounded-none bg-[var(--surface-secondary)] px-3 text-sm font-medium text-foreground transition-colors hover:bg-[var(--row-active)]">
+                <Plus className="size-4" />
+                <span>{t`New`}</span>
+              </Dropdown.Trigger>
+            </ControlTooltip>
+            <Dropdown.Popover
+              placement="bottom start"
+              className="craftstation-composer-menu-surface min-w-[250px] rounded-none"
+            >
+              <Dropdown.Menu
+                aria-label={t`New chat / project`}
+                onAction={(key) => {
+                  if (key === "thread") openNewThread();
+                  if (key === "project") usePanelStore.getState().openCreateProjectModal();
+                }}
+              >
+                <Dropdown.Item id="thread" textValue={t`New chat`} className="rounded-none">
+                  <MessageSquarePlus className="size-4 text-muted" />
+                  <Label>{t`New chat`}</Label>
+                </Dropdown.Item>
+                <Dropdown.Item id="project" textValue={t`New project`} className="rounded-none">
+                  <Plus className="size-4 text-muted" />
+                  <Label>{t`New project`}</Label>
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
+        </div>
+        <ControlTooltip label={t`Search`} placement="right">
+          <button
+            type="button"
+            aria-label={t`Search`}
+            onClick={() => usePanelStore.getState().openThreadSearch()}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-none bg-[var(--surface-secondary)] text-muted transition-colors hover:bg-[var(--row-active)] hover:text-foreground"
           >
-            <Dropdown.Item id="thread" textValue={t`New chat`} className="rounded-none">
-              <MessageSquarePlus className="size-4 text-muted" />
-              <Label>{t`New chat`}</Label>
-            </Dropdown.Item>
-            <Dropdown.Item id="project-thread" textValue={t`New chat in project`} className="rounded-none">
-              <FolderPlus className="size-4 text-muted" />
-              <Label>{t`New chat in project`}</Label>
-            </Dropdown.Item>
-            <Dropdown.Item id="project" textValue={t`New project`} className="rounded-none">
-              <Plus className="size-4 text-muted" />
-              <Label>{t`New project`}</Label>
-            </Dropdown.Item>
-          </Dropdown.Menu>
-        </Dropdown.Popover>
-      </Dropdown>
+            <Search className="size-4" />
+          </button>
+        </ControlTooltip>
+      </div>
     </section>
   );
 }

@@ -15,7 +15,9 @@ function render(ui: ReactElement) {
   return renderWithI18n(
     <>
       {ui}
-      <ModelUsageWorkspace />
+      {/* Mounted in embedded mode: the workspace now lives inside Settings'
+          模型与管理 sections, so it renders without the open-flag gate. */}
+      <ModelUsageWorkspace embedded />
     </>,
   );
 }
@@ -178,11 +180,11 @@ describe("SidebarProviderAccounts", () => {
     render(<SidebarProviderAccounts />);
 
     const accountButton = screen.getByRole("button", { name: "Provider accounts" });
-    expect(accountButton).toHaveTextContent("模型与用量");
-    expect(accountButton).toHaveTextContent("✨ 添加新模型");
-    expect(screen.getByTitle("ChatGPT")).toBeInTheDocument();
-    expect(screen.getByTitle("Claude")).toBeInTheDocument();
-    expect(screen.getByTitle("Gemini")).toBeInTheDocument();
+    expect(accountButton).toHaveTextContent("模型与管理");
+    expect(accountButton).toHaveTextContent("打开设置页面");
+    expect(within(accountButton).getByTitle("ChatGPT")).toBeInTheDocument();
+    expect(within(accountButton).getByTitle("Claude")).toBeInTheDocument();
+    expect(within(accountButton).getByTitle("Gemini")).toBeInTheDocument();
     expect(accountButton.querySelector('[data-provider-logo="codex"]')).toBeInTheDocument();
     expect(accountButton.querySelector('[data-provider-logo="claude"]')).toBeInTheDocument();
     expect(accountButton.querySelector('[data-provider-logo="gemini"]')).toBeInTheDocument();
@@ -205,15 +207,15 @@ describe("SidebarProviderAccounts", () => {
 
     render(<SidebarProviderAccounts />);
 
-    expect(screen.getByTitle("Claude")).toBeInTheDocument();
-    expect(screen.queryByTitle("ChatGPT")).not.toBeInTheDocument();
-    expect(screen.queryByTitle("Gemini")).not.toBeInTheDocument();
+    const accountButton = screen.getByRole("button", { name: "Provider accounts" });
+    expect(within(accountButton).getByTitle("Claude")).toBeInTheDocument();
+    expect(within(accountButton).queryByTitle("ChatGPT")).not.toBeInTheDocument();
+    expect(within(accountButton).queryByTitle("Gemini")).not.toBeInTheDocument();
   });
 
-  it("opens the shared model usage workspace and settings separately", async () => {
+  it("opens the settings 模型与管理 section and renders the workspace embedded", async () => {
     render(<SidebarProviderAccounts />);
 
-    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const workspace = await screen.findByTestId("model-usage-workspace");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(workspace).toHaveTextContent("渠道与额度");
@@ -231,25 +233,9 @@ describe("SidebarProviderAccounts", () => {
     expect(within(workspace).queryByRole("button", { name: "导入账号" })).not.toBeInTheDocument();
     expect(within(workspace).queryByRole("button", { name: "新增账号" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "关闭模型与用量" }));
-    await waitFor(() =>
-      expect(screen.queryByTestId("model-usage-workspace")).not.toBeInTheDocument(),
-    );
-    expect(usePanelStore.getState().modelUsageDialogOpen).toBe(false);
-  });
-
-  it("jumps to the settings page from the workspace settings tab", async () => {
-    usePanelStore.setState({ modelUsageDialogOpen: true });
-    render(<SidebarProviderAccounts />);
-
-    const workspace = await screen.findByTestId("model-usage-workspace");
-    fireEvent.click(within(workspace).getByTestId("model-usage-settings-tab"));
-
-    await waitFor(() =>
-      expect(screen.queryByTestId("model-usage-workspace")).not.toBeInTheDocument(),
-    );
-    expect(usePanelStore.getState().modelUsageDialogOpen).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     expect(usePanelStore.getState().settingsOpen).toBe(true);
+    expect(usePanelStore.getState().settingsSection).toBe("modelChannels");
   });
 
   it("keeps the inline workspace out of the sidebar tree", () => {
@@ -365,10 +351,39 @@ describe("SidebarProviderAccounts", () => {
     const workspace4 = await screen.findByTestId("model-usage-workspace");
     const grid = within(workspace4).getByTestId("authorized-provider-grid");
     expect(grid).toHaveClass("grid-cols-4");
+    expect(grid).toHaveClass("@max-[960px]:grid-cols-2");
     expect(grid).toHaveClass("auto-rows-max", "content-start");
     expect(grid).toHaveAttribute("data-layout", "four-column");
     expect(within(grid).getByTestId("provider-card-claude")).toHaveClass("col-span-1");
     expect(within(grid).getByTestId("provider-card-gemini")).toHaveClass("col-span-1");
+  });
+
+  it("clamps pool section spans to two columns when the grid container gets narrow", async () => {
+    const codexAccounts = [0, 1, 2].map((index) => ({
+      accountId: `codex:pool-${index}`,
+      provider: "codex",
+      label: `Pool ${index}`,
+      maskedIdentity: `pool${index}@example.com`,
+      createdAt: index,
+      enabled: true,
+      selected: index === 0,
+      order: index,
+      status: "available" as const,
+      credentialScopeRef: `managed:codex:pool-${index}`,
+    }));
+    bridge.listAccounts.mockResolvedValue(codexAccounts);
+    useUsageAccountsStore.getState().setAccounts(codexAccounts);
+
+    render(<SidebarProviderAccounts />);
+    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
+    const workspace = await screen.findByTestId("model-usage-workspace");
+
+    const section = await within(workspace).findByTestId("provider-card-codex");
+    expect(section).toHaveClass("col-span-3", "@max-[960px]:col-span-2");
+    expect(within(section).getByTestId("account-grid-codex")).toHaveClass(
+      "grid-cols-3",
+      "@max-[960px]:grid-cols-2",
+    );
   });
 
   it("routes an existing unauthorised account through its managed profile login", async () => {
@@ -1352,24 +1367,17 @@ describe("SidebarProviderAccounts", () => {
   it("restores the last-visited tab when reopened from the sidebar", async () => {
     usePanelStore.getState().openModelUsageWorkspace({ tab: "models" });
     render(<SidebarProviderAccounts />);
-    fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const workspace = await screen.findByTestId("model-usage-workspace");
     expect(within(workspace).getByRole("tab", { name: "管理模型" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "关闭模型与用量" }));
-    await waitFor(() =>
-      expect(screen.queryByTestId("model-usage-workspace")).not.toBeInTheDocument(),
-    );
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    const reopened = await screen.findByTestId("model-usage-workspace");
-    // The plain sidebar open keeps the last tab instead of forcing usage.
-    expect(within(reopened).getByRole("tab", { name: "管理模型" })).toHaveAttribute(
-      "aria-selected",
-      "true",
-    );
+    // The plain sidebar open deep-links into the 管理模型 settings section —
+    // last tab restored instead of forcing 渠道与额度.
+    expect(usePanelStore.getState().settingsOpen).toBe(true);
+    expect(usePanelStore.getState().settingsSection).toBe("modelModels");
   });
 
   it("renders the reused usage-stats page on the 用量统计 tab", async () => {

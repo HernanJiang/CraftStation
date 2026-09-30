@@ -42,6 +42,29 @@ describe("HomeView", () => {
     expect(screen.queryByText("Archived thread")).not.toBeInTheDocument();
   });
 
+  it("only lists threads updated within the last 3 days", () => {
+    const now = Date.now();
+    useAppStore.setState({
+      threads: [
+        makeThread({
+          id: "fresh",
+          title: "Fresh thread",
+          updatedAt: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
+        }),
+        makeThread({
+          id: "stale",
+          title: "Stale thread",
+          updatedAt: new Date(now - 4 * 24 * 60 * 60 * 1000).toISOString(),
+        }),
+      ],
+    });
+
+    render(<HomeView />);
+
+    expect(screen.getByText("Fresh thread")).toBeInTheDocument();
+    expect(screen.queryByText("Stale thread")).not.toBeInTheDocument();
+  });
+
   it("uses the installed ACP agent icon in recent threads", () => {
     useAgentStatusesStore.setState({
       agentStatuses: [
@@ -92,7 +115,7 @@ function makeThread(overrides: Partial<Thread>): Thread {
     done: false,
     starred: false,
     createdAt: "2026-05-26T00:00:00.000Z",
-    updatedAt: "2026-05-26T00:00:00.000Z",
+    updatedAt: new Date().toISOString(),
     ...overrides,
   };
 }

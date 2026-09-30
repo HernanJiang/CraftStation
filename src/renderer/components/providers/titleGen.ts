@@ -60,16 +60,24 @@ export async function generateTitleWithFallback(input: {
   prompt: string;
   /** English name of the language to write the title in. Omitted = match the user's message. */
   language?: string;
+  /** The thread's own agent — tried first so the title reflects the harness actually running. */
+  preferredAgentKind?: string;
   invoke: (payload: GenerateTitlePayload) => Promise<GenerateTitleResult>;
 }): Promise<string> {
   const candidates = getTitleGenCandidates(input.agentStatuses, input.provider);
   if (candidates.length === 0) {
     throw new Error("No agent available to generate title");
   }
+  const ordered = input.preferredAgentKind
+    ? [...candidates].sort(
+        (a, b) =>
+          Number(b.kind === input.preferredAgentKind) - Number(a.kind === input.preferredAgentKind),
+      )
+    : candidates;
 
   const failures: string[] = [];
 
-  for (const candidate of candidates) {
+  for (const candidate of ordered) {
     const resolved = resolveTitleGenConfig(candidate, input.model, input.effort);
     const fast = resolveFastValue(candidate, resolved.model, input.fast);
 

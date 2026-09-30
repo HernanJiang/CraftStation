@@ -1373,6 +1373,7 @@ msgid "Approved"
 msgstr "Aprobado"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewPanel.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarArchivedProjects.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarThreadRow.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
@@ -2771,8 +2772,8 @@ msgstr "Contraer"
 
 #. placeholder {0}: project.name
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
-msgid "Collapse {0}"
-msgstr ""
+#~ msgid "Collapse {0}"
+#~ msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "Collapse {label}"
@@ -2787,8 +2788,8 @@ msgid "Collapse All"
 msgstr "Contraer todo"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
-msgid "Collapse all folders"
-msgstr "Contraer todas las carpetas"
+#~ msgid "Collapse all folders"
+#~ msgstr "Contraer todas las carpetas"
 
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 msgid "Collapse composer"
@@ -2927,6 +2928,10 @@ msgstr "Comunidad"
 #: src/renderer/components/thread/ChatPane/parts/items/ContextCompaction.tsx
 msgid "Compacting context"
 msgstr "Compactando el contexto"
+
+#: src/renderer/components/thread/ThreadContextDock.tsx
+msgid "Compaction"
+msgstr ""
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "Compare this fingerprint with the one shown by your server."
@@ -3972,6 +3977,7 @@ msgstr "Delega trabajo a otros agentes de IA."
 #: src/renderer/components/thread/CapsuleBranchView.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/FileChange.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/parts/TreeEntryRow.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewPanel.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/NotesPanel/TodoRow.tsx
@@ -4045,10 +4051,12 @@ msgstr ""
 msgid "Delete run"
 msgstr "Eliminar ejecución"
 
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 #: src/renderer/views/SchedulesView/parts/ScheduleRow.tsx
 msgid "Delete schedule"
 msgstr "Eliminar programación"
 
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Delete schedule?"
 msgstr "¿Eliminar programación?"
@@ -4429,12 +4437,12 @@ msgid "Done · Waiting for your input"
 msgstr "Listo · Esperando tu entrada"
 
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
-#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "Download and install {0}"
 msgstr ""
 
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
-#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "Download and install {0} now"
 msgstr ""
 
@@ -4574,6 +4582,7 @@ msgstr "Editar servidor MCP"
 msgid "Edit profile"
 msgstr "Editar perfil"
 
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 #: src/renderer/views/SchedulesView/parts/ScheduleRow.tsx
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Edit schedule"
@@ -5118,7 +5127,6 @@ msgstr "No se pudieron registrar los metadatos de propiedad de la rama: {detail}
 
 #: src/renderer/components/experiment/ExperimentDraftTargets.tsx
 #: src/renderer/components/providers/modelDisplay.ts
-#: src/renderer/components/thread/buildModelPickerControls.tsx
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsRankedRow.tsx
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
@@ -5126,6 +5134,7 @@ msgid "Fast"
 msgstr "Rápido"
 
 #: src/renderer/components/common/ProviderModelMenu/ProviderModelMenu.tsx
+#: src/renderer/components/thread/buildModelPickerControls.tsx
 #: src/renderer/views/ProfileOverlay/parts/ActivityInsights.tsx
 msgid "Fast mode"
 msgstr "Modo rápido"
@@ -5327,6 +5336,10 @@ msgid "First-class Kimi Code CLI integration using CraftStation's native runtime
 msgstr "Integración de primera clase de Kimi Code CLI usando el runtime nativo de CraftStation."
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
+msgid "First-class MiniMax Code integration using its official ACP runtime."
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Muse Code CLI integration using CraftStation's native terminal runtime."
 msgstr "Integración de primera clase de Muse Code CLI usando el runtime de terminal nativo de CraftStation."
 
@@ -5345,6 +5358,14 @@ msgstr "Integración de primera clase con Qoder CLI mediante los entornos de eje
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Qwen Code integration using CraftStation's native terminal and ACP runtimes."
 msgstr "Integración de primera clase con Qwen Code mediante los entornos de ejecución nativos de terminal y ACP de CraftStation."
+
+#: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
+msgid "First-class Step Code integration using StepFun's official CLI and structured RPC runtime."
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
+msgid "First-class ZCode terminal integration built from the official open-source CLI."
+msgstr ""
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
 #~ msgid "Fix bugs and failures"
@@ -5790,6 +5811,10 @@ msgstr "Ingrediente de Harness"
 msgid "Harness Library"
 msgstr ""
 
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
+msgid "Harness 总览"
+msgstr ""
+
 #: src/renderer/views/MainView/parts/Sidebar/parts/DraftIndicator.tsx
 msgid "Has unsent draft"
 msgstr "Tiene un borrador sin enviar"
@@ -5841,6 +5866,10 @@ msgstr "Ocultar inspector de elementos del runtime canónico"
 #: src/renderer/components/thread/ThreadContextIndicator.tsx
 msgid "Hide context usage details"
 msgstr "Ocultar detalles de uso de contexto"
+
+#: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
+msgid "Hide directory"
+msgstr ""
 
 #: src/mobile/views/BrowserView.tsx
 msgid "Hide keyboard"
@@ -6283,7 +6312,7 @@ msgstr "Instalando"
 msgid "Installing in this terminal. Closes when finished."
 msgstr "Instalando en este terminal. Se cerrará al finalizar."
 
-#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "Installing…"
 msgstr ""
 
@@ -6617,6 +6646,10 @@ msgstr ""
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Local changes need to be stashed before pulling from {branch}"
 msgstr "Es necesario guardar los cambios locales en stash antes de hacer pull desde {branch}"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "Local estimate"
+msgstr ""
 
 #. placeholder {0}: forward.targetPort
 #: src/mobile/views/PortsView.tsx
@@ -7054,6 +7087,10 @@ msgstr ""
 msgid "MiniMax"
 msgstr "MiniMax"
 
+#: src/renderer/components/providers/minimax/manifest.ts
+msgid "MiniMax Code"
+msgstr ""
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 msgid "Minimize browser to right panel"
 msgstr "Minimizar navegador al panel derecho"
@@ -7387,6 +7424,7 @@ msgid "Never"
 msgstr ""
 
 #: src/renderer/components/changelog/ChangelogView.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
 msgid "New"
 msgstr "Nuevo"
 
@@ -7416,7 +7454,6 @@ msgid "New chat in {0}"
 msgstr ""
 
 #: src/renderer/views/MainView/parts/SelectProjectForThreadModal.tsx
-#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
 msgid "New chat in project"
 msgstr ""
 
@@ -7548,7 +7585,7 @@ msgstr "Hilo nuevo por ejecución"
 
 #. placeholder {0}: availableUpdate.version
 #. placeholder {1}: availableUpdate.latest
-#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "New version available: v{0} → v{1}. Click to update now."
 msgstr ""
 
@@ -8894,7 +8931,9 @@ msgstr "El selector falló"
 msgid "Picker returned no attachment"
 msgstr "El selector no devolvió ningún adjunto"
 
+#. placeholder {0}: project.name
 #. placeholder {0}: props.thread.title
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Pin {0}"
 msgstr ""
@@ -8902,6 +8941,7 @@ msgstr ""
 #: src/mobile/ThreadTitleRow.tsx
 #: src/mobile/views/threadActionSurfaces.tsx
 #: src/mobile/views/threadContextMenus.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarWorkspaceInbox.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Pin to top"
@@ -8918,6 +8958,7 @@ msgstr "Rosa"
 #: src/mobile/views/ThreadsView.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/GlobalPinnedSection.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarWorkspaceInbox.tsx
 msgid "Pinned"
 msgstr "Fijado"
 
@@ -9289,6 +9330,7 @@ msgstr "Anulaciones específicas del proyecto sobre los ajustes de búsqueda glo
 #: src/mobile/views/ManageProjectsView.tsx
 #: src/mobile/WideShell.tsx
 #: src/renderer/components/mcp/McpProjectDestinationDropdown.tsx
+#: src/renderer/views/HomeView.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectFilter.tsx
 #: src/renderer/views/MainView/parts/Sidebar/Sidebar.tsx
 #: src/renderer/views/PullRequestsView/PullRequestsView.tsx
@@ -9344,6 +9386,10 @@ msgstr "Proveedor"
 msgid "Provider accounts"
 msgstr ""
 
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "Provider anchored"
+msgstr ""
+
 #: src/renderer/components/thread/ThreadContextDock.tsx
 #: src/renderer/components/thread/threadContextUsage.ts
 msgid "Provider has not reported token usage."
@@ -9352,6 +9398,10 @@ msgstr "El proveedor no ha informado del uso de tokens."
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettings.tsx
 msgid "Provider presets"
 msgstr "Preajustes de proveedor"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "Provider reported"
+msgstr ""
 
 #. Settings section: provider usage and quota dashboard
 #: src/mobile/settingsSections.ts
@@ -10103,6 +10153,7 @@ msgid "Reset to default"
 msgstr "Restablecer valores predeterminados"
 
 #: src/renderer/commands/registry.ts
+#: src/renderer/components/common/ZoomIndicator.tsx
 msgid "Reset zoom"
 msgstr ""
 
@@ -10436,7 +10487,6 @@ msgstr "Ejecutar en un worktree separado"
 msgid "Run local transcription on the GPU when available."
 msgstr "Ejecutar la transcripción local en la GPU cuando esté disponible."
 
-#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 #: src/renderer/views/SchedulesView/parts/ScheduleRow.tsx
 msgid "Run now"
 msgstr "Ejecutar ahora"
@@ -10979,6 +11029,10 @@ msgstr "El servidor {target} se ejecuta en este equipo y no está disponible par
 msgid "Servers this plugin declares in mcp.json. CraftStation passes them to every supported agent."
 msgstr "Servidores que este plugin declara en mcp.json. CraftStation los pasa a todos los agentes compatibles."
 
+#: src/renderer/components/thread/ThreadContextDock.tsx
+msgid "Session"
+msgstr ""
+
 #. placeholder {0}: shortId(payload.runtimeSessionId)
 #: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
 msgid "Session {0}"
@@ -11014,8 +11068,6 @@ msgstr "Se fijó al iniciar esta sesión — inicia un hilo nuevo para cambiar l
 #: src/renderer/components/thread/ThreadAuthRequiredDock.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarFooterNav.tsx
-#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
-#: src/renderer/views/MainView/parts/Sidebar/Sidebar.tsx
 #: src/renderer/views/MainView/parts/TopShortcuts/topShortcuts.tsx
 #: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
 #: src/renderer/views/SettingsOverlay/parts/SettingsTitlebar.tsx
@@ -11105,6 +11157,10 @@ msgstr "Mostrar Composer"
 #: src/renderer/components/thread/ThreadContextIndicator.tsx
 msgid "Show context usage details"
 msgstr "Mostrar detalles del uso de contexto"
+
+#: src/renderer/views/FileEditorOverlay/parts/ProjectFilesPanel.tsx
+msgid "Show directory"
+msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/UsageSettings.tsx
@@ -11455,6 +11511,10 @@ msgstr "Ordenar skills del marketplace"
 msgid "Source branch {branch} moved before the worktree was created"
 msgstr "La rama de origen {branch} se movió antes de que se creara el worktree"
 
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "Source unknown"
+msgstr ""
+
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
 msgid "Sources"
 msgstr "Fuentes"
@@ -11540,6 +11600,10 @@ msgstr "Preparado"
 #: src/renderer/views/GitReviewOverlay/GitReviewOverlay.tsx
 msgid "Staged ({0})"
 msgstr "Preparado ({0})"
+
+#: src/renderer/components/thread/ThreadContextDock.tsx
+msgid "Stale"
+msgstr ""
 
 #: src/renderer/commands/registry.ts
 msgid "Star or unstar the current chat or model"
@@ -11706,6 +11770,10 @@ msgstr "stdio (comando local)"
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
 msgid "Step {done}/{total}"
+msgstr ""
+
+#: src/renderer/components/providers/stepcode/manifest.ts
+msgid "Step Code"
 msgstr ""
 
 #. Button: stop the microphone level test
@@ -12446,6 +12514,7 @@ msgstr "El servidor remoto de este proyecto está sin conexión. Vuelve a conect
 msgid "This removes later messages and restores files when a checkpoint snapshot is available."
 msgstr "Esto elimina los mensajes posteriores y restaura los archivos cuando hay disponible una instantánea de punto de control."
 
+#: src/renderer/components/thread/ThreadScheduleIndicator.tsx
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "This removes the schedule and its latest result from this device."
 msgstr "Esto elimina la programación y su resultado más reciente de este dispositivo."
@@ -12776,15 +12845,21 @@ msgstr "Prueba con otra búsqueda o filtro de proyecto."
 msgid "Try now"
 msgstr "Probar ahora"
 
+#: src/renderer/components/thread/ThreadContextDock.tsx
+msgid "Turn"
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Turn on remote access to show a pairing code."
 msgstr "Activa el acceso remoto para mostrar un código de emparejamiento."
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Turn retry attempts"
 msgstr ""
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Turn retry interval"
 msgstr ""
 
@@ -13213,11 +13288,14 @@ msgstr "Sin fase:"
 #: src/mobile/ThreadTitleRow.tsx
 #: src/mobile/views/threadActionSurfaces.tsx
 #: src/mobile/views/threadContextMenus.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarWorkspaceInbox.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Unpin"
 msgstr "Desanclar"
 
+#. placeholder {0}: project.name
 #. placeholder {0}: props.thread.title
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Unpin {0}"
 msgstr ""
@@ -13262,7 +13340,7 @@ msgstr "Subir un nivel"
 msgid "update"
 msgstr "actualización"
 
-#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 #: src/renderer/components/thread/ThreadAgentUpdateDock.tsx
 #: src/renderer/views/SettingsOverlay/parts/CursorSdkRuntimeSetup.tsx
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/HookPluginSettings.tsx
@@ -13270,7 +13348,7 @@ msgid "Update"
 msgstr "Actualizar"
 
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
-#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "Update {0} now"
 msgstr ""
 
@@ -13279,7 +13357,6 @@ msgstr ""
 msgid "Update {0} to {updateLabel}"
 msgstr "Actualizar {0} a {updateLabel}"
 
-#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
 #: src/renderer/components/thread/ThreadAgentUpdateDock.tsx
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Update available"
@@ -13288,8 +13365,8 @@ msgstr "Actualización disponible"
 #. placeholder {0}: availableUpdate.version
 #. placeholder {1}: availableUpdate.latest
 #: src/renderer/components/crafting/workbench/HarnessInventory.tsx
-msgid "Update available: v{0} → v{1}"
-msgstr ""
+#~ msgid "Update available: v{0} → v{1}"
+#~ msgstr ""
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/PrSection.tsx
 msgid "Update branch"
@@ -13412,6 +13489,7 @@ msgstr "La URL es obligatoria."
 #: src/renderer/components/layout/PanelDock/panelTabMeta.ts
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/thread/ThreadContextDock.tsx
+#: src/renderer/views/MainView/parts/MainTitlebar.tsx
 #: src/renderer/views/MainView/parts/ProjectAuxiliaryPanel.tsx
 #: src/renderer/views/MainView/parts/TopShortcuts/topShortcuts.tsx
 msgid "Usage"
@@ -13955,6 +14033,7 @@ msgid "Working…"
 msgstr "Trabajando…"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarWorkspaceInbox.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 #: src/renderer/views/SettingsOverlay/parts/WorkspacesSettings.tsx
 msgid "Workspace"
@@ -14095,12 +14174,18 @@ msgstr "Tus cambios locales guardados en el stash se volvieron a aplicar."
 msgid "z.ai"
 msgstr "z.ai"
 
+#: src/renderer/components/providers/zcode/manifest.ts
+msgid "ZCode"
+msgstr ""
+
 #: src/renderer/commands/registry.ts
+#: src/renderer/components/common/ZoomIndicator.tsx
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Zoom in"
 msgstr "Acercar"
 
 #: src/renderer/commands/registry.ts
+#: src/renderer/components/common/ZoomIndicator.tsx
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Zoom out"
 msgstr "Alejar"
@@ -14156,6 +14241,10 @@ msgstr ""
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "取消配方"
 #~ msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
+msgid "合成台与配方"
+msgstr ""
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "在 Git 面板中打开"
@@ -14265,6 +14354,10 @@ msgstr ""
 msgid "未提交的更改：{changedFiles} 个文件（{stagedCount} staged · {unstagedCount} unstaged）"
 msgstr ""
 
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
+msgid "模型与管理"
+msgstr ""
+
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "正在初始化…"
 msgstr ""
@@ -14285,6 +14378,10 @@ msgstr ""
 msgid "没有可推送的提交"
 msgstr ""
 
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
+msgid "渠道与额度"
+msgstr ""
+
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "状态：进行中"
 #~ msgstr ""
@@ -14293,12 +14390,20 @@ msgstr ""
 #~ msgid "璁″垝杩涘害"
 #~ msgstr ""
 
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
+msgid "用量统计"
+msgstr ""
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "登录完成后，将完整 Cookie 请求头粘贴到这里。"
 msgstr ""
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "目标"
+msgstr ""
+
+#: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
+msgid "管理模型"
 msgstr ""
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
@@ -14327,4 +14432,8 @@ msgstr ""
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "选择已有线程（右侧并行打开，原线程不受影响）"
+msgstr ""
+
+#: src/renderer/components/common/ZoomIndicator.tsx
+msgid "重置"
 msgstr ""

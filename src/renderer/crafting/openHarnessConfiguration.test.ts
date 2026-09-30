@@ -55,7 +55,8 @@ describe("openHarnessConfiguration", () => {
 
   it("opens the usage workspace for DeepSeek API Runtime", () => {
     openHarnessConfiguration("deepseek-api");
-    expect(usePanelStore.getState().modelUsageDialogOpen).toBe(true);
+    expect(usePanelStore.getState().settingsOpen).toBe(true);
+    expect(usePanelStore.getState().settingsSection).toBe("modelChannels");
     expect(usePanelStore.getState().modelUsageWorkspaceTab).toBe("usage");
   });
 

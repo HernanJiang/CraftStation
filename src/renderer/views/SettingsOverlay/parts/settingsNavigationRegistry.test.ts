@@ -38,6 +38,7 @@ describe("settings navigation registry", () => {
 
   it("keeps group order stable for sidebar and picker consumers", () => {
     expect(SETTINGS_NAVIGATION.map((group) => group.id)).toEqual([
+      "models",
       "personal",
       "workspace",
       "agents",

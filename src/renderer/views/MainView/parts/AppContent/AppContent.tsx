@@ -156,7 +156,7 @@ export function AppContent() {
 
     const { agentStatuses, wslAgentStatuses } = useAgentStatusesStore.getState();
     const agents = getProjectAgentStatuses(project.location, agentStatuses, wslAgentStatuses);
-    generateTitleAsync(thread.id, project.location, agents, prompt);
+    generateTitleAsync(thread.id, project.location, agents, prompt, targetAgentKind);
 
     const targetLabel = agents.find((a) => a.kind === targetAgentKind)?.label ?? targetAgentKind;
     toast.success(

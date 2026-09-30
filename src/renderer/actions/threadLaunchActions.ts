@@ -951,7 +951,13 @@ function createThreadRow(launch: ThreadLaunchRequest): Thread {
     ...(activeGroup?.groupName ? { groupName: activeGroup.groupName } : {}),
   });
   if (!launch.remoteServerId) {
-    generateTitleAsync(thread.id, launch.project.location, projectAgentStatuses, titlePrompt);
+    generateTitleAsync(
+      thread.id,
+      launch.project.location,
+      projectAgentStatuses,
+      titlePrompt,
+      launch.agentKind,
+    );
   }
   if (!isThirdPartyAccountId(launch.accountId)) return thread;
   const accountBinding = {

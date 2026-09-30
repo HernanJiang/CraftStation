@@ -11,8 +11,9 @@ export function generateTitleAsync(
   projectLocation: ProjectLocation,
   agentStatuses: readonly AgentStatus[],
   prompt: string,
+  preferredAgentKind?: AgentStatus["kind"],
 ): void {
-  const request = requestGeneratedTitle(projectLocation, agentStatuses, prompt);
+  const request = requestGeneratedTitle(projectLocation, agentStatuses, prompt, preferredAgentKind);
   if (!request) return;
 
   void request
@@ -32,6 +33,7 @@ export function requestGeneratedTitle(
   projectLocation: ProjectLocation,
   agentStatuses: readonly AgentStatus[],
   prompt: string,
+  preferredAgentKind?: AgentStatus["kind"],
 ): Promise<string> | undefined {
   const settings = useSharedSettings.getState();
   const isWsl = projectLocation.kind === "wsl";
@@ -55,6 +57,7 @@ export function requestGeneratedTitle(
     fast,
     prompt,
     ...(language ? { language } : {}),
+    ...(preferredAgentKind ? { preferredAgentKind } : {}),
     invoke: (payload) => readBridge().generateTitle(payload),
   });
 }

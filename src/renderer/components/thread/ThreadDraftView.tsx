@@ -1668,7 +1668,7 @@ export function ThreadDraftView(props: {
           // centers the column when it fits and lets it scroll when it
           // overflows — plain justify-center would clip the top.
           <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-            <div className="m-auto flex w-full max-w-[560px] flex-col items-center gap-8 px-2 py-6">
+            <div className="m-auto flex w-full max-w-[680px] flex-col items-center gap-8 px-2 py-6">
               <DraftHomeHero />
               <HomeBrowseSections />
             </div>

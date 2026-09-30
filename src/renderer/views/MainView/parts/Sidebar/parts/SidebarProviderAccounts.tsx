@@ -93,33 +93,23 @@ export function SidebarProviderAccounts() {
   return (
     <>
       <div className="shrink-0 border-t border-[var(--hairline)] px-1 pb-1 pt-1.5">
-        <div className="flex items-center gap-1 rounded-xl py-1">
-          <button
-            type="button"
-            onClick={() => usePanelStore.getState().openModelUsageDialog()}
-            aria-label={t`Provider accounts`}
-            className="group flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-[var(--row-hover)]"
-          >
-            <AuthorizedModelsAvatarGroup />
-            <span className="min-w-0 flex-1">
-              <span className="block truncate text-xs font-medium text-foreground transition-colors group-hover:text-foreground">
-                模型与用量
-              </span>
-              <span className="mt-0.5 block truncate text-[11px] text-muted transition-colors group-hover:text-foreground">
-                ✨ 添加新模型
-              </span>
+        <button
+          type="button"
+          onClick={() => usePanelStore.getState().openModelUsageDialog()}
+          aria-label={t`Provider accounts`}
+          className="group flex w-full min-w-0 cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5 text-left transition-colors hover:bg-[var(--row-hover)]"
+        >
+          <AuthorizedModelsAvatarGroup />
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1.5 text-xs font-medium text-foreground transition-colors group-hover:text-foreground">
+              <span className="truncate">模型与管理</span>
+              <Settings2 className="ml-auto size-3.5 shrink-0 text-muted transition-colors group-hover:text-foreground" />
             </span>
-          </button>
-          <button
-            type="button"
-            aria-label={t`Settings`}
-            onClick={() => usePanelStore.getState().openSettings()}
-            className="flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2 text-[11px] text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
-          >
-            <Settings2 className="size-3.5" />
-            <span>{t`Settings`}</span>
-          </button>
-        </div>
+            <span className="mt-0.5 block truncate text-[11px] text-muted transition-colors group-hover:text-foreground">
+              打开设置页面
+            </span>
+          </span>
+        </button>
       </div>
     </>
   );

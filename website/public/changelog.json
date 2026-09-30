@@ -284,46 +284,52 @@
       ]
     },
     {
-      "version": "1.6.2",
+      "version": "1.6.6",
       "date": "2026-09-30",
-      "title": "One home for drafts, projects & recent threads",
-      "summary": "The home page and the new-thread draft are now a single screen — mascot and greeting up top, your projects and recent threads in the middle, and the composer ready at the bottom.",
+      "title": "A models home inside Settings, self-naming threads & a zoom pill",
+      "summary": "Everything about providers, quota and crafting now lives in one “Models & management” section inside Settings, threads name themselves with the agent actually running them, and pressing Ctrl +/-/0 surfaces a small pill that shows — and adjusts — the current zoom.",
       "changes": [
+        {
+          "kind": "added",
+          "label": "Settings",
+          "text": "A new “Models & management” group sits at the top of the Settings sidebar and gathers channels & quota, model management, usage stats, the harness overview, and the crafting workbench behind one door — the sidebar's merged footer button and every existing usage shortcut now land there."
+        },
+        {
+          "kind": "added",
+          "label": "Zoom",
+          "text": "Adjusting the app zoom pops a small pill under the titlebar showing the current percentage with −/+ and Reset controls, so the scale you're at is always obvious."
+        },
+        {
+          "kind": "improved",
+          "label": "Threads",
+          "text": "Threads created with a default title now get a summary from the agent actually running the session — falling back to other available agents — so sidebar names match the harness you picked."
+        },
+        {
+          "kind": "improved",
+          "label": "Sidebar",
+          "text": "Project names show in full by default: the pin, new-chat and more-actions buttons only claim space while your pointer is over the row, and the merged footer button reads “Models & management / Open settings”."
+        },
         {
           "kind": "improved",
           "label": "Home",
-          "text": "The standalone home page merged into the draft composer: projects and recent threads now sit under the greeting where the quick-action cards used to be, so you can start typing, pick a project, or jump back into a thread from the same screen."
+          "text": "Recent threads are grouped under their project on the home screen and limited to threads updated in the last three days, keeping the list focused on work you're actually returning to."
+        },
+        {
+          "kind": "improved",
+          "text": "The standalone home page merged into the draft composer — mascot and greeting up top, projects and recent threads in the middle, composer at the bottom — and the “New” menu is trimmed to just New chat and New project with a panel that matches the composer surface."
+        },
+        {
+          "kind": "fixed",
+          "label": "Models & usage",
+          "text": "Ctrl +/− zoom no longer squeezes the provider grid into single-character columns — cards drop to two columns when the panel gets too narrow and grow back to four as it widens."
         }
       ]
     },
     {
       "version": "1.6.1",
       "date": "2026-09-30",
-      "title": "OpenCode console sign-in fix & tidier Command Code catalog",
-      "summary": "Signing into OpenCode through the new console finally registers in CraftStation — the session cookie it issues is now recognized, and accounts whose billing moved off the legacy console no longer read as signed out. Command Code's model list also stops auto-expanding as upstream adds models.",
-      "changes": [
-        {
-          "kind": "fixed",
-          "label": "OpenCode",
-          "text": "Browser sign-in to opencode.ai/console now captures the `console_session` cookie the new console actually issues, so a completed login is detected instead of looping until it times out."
-        },
-        {
-          "kind": "fixed",
-          "label": "OpenCode",
-          "text": "Accounts redirected from the legacy console to the new console (billing migration) are recognized as signed in rather than reported as missing credentials, and the session validator now checks both console surfaces."
-        },
-        {
-          "kind": "fixed",
-          "label": "Command Code",
-          "text": "The model picker no longer grows on its own when the upstream catalog adds models — newly discovered entries stay hidden until you opt them in."
-        }
-      ]
-    },
-    {
-      "version": "1.6.1",
-      "date": "2026-08-07",
-      "title": "Flat thread list, worktree moves & workspace switching",
-      "summary": "The sidebar can now show every project's threads in one flat, filterable list, and you can move an existing thread into a worktree straight from its context menu. Remote-paired projects, Kimi Code sessions, Factory Droid subagents, and Windows agent launches are all more dependable.",
+      "title": "Flat thread list, worktree moves, workspaces & OpenCode sign-in fixes",
+      "summary": "The sidebar can now show every project's threads in one flat, filterable list, and you can move an existing thread into a worktree straight from its context menu. Remote-paired projects, Kimi Code sessions, Factory Droid subagents, and Windows agent launches are all more dependable. Signing into OpenCode through the new console finally registers — the session cookie it issues is recognized — and Command Code's model list stops auto-expanding as upstream adds models.",
       "changes": [
         {
           "kind": "added",
@@ -415,6 +421,21 @@
         {
           "kind": "fixed",
           "text": "Closing the last browser tab no longer leaves the right panel stuck on a blank browser view, the side panel border no longer shifts the layout when it closes, and project settings open without a brief empty flash."
+        },
+        {
+          "kind": "fixed",
+          "label": "OpenCode",
+          "text": "Browser sign-in to opencode.ai/console now captures the `console_session` cookie the new console actually issues, so a completed login is detected instead of looping until it times out."
+        },
+        {
+          "kind": "fixed",
+          "label": "OpenCode",
+          "text": "Accounts redirected from the legacy console to the new console (billing migration) are recognized as signed in rather than reported as missing credentials, and the session validator now checks both console surfaces."
+        },
+        {
+          "kind": "fixed",
+          "label": "Command Code",
+          "text": "The model picker no longer grows on its own when the upstream catalog adds models — newly discovered entries stay hidden until you opt them in."
         }
       ]
     },

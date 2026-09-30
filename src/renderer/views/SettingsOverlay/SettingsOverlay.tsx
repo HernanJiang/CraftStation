@@ -1,10 +1,10 @@
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useLingui } from "@lingui/react/macro";
 import { AgentDiscoveryScreen } from "@/renderer/components/thread/AgentDiscoveryScreen";
 import { useProductViewTracking } from "@/renderer/analytics/useProductViewTracking";
 import { readBridge } from "@/renderer/bridge";
 import { useAppStore } from "@/renderer/state/appStore";
-import { usePanelStore } from "@/renderer/state/panelStore";
+import { usePanelStore, type ModelUsageWorkspaceTab } from "@/renderer/state/panelStore";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { buildWslProjectDistrosKey } from "@/renderer/state/projectKeys";
 import { PageLayout } from "@/renderer/components/layout/PageLayout";
@@ -39,9 +39,33 @@ import { SettingsSidebar } from "./parts/SettingsSidebar";
 import { SettingsTitlebar } from "./parts/SettingsTitlebar";
 import { WorkspacesSettings } from "./parts/WorkspacesSettings";
 import { AgentSettingsEmpty, SingleAgentSettings } from "./parts/SingleAgentSettings";
+import { ModelUsageWorkspace } from "@/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace";
 import type { SettingsSection } from "./parts/types";
 
+/** 模型与管理 sections → the workspace tab each one renders. */
+const MODEL_USAGE_SECTION_TAB: Partial<Record<SettingsSection, ModelUsageWorkspaceTab>> = {
+  modelChannels: "usage",
+  modelModels: "models",
+  modelStats: "stats",
+  modelHarnesses: "harnesses",
+  modelCrafting: "crafting",
+};
+
+function ModelUsageSectionView(props: { tab: ModelUsageWorkspaceTab }) {
+  // Pin the shared workspace to this section's tab before first paint (covers
+  // both nav clicks and openSettingsSection deep links).
+  useLayoutEffect(() => {
+    usePanelStore.setState({ modelUsageWorkspaceTab: props.tab });
+  }, [props.tab]);
+  return <ModelUsageWorkspace embedded />;
+}
+
 const SECTION_VIEWS: Partial<Record<SettingsSection, () => ReactNode>> = {
+  modelChannels: () => <ModelUsageSectionView tab="usage" />,
+  modelModels: () => <ModelUsageSectionView tab="models" />,
+  modelStats: () => <ModelUsageSectionView tab="stats" />,
+  modelHarnesses: () => <ModelUsageSectionView tab="harnesses" />,
+  modelCrafting: () => <ModelUsageSectionView tab="crafting" />,
   profile: () => <ProfileSettings />,
   workspaces: () => <WorkspacesSettings />,
   general: () => <GeneralSettings />,
@@ -245,7 +269,8 @@ export function SettingsOverlay(props: { onClose: () => void }) {
         />
       }
       content={
-        activeSection === "acpRegistry" ? (
+        // Full-bleed sections manage their own internal layout/scroll.
+        activeSection === "acpRegistry" || MODEL_USAGE_SECTION_TAB[activeSection] !== undefined ? (
           <div key={activeSection} className="relative h-full min-h-0">
             {section}
           </div>

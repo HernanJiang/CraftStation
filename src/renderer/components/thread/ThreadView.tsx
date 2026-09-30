@@ -391,14 +391,6 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
                 continue in provider, close, mark-done) live in their own
                 surfaces. */}
             <ThreadScheduleIndicator threadId={thread.id} />
-            <ThreadStatusCapsule
-              threadId={thread.id}
-              projectId={thread.projectId}
-              {...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {})}
-              projectLocation={projectLocation}
-              collaborationRefreshKey={collaborationRefreshKey}
-              onOpenCollaboration={() => setCollaborationDialogOpen(true)}
-            />
             {import.meta.env.DEV && !usesTerminalPresentation ? (
               <Tooltip delay={0}>
                 <Tooltip.Trigger>
@@ -438,6 +430,14 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
                 <X className="size-3.5" />
               </button>
             ) : null}
+            <ThreadStatusCapsule
+              threadId={thread.id}
+              projectId={thread.projectId}
+              {...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {})}
+              projectLocation={projectLocation}
+              collaborationRefreshKey={collaborationRefreshKey}
+              onOpenCollaboration={() => setCollaborationDialogOpen(true)}
+            />
           </div>
         </div>
       </div>

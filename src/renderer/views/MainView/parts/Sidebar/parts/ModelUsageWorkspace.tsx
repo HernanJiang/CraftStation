@@ -1853,6 +1853,7 @@ function ManagedAccountPool(props: {
       }
       className={
         ["col-span-1", "col-span-2", "col-span-3", "col-span-4"][span - 1] +
+        (span >= 3 ? " @max-[960px]:col-span-2" : "") +
         " self-start h-fit rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-3"
       }
     >
@@ -1886,7 +1887,8 @@ function ManagedAccountPool(props: {
           data-testid={"account-grid-" + providerId}
           className={
             "grid items-start content-start auto-rows-max gap-2 " +
-            ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"][span - 1]
+            ["grid-cols-1", "grid-cols-2", "grid-cols-3", "grid-cols-4"][span - 1] +
+            (span >= 3 ? " @max-[960px]:grid-cols-2" : "")
           }
         >
           {accounts.map((account, index) => (
@@ -1915,10 +1917,13 @@ function ManagedAccountPool(props: {
   );
 }
 
-export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
+export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: boolean } = {}) {
   const open = usePanelStore((state) => state.modelUsageDialogOpen);
   const closeModelUsageDialog = usePanelStore((state) => state.closeModelUsageDialog);
   const close = props.onClose ?? closeModelUsageDialog;
+  /** Embedded inside Settings' 模型与管理 sections — always visible, minimal chrome. */
+  const embedded = props.embedded === true;
+  const workspaceVisible = open || embedded;
   const accounts = useUsageAccountsStore((state) => state.accounts);
   const usageSnapshots = useProviderUsageStore((state) => state.snapshots);
   const providerOrder = useSharedSettings((state) => state.usage.providerOrder);
@@ -1955,7 +1960,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
   >({});
 
   useEffect(() => {
-    if (!open) {
+    if (!workspaceVisible) {
       setAccountQueryStates({});
       return;
     }
@@ -2100,7 +2105,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
     return () => {
       cancelled = true;
     };
-  }, [open]);
+  }, [workspaceVisible]);
 
   const accountActions = async (action: () => Promise<unknown>, providerId?: string) => {
     setBusy(true);
@@ -2559,7 +2564,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
     }
   };
 
-  if (!open) return null;
+  if (!workspaceVisible) return null;
 
   const configuredProviderIds = new Set(
     resolveConfiguredProviderIds({
@@ -2577,12 +2582,14 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
     >
       <header className="flex h-12 shrink-0 items-center justify-between border-b border-[color:var(--hairline)] px-4">
         <div className="flex items-center gap-3">
-          <img
-            src={brandLogoUrl}
-            alt="CraftStation"
-            draggable={false}
-            className="size-5 shrink-0 rounded-[6px] object-contain"
-          />
+          {!embedded && (
+            <img
+              src={brandLogoUrl}
+              alt="CraftStation"
+              draggable={false}
+              className="size-5 shrink-0 rounded-[6px] object-contain"
+            />
+          )}
           <div
             role="tablist"
             aria-label="模型与用量视图"
@@ -2612,30 +2619,34 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
                 {label}
               </button>
             ))}
-            <button
-              key="settings"
-              type="button"
-              data-testid="model-usage-settings-tab"
-              aria-label="打开设置"
-              title="打开设置"
-              onClick={() => {
-                close();
-                usePanelStore.getState().openSettings();
-              }}
-              className="rounded-md px-4 py-1.5 text-sm font-medium text-muted transition-colors hover:text-foreground"
-            >
-              设置
-            </button>
+            {!embedded && (
+              <button
+                key="settings"
+                type="button"
+                data-testid="model-usage-settings-tab"
+                aria-label="打开设置"
+                title="打开设置"
+                onClick={() => {
+                  close();
+                  usePanelStore.getState().openSettings();
+                }}
+                className="rounded-md px-4 py-1.5 text-sm font-medium text-muted transition-colors hover:text-foreground"
+              >
+                设置
+              </button>
+            )}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={close}
-          aria-label="关闭模型与用量"
-          className="rounded-lg p-1.5 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
-        >
-          <X className="size-4" />
-        </button>
+        {!embedded && (
+          <button
+            type="button"
+            onClick={close}
+            aria-label="关闭模型与用量"
+            className="rounded-lg p-1.5 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
+          >
+            <X className="size-4" />
+          </button>
+        )}
       </header>
       {workspaceTab === "models" ? (
         <ModelManagementPage
@@ -2663,37 +2674,41 @@ export function ModelUsageWorkspace(props: { onClose?: () => void } = {}) {
         <UsageStatsPage />
       ) : (
         <div className="flex min-h-0 flex-1 gap-3 overflow-auto p-3">
-          <div
-            className="grid min-w-0 flex-1 grid-cols-4 items-start content-start auto-rows-max gap-3 overflow-y-auto pr-1"
-            data-testid="authorized-provider-grid"
-            data-layout="four-column"
-          >
-            {authorizedChannels.map((channel, index) => (
-              <Fragment key={"provider-grid-" + channel.id}>
-                {channel.kind === "pool" ? (
-                  renderManagedPool(channel.id, index)
-                ) : (
-                  <ProviderCard
-                    id={channel.id}
-                    label={channel.label}
-                    index={index}
-                    onRenameAccount={openRenameAccount}
-                    onDragStartProvider={(id) => setDraggedProviderId(id)}
-                    onDropProvider={(t) => handleProviderDrop(t)}
-                  />
-                )}
-              </Fragment>
-            ))}
-            {signedInCodexAccounts.length === 0 &&
-            signedGrokAccounts.length === 0 &&
-            signedKimiAccounts.length === 0 &&
-            signedAntigravityAccounts.length === 0 &&
-            signedOpenAiCompatibleAccounts.length === 0 &&
-            leftCardProviders.length === 0 ? (
-              <p className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-6 text-center text-sm text-muted">
-                尚未绑定账号
-              </p>
-            ) : null}
+          {/* 容器查询作用域：Ctrl± 缩放或拖宽右侧栏把网格压窄到 960px 以下时，
+              外层/分区/账号网格同步降级为两列；恢复宽度后自动回到四列。 */}
+          <div className="@container min-h-0 min-w-0 flex-1">
+            <div
+              className="grid h-full w-full min-w-0 grid-cols-4 items-start content-start auto-rows-max gap-3 overflow-y-auto pr-1 @max-[960px]:grid-cols-2"
+              data-testid="authorized-provider-grid"
+              data-layout="four-column"
+            >
+              {authorizedChannels.map((channel, index) => (
+                <Fragment key={"provider-grid-" + channel.id}>
+                  {channel.kind === "pool" ? (
+                    renderManagedPool(channel.id, index)
+                  ) : (
+                    <ProviderCard
+                      id={channel.id}
+                      label={channel.label}
+                      index={index}
+                      onRenameAccount={openRenameAccount}
+                      onDragStartProvider={(id) => setDraggedProviderId(id)}
+                      onDropProvider={(t) => handleProviderDrop(t)}
+                    />
+                  )}
+                </Fragment>
+              ))}
+              {signedInCodexAccounts.length === 0 &&
+              signedGrokAccounts.length === 0 &&
+              signedKimiAccounts.length === 0 &&
+              signedAntigravityAccounts.length === 0 &&
+              signedOpenAiCompatibleAccounts.length === 0 &&
+              leftCardProviders.length === 0 ? (
+                <p className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-6 text-center text-sm text-muted">
+                  尚未绑定账号
+                </p>
+              ) : null}
+            </div>
           </div>
           <div
             role="separator"

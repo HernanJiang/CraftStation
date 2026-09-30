@@ -2,6 +2,7 @@ import { defineMessage, msg } from "@lingui/core/macro";
 import type { MessageDescriptor } from "@lingui/core";
 import {
   Archive,
+  BarChart3,
   Bell,
   Box,
   Cable,
@@ -9,6 +10,7 @@ import {
   GitFork,
   Globe,
   FolderGit2,
+  Hammer,
   Info,
   Keyboard,
   Layers,
@@ -25,12 +27,19 @@ import {
   Sparkles,
   TerminalSquare,
   UserRound,
+  Workflow,
   type LucideIcon,
 } from "lucide-react";
 import type { SettingsSection } from "./types";
 import { SETTINGS_SEARCH_INDEX } from "./settingsSearchIndex";
 
-export type SettingsNavigationGroupId = "personal" | "workspace" | "agents" | "remote" | "about";
+export type SettingsNavigationGroupId =
+  | "models"
+  | "personal"
+  | "workspace"
+  | "agents"
+  | "remote"
+  | "about";
 
 /**
  * One static Settings page. `id` is the stable identity (never the localized
@@ -57,6 +66,42 @@ export interface SettingsNavigationGroup {
   label: MessageDescriptor;
   items: readonly SettingsNavigationItem[];
 }
+
+/**
+ * 模型与管理 — the model-usage workspace embedded as settings sections. Labels
+ * match the workspace's own tab labels (Chinese source strings).
+ */
+const models: SettingsNavigationItem[] = [
+  {
+    id: "modelChannels",
+    group: "models",
+    label: msg`渠道与额度`,
+    icon: Gauge,
+    desktopOnly: true,
+  },
+  { id: "modelModels", group: "models", label: msg`管理模型`, icon: Box, desktopOnly: true },
+  {
+    id: "modelStats",
+    group: "models",
+    label: msg`用量统计`,
+    icon: BarChart3,
+    desktopOnly: true,
+  },
+  {
+    id: "modelHarnesses",
+    group: "models",
+    label: msg`Harness 总览`,
+    icon: Workflow,
+    desktopOnly: true,
+  },
+  {
+    id: "modelCrafting",
+    group: "models",
+    label: msg`合成台与配方`,
+    icon: Hammer,
+    desktopOnly: true,
+  },
+];
 
 const personal: SettingsNavigationItem[] = [
   { id: "profile", group: "personal", label: msg`Profile`, icon: UserRound },
@@ -146,6 +191,7 @@ const about: SettingsNavigationItem[] = [
 ];
 
 export const SETTINGS_NAVIGATION: readonly SettingsNavigationGroup[] = [
+  { id: "models", label: msg`模型与管理`, items: models },
   { id: "personal", label: msg`Personal`, items: personal },
   { id: "workspace", label: msg`Workspace`, items: workspace },
   { id: "agents", label: msg`Agents`, items: agents },

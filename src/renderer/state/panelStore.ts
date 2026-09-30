@@ -328,6 +328,18 @@ function sanitizeThreadListLayout(value: unknown): ThreadListLayout {
   return value === "grouped" || value === "flat" ? value : "grouped";
 }
 
+/**
+ * 模型与用量工作区 tab → 设置分区 id。工作区已并入设置的「模型与管理」分组，
+ * 各入口（左下按钮、顶栏用量、合成台/草稿页深链）统一深链到对应设置分区。
+ */
+export const MODEL_USAGE_TAB_SECTION = {
+  usage: "modelChannels",
+  models: "modelModels",
+  stats: "modelStats",
+  harnesses: "modelHarnesses",
+  crafting: "modelCrafting",
+} as const satisfies Record<ModelUsageWorkspaceTab, string>;
+
 function samePanelTabs(left: readonly RightPanelTab[], right: readonly RightPanelTab[]): boolean {
   return left.length === right.length && left.every((tab, index) => tab === right[index]);
 }
@@ -675,18 +687,22 @@ export const usePanelStore = create<PanelState>()((set) => ({
   },
 
   openBrowserPanel: () => set({ browserPanelOpen: true }),
+  // The model-usage workspace lives inside Settings (模型与管理 group): both
+  // actions deep-link into it instead of mounting a standalone content view.
   openModelUsageDialog: () =>
-    set(() => ({
-      modelUsageDialogOpen: true,
+    set((state) => ({
+      settingsOpen: true,
       // A plain "open" (sidebar entry) restores the last-visited tab; only the
       // explicit openModelUsageWorkspace action targets a specific tab. First
       // run defaults to "usage" via the sanitized initial state.
+      settingsSection: MODEL_USAGE_TAB_SECTION[state.modelUsageWorkspaceTab],
       modelUsageEntryMode: null,
     })),
   closeModelUsageDialog: () => set({ modelUsageDialogOpen: false }),
   openModelUsageWorkspace: (input) =>
     set(() => ({
-      modelUsageDialogOpen: true,
+      settingsOpen: true,
+      settingsSection: MODEL_USAGE_TAB_SECTION[input.tab],
       modelUsageWorkspaceTab: input.tab,
       modelUsageEntryMode: input.entryMode ?? null,
     })),

@@ -9,6 +9,7 @@ import { useAppHydration } from "./hooks/useAppHydration";
 import { usePrWatchAgentSync } from "./hooks/usePrWatchAgentSync";
 import { AppProvider } from "./components/ui/provider";
 import { ImageLightboxHost } from "./components/composer/ImageLightbox";
+import { ZoomIndicator } from "./components/common/ZoomIndicator";
 import { MainView } from "./views/MainView/MainView";
 import { QuickComposerOverlay } from "./views/QuickComposerOverlay/QuickComposerOverlay";
 import { useCommandPaletteStore } from "./commands/commandPaletteStore";
@@ -110,6 +111,7 @@ function MainApp({ workbench }: { workbench: Workbench }) {
               />
               <DeferredCommandPalette />
               <ImageLightboxHost />
+              <ZoomIndicator />
             </>
           ) : isWelcomeSeen() ? (
             <div className="flex h-screen w-screen items-center justify-center bg-background text-foreground">

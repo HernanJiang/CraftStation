@@ -9,7 +9,7 @@ import { rootZoomFactor } from "@/renderer/components/layout/rootZoom";
 // characters of an active thread title without truncating to ellipses.
 export const SIDEBAR_MIN_WIDTH = 196;
 const SIDEBAR_MAX_WIDTH = 400;
-const SIDEBAR_DEFAULT_WIDTH = 236;
+const SIDEBAR_DEFAULT_WIDTH = SIDEBAR_MIN_WIDTH;
 const PANEL_MIN_WIDTH = 320;
 const PANEL_MAX_WIDTH = 1100;
 const PANEL_DEFAULT_WIDTH = 480;
@@ -67,8 +67,9 @@ export function useResizablePanels(
 ) {
   const [sidebarWidth, setSidebarWidth] = useState(() => {
     const stored = readStoredNumber("craftstation-sidebar-width", SIDEBAR_DEFAULT_WIDTH);
-    // Legacy CraftStation widths truncate the CraftStation wordmark in the title row.
-    return stored < SIDEBAR_DEFAULT_WIDTH ? SIDEBAR_DEFAULT_WIDTH : stored;
+    // Widths stored at or below the old default (236) settle on the new
+    // minimum-width default; wider explicit choices persist.
+    return stored <= 236 ? SIDEBAR_DEFAULT_WIDTH : stored;
   });
   const [panelWidth, setPanelWidth] = useState(() =>
     readStoredNumber("craftstation-panel-width", PANEL_DEFAULT_WIDTH),
