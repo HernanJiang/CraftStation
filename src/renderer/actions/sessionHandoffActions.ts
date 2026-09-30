@@ -243,9 +243,18 @@ function adaptSwitchTargetConfig(input: {
     wslAgentStatuses.find((entry) => entry.kind === input.targetAgentKind);
   if (!status) return input.targetConfig;
   const presentation = input.targetPresentationMode ?? input.thread.presentationMode ?? "gui";
+  const sourceStatus =
+    agentStatuses.find((entry) => entry.kind === input.thread.agentKind) ??
+    wslAgentStatuses.find((entry) => entry.kind === input.thread.agentKind);
   return adaptThreadConfigForCapabilities(
     input.targetConfig,
     capabilitiesForPresentation(status.capabilities, presentation),
+    sourceStatus && input.targetConfig.approvalPolicy === input.thread.config.approvalPolicy
+      ? capabilitiesForPresentation(
+          sourceStatus.capabilities,
+          input.thread.presentationMode ?? "gui",
+        )
+      : undefined,
   );
 }
 

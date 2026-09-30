@@ -643,6 +643,9 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
         displayAgentStatus.capabilities,
         pendingSwitch?.presentationMode ?? presentationMode,
       ),
+      base.approvalPolicy === thread.config.approvalPolicy
+        ? effectiveAgentStatus?.capabilities
+        : undefined,
     );
   })();
   // Picker display follows the staged pick. Permission / effort controls must

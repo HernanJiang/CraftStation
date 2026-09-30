@@ -296,11 +296,15 @@ describe("session handoff renderer actions", () => {
     });
   });
 
-  it("rewrites Grok bypassPermissions onto Codex never before spawning the new session", async () => {
+  it.each([
+    ["grok", "bypassPermissions"],
+    ["devin", "bypass"],
+    ["kimi", "auto"],
+  ])("preserves %s full access (%s) when switching to Codex", async (sourceKind, sourcePolicy) => {
     const source = craftedThread();
     delete (source as { compositionProvenance?: unknown }).compositionProvenance;
-    source.agentKind = "grok";
-    source.config = { model: "grok-4.6", approvalPolicy: "bypassPermissions" };
+    source.agentKind = sourceKind;
+    source.config = { model: "source-model", approvalPolicy: sourcePolicy };
     useAppStore.setState({ threads: [source] });
     useAgentStatusesStore.setState({
       agentStatuses: [
@@ -335,6 +339,22 @@ describe("session handoff renderer actions", () => {
       ],
       wslAgentStatuses: [],
     });
+    const targetStatus = useAgentStatusesStore.getState().agentStatuses[0]!;
+    useAgentStatusesStore.setState({
+      agentStatuses: [
+        targetStatus,
+        {
+          ...targetStatus,
+          kind: sourceKind,
+          capabilities: {
+            ...targetStatus.capabilities,
+            approvalPolicies: [{ id: sourcePolicy, label: "Full Access" }],
+            sandboxModes: [],
+            bypassPermissions: { approvalPolicy: sourcePolicy },
+          },
+        },
+      ],
+    });
     bridge.switchThreadProvider.mockResolvedValue({
       threadId: source.id,
       agentKind: "codex",
@@ -346,7 +366,7 @@ describe("session handoff renderer actions", () => {
       thread: source,
       projectLocation,
       targetAgentKind: "codex",
-      targetConfig: { model: "gpt-5.6-sol", approvalPolicy: "bypassPermissions" },
+      targetConfig: { model: "gpt-5.6-sol", approvalPolicy: sourcePolicy },
     });
 
     expect(bridge.switchThreadProvider).toHaveBeenCalledWith({

@@ -439,6 +439,40 @@ describe("adaptThreadConfigForCapabilities", () => {
     });
   });
 
+  it.each(["bypass", "dangerous", "auto"])(
+    "maps a source-declared full-access policy %s onto Codex permissions",
+    (sourcePolicy) => {
+      expect(
+        adaptThreadConfigForCapabilities(
+          { model: "gpt-5.6-sol", approvalPolicy: sourcePolicy },
+          codexCaps,
+          {
+            ...codexCaps,
+            approvalPolicies: [{ id: sourcePolicy, label: "Full Access" }],
+            sandboxModes: [],
+            bypassPermissions: { approvalPolicy: sourcePolicy },
+          },
+        ),
+      ).toMatchObject({ approvalPolicy: "never", sandboxMode: "danger-full-access" });
+    },
+  );
+
+  it("does not treat Kimi's supervised yolo as its declared auto bypass", () => {
+    expect(
+      adaptThreadConfigForCapabilities(
+        { model: "gpt-5.6-sol", approvalPolicy: "yolo" },
+        codexCaps,
+        { ...codexCaps, bypassPermissions: { approvalPolicy: "auto" } },
+      ),
+    ).toMatchObject({ approvalPolicy: "on-request" });
+  });
+
+  it("does not infer full access from an undeclared auto policy", () => {
+    expect(
+      adaptThreadConfigForCapabilities({ model: "gpt-5.6-sol", approvalPolicy: "auto" }, codexCaps),
+    ).toMatchObject({ approvalPolicy: "on-request" });
+  });
+
   it("maps an unknown supervised policy onto the target default", () => {
     expect(
       adaptThreadConfigForCapabilities(

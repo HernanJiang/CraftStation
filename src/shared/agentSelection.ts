@@ -7,6 +7,7 @@ import type {
   ThreadConfig,
   ThreadPresentationMode,
 } from "./contracts";
+import { resolveUnrestrictedPermissionConfig } from "./agents/unrestrictedPermissions";
 
 export interface AgentModelSelection {
   reasoning: {
@@ -416,9 +417,10 @@ function mapIncompatibleOption(
   declaredBypass: string | undefined,
   declaredDefault: string | undefined,
   bypassIds: ReadonlySet<string>,
+  isBypass = bypassIds.has(current),
 ): string | undefined {
   if (advertised.has(current)) return current;
-  if (bypassIds.has(current)) {
+  if (isBypass) {
     if (declaredBypass && (advertised.size === 0 || advertised.has(declaredBypass))) {
       return declaredBypass;
     }
@@ -442,12 +444,25 @@ function mapIncompatibleOption(
 export function adaptThreadConfigForCapabilities(
   config: ThreadConfig,
   capabilities: AgentCapability,
+  sourceCapabilities?: AgentCapability,
 ): ThreadConfig {
   const approvalIds = advertisedIds(capabilities.approvalPolicies);
   const sandboxIds = advertisedIds(capabilities.sandboxModes);
   const modeIds = new Set(capabilities.modes);
 
-  let approvalPolicy = config.approvalPolicy;
+  // 权限 id 属于各 Harness 自己的词汇；例如 Devin 的 bypass、Kimi 的 auto。
+  // 来源声明优先，不能把这些明确的完全访问选择当成未知值回退到请求批准。
+  const sourceBypassPolicy = sourceCapabilities?.bypassPermissions?.approvalPolicy;
+  const sourceWasBypass = Boolean(
+    config.approvalPolicy &&
+    (sourceBypassPolicy
+      ? config.approvalPolicy === sourceBypassPolicy
+      : BYPASS_APPROVAL_IDS.has(config.approvalPolicy)),
+  );
+  const targetUnrestricted = resolveUnrestrictedPermissionConfig(capabilities);
+  let approvalPolicy = sourceWasBypass
+    ? (targetUnrestricted.approvalPolicy ?? config.approvalPolicy)
+    : config.approvalPolicy;
   // A bare "default" is harness-relative ("whatever the harness default
   // is"), not an explicit pick — the composer menu never offers it. Resolve
   // it against the TARGET default so a cross-harness switch can't silently
@@ -470,6 +485,7 @@ export function adaptThreadConfigForCapabilities(
             capabilities.bypassPermissions?.approvalPolicy,
             capabilities.defaultApprovalPolicy,
             BYPASS_APPROVAL_IDS,
+            sourceWasBypass,
           );
   }
 
@@ -487,9 +503,6 @@ export function adaptThreadConfigForCapabilities(
           );
   }
 
-  const sourceWasBypass = Boolean(
-    config.approvalPolicy && BYPASS_APPROVAL_IDS.has(config.approvalPolicy),
-  );
   if (
     sourceWasBypass &&
     !sandboxMode &&
