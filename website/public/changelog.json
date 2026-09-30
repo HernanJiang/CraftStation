@@ -285,6 +285,29 @@
     },
     {
       "version": "1.6.1",
+      "date": "2026-09-30",
+      "title": "OpenCode console sign-in fix & tidier Command Code catalog",
+      "summary": "Signing into OpenCode through the new console finally registers in CraftStation — the session cookie it issues is now recognized, and accounts whose billing moved off the legacy console no longer read as signed out. Command Code's model list also stops auto-expanding as upstream adds models.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "OpenCode",
+          "text": "Browser sign-in to opencode.ai/console now captures the `console_session` cookie the new console actually issues, so a completed login is detected instead of looping until it times out."
+        },
+        {
+          "kind": "fixed",
+          "label": "OpenCode",
+          "text": "Accounts redirected from the legacy console to the new console (billing migration) are recognized as signed in rather than reported as missing credentials, and the session validator now checks both console surfaces."
+        },
+        {
+          "kind": "fixed",
+          "label": "Command Code",
+          "text": "The model picker no longer grows on its own when the upstream catalog adds models — newly discovered entries stay hidden until you opt them in."
+        }
+      ]
+    },
+    {
+      "version": "1.6.1",
       "date": "2026-08-07",
       "title": "Flat thread list, worktree moves & workspace switching",
       "summary": "The sidebar can now show every project's threads in one flat, filterable list, and you can move an existing thread into a worktree straight from its context menu. Remote-paired projects, Kimi Code sessions, Factory Droid subagents, and Windows agent launches are all more dependable.",
