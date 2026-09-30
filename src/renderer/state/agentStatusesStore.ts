@@ -231,7 +231,12 @@ export const useAgentStatusesStore = create<AgentStatusesStore>()(
     }),
     {
       name: "craftstation-agent-statuses-v1",
-      version: 17,
+      version: 18,
+      // v18 invalidates cached Command Code capabilities that predate
+      // curated discovery (supervisor STATUS_CACHE_VERSION 22):
+      // `defaultHiddenModels` now covers the whole probed aggregator catalog,
+      // and a stale cache would keep flooding the homepage picker with every
+      // newly added upstream model.
       // v17 invalidates cached capabilities that predate per-model service
       // tiers (supervisor STATUS_CACHE_VERSION 21): `modelFastTiers` drives
       // the Fast/Ultrafast tier picker, and a stale cache would keep the

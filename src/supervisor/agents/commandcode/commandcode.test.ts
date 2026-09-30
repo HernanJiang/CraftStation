@@ -164,10 +164,7 @@ describe("buildCommandCodePrintArgs", () => {
   });
 
   it("rewrites commandcode/<leaf> catalog ids onto vendor/model for --model", () => {
-    const args = buildCommandCodePrintArgs(
-      { model: "commandcode/deepseek-v4-flash" },
-      "hello",
-    );
+    const args = buildCommandCodePrintArgs({ model: "commandcode/deepseek-v4-flash" }, "hello");
     expect(args).toContain("--model");
     expect(args).toContain("deepseek/deepseek-v4-flash");
     expect(args).not.toContain("commandcode/deepseek-v4-flash");
@@ -507,6 +504,13 @@ describe("buildCommandCodeModelPickerCapabilities", () => {
     expect(caps.models[0]?.label).toBe("New Shiny Model");
     expect(caps.modelSubProvider?.["acme/new-shiny-model"]).toBe("acme");
     expect((caps.subProviders ?? []).find((s) => s.id === "acme")?.label).toBe("Acme");
+  });
+
+  it("default-hides the whole catalog so upstream additions stay off the picker", () => {
+    const caps = buildCommandCodeModelPickerCapabilities(
+      parseCommandCodeModels(LIST_MODELS_FIXTURE),
+    );
+    expect(caps.defaultHiddenModels).toEqual(caps.models.map((model) => model.id));
   });
 });
 

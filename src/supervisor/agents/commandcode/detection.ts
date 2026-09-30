@@ -322,6 +322,7 @@ export function buildCommandCodeModelPickerCapabilities(
   | "modelEfforts"
   | "contextSizes"
   | "modelContextSizes"
+  | "defaultHiddenModels"
 > {
   const models: LabeledOption[] = [];
   const modelSubProvider: Record<string, string> = {};
@@ -386,6 +387,12 @@ export function buildCommandCodeModelPickerCapabilities(
     subProviders,
     modelSubProvider,
     modelEfforts,
+    // Command Code's catalog is an aggregator surface (~90 models and growing)
+    // that refreshes on every probe — same shape as OpenCode. Default-hide the
+    // whole catalog so newly added upstream models never flood the homepage
+    // picker; only ids the user explicitly marked shown (管理模型 勾选 /
+    // 「获取模型」新增的 delta) surface.
+    defaultHiddenModels: models.map((model) => model.id),
     ...buildContextSizeCapabilities(tokenMap),
   };
 }

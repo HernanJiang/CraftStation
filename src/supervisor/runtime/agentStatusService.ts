@@ -74,8 +74,14 @@ const execFileAsync = promisify(execFile);
  * (`grok-\d` / `kimi-for-coding` bases are fast-capable even when the probed
  * catalog omitted the variant row) — capabilities cached without it would
  * keep the Fast switch hidden for catalogs that never advertised a sibling.
+ * v21 adds Codex per-model service tiers (`modelFastTiers`: Fast/Ultrafast
+ * lanes), so catalogs cached without tier data must re-probe. v22 makes
+ * Command Code a curated-discovery channel (`defaultHiddenModels` = whole
+ * probed catalog): the aggregator list grows on every refresh, and a cache
+ * without the field lets newly added upstream models flood the homepage
+ * picker until the user re-hides them.
  */
-export const STATUS_CACHE_VERSION = 21;
+export const STATUS_CACHE_VERSION = 22;
 const WSL_AGENT_DETECTION_TIMEOUT_MS = 60_000;
 const NATIVE_AGENT_DETECTION_TIMEOUT_MS = 60_000;
 const WSL_LXSS_REGISTRY_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss";
