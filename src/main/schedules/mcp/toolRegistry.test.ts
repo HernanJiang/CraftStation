@@ -214,7 +214,9 @@ describe("Schedule MCP tools", () => {
       },
     };
     const { ctx, service } = context({ tasks: [task] });
-    service.listRuns = vi.fn().mockReturnValue([run]);
+    service.listRuns = vi
+      .fn<(scheduleId: string, limit?: number) => ScheduledTaskRun[]>()
+      .mockReturnValue([run]);
 
     const rows = await dispatchTool("list_runs", { id: task.id }, ctx);
     expect(service.listRuns).toHaveBeenCalledWith(task.id, undefined);

@@ -211,8 +211,7 @@ describe("ScheduleRunCoordinator", () => {
     coordinator.observeSupervisorEvent(threadState("thread-1", "idle"));
     await expect(settled).resolves.toContain("CRAFTSTATION_SCHEDULE: pause");
 
-    expect(applyScheduleSelfStop).toHaveBeenCalledOnce();
-    expect(applyScheduleSelfStop).toHaveBeenCalledWith(task.id, "pause");
+    expect(applyScheduleSelfStop).toHaveBeenCalledExactlyOnceWith(task.id, "pause");
     expect(runs.get("run-1")).toMatchObject({ status: "succeeded" });
   });
 

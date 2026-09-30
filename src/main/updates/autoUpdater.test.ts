@@ -448,7 +448,7 @@ describe("createAutoUpdaterController", () => {
     // Download starts but never emits progress or settles.
     autoUpdaterMock.downloadUpdate.mockImplementation(() => new Promise(() => {}));
 
-    const first = controller.startUpdateDownload();
+    void controller.startUpdateDownload();
     await vi.advanceTimersByTimeAsync(119_000);
     expect(sendStatus).not.toHaveBeenCalledWith(expect.objectContaining({ type: "error" }));
     // The guard polls every 15s and trips past 120s of silence (135s tick).
@@ -458,7 +458,7 @@ describe("createAutoUpdaterController", () => {
     // The gate is released: a retry actually re-enters downloadUpdate.
     // (The original promises stay pending by design — a late underlying
     // completion still lands via update-downloaded — so never await them.)
-    const second = controller.startUpdateDownload();
+    void controller.startUpdateDownload();
     await vi.advanceTimersByTimeAsync(0);
     expect(autoUpdaterMock.downloadUpdate).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(136_000);

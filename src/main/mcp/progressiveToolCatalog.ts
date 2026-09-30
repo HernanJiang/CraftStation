@@ -103,7 +103,7 @@ function tokenize(value: string): string[] {
   const words = normalized.match(/[a-z0-9]+/gu) ?? [];
   const hanRuns = normalized.match(/[\p{Script=Han}]+/gu) ?? [];
   const han = hanRuns.flatMap((run) => {
-    const chars = [...run];
+    const chars = Array.from(run);
     if (chars.length <= 2) return [run];
     return chars.slice(0, -1).map((char, index) => `${char}${chars[index + 1]}`);
   });

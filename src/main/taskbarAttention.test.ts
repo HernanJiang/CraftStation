@@ -5,7 +5,7 @@ import type { SupervisorEvent } from "@/shared/ipc";
 const nativeImageMock = vi.hoisted(() => ({
   createFromDataURL: vi.fn<(dataUrl: string) => unknown>(() => ({ id: "overlay-dot" })),
 }));
-const dockBounceMock = vi.hoisted(() => vi.fn());
+const dockBounceMock = vi.hoisted(() => vi.fn<(type?: string) => void>());
 
 vi.mock("electron", () => ({
   app: { dock: { bounce: dockBounceMock } },
@@ -46,8 +46,6 @@ function createWindowMock() {
     flashFrame: vi.fn<(flag: boolean) => void>(),
   };
 }
-
-type WindowMock = ReturnType<typeof createWindowMock>;
 
 function setup(options?: {
   enabled?: Partial<Record<"done" | "needsAttention" | "error", boolean>>;

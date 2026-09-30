@@ -8,7 +8,7 @@ vi.mock("electron", () => ({
   nativeTheme,
 }));
 
-const releaseMock = vi.hoisted(() => vi.fn(() => "10.0.22631"));
+const releaseMock = vi.hoisted(() => vi.fn<() => string>(() => "10.0.22631"));
 
 vi.mock("node:os", () => ({
   release: () => releaseMock(),
@@ -35,7 +35,7 @@ function fakeWindow() {
     setBackgroundMaterial: vi.fn<(material: string) => void>(),
     setBackgroundColor: vi.fn<(color: string) => void>(),
     hide: vi.fn<() => void>(),
-    on: vi.fn(),
+    on: vi.fn<(event: string, handler: () => void) => any>(),
     webContents: { invalidate: vi.fn<() => void>() },
   };
   window.on.mockImplementation(() => window);

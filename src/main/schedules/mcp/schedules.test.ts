@@ -426,7 +426,9 @@ describe("Schedule MCP tools", () => {
       (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
     );
     const service = { create } as unknown as ScheduleCapability;
-    const resolvePeerTarget = vi.fn(() => ({ threadId: KIMI_UUID }));
+    const resolvePeerTarget = vi.fn<
+      (target: string, sourceThreadId: string | null) => { threadId: string }
+    >(() => ({ threadId: KIMI_UUID }));
 
     await scheduleTools.handlers.create!(
       {
@@ -457,7 +459,9 @@ describe("Schedule MCP tools", () => {
       (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
     );
     const service = { create } as unknown as ScheduleCapability;
-    const resolvePeerTarget = vi.fn(() => ({ threadId: DEVIN_UUID }));
+    const resolvePeerTarget = vi.fn<
+      (target: string, sourceThreadId: string | null) => { threadId: string }
+    >(() => ({ threadId: DEVIN_UUID }));
 
     await scheduleTools.handlers.create!(
       {
@@ -483,7 +487,9 @@ describe("Schedule MCP tools", () => {
       (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
     );
     const service = { create } as unknown as ScheduleCapability;
-    const resolvePeerTarget = vi.fn(() => ({ threadId: "unused" }));
+    const resolvePeerTarget = vi.fn<
+      (target: string, sourceThreadId: string | null) => { threadId: string }
+    >(() => ({ threadId: "unused" }));
 
     await scheduleTools.handlers.create!(
       {
@@ -506,7 +512,7 @@ describe("Schedule MCP tools", () => {
 
   it("fails closed with a clear error when a native address has no resolver wired", () => {
     const service = {
-      create: vi.fn(),
+      create: vi.fn<(input: unknown) => ScheduledTask>(),
     } as unknown as ScheduleCapability;
     expect(() =>
       scheduleTools.handlers.create!(
@@ -550,7 +556,7 @@ describe("Schedule MCP tools", () => {
   });
 
   it("rejects an explicit agentKind whose harness item is missing instead of drifting", () => {
-    const create = vi.fn();
+    const create = vi.fn<(input: unknown) => ScheduledTask>();
     const service = { create } as unknown as ScheduleCapability;
     expect(() =>
       scheduleTools.handlers.create!(
@@ -568,7 +574,7 @@ describe("Schedule MCP tools", () => {
   });
 
   it("rejects an unknown explicit harnessItemId at create time", () => {
-    const create = vi.fn();
+    const create = vi.fn<(input: unknown) => ScheduledTask>();
     const service = { create } as unknown as ScheduleCapability;
     expect(() =>
       scheduleTools.handlers.create!(
@@ -597,7 +603,7 @@ describe("Schedule MCP tools", () => {
     const service = {
       get: vi.fn<(id: string) => ScheduledTask | null>(() => bound),
     } as unknown as ScheduleCapability;
-    const peerAddressOfThread = vi.fn((threadId: string) =>
+    const peerAddressOfThread = vi.fn<(threadId: string) => string | null>((threadId: string) =>
       threadId === executorThread.id ? "devin:acp-session-9" : null,
     );
 
@@ -631,7 +637,7 @@ describe("Schedule MCP tools", () => {
       get: vi.fn<(id: string) => ScheduledTask | null>(() => taskRow),
       listRuns: vi.fn<() => ScheduledTaskRun[]>(() => [run]),
     } as unknown as ScheduleCapability;
-    const peerAddressOfThread = vi.fn((threadId: string) =>
+    const peerAddressOfThread = vi.fn<(threadId: string) => string | null>((threadId: string) =>
       threadId === firedThreadId ? "devin:devin-session-1" : null,
     );
 

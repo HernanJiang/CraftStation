@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ScheduledTask, ScheduledTaskInput } from "@/shared/contracts";
-import { ScheduleService, type ScheduleStore } from "./ScheduleService";
+import { ScheduleService, type ScheduleDiagnostic, type ScheduleStore } from "./ScheduleService";
 
 function memoryStore(): ScheduleStore {
   const tasks = new Map<string, ScheduledTask>();
@@ -303,7 +303,7 @@ describe("ScheduleService", () => {
       targetThreadId: "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee",
     });
 
-    const onDiagnostic = vi.fn();
+    const onDiagnostic = vi.fn<(entry: ScheduleDiagnostic) => void>();
     const service = new ScheduleService({
       store,
       runTask: vi.fn<() => Promise<string>>(),
@@ -339,7 +339,7 @@ describe("ScheduleService", () => {
       ...store,
       get: (id) => (id === task.id ? null : store.get(id)),
     };
-    const onDiagnostic = vi.fn();
+    const onDiagnostic = vi.fn<(entry: ScheduleDiagnostic) => void>();
     const service = new ScheduleService({
       store: poisoned,
       runTask: vi.fn<() => Promise<string>>(),
@@ -368,7 +368,7 @@ describe("ScheduleService", () => {
     });
     seed.create(input);
 
-    const onDiagnostic = vi.fn();
+    const onDiagnostic = vi.fn<(entry: ScheduleDiagnostic) => void>();
     const service = new ScheduleService({
       store,
       runTask: vi.fn<() => Promise<string>>(),

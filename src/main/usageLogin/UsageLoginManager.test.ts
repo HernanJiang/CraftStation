@@ -211,15 +211,17 @@ describe("UsageLoginManager silent re-auth", () => {
 
   function newSilentManager(options: { jarCookies: () => JarCookie[]; onLoad?: () => void }) {
     const session = {
-      cookies: { get: vi.fn(async () => options.jarCookies()) },
+      cookies: {
+        get: vi.fn<(filter?: unknown) => Promise<JarCookie[]>>(async () => options.jarCookies()),
+      },
     };
     const win = {
-      load: vi.fn(async (_url: string) => {
+      load: vi.fn<(url: string) => Promise<void>>(async (_url: string) => {
         options.onLoad?.();
       }),
-      close: vi.fn(),
+      close: vi.fn<() => void>(),
     };
-    const createReauthWindow = vi.fn(() => win);
+    const createReauthWindow = vi.fn<() => typeof win>(() => win);
     const manager = new UsageLoginManager({ cacheDir } as never, () => makePanel() as never, {
       cookieSession: session,
       createReauthWindow,
@@ -314,7 +316,9 @@ describe("UsageLoginManager silent re-auth", () => {
     opencodeLiveProbe.mockResolvedValue(true);
     const panel = makePanel();
     const manager = new UsageLoginManager({ cacheDir } as never, () => panel as never, {
-      cookieSession: { cookies: { get: vi.fn(async () => []) } },
+      cookieSession: {
+        cookies: { get: vi.fn<(filter?: unknown) => Promise<JarCookie[]>>(async () => []) },
+      },
     } as never);
 
     await expect(manager.startLogin("opencode")).resolves.toEqual({ ok: true });
@@ -328,10 +332,19 @@ describe("UsageLoginManager silent re-auth", () => {
     const panel = makePanel();
     panel.captureLoginCookies.mockResolvedValue({ ok: true, cookie: "auth=fresh" });
     const { win } = {
-      win: { load: vi.fn(async () => {}), close: vi.fn() },
+      win: {
+        load: vi.fn<(url: string) => Promise<void>>(async () => {}),
+        close: vi.fn<() => void>(),
+      },
     };
     const manager = new UsageLoginManager({ cacheDir } as never, () => panel as never, {
-      cookieSession: { cookies: { get: vi.fn(async () => [{ name: "auth", value: "dead" }]) } },
+      cookieSession: {
+        cookies: {
+          get: vi.fn<(filter?: unknown) => Promise<JarCookie[]>>(async () => [
+            { name: "auth", value: "dead" },
+          ]),
+        },
+      },
       createReauthWindow: () => win,
     } as never);
 
@@ -397,10 +410,14 @@ describe("UsageLoginManager API-key flow", () => {
   });
 
   it("clears the CraftStation secret without deleting the official Grok auth.json", async () => {
-    const { mkdirSync, writeFileSync, existsSync } = await import("node:fs");
+    const {
+      mkdirSync: fsMkdirSync,
+      writeFileSync: fsWriteFileSync,
+      existsSync: fsExistsSync,
+    } = await import("node:fs");
     const grokHome = join(cacheDir, "grok-home");
-    mkdirSync(grokHome, { recursive: true });
-    writeFileSync(join(grokHome, "auth.json"), JSON.stringify({ key: "stale" }), "utf8");
+    fsMkdirSync(grokHome, { recursive: true });
+    fsWriteFileSync(join(grokHome, "auth.json"), JSON.stringify({ key: "stale" }), "utf8");
     const previous = process.env.GROK_HOME;
     process.env.GROK_HOME = grokHome;
     try {
@@ -409,7 +426,7 @@ describe("UsageLoginManager API-key flow", () => {
       expect(hasUsageSecret(cacheDir, "grok")).toBe(true);
       await expect(manager.clearLogin("grok")).resolves.toEqual({ ok: true });
       expect(hasUsageSecret(cacheDir, "grok")).toBe(false);
-      expect(existsSync(join(grokHome, "auth.json"))).toBe(true);
+      expect(fsExistsSync(join(grokHome, "auth.json"))).toBe(true);
     } finally {
       if (previous === undefined) delete process.env.GROK_HOME;
       else process.env.GROK_HOME = previous;
@@ -679,12 +696,16 @@ describe("UsageLoginManager OpenCode sign-out", () => {
   }
 
   it("removes the opencode-go and opencode entries from the CLI auth.json", async () => {
-    const { mkdirSync, readFileSync, writeFileSync } = await import("node:fs");
+    const {
+      mkdirSync: fsMkdirSync,
+      readFileSync,
+      writeFileSync: fsWriteFileSync,
+    } = await import("node:fs");
     isolateHomeEnv();
     try {
       const authPath = join(process.env.XDG_DATA_HOME!, "opencode", "auth.json");
-      mkdirSync(join(process.env.XDG_DATA_HOME!, "opencode"), { recursive: true });
-      writeFileSync(
+      fsMkdirSync(join(process.env.XDG_DATA_HOME!, "opencode"), { recursive: true });
+      fsWriteFileSync(
         authPath,
         JSON.stringify({
           "opencode-go": { key: "go-key" },
@@ -702,12 +723,12 @@ describe("UsageLoginManager OpenCode sign-out", () => {
   });
 
   it("succeeds when no CLI auth.json exists", async () => {
-    const { existsSync } = await import("node:fs");
+    const { existsSync: fsExistsSync } = await import("node:fs");
     isolateHomeEnv();
     try {
       const manager = newManager(makePanel());
       await expect(manager.clearLogin("opencode")).resolves.toEqual({ ok: true });
-      expect(existsSync(join(process.env.XDG_DATA_HOME!, "opencode", "auth.json"))).toBe(false);
+      expect(fsExistsSync(join(process.env.XDG_DATA_HOME!, "opencode", "auth.json"))).toBe(false);
     } finally {
       restoreHomeEnv();
     }

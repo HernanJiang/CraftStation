@@ -792,7 +792,7 @@ describe("CraftStation app control tools — threads", () => {
     expect(requestDialogue).toHaveBeenCalledTimes(3);
 
     const keyOf = (call: number) =>
-      (requestDialogue.mock.calls[call]?.[0] as { request: { idempotencyKey: string } }).request
+      (requestDialogue.mock.calls[call]![0] as { request: { idempotencyKey: string } }).request
         .idempotencyKey;
     // Distinct messages on the same arm no longer collide (P1-2)...
     expect(keyOf(1)).not.toBe(keyOf(0));
@@ -2324,7 +2324,9 @@ describe("CraftStation app control tools — wait", () => {
 
   it("rejects pattern without terminalIds", async () => {
     const { ctx } = context({ projects: [localProject(WIN_PROJECT)] });
-    await expect(dispatchTool("wait", { pattern: "x", timeoutSeconds: 1 }, ctx)).rejects.toThrow();
+    await expect(dispatchTool("wait", { pattern: "x", timeoutSeconds: 1 }, ctx)).rejects.toThrow(
+      "pattern only filters new terminal output — pass terminalIds too.",
+    );
   });
 
   it("rejects terminalIds outside the caller worktree", async () => {
@@ -2334,13 +2336,13 @@ describe("CraftStation app control tools — wait", () => {
     ]);
     await expect(
       dispatchTool("wait", { timeoutSeconds: 1, terminalIds: ["shell:other"] }, ctx),
-    ).rejects.toThrow();
+    ).rejects.toThrow("Terminal shell:other is not a running terminal attached to this worktree.");
   });
 
   it("rejects paths that escape the worktree root", async () => {
     const { ctx } = context({ projects: [localProject(WIN_PROJECT)] });
     await expect(
       dispatchTool("wait", { timeoutSeconds: 1, paths: ["..\\outside.txt"] }, ctx),
-    ).rejects.toThrow();
+    ).rejects.toThrow("resolves outside this thread's worktree.");
   });
 });

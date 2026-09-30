@@ -8,11 +8,11 @@ const ipcHandlers = vi.hoisted(
 
 vi.mock("electron", () => ({
   ipcMain: {
-    handle: vi.fn(
-      (channel: string, handler: (event: unknown, ...args: unknown[]) => Promise<unknown>) => {
-        ipcHandlers.set(channel, handler);
-      },
-    ),
+    handle: vi.fn<
+      (channel: string, handler: (event: unknown, ...args: unknown[]) => Promise<unknown>) => void
+    >((channel, handler) => {
+      ipcHandlers.set(channel, handler);
+    }),
   },
 }));
 
@@ -26,10 +26,10 @@ describe("registerIpcHandlers agent-status resilience", () => {
   it("returns the last successful statuses when a refresh times out", async () => {
     const cached: AgentStatusesResponse = { windows: [], wsl: [], fromCache: false };
     const callSupervisor = vi
-      .fn()
+      .fn<(name: string, payload: unknown) => Promise<unknown>>()
       .mockResolvedValueOnce(cached)
       .mockRejectedValueOnce(new Error('Supervisor request "refreshAgentStatuses" timed out.'));
-    registerIpcHandlers({ localHandlers: {} as never, callSupervisor });
+    registerIpcHandlers({ localHandlers: {} as never, callSupervisor: callSupervisor as never });
 
     const getStatuses = ipcHandlers.get(ipcProcedureMap.getAgentStatuses.channel);
     const refreshStatuses = ipcHandlers.get(ipcProcedureMap.refreshAgentStatuses.channel);
@@ -51,7 +51,9 @@ describe("registerIpcHandlers agent-status resilience", () => {
     const failure = new Error("Supervisor disconnected");
     registerIpcHandlers({
       localHandlers: {} as never,
-      callSupervisor: vi.fn().mockRejectedValue(failure),
+      callSupervisor: vi
+        .fn<(name: string, payload: unknown) => Promise<never>>()
+        .mockRejectedValue(failure),
     });
     const refreshStatuses = ipcHandlers.get(ipcProcedureMap.refreshAgentStatuses.channel);
     if (!refreshStatuses) throw new Error("missing refresh IPC handler");

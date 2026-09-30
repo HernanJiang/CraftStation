@@ -582,20 +582,26 @@ describe.skipIf(!sqliteAvailable)("ThreadCollaborationService durable dialogue",
     const created = repository.create(repositoryInput()).exchange;
     repository.markQueued(created.id);
     const first = repository.claim(created.id)!;
-    expect(() => repository.deferDelivery(created.id, "wrong-token", "queued")).toThrow();
+    expect(() => repository.deferDelivery(created.id, "wrong-token", "queued")).toThrow(
+      `Delivery claim for ${created.id} is no longer current.`,
+    );
     expect(repository.require(created.id).status).toBe("delivering");
     expect(repository.deferDelivery(created.id, first.token, "queued")).toMatchObject({
       status: "queued",
       deliveredAt: null,
     });
     const second = repository.claim(created.id)!;
-    expect(() => repository.deferDelivery(created.id, first.token, "queued")).toThrow();
+    expect(() => repository.deferDelivery(created.id, first.token, "queued")).toThrow(
+      `Delivery claim for ${created.id} is no longer current.`,
+    );
     repository.markDelivered(created.id, second.token, {
       baselineTurnIndex: 0,
       requestAnchorItemId: created.requestItemId,
       deliveredAt: "2026-09-01T00:00:00Z",
     });
-    expect(() => repository.deferDelivery(created.id, second.token, "queued")).toThrow();
+    expect(() => repository.deferDelivery(created.id, second.token, "queued")).toThrow(
+      `Delivery claim for ${created.id} is no longer current.`,
+    );
     expect(repository.require(created.id).status).toBe("delivered");
   });
 
@@ -621,7 +627,9 @@ describe.skipIf(!sqliteAvailable)("ThreadCollaborationService durable dialogue",
     repository.markQueued(created.id);
     const claim = repository.claim(created.id, 10)!;
     now = new Date("2026-09-19T10:00:00.010Z");
-    expect(() => repository.deferDelivery(created.id, claim.token, "queued")).toThrow();
+    expect(() => repository.deferDelivery(created.id, claim.token, "queued")).toThrow(
+      `Delivery claim for ${created.id} is no longer current.`,
+    );
     expect(repository.require(created.id).status).toBe("delivering");
     expect(repository.failExpiredClaims()[0]?.error?.code).toBe(
       "THREAD_COLLABORATION_DELIVERY_UNCERTAIN",
