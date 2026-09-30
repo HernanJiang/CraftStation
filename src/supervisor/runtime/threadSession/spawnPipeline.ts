@@ -83,6 +83,7 @@ import { ensureThreadWorkspace } from "../threadWorkspace";
 import { resolveThreadWorkspace } from "@/shared/homeScope";
 import { ensureNodePtySpawnHelperExecutable } from "../../nodePty";
 import type { QueuedStructuredTurn, SessionRuntime } from "../sessionTypes";
+import type { PtySpawnWindow } from "./conptyConhostReaper";
 import type { ThreadOutputPipeline } from "../threadOutputPipeline";
 import { rewriteSegmentsForWsl } from "../threadAttachments";
 import {
@@ -1483,6 +1484,7 @@ export class SpawnPipeline {
         )
       : undefined;
     let pty;
+    let ptySpawnWindow: PtySpawnWindow | undefined;
     if (command) {
       ensureNodePtySpawnHelperExecutable();
       const ptyEnv = {
@@ -1492,6 +1494,7 @@ export class SpawnPipeline {
         ...terminalEnv,
       };
       try {
+        const startedAt = Date.now();
         pty = spawn(command.command, command.args, {
           name: process.platform === "win32" ? "xterm-color" : terminalEnv.TERM,
           cols: input.initialSize.cols,
@@ -1499,6 +1502,7 @@ export class SpawnPipeline {
           cwd: command.cwd ?? process.cwd(),
           env: ptyEnv,
         });
+        ptySpawnWindow = { startedAt, endedAt: Date.now() };
       } catch (error) {
         try {
           command.cleanup?.();
@@ -1526,6 +1530,7 @@ export class SpawnPipeline {
       agentKind: input.agentKind,
       adapter: input.adapter,
       ...(pty ? { pty } : {}),
+      ...(ptySpawnWindow ? { ptySpawnWindow } : {}),
       ...(pty && command?.cleanup ? { launchCleanup: command.cleanup } : {}),
       projectLocation: input.projectLocation,
       config: input.config,

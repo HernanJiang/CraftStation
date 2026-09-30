@@ -19,6 +19,7 @@ import type {
   StructuredSessionHandle,
   TerminalStatusHint,
 } from "../agents/base";
+import type { PtySpawnWindow } from "./threadSession/conptyConhostReaper";
 
 export interface QueuedStructuredTurn {
   prompt: string;
@@ -104,6 +105,12 @@ export interface SessionRuntime {
   agentKind: AgentKind;
   adapter: AgentAdapter;
   pty?: IPty;
+  /**
+   * Date.now() bracket around the node-pty spawn() that created `pty`.
+   * Consumed once on PTY exit by PtyLifecycle to reap the conhost.exe that
+   * ConPTY orphans; cleared when scheduled.
+   */
+  ptySpawnWindow?: PtySpawnWindow;
   projectLocation: ProjectLocation;
   config: ThreadConfig;
   /** Effective provider launch config with globally disabled MCP cleared. */
@@ -249,6 +256,8 @@ export interface ShellSessionRuntime {
   instanceId: string;
   shellId: string;
   pty: IPty;
+  /** Same spawn-time bracket as `SessionRuntime.ptySpawnWindow`. */
+  ptySpawnWindow?: PtySpawnWindow;
   projectLocation: ProjectLocation;
   outputLength: number;
   outputTranscript: TranscriptBuffer;

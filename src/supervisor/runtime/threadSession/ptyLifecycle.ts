@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
 import { terminateProcessTree } from "@/shared/processTree";
 import type { SessionRuntime, ShellSessionRuntime } from "../sessionTypes";
+import { ConptyConhostReaper } from "./conptyConhostReaper";
 
 /**
  * Tracks PTY process exit for agent and shell sessions and performs
@@ -12,6 +13,13 @@ export class PtyLifecycle {
   private static readonly CLOSE_TIMEOUT_MS = 2_000;
   private readonly exitPromises = new WeakMap<object, Promise<void>>();
   private readonly exitResolvers = new WeakMap<object, () => void>();
+
+  constructor(
+    private readonly conhostReaper: Pick<
+      ConptyConhostReaper,
+      "schedule"
+    > = new ConptyConhostReaper(),
+  ) {}
 
   track(session: SessionRuntime | ShellSessionRuntime): void {
     if (session.ptyExited || this.exitPromises.has(session)) {
@@ -27,6 +35,16 @@ export class PtyLifecycle {
 
   resolveExit(session: SessionRuntime | ShellSessionRuntime): void {
     session.ptyExited = true;
+    // The ConPTY client exited without closing its console, orphaning
+    // conhost.exe — schedule a best-effort reap once per recorded spawn.
+    const ptySpawnWindow = session.ptySpawnWindow;
+    if (ptySpawnWindow) {
+      delete session.ptySpawnWindow;
+      this.conhostReaper.schedule(
+        ptySpawnWindow,
+        "threadId" in session ? session.threadId : session.shellId,
+      );
+    }
     this.exitResolvers.get(session)?.();
     this.exitResolvers.delete(session);
     this.exitPromises.delete(session);

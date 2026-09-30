@@ -80,6 +80,7 @@ import { InvalidSessionRecoveryCoordinator } from "./threadSession/invalidSessio
 import { StructuredInterruptWatchdog } from "./threadSession/structuredInterruptWatchdog";
 import { SteerCoordinator, clearPendingSteerSlot } from "./threadSession/steerCoordinator";
 import { buildShellCommand, windowsShellSpawnFallbacks } from "./threadSession/shellCommand";
+import type { PtySpawnWindow } from "./threadSession/conptyConhostReaper";
 import {
   SpawnPipeline,
   workspaceLaunchConfig,
@@ -1644,6 +1645,7 @@ export class ThreadSessionManager {
     // can land, and xterm never reflows pre-wrapped scrollback. Fall back to
     // 120×30 only if the renderer hasn't measured yet.
     let pty;
+    let ptySpawnWindow: PtySpawnWindow | undefined;
     let lastSpawnFailure:
       | { command: ReturnType<typeof buildShellCommand>; error: unknown }
       | undefined;
@@ -1654,6 +1656,7 @@ export class ThreadSessionManager {
         shellLaunchOptions,
       );
       try {
+        const startedAt = Date.now();
         pty = spawn(shellCommand.command, shellCommand.args, {
           name: process.platform === "win32" ? "xterm-color" : terminalEnv.TERM,
           cols: payload.initialSize?.cols ?? 120,
@@ -1661,6 +1664,7 @@ export class ThreadSessionManager {
           ...(shellCommand.cwd ? { cwd: shellCommand.cwd } : {}),
           env: shellEnv,
         });
+        ptySpawnWindow = { startedAt, endedAt: Date.now() };
         lastSpawnFailure = undefined;
         break;
       } catch (error) {
@@ -1678,6 +1682,7 @@ export class ThreadSessionManager {
       instanceId: randomUUID(),
       shellId: payload.shellId,
       pty,
+      ...(ptySpawnWindow ? { ptySpawnWindow } : {}),
       projectLocation: payload.projectLocation,
       outputLength: 0,
       outputTranscript: new TranscriptBuffer(200_000),
