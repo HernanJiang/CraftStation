@@ -5,6 +5,7 @@ import type {
   SelectedModelEntry,
 } from "@/shared/crafting/workbenchTypes";
 import { Button } from "@/renderer/components/common";
+import { shortHarnessName } from "@/renderer/crafting/harnessInventory";
 import { CraftingSlot } from "./CraftingSlot";
 
 const uiStatusLabel: Record<CapabilityResolution["status"], string> = {
@@ -68,7 +69,8 @@ export function EfficientWorkbench(props: {
             filled={Boolean(harness)}
             brandId={harness?.vendor}
             brandLabel={harness?.displayName}
-            name={harness?.displayName}
+            name={harness ? shortHarnessName(harness.displayName) : undefined}
+            title={harness ? `Harness · ${harness.displayName}` : undefined}
             testId="crafting-slot-harness"
           />
           <CraftingSlot label="组件" testId="crafting-slot-component" />
@@ -105,6 +107,13 @@ export function EfficientWorkbench(props: {
         <CraftingSlot
           label="合成结果"
           filled={Boolean(resultName)}
+          status={
+            resolution?.status === "NATIVE"
+              ? "native"
+              : resolution?.status === "CRAFTABLE"
+                ? "craftable"
+                : undefined
+          }
           brandId={harness && model ? harness.vendor : undefined}
           brandLabel={harness?.displayName}
           name={resultName || undefined}

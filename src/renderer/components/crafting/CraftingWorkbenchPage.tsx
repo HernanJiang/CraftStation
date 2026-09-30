@@ -344,9 +344,9 @@ export function CraftingWorkbenchPage(props: {
     <div className="flex min-h-0 flex-1 flex-col gap-3 p-3" data-testid="crafting-workbench-page">
       <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
         {/* Main workbench area */}
-        <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-hidden">
+        <div className="flex min-h-0 min-w-0 shrink flex-col gap-3">
           {/* 顶部：合成台（主视觉） | 紧凑结果详情 */}
-          <div className="grid shrink-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-3">
+          <div className="grid shrink-0 grid-cols-[max-content_minmax(14rem,22rem)] items-stretch gap-3">
             <EfficientWorkbench
               model={selectedModel}
               harness={selectedHarness}
@@ -357,31 +357,33 @@ export function CraftingWorkbenchPage(props: {
 
             <div className="flex min-h-0 min-w-0 flex-col gap-2">
               <div
-                className="min-w-0 shrink-0 rounded-2xl border border-white/10 bg-black/25 px-3 py-2"
+                className="min-w-0 shrink-0 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5"
                 data-testid="crafting-result-detail"
                 aria-label="合成结果详情"
               >
-                <p className="text-[10px] font-medium text-neutral-500">合成结果</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[10px] font-medium text-neutral-500">合成结果</p>
+                  {resolution ? (
+                    <span
+                      className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${
+                        resolution.status === "NATIVE"
+                          ? "bg-emerald-500/15 text-emerald-300"
+                          : resolution.status === "CRAFTABLE"
+                            ? "bg-amber-500/15 text-amber-300"
+                            : "bg-white/5 text-neutral-400"
+                      }`}
+                    >
+                      {resolution.status === "NATIVE"
+                        ? "原生可合成"
+                        : resolution.status === "CRAFTABLE"
+                          ? "兼容桥可合成"
+                          : "不可合成"}
+                    </span>
+                  ) : null}
+                </div>
                 <p className="mt-0.5 truncate text-xs font-semibold text-foreground">
                   {resultName || "尚未放入模型与 Harness"}
                 </p>
-                {resolution ? (
-                  <p
-                    className={`mt-0.5 text-[10px] font-semibold ${
-                      resolution.status === "NATIVE"
-                        ? "text-emerald-400"
-                        : resolution.status === "CRAFTABLE"
-                          ? "text-amber-300"
-                          : "text-neutral-500"
-                    }`}
-                  >
-                    {resolution.status === "NATIVE"
-                      ? "原生可合成"
-                      : resolution.status === "CRAFTABLE"
-                        ? "兼容桥可合成"
-                        : "不可合成"}
-                  </p>
-                ) : null}
                 {resolutionReason ? (
                   <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-neutral-400">
                     {resolutionReason}
@@ -404,7 +406,7 @@ export function CraftingWorkbenchPage(props: {
 
           {/* 下方两列：填满剩余高度，各列内部滚动，不截断在半页 */}
           <div
-            className="grid min-h-0 flex-1 grid-cols-2 gap-3 overflow-hidden border-t border-white/5 pt-3"
+            className="grid min-h-0 flex-1 grid-cols-2 gap-3 overflow-hidden"
             data-testid="crafting-inventory-columns"
           >
             <ModelsInventory
@@ -466,10 +468,10 @@ export function CraftingWorkbenchPage(props: {
           </div>
         </div>
 
-        {/* Right components rail */}
+        {/* Right ingredients rail */}
         <aside
-          className="flex min-h-0 w-60 shrink-0 flex-col border-l border-white/5 pl-3"
-          aria-label="组件栏"
+          className="flex min-h-0 min-w-[22rem] flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-3"
+          aria-label="原料栏"
         >
           <ComponentsRail />
         </aside>

@@ -3,6 +3,7 @@ import { screen } from "@testing-library/react";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import type { HarnessReference } from "@/shared/crafting/workbenchTypes";
 import { useUpdateStore } from "@/renderer/state/updateStore";
+import { CRAFTING_SLOT_SIZE_CLASS } from "./CraftingSlot";
 import { HarnessInventory } from "./HarnessInventory";
 
 function ref(harnessKind: string, displayName: string): HarnessReference {
@@ -45,7 +46,9 @@ describe("HarnessInventory update affordances", () => {
     renderInventory();
 
     expect(screen.queryByLabelText("Update available")).not.toBeInTheDocument();
-    expect(screen.getByText("Grok Build Harness")).toBeInTheDocument();
+    // Slots show the short name; the full display name remains in the tooltip.
+    expect(screen.getByTitle("Grok Build Harness")).toBeInTheDocument();
+    expect(screen.getByText("Grok Build")).toBeInTheDocument();
     useUpdateStore.setState({ availableCliUpdates: [] });
   });
 
@@ -54,5 +57,13 @@ describe("HarnessInventory update affordances", () => {
     renderInventory();
 
     expect(screen.queryByLabelText("Update available")).not.toBeInTheDocument();
+  });
+
+  it("renders entries as square slots matching the crafting-grid footprint", () => {
+    useUpdateStore.setState({ availableCliUpdates: [] });
+    renderInventory();
+
+    const slot = screen.getByTitle("Grok Build Harness").closest("button");
+    expect(slot?.className).toContain(CRAFTING_SLOT_SIZE_CLASS);
   });
 });

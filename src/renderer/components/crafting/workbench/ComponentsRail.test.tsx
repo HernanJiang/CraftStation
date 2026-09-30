@@ -45,7 +45,7 @@ describe("ComponentsRail", () => {
 
     const section = screen.getByTestId("components-rail-mcp");
     expect(section.textContent).toContain("my-tools");
-    expect(section.textContent).toContain("自定义 MCP");
+    expect(screen.getByLabelText("my-tools · 自定义 MCP")).toBeInTheDocument();
     // Built-ins always listed from settings state.
     expect(screen.getAllByTestId("component-mcp-row")).toHaveLength(
       1 + BUILT_IN_MCP_SERVER_IDS.length,

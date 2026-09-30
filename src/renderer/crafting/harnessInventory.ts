@@ -66,6 +66,17 @@ export function isHarnessSelectable(ref: HarnessReference): boolean {
   return ref.status === "ready";
 }
 
+/**
+ * Slot-facing name: drops a trailing whole-word " Harness" — the slot's
+ * surrounding UI already labels the section, so the suffix is redundant.
+ * Returns the input when nothing but the suffix would remain.
+ */
+export function shortHarnessName(displayName: string): string {
+  const trimmed = displayName.trim();
+  const short = trimmed.replace(/\s+harness$/i, "").trim();
+  return short || trimmed;
+}
+
 export function findHarnessReference(
   refs: readonly HarnessReference[],
   harnessRef: string | undefined,

@@ -11,31 +11,43 @@ export function CraftingSlot(props: {
   label: string;
   filled?: boolean | undefined;
   focused?: boolean | undefined;
+  /** Result-slot resolution ring: emerald = native, amber = bridge-craftable. */
+  status?: "native" | "craftable" | undefined;
   brandId?: string | undefined;
   brandLabel?: string | undefined;
   name?: string | undefined;
   icon?: ReactNode | undefined;
   disabled?: boolean | undefined;
   testId?: string | undefined;
+  title?: string | undefined;
   onClick?: (() => void) | undefined;
 }) {
   const {
     label,
     filled = false,
     focused = false,
+    status,
     brandId,
     brandLabel,
     name,
     icon,
     disabled = false,
     testId,
+    title,
     onClick,
   } = props;
-  const className = `${CRAFTING_SLOT_SIZE_CLASS} relative flex flex-col items-center justify-center gap-0.5 rounded-lg border p-1 text-center transition-colors ${
+  const tooltip = title ?? (name ? `${label} · ${name}` : label);
+  const className = `${CRAFTING_SLOT_SIZE_CLASS} relative flex shrink-0 flex-col items-center justify-center gap-0.5 rounded-lg border p-1 text-center transition-colors ${
     filled
       ? "border-white/25 bg-white/[0.06] hover:border-white/40"
       : "border-dashed border-white/15 bg-white/[0.02]"
-  } ${focused ? "ring-1 ring-accent/70" : ""}`;
+  } ${focused ? "ring-1 ring-accent/70" : ""} ${
+    status === "native"
+      ? "ring-1 ring-emerald-400/50"
+      : status === "craftable"
+        ? "ring-1 ring-amber-300/50"
+        : ""
+  }`;
 
   const body = (
     <>
@@ -56,7 +68,7 @@ export function CraftingSlot(props: {
 
   if (disabled || !onClick) {
     return (
-      <div className={className} title={name ? `${label} · ${name}` : label} data-testid={testId}>
+      <div className={className} title={tooltip} data-testid={testId}>
         {body}
       </div>
     );
@@ -65,7 +77,7 @@ export function CraftingSlot(props: {
   return (
     <button
       type="button"
-      title={name ? `${label} · ${name}` : label}
+      title={tooltip}
       onClick={onClick}
       className={className}
       data-testid={testId}

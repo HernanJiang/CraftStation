@@ -80,7 +80,7 @@ export function RecipesRail(props: {
     <aside
       className={
         variant === "panel"
-          ? "flex min-h-0 min-w-0 flex-col rounded-2xl border border-white/10 bg-black/25"
+          ? "flex min-h-0 min-w-0 flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.03]"
           : "flex min-h-0 w-72 shrink-0 flex-col border-l border-white/5"
       }
       data-testid="recipes-rail"
