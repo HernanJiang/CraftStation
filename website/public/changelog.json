@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.7.3",
+      "date": "2026-10-01",
+      "title": "Thread rename actually opens",
+      "summary": "A patch release: renaming a thread in the sidebar finally works for threads shown in more than one section, and managed Grok binaries stop doubling their disk footprint.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Threads",
+          "text": "Rename now opens and commits reliably: when a thread appears in several sidebar sections (project list, Workspace inbox, Pinned), only the row you clicked enters edit mode — previously every duplicate row mounted an input at once and the focus race cancelled the rename within a frame."
+        },
+        {
+          "kind": "improved",
+          "label": "Grok",
+          "text": "Managed account-pool binaries now hardlink the versioned copy instead of duplicating it (~150 MB saved per profile), and each update cleans up superseded versions and parked swap files."
+        }
+      ]
+    },
+    {
       "version": "1.7.2",
       "date": "2026-10-01",
       "title": "Automatic CLI updates & a real Grok fix",
