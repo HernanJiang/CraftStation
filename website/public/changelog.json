@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.7.2",
+      "date": "2026-10-01",
+      "title": "Automatic CLI updates & a real Grok fix",
+      "summary": "A patch release: agent CLIs can now keep themselves up to date, Grok updates finally reach the binaries your account-pool sessions actually run, and manual thread renames stick.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Updates",
+          "text": "Settings → Agents → General gains Auto-update CLIs, on by default — when a version check finds a newer release, each agent CLI updates through the same pipeline as the titlebar menu; turning it off keeps checks read-only."
+        },
+        {
+          "kind": "fixed",
+          "label": "Grok",
+          "text": "Updating Grok now refreshes the per-account managed binaries your sessions actually launch — previously pool profiles stayed pinned to their first-installed build and kept reporting the CLI as outdated after a successful update."
+        },
+        {
+          "kind": "fixed",
+          "label": "Threads",
+          "text": "Renaming a thread actually sticks: titles now track who named them, so an auto-generated title arriving late can no longer overwrite your rename."
+        }
+      ]
+    },
+    {
       "version": "1.7.1",
       "date": "2026-10-01",
       "title": "Third-party models on DeepSeek Harness, math & crash fixes",
