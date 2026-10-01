@@ -1,3 +1,11 @@
+## Antigravity/Gemini 提前截断修复（2026-10-01）
+
+- **现象（用户反馈）**：Gemini 回复在「三、投递前建议检查的最后两件小事 1. *」处戛然而止，看似提前截断。
+- **真根因（真实 DB 取证）**：线程 `2b79e4b5` 的持久化文本（3353 字符）实为 `[完整草稿A, 1816字符, 结尾"交流！"] + [重写版B的前1537字符, 截断在"1. *"]`——上游 `conversations/…421235c2…db` step idx=1255 存了完整 B（1819 字符），但 wire 只送来过 B 的**半截重写快照**（与 A 共享 580 字符开头，`舒展开`→`舒展展开` 处分叉）。旧 `finalResponseRemainder` 无前缀改判保护 → 半截 B 前缀整体追加到完整 A 之后 → 界面显示「完整答案 + 第二版开头死在 `1. *`」= 伪截断。`result` 帧 response 为空或未到达（否则旧 overlap k=1 会再追加整段，实测未发生）。
+- **修复**：`finalResponseRemainder` 嵌入回显返回点新增**修订双向校验**——候选切片若含有 streamed 未回显部分紧邻回显的边缘片段（`REVISION_EDGE=24`），或切片自身尾部已在未回显部分出现过，判定为同文档重渲染 → 返回 `""` 不追加。顺带收紧两个 overlap 循环下限为 `MIN_EMBEDDED_ECHO`（此前 1 字符巧合重叠会切掉 delta 首字符或重放整段）。
+- **行为**：该形态下 item 只保留完整草稿 A（结尾 `交流！`），不再追加半截重写前缀；正常的「快照+status 行穿插续写」不受影响（status 边缘片段不会出现在新正文里）。
+- **验证**：真实 payload 回放 `remainder(A, Bp)` 与 `remainder(A, run0完整B)` 均返回 `""`；上轮嵌入回显真实案例仍返回 1977 字符尾部；新增 3 项 canonicalizer 回归 + 1 项 session 级回归（wire 序列：完整 A delta → 半截 B delta → result 带完整 B → 拼接结果 === A）；canonicalizer 26 + structuredSession 21 + nativeHarness 全部 121 项通过；typecheck/oxlint 0 错。提交 `472e9fef`。
+
 ## Antigravity/Gemini 重复输出修复 + v1.7.3 发布（2026-10-01）
 
 - **根因**：`result.response` 终态快照会把已流式的 status 行折进正文**中间**——真实形态 `[草稿正文][status1][status2][修正正文]`（4008 字符单 chunk 落到 `text-2`）。`finalResponseRemainder` 只处理已流文本在快照**前缀/后缀/重叠**的情形，中间嵌入全部落空 → 整段追加 → 界面重复两遍。
