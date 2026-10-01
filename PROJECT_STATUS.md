@@ -7,6 +7,7 @@
 - **自动更新**：`autoUpdateAgentClis`（默认 true）入 shared schema/默认值/store setter/持久化；`设置 → 智能体 → 一般` 新增「Auto-update CLIs」开关（`AgentCliAutoUpdateSection`，zh-CN 已翻译）；`CliUpdateMenu` mount auto-check 发现更新时按 `kind:env:distro` 去重串行跑 `runCliUpdateBinary`（同一管线含 postUpdate+刷新+toast），关闭时只停自动路径。
 - **README**：新增「CLI updates that actually reach your sessions」一节（自动更新开关+托管 profile 语义），Install 产物链接从 1.5.11 更正为 1.7.1。
 - **验证**：typecheck 0 错；lint（普通+type-aware）0 错；全量测试 1109 文件通过——唯一失败 `compatibilityRuntimeAdapter.e2e`（打真实 xAI 上游的环境依赖用例，与改动无关）。新增：托管二进制同步/版本探测 12+、grok detection versionProbe 2、updateAgent env 隔离、CliUpdateMenu 自动更新 2、titleSource 全链路（appStore/threadSlice/titleGen/projectsThreads）多组。
+- **发布**：v1.7.2（`296827f6`）已推送 main + tag，GitHub Release 已上传 Setup/Portable x64 + blockmap + `latest.yml`；`changelog.json` 与 README 安装链接同步至 1.7.2。
 
 ## Antigravity 思考/工具时间线错位 + 正文重复修复（2026-10-01）
 
