@@ -30,6 +30,14 @@ export function SortableThreadItem(props: {
   showWorktreeFilesButton?: boolean;
   editingThreadId: string | null;
   setEditingThreadId: (id: string | null) => void;
+  /**
+   * Unique key of this rendered row (e.g. `thread:id` for the project list,
+   * `workspace:id` for the inbox shortcut, `pinned:id` for the pinned
+   * section). The same thread can appear in several sidebar sections at once,
+   * so editing identity must be per-row — keying on `thread.id` alone makes
+   * every duplicate row mount a rename input that steals each other's focus.
+   */
+  editKey: string;
   group: string;
   sortDisabled?: boolean;
   /** Trailing project label for cross-project (flat) lists. */
@@ -53,6 +61,7 @@ export function SortableThreadItem(props: {
     pinState,
     sortableId,
     dragDisabled = false,
+    editKey,
   } = props;
   const isExperimentCandidate = useExperimentStore(
     (state) => thread.groupId !== undefined && state.experiments[thread.groupId] !== undefined,
@@ -91,7 +100,7 @@ export function SortableThreadItem(props: {
   const statusTone = getStatusTone(thread, { hasBackgroundActivity });
 
   const stacked = projectTag != null;
-  const isEditing = editingThreadId === thread.id;
+  const isEditing = editingThreadId === editKey;
   const titleNode = thread.done ? (
     <span className="opacity-50 line-through">{thread.title}</span>
   ) : (
@@ -141,7 +150,7 @@ export function SortableThreadItem(props: {
       <ThreadContextMenu
         thread={thread}
         project={project}
-        onRename={() => props.setEditingThreadId(thread.id)}
+        onRename={() => props.setEditingThreadId(editKey)}
         showProjectActions={stacked}
         openRequest={contextMenuRequest}
       >
@@ -173,7 +182,7 @@ export function SortableThreadItem(props: {
           isActive={isCurrentThread}
           className={`craftstation-sidebar-thread-row !mx-2 !my-0.5 !min-h-8 !rounded-none !border ${isCurrentThread ? "!border-white/[0.04]" : "!border-transparent"} !px-2.5 !py-1.5`}
           onPress={() => openThread(thread.id)}
-          onDoubleClick={() => props.setEditingThreadId(thread.id)}
+          onDoubleClick={() => props.setEditingThreadId(editKey)}
           isDragging={isDragging}
           suffix={<ThreadItemSuffix {...suffixProps} />}
         />

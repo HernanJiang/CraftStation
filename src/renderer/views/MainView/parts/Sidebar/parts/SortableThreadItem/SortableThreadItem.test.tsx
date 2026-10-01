@@ -229,6 +229,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -245,6 +246,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -265,6 +267,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -291,6 +294,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -308,6 +312,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -331,6 +336,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -358,6 +364,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -378,6 +385,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -400,6 +408,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -417,6 +426,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -432,6 +442,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -451,6 +462,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -470,6 +482,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
         sortDisabled
@@ -493,6 +506,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -513,6 +527,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,
@@ -533,6 +548,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="flat:__flat__"
         projectTag={<span>{project.name}</span>}
@@ -553,6 +569,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId="thread-1"
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="flat:__flat__"
         projectTag={<span>{project.name}</span>}
@@ -566,6 +583,43 @@ describe("SortableThreadItem", () => {
     expect(screen.queryByRole("button", { name: "Terminal for Project" })).not.toBeInTheDocument();
   });
 
+  it("edits only the row whose editKey matches when the same thread renders twice", () => {
+    // A workspace-inbox shortcut row and the project row share one thread.id.
+    // Editing state is keyed by the row key, otherwise both rows mount a
+    // rename input and the focus race instantly cancels the edit.
+    const thread = makeThread();
+    const setEditingThreadId = vi.fn<(id: string | null) => void>();
+    render(
+      <>
+        <SortableThreadItem
+          thread={thread}
+          threadIndex={0}
+          project={project}
+          showWorktreeBadge={false}
+          editingThreadId="thread:thread-1"
+          editKey="thread:thread-1"
+          setEditingThreadId={setEditingThreadId}
+          group="project-entries:project-1"
+        />
+        <SortableThreadItem
+          thread={thread}
+          threadIndex={1}
+          project={project}
+          showWorktreeBadge={false}
+          editingThreadId="thread:thread-1"
+          editKey="workspace:thread-1"
+          setEditingThreadId={setEditingThreadId}
+          group="workspace-inbox"
+          sortableId="workspace-inbox:thread-1"
+          dragDisabled
+        />
+      </>,
+    );
+
+    const inputs = screen.getAllByRole("textbox", { name: "Rename thread" });
+    expect(inputs).toHaveLength(1);
+  });
+
   it("omits project-scoped row chrome in grouped lists, where the project header carries it", () => {
     render(
       <SortableThreadItem
@@ -574,6 +628,7 @@ describe("SortableThreadItem", () => {
         project={project}
         showWorktreeBadge={false}
         editingThreadId={null}
+        editKey="thread-1"
         setEditingThreadId={vi.fn<(id: string | null) => void>()}
         group="project-entries:project-1"
       />,

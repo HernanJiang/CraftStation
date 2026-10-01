@@ -155,6 +155,7 @@ export function SidebarThreadRow(props: {
           : {})}
         editingThreadId={editingThreadId}
         setEditingThreadId={setEditingThreadId}
+        editKey={row.key}
         group={row.group}
         {...(row.sortDisabled !== undefined ? { sortDisabled: row.sortDisabled } : {})}
         {...(projectTag !== undefined ? { projectTag } : {})}
