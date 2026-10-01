@@ -1,3 +1,11 @@
+## DeepSeek Harness opencode-go 第三方模型绑定修复 + 聊天 LaTeX 兼容修复（2026-10-01）
+
+- **用户反馈**：DeepSeek Harness 选 `opencode-go/deepseek-v4.1-flash` 报 `DSH model binding failed`；聊天里 `$$…$$` 数学公式与 Markdown 结构原样显示。
+- **DSH 绑定根因**：dsh ACP 模型选择需要精确的 `[provider, model]` JSON tuple；`opencode-go/*` 目录行没有对应的 pi-ai provider 投影，strict 绑定找不到广告项直接失败。修复：新增 `agents/deepseek/foreignDshHome.ts` 通用隔离 `$DSH_HOME` 写入器（`settings.yaml` 注册 `opencode-go` provider：`openai-completions` API + `https://opencode.ai/zen/go/v1` + 必需 `x-opencode-session` 头 + `agent-default-model` 绑定；密钥只进 `.credentials.yaml` 0600 + 子进程 env），`commandcode` 路径重构复用同一写入器（输出字节不变）；`foreignAcpModelId` 对 `opencode-go/*` 生成 `["opencode-go","<leaf>"]` tuple；`prepareDeepseekForeignLaunch` 新增 opencode-go 分支——显式 `thirdPartyAccountId` 走 `resolveAccountSessionEnv` 取账号 key/baseUrl（不透池、可覆盖端点），隐式登录读 OpenCode CLI `auth.json`，缺 key 抛 `ACCOUNT_NOT_FOUND`；`strictModelResolution` 保持 fail-closed。
+- **LaTeX 渲染根因（真实消息取证）**：模型输出两类畸形——`$$…$` 分界符不配对（micromark 按 arity 配对，`$$` 原样透出）与 `$$…$$` 内花括号缺一个 `}`（KaTeX 抛错回退裸源码）。修复：`ItemMarkdown.tsx` 新增 `normalizeMathDollarRuns`（行级修复 `$$…$`/`$…$$`/无闭合 `$$`，LaTeX 信号门控 + 保护围栏/行内/缩进代码/货币 `$5`/多行 `$$` 块）与 `repairMathSyntax`（span 内补缺失 `}` 与 `\right.`）。
+- **验证**：真实 20KB 消息端到端渲染 66 个 KaTeX span、0 裸 `$$`、0 error；另一条消息 65 span / 1 个 `\mathb` 模型笔误保留源码（合理）；新增单测覆盖分界符修复 + 配对修复 + tuple 映射 + dsh home 写入；相关区域 320+ 项测试全过；typecheck、lint（普通 + type-aware）0 错误。
+- **注意**：第三方显式账号的 baseUrl 可覆盖默认 Go 端点；`opencode-go` tuple 重写与既有 `commandcode` 先例同为 harness 无关的目录层投影。
+
 ## OpenCode 新 Console 额度窗口修复 + 侧边栏 Git 图标移除（2026-09-30）
 
 - **用户报告**：OpenCode 卡片显示「已登录 Go」但额度区「暂无额度窗口」；左侧标题栏的橙色 Git 图标要求删除。

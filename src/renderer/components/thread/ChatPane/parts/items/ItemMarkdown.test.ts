@@ -3,9 +3,11 @@ import {
   escapeBareAngleTags,
   normalizeGfmTableSeparators,
   normalizeLatexMathDelimiters,
+  normalizeMathDollarRuns,
   normalizeMermaidFenceLanguages,
   normalizeShortCodeFenceClosers,
   protectMathSpans,
+  repairMathSyntax,
 } from "./ItemMarkdown";
 
 describe("normalizeLatexMathDelimiters", () => {
@@ -163,6 +165,69 @@ describe("escapeBareAngleTags", () => {
     // (and render back as literal `<` in the paragraph path).
     expect(escapeBareAngleTags("\\[x <tag> y\\]")).toBe("\\[x &lt;tag> y\\]");
     expect(escapeBareAngleTags("\\(x<t\\)")).toBe("\\(x&lt;t\\)");
+  });
+});
+
+describe("normalizeMathDollarRuns", () => {
+  it("pairs a double-dollar opener with a single-dollar closer", () => {
+    expect(normalizeMathDollarRuns("$$\\mathbf{F} = \\alpha \\cdot \\mathbf{W}$")).toBe(
+      "$$\\mathbf{F} = \\alpha \\cdot \\mathbf{W}$$",
+    );
+  });
+
+  it("pairs a single-dollar opener with a double-dollar closer", () => {
+    expect(normalizeMathDollarRuns("$\\mathcal{J}(\\theta) = \\mathbb{E}_{q}[x]$$")).toBe(
+      "$$\\mathcal{J}(\\theta) = \\mathbb{E}_{q}[x]$$",
+    );
+  });
+
+  it("closes an unclosed standalone $$ line when no later $$ line exists", () => {
+    expect(normalizeMathDollarRuns("$$\\frac{a}{b} = c")).toBe("$$\\frac{a}{b} = c$$");
+  });
+
+  it("leaves balanced blocks, prose dollars, code, and multi-line openers alone", () => {
+    const balanced = "$$x^2$$\n\n$$\ny_i = w_i\n$$";
+    expect(normalizeMathDollarRuns(balanced)).toBe(balanced);
+    expect(normalizeMathDollarRuns("costs $5 and $10 here")).toBe("costs $5 and $10 here");
+    expect(normalizeMathDollarRuns("```\n$$x^2$\n```")).toBe("```\n$$x^2$\n```");
+    expect(normalizeMathDollarRuns("`$$x^2$`")).toBe("`$$x^2$`");
+    // A `$$` opener with content may be closed by a later `$$` line — do not
+    // split a legitimate multi-line flow block.
+    const multiLine = "$$\\frac{a}{b} +\nc$$\n";
+    expect(normalizeMathDollarRuns(multiLine)).toBe(multiLine);
+  });
+
+  it("keeps math-signal-less dollar lines as prose", () => {
+    expect(normalizeMathDollarRuns("$$price is 5$")).toBe("$$price is 5$");
+  });
+});
+
+describe("repairMathSyntax", () => {
+  it("appends missing braces at the end of a truncated display formula", () => {
+    expect(
+      repairMathSyntax(
+        "$$\\mathcal{J}(\\theta) = \\mathbb{E}_{\\substack{q \\sim P(Q)}} \\left[x\\right]$$",
+      ),
+    ).toBe("$$\\mathcal{J}(\\theta) = \\mathbb{E}_{\\substack{q \\sim P(Q)}} \\left[x\\right]$$");
+    const broken = "$$\\mathbb{E}_{\\substack{q \\sim P(Q), \\\\ x} \\left[y\\right]$$";
+    expect(repairMathSyntax(broken)).toBe(
+      "$$\\mathbb{E}_{\\substack{q \\sim P(Q), \\\\ x} \\left[y\\right]}$$",
+    );
+  });
+
+  it("closes open braces and dangling \\left inside a formula", () => {
+    expect(repairMathSyntax("$$\\mathbb{E}_{\\substack{a, \\\\ b} = \\left(x$$")).toBe(
+      "$$\\mathbb{E}_{\\substack{a, \\\\ b} = \\left(x} \\right.$$",
+    );
+    expect(repairMathSyntax("$$\\frac{a}{b} = \\left( c$$")).toBe(
+      "$$\\frac{a}{b} = \\left( c \\right.$$",
+    );
+  });
+
+  it("ignores escaped braces, balanced spans, prose, and code", () => {
+    expect(repairMathSyntax("$\\{a\\}$ and $x_{1}$")).toBe("$\\{a\\}$ and $x_{1}$");
+    expect(repairMathSyntax("costs $5 then $10")).toBe("costs $5 then $10");
+    expect(repairMathSyntax("```\n$$x_{1$$\n```")).toBe("```\n$$x_{1$$\n```");
   });
 });
 

@@ -368,6 +368,116 @@ function convertLatexDelimiters(text: string): string {
   return changed ? out : text;
 }
 
+/**
+ * Models occasionally emit display-math lines whose opening and closing
+ * dollar runs disagree (`$$\mathbf{F}…$` or `$\mathcal{J}…$$`), or drop the
+ * closer entirely (`$$x+y`). remark-math pairs runs by exact arity, so the
+ * mismatch is never parsed and the `$$` markers leak into the rendered
+ * output. Repair standalone math lines only — gated on a LaTeX signal and on
+ * the absence of a later `$$` line, so multi-line `$$` blocks, fenced/indented
+ * code, inline code, and currency text stay untouched.
+ */
+export function normalizeMathDollarRuns(text: string): string {
+  if (!text.includes("$")) return text;
+  const lines = text.match(/[^\r\n]*(?:\r\n|\n|\r|$)/g);
+  if (!lines) return text;
+  const bodies: string[] = [];
+  const fenced: boolean[] = [];
+  {
+    let inFence = false;
+    for (const line of lines) {
+      const body = line.replace(/(?:\r\n|\n|\r)$/u, "");
+      if (/^ {0,3}(?:```|~~~)/.test(body)) inFence = !inFence;
+      bodies.push(body);
+      fenced.push(inFence);
+    }
+  }
+  const laterHasDoubleDollar: boolean[] = new Array<boolean>(lines.length).fill(false);
+  for (let i = lines.length - 2; i >= 0; i -= 1) {
+    laterHasDoubleDollar[i] =
+      laterHasDoubleDollar[i + 1]! || (!fenced[i + 1]! && bodies[i + 1]!.includes("$$"));
+  }
+  let changed = false;
+  const out = [...lines];
+  for (let i = 0; i < lines.length; i += 1) {
+    if (fenced[i]) continue;
+    const line = lines[i]!;
+    const newlineMatch = line.match(/(\r\n|\n|\r)$/);
+    const newline = newlineMatch?.[0] ?? "";
+    const rawBody = newlineMatch ? line.slice(0, -newlineMatch[0].length) : line;
+    const body = rawBody.replace(/\s+$/u, "");
+    const indent = body.match(/^ {0,3}(?=\$)/)?.[0];
+    if (indent === undefined) continue;
+    const trimmed = body.slice(indent.length);
+    if (trimmed.startsWith("$$$") || !trimmed.startsWith("$")) continue;
+    const isDouble = trimmed.startsWith("$$");
+    const inner = trimmed.slice(isDouble ? 2 : 1);
+    let fixed: string | null = null;
+    if (isDouble && /(?<!\$)\$$/u.test(trimmed) && !inner.slice(0, -1).includes("$$")) {
+      fixed = `${trimmed}$`;
+    } else if (!isDouble && /\$\$$/u.test(trimmed) && !inner.slice(0, -2).includes("$$")) {
+      fixed = `$${trimmed}`;
+    } else if (
+      isDouble &&
+      inner.trim().length > 0 &&
+      !inner.includes("$") &&
+      !laterHasDoubleDollar[i]
+    ) {
+      fixed = `${trimmed}$$`;
+    }
+    if (fixed === null || !LATEX_MATH_SIGNAL_RE.test(inner.replace(/\$+$/u, ""))) continue;
+    out[i] = `${indent}${fixed}${newline}`;
+    changed = true;
+  }
+  return changed ? out.join("") : text;
+}
+
+const MATH_SPAN_FOR_REPAIR_RE = /\$\$([\s\S]+?)\$\$|\$([^\s$][^$\n]*?[^\s$]|[^\s$])\$(?!\d)/gu;
+
+/**
+ * Truncated formulas reach KaTeX with unbalanced braces or a `\left` whose
+ * `\right` never arrived (e.g. `\mathbb{E}_{\substack{…` missing the final
+ * `}`); the parse error then drops the whole formula back to raw source.
+ * Append the missing closers at the span tail — braces first so a dangling
+ * `\left(` still closes at the top level — and return the body unchanged when
+ * it is already balanced.
+ */
+export function repairMathSyntax(text: string): string {
+  if (!text.includes("$")) return text;
+  let changed = false;
+  const converted = splitSegmentsOutsideFences(text).map((segment) => {
+    if (segment.inFence) return segment.text;
+    return segment.text.replace(MATH_SPAN_FOR_REPAIR_RE, (match, displayBody, inlineBody) => {
+      const body = (displayBody ?? inlineBody) as string;
+      const repaired = repairMathBody(body);
+      if (repaired === body) return match;
+      changed = true;
+      const marker = match.startsWith("$$") ? "$$" : "$";
+      return `${marker}${repaired}${marker}`;
+    });
+  });
+  return changed ? converted.join("") : text;
+}
+
+function repairMathBody(body: string): string {
+  let depth = 0;
+  for (let i = 0; i < body.length; i += 1) {
+    const ch = body[i];
+    if (ch === "\\") {
+      i += 1;
+      continue;
+    }
+    if (ch === "{") depth += 1;
+    else if (ch === "}") depth -= 1;
+  }
+  let out = body;
+  if (depth > 0) out += "}".repeat(depth);
+  const lefts = (out.match(/\\left/g) ?? []).length;
+  const rights = (out.match(/\\right/g) ?? []).length;
+  if (lefts > rights) out += " \\right.".repeat(lefts - rights);
+  return out;
+}
+
 export function normalizeShortCodeFenceClosers(text: string): string {
   let inBacktickFence = false;
   let changed = false;

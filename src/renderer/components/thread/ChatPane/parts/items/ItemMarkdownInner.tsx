@@ -42,9 +42,11 @@ import {
   escapeBareAngleTags,
   normalizeGfmTableSeparators,
   normalizeLatexMathDelimiters,
+  normalizeMathDollarRuns,
   normalizeMermaidFenceLanguages,
   normalizeShortCodeFenceClosers,
   protectMathSpans,
+  repairMathSyntax,
 } from "./ItemMarkdown";
 import { imageViewSourceFromMarkdownImage } from "./imageViewSource";
 import { normalizeHighlightLanguage } from "./languageDetect";
@@ -139,7 +141,11 @@ export default function ItemMarkdownInner({ text }: ItemMarkdownInnerProps) {
       normalizeMermaidFenceLanguages(
         normalizeGfmTableSeparators(
           protectMathSpans(
-            normalizeLatexMathDelimiters(normalizeShortCodeFenceClosers(escapeBareAngleTags(text))),
+            repairMathSyntax(
+              normalizeLatexMathDelimiters(
+                normalizeMathDollarRuns(normalizeShortCodeFenceClosers(escapeBareAngleTags(text))),
+              ),
+            ),
           ),
         ),
       ),

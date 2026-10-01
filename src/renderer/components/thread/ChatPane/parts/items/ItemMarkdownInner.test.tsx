@@ -83,6 +83,45 @@ $$`}
     expect(container.querySelector(".katex-error")).toBeNull();
   });
 
+  it("renders a display formula whose $$ opener is closed by a single $", async () => {
+    // Real-world regression: models emit `$$\mathbf{F}…$` (double open,
+    // single close). remark-math never pairs the runs, so the `$$` leaked
+    // into the output as literal text.
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={
+            "采用可学习的动态门控路由机制：\n\n$$\\mathbf{F}_{\\text{fused}} = \\alpha \\cdot \\left( \\mathbf{W}_g \\mathbf{F}_{\\text{global}} \\right) + (1 - \\alpha) \\cdot \\left( \\mathbf{W}_d \\mathbf{F}_{\\text{dynamic}} \\right)$\n\n其中门控权重 $\\alpha$ 自适应生成。"
+          }
+        />
+      </AppProvider>,
+    );
+
+    await waitFor(() =>
+      expect(container.querySelectorAll(".katex").length).toBeGreaterThanOrEqual(2),
+    );
+    expect(container.querySelector(".katex-error")).toBeNull();
+    expect(container.textContent).not.toContain("$$");
+  });
+
+  it("renders a display formula missing its closing brace", async () => {
+    // Real-world regression: `\\mathbb{E}_{\\substack{…}` dropped the final
+    // `}`, KaTeX threw, and the raw LaTeX source was shown instead.
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={
+            "$$\\mathcal{J}_{\\text{GRPO}}(\\theta) = \\mathbb{E}_{\\substack{q \\sim P(Q), \\\\ \\{o_i\\}_{i=1}^G \\sim \\pi_{\\theta_{\\text{old}}(O|q)}} \\left[ \\frac{1}{G} \\sum_{i=1}^G \\hat{A}_i \\right]$$"
+          }
+        />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelectorAll(".katex")).toHaveLength(1));
+    expect(container.querySelector(".katex-error")).toBeNull();
+    expect(container.textContent).not.toContain("$$");
+  });
+
   it("renders classic \\[ ... \\] display delimiters through KaTeX", async () => {
     const { container } = render(
       <AppProvider>
