@@ -1,4 +1,7 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectLocation } from "@/shared/contracts";
 
 const authFileMock = vi.hoisted(() => ({ exists: false }));
@@ -15,6 +18,9 @@ const buildAgentCommandMock = vi.hoisted(() =>
 const probeAcpCapabilitiesMock = vi.hoisted(() =>
   vi.fn<(...args: unknown[]) => Promise<unknown>>(),
 );
+const readDetectedVersionMock = vi.hoisted(() =>
+  vi.fn<(...args: unknown[]) => Promise<string | undefined>>(),
+);
 
 vi.mock("node:fs", async (importOriginal) => {
   const actual = await importOriginal<typeof import("node:fs")>();
@@ -29,7 +35,11 @@ vi.mock("node:fs", async (importOriginal) => {
 
 vi.mock("../base", async () => {
   const actual = await vi.importActual<typeof import("../base")>("../base");
-  return { ...actual, buildAgentCommand: buildAgentCommandMock };
+  return {
+    ...actual,
+    buildAgentCommand: buildAgentCommandMock,
+    readDetectedVersion: readDetectedVersionMock,
+  };
 });
 
 vi.mock("../acp", async () => {
@@ -87,6 +97,7 @@ beforeEach(() => {
     env: { PATH: "/Users/demo/.local/share/fnm/node-versions/v24/bin:/usr/bin:/bin" },
   });
   probeAcpCapabilitiesMock.mockResolvedValue(undefined);
+  readDetectedVersionMock.mockResolvedValue("1.0.46");
 });
 
 describe("Grok capability detection", () => {
@@ -307,5 +318,55 @@ describe("Grok auth file detection", () => {
     await expect(
       probe?.({ location: { kind: "posix", path: "/repo" }, executablePath: "grok" }),
     ).resolves.toBe("authenticated");
+  });
+});
+
+describe("grokVersionProbe (managed account profiles)", () => {
+  const ext = process.platform === "win32" ? ".exe" : "";
+  const bin = process.platform === "win32" ? "grok.exe" : "grok";
+  const dirs: string[] = [];
+  const winLocation: ProjectLocation = { kind: "windows", path: "C:\\repo" };
+
+  function makeProfile(accountsRoot: string, name: string, versions: string[]): void {
+    const dir = join(accountsRoot, name, "bin");
+    mkdirSync(dir, { recursive: true });
+    for (const v of versions) writeFileSync(join(dir, `grok-${v}${ext}`), `v${v}`);
+    writeFileSync(join(dir, bin), "canonical");
+  }
+
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("reports the oldest managed binary, not the freshly updated wrapper", async () => {
+    const baseDir = mkdtempSync(join(tmpdir(), "grok-detect-"));
+    dirs.push(baseDir);
+    const accountsRoot = join(baseDir, "craftstation-accounts");
+    makeProfile(accountsRoot, "profile-a", ["1.0.5"]);
+    makeProfile(accountsRoot, "profile-b", ["1.0.25", "1.0.46"]);
+
+    const version = await grokDetectionSpec.versionProbe?.({
+      location: winLocation,
+      executablePath: "C:\\grok.cmd",
+      baseDir,
+    });
+
+    expect(version).toBe("1.0.5");
+  });
+
+  it("falls back to the wrapper version when no managed profile has a binary", async () => {
+    const baseDir = mkdtempSync(join(tmpdir(), "grok-detect-"));
+    dirs.push(baseDir);
+    mkdirSync(join(baseDir, "craftstation-accounts", "profile-empty"), {
+      recursive: true,
+    });
+
+    const version = await grokDetectionSpec.versionProbe?.({
+      location: winLocation,
+      executablePath: "C:\\grok.cmd",
+      baseDir,
+    });
+
+    expect(version).toBe("1.0.46");
   });
 });

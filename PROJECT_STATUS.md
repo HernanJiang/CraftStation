@@ -1,3 +1,13 @@
+## 线程标题归属 + Grok 托管二进制更新 + CLI 自动更新（2026-10-01）
+
+- **线程命名**：`Thread` 新增 `titleSource`（`fallback`/`agent`/`user`），迁移 v48 `threads.title_source`（存量行 NULL→视为 `user`、锁定防覆盖）。`renameThread` 原子守卫：`agent` 来源只可替换 `fallback`/`agent`；用户改名无条件获胜。`titleGen` 只在 `fallback` 时写——用户改名后到达的迟来 AI 标题不再覆盖。schema/migration/rowMapper/sync upsert/threadSyncBroadcast diff/appThreadLauncher/threadCommands 全链路带字段。
+- **Grok 更新失效根因（进程树+npm shim 取证）**：账号池 profile 的 `GROK_HOME/bin/grok.exe` 是 `grok-bootstrap.js` 的首选执行目标（**不做版本检查**，只在缺失时解包）——7 个 profile 钉着 1.0.5/1.0.25，全局 `grok update` 永远不会碰它们 → 426 `outdated` 且右上角菜单因比错版本不显示 Grok。
+- **修复**：`detectProbe` 链路新增 `baseDir`；`grokVersionProbe` 报托管 profile 最低版本（真实运行版本）；适配器新增 `postUpdate` seam——`agentRegistryService` 更新成功后先跑 postUpdate 再刷新，Grok 实现 `syncManagedGrokBinaries`（`managedGrokBinaries.ts`：枚举 `craftstation-accounts/profile-*/bin`、`grok-<semver>` 版本探测跳过目录项、复制新二进制覆盖 canonical，锁文件 rename-aside 重试、失败 profile 报告为 stale 不阻塞其余）；更新命令可携带 `command.env`（不透 runtime `baseSpawnEnv`）。
+- **其他 CLI 排查结论**：账号池 `bin/` 里只有 Grok 放真二进制；其余 profile 仅 `rg.exe` 等捆绑工具，`*_HOME` 均为配置目录非二进制目录——无同类 bug，`postUpdate` 是通用 seam 供未来复用。
+- **自动更新**：`autoUpdateAgentClis`（默认 true）入 shared schema/默认值/store setter/持久化；`设置 → 智能体 → 一般` 新增「Auto-update CLIs」开关（`AgentCliAutoUpdateSection`，zh-CN 已翻译）；`CliUpdateMenu` mount auto-check 发现更新时按 `kind:env:distro` 去重串行跑 `runCliUpdateBinary`（同一管线含 postUpdate+刷新+toast），关闭时只停自动路径。
+- **README**：新增「CLI updates that actually reach your sessions」一节（自动更新开关+托管 profile 语义），Install 产物链接从 1.5.11 更正为 1.7.1。
+- **验证**：typecheck 0 错；lint（普通+type-aware）0 错；全量测试 1109 文件通过——唯一失败 `compatibilityRuntimeAdapter.e2e`（打真实 xAI 上游的环境依赖用例，与改动无关）。新增：托管二进制同步/版本探测 12+、grok detection versionProbe 2、updateAgent env 隔离、CliUpdateMenu 自动更新 2、titleSource 全链路（appStore/threadSlice/titleGen/projectsThreads）多组。
+
 ## Antigravity 思考/工具时间线错位 + 正文重复修复（2026-10-01）
 
 - **用户反馈**：Gemini 线程里思考/叙述文本全挤在上方、工具调用全挤在下方；最终回复与正文还会重复输出两遍（muse 报告同类，muse 车道按 provider `itemId` 分条、机制不同，需真实复现线程再查）。

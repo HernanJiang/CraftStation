@@ -90,6 +90,7 @@ function makeService(detectInstall: AgentAdapter["detectInstall"]): {
       adapters: new Map([["codex", adapter]]),
       settingsPath: join(dir, "settings.json"),
       statusCachePath,
+      baseDir: dir,
       emit: vi.fn<(event: SupervisorEvent) => void>(),
     }),
     statusCachePath,
@@ -110,6 +111,7 @@ function makeMultiAdapterService(adapters: AgentAdapter[]): {
     adapters: new Map(adapters.map((a) => [a.kind, a])),
     settingsPath,
     statusCachePath,
+    baseDir: dir,
     emit,
   });
   return { service, statusCachePath, settingsPath, emit };
@@ -355,6 +357,7 @@ HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss\\{333}
     expect(detectInstall).toHaveBeenCalledWith({
       envKind: process.platform === "win32" ? "windows" : "posix",
       agentSettings: initialSettings,
+      baseDir: dirname(settingsPath),
     });
     expect(detectInstall).toHaveBeenCalledWith(
       expect.objectContaining({

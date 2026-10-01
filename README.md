@@ -77,14 +77,20 @@ These inject like any other MCP, filtered by harness compatibility at launch.
 
 Skills, Git / worktrees, and MCP servers are not scattered across each CLI’s config folder. CraftStation is the management plane: enable, disable, scope, and project binding live in one place. Each harness only receives the resolved capability set.
 
+### CLI updates that actually reach your sessions
+
+The titlebar’s update menu checks every installed CLI against upstream and updates it in place. **Settings → Agents → General → Auto-update CLIs** (on by default) applies discovered updates automatically through the same pipeline — turn it off to keep checks read-only and update manually.
+
+Version reporting reflects the binary your sessions really launch: for providers with account-pool homes (e.g. Grok’s per-account `GROK_HOME`), CraftStation detects the managed copy inside each profile — not just the global PATH install — and propagates a successful update into every managed profile, so a pool account can’t stay pinned to an old build.
+
 ## Install
 
 Download the installer or the portable build from GitHub Releases, not from the source tree.
 
-**Current build: 1.5.11**
+**Current build: 1.7.1**
 
-- Installer: [CraftStation-Setup-1.5.11-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.11/CraftStation-Setup-1.5.11-x64.exe)
-- Portable: [CraftStation-Portable-1.5.11-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.5.11/CraftStation-Portable-1.5.11-x64.exe)
+- Installer: [CraftStation-Setup-1.7.1-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.7.1/CraftStation-Setup-1.7.1-x64.exe)
+- Portable: [CraftStation-Portable-1.7.1-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.7.1/CraftStation-Portable-1.7.1-x64.exe)
 
 ([GitHub Releases](https://github.com/HernanJiang/CraftStation/releases))
 

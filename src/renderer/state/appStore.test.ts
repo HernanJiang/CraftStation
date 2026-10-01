@@ -327,6 +327,70 @@ describe("appStore runtime config sync", () => {
     });
   });
 
+  describe("thread title provenance", () => {
+    function newThread(title?: string) {
+      const project = useAppStore.getState().addProject({
+        kind: "windows",
+        path: "C:\\repo",
+      });
+      return useAppStore.getState().createThread({
+        projectId: project.id,
+        agentKind: "codex",
+        config: { model: "gpt-5.4" },
+        prompt: "hello",
+        ...(title ? { title } : {}),
+      });
+    }
+
+    it("marks prompt-derived titles as fallback and explicit titles as user", () => {
+      expect(newThread().titleSource).toBe("fallback");
+      expect(newThread("My chat").titleSource).toBe("user");
+    });
+
+    it("lets the agent title replace a fallback exactly once", () => {
+      const thread = newThread();
+      useAppStore.getState().renameThread(thread.id, "Summarised topic", "agent");
+      const stored = useAppStore.getState().threads.find((t) => t.id === thread.id);
+      expect(stored).toMatchObject({ title: "Summarised topic", titleSource: "agent" });
+    });
+
+    it("a user rename locks the title against later agent writes", () => {
+      const thread = newThread();
+      useAppStore.getState().renameThread(thread.id, "My title");
+      useAppStore.getState().renameThread(thread.id, "Late agent title", "agent");
+      const stored = useAppStore.getState().threads.find((t) => t.id === thread.id);
+      expect(stored).toMatchObject({ title: "My title", titleSource: "user" });
+    });
+
+    it("user rename wins even after an agent title already landed", () => {
+      const thread = newThread();
+      useAppStore.getState().renameThread(thread.id, "Agent title", "agent");
+      useAppStore.getState().renameThread(thread.id, "Mine");
+      const stored = useAppStore.getState().threads.find((t) => t.id === thread.id);
+      expect(stored).toMatchObject({ title: "Mine", titleSource: "user" });
+    });
+
+    it("agent writes may refresh an existing agent title but not a legacy untitled-source row", () => {
+      const thread = newThread();
+      useAppStore.getState().renameThread(thread.id, "Agent title", "agent");
+      useAppStore.getState().renameThread(thread.id, "Agent title v2", "agent");
+      expect(useAppStore.getState().threads.find((t) => t.id === thread.id)?.title).toBe(
+        "Agent title v2",
+      );
+
+      // Legacy row: titleSource stripped (pre-migration shape) → locked.
+      useAppStore.setState((state) => ({
+        threads: state.threads.map((t) =>
+          t.id === thread.id ? { ...t, titleSource: undefined } : t,
+        ),
+      }));
+      useAppStore.getState().renameThread(thread.id, "Sneaky overwrite", "agent");
+      expect(useAppStore.getState().threads.find((t) => t.id === thread.id)?.title).toBe(
+        "Agent title v2",
+      );
+    });
+  });
+
   it("accepts a real runtime config change after the pending edit is submitted", () => {
     const project = useAppStore.getState().addProject({
       kind: "windows",

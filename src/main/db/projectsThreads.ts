@@ -100,6 +100,7 @@ export function dbUpsertThread(thread: Thread, sortOrder: number): void {
       id: thread.id,
       projectId: thread.projectId,
       title: thread.title,
+      titleSource: thread.titleSource ?? null,
       agentKind: thread.agentKind,
       agentInstanceId: thread.agentInstanceId ?? null,
       config: JSON.stringify(thread.config),
@@ -138,6 +139,7 @@ export function dbUpsertThread(thread: Thread, sortOrder: number): void {
       target: schema.threads.id,
       set: {
         title: thread.title,
+        titleSource: thread.titleSource ?? null,
         agentKind: thread.agentKind,
         agentInstanceId: thread.agentInstanceId ?? null,
         config: JSON.stringify(thread.config),

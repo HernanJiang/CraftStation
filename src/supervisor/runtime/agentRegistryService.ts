@@ -314,6 +314,18 @@ export class AgentRegistryService {
           })
         : await runUpdateCommandWithFallback(adapter, status, envContext);
     if (result.ok) {
+      // Provider-owned post-update step (e.g. Grok propagating the fresh
+      // binary into per-account managed homes). Runs before the status
+      // refresh so re-detection already sees the synced binaries.
+      const postUpdateNote = await adapter
+        .postUpdate?.(envContext, status)
+        .catch((error: unknown) => {
+          console.warn(`[supervisor] postUpdate(${adapter.kind}) failed:`, error);
+          return undefined;
+        });
+      if (postUpdateNote) {
+        result.output = [result.output, postUpdateNote].filter(Boolean).join("\n");
+      }
       // Drop the cached executable path so the next detection probe runs a
       // fresh `command -v` / `where.exe`. Without this we keep returning the
       // old path; for most package managers the path doesn't change after

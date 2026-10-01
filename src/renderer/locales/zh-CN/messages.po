@@ -1623,6 +1623,10 @@ msgstr "自动选择"
 msgid "Auto-show terminal panel"
 msgstr "自动显示终端面板"
 
+#: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
+msgid "Auto-update CLIs"
+msgstr "自动更新 CLI"
+
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconPicker.tsx
 msgid "Automatic"
 msgstr "自动"
@@ -5639,13 +5643,13 @@ msgstr "Git 审核模式"
 
 #. placeholder {0}: props.projectName
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Git status for {0}"
-msgstr "{0}的 Git 状态"
+#~ msgid "Git status for {0}"
+#~ msgstr "{0}的 Git 状态"
 
 #. placeholder {0}: props.projectName
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Git status for {0}: not a Git repository"
-msgstr "{0}的 Git 状态：不是 Git 存储库"
+#~ msgid "Git status for {0}: not a Git repository"
+#~ msgstr "{0}的 Git 状态：不是 Git 存储库"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Git 工具"
@@ -8103,8 +8107,8 @@ msgid "Not a git repository"
 msgstr "不是 git 存储库"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Not a Git repository"
-msgstr "不是 Git 存储库"
+#~ msgid "Not a Git repository"
+#~ msgstr "不是 Git 存储库"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "not a repo"
@@ -8388,8 +8392,8 @@ msgid "Open fullscreen"
 msgstr "全屏打开"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Open Git panel"
-msgstr "打开 Git 面板"
+#~ msgid "Open Git panel"
+#~ msgstr "打开 Git 面板"
 
 #: src/renderer/commands/registry.ts
 msgid "Open Git Review"
@@ -13865,6 +13869,10 @@ msgstr "新功能"
 msgid "What's new in CraftStation, newest first."
 msgstr "CraftStation 的新功能，最新优先。"
 
+#: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
+msgid "When a version check finds a newer release, update each agent CLI automatically — including account-pool managed binaries. Manual update stays available either way."
+msgstr "版本检查发现新版本时，自动更新各智能体 CLI（包括账号池托管的二进制）。手动更新始终可用。"
+
 #: src/renderer/views/SettingsOverlay/parts/SearchSettings.tsx
 msgid "When enabled, search respects <0>.gitignore</0> entries."
 msgstr "启用后，搜索会考虑 <0>.gitignore</0> 条目。"
@@ -14107,9 +14115,7 @@ msgstr "工作树存储位置"
 msgid "Worktree threads are marked done as soon as CraftStation sees their pull request merge. Threads mid-turn wait until the turn finishes."
 msgstr "一旦 CraftStation 检测到拉取请求已合并，工作树线程就会标记为完成。处于对话轮次中的线程会等到该轮次结束。"
 
-#. placeholder {0}: props.projectName
 #. placeholder {0}: props.worktreeBranch
-#: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/WorktreeGroupHeader.tsx
 msgid "Worktree: {0}"
 msgstr "工作树：{0}"

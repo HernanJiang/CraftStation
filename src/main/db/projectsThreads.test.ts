@@ -669,6 +669,29 @@ describe("projectsThreads (real sqlite round-trip)", () => {
     expect(notificationCount).toBe(2);
   });
 
+  it("persists titleSource through upsert and bulk sync, and treats missing as locked", () => {
+    dbUpsertThread(testThread({ title: "Placeholder", titleSource: "fallback" }), 0);
+    expect(dbGetThread("thread-1")?.titleSource).toBe("fallback");
+
+    dbUpsertThread(testThread({ title: "Renamed", titleSource: "user" }), 0);
+    expect(dbGetThread("thread-1")?.titleSource).toBe("user");
+
+    dbSyncAll(
+      [dbGetProject("project-1")!],
+      [testThread({ title: "Agent title", titleSource: "agent" })],
+      JSON.stringify({ kind: "home" }),
+    );
+    expect(dbGetThread("thread-1")?.titleSource).toBe("agent");
+
+    // Legacy row shape (column NULL) must round-trip as absent → locked.
+    dbSyncAll(
+      [dbGetProject("project-1")!],
+      [testThread({ title: "Legacy" })],
+      JSON.stringify({ kind: "home" }),
+    );
+    expect(dbGetThread("thread-1")?.titleSource).toBeUndefined();
+  });
+
   it("notifies when a live thread is archived or deleted", () => {
     const unavailable: string[] = [];
     const stop = onThreadBindingUnavailable((threadId) => unavailable.push(threadId));

@@ -109,6 +109,8 @@ interface SharedSettingsState extends SharedSettings {
   setStaleThreadUnloadMinutes: (value: number) => void;
   setTurnRetryMaxAttempts: (value: number) => void;
   setTurnRetryIntervalSeconds: (value: number) => void;
+  /** 自动更新各 agent CLI（默认开启；仅控制后台自动路径，手动更新不受影响）。 */
+  setAutoUpdateAgentClis: (value: boolean) => void;
   setAutoArchiveDoneAfterDays: (value: number) => void;
   setArchiveRetention: (value: SharedSettings["archiveRetention"]) => void;
   setScrollSpeed: (value: number) => void;
@@ -557,6 +559,11 @@ export const useSharedSettings = create<SharedSettingsState>()((set, get) => ({
   },
   setTurnRetryIntervalSeconds: (turnRetryIntervalSeconds) => {
     set({ turnRetryIntervalSeconds });
+    persistSettings(selectSharedSettings(get()));
+  },
+  setAutoUpdateAgentClis: (autoUpdateAgentClis) => {
+    if (get().autoUpdateAgentClis === autoUpdateAgentClis) return;
+    set({ autoUpdateAgentClis });
     persistSettings(selectSharedSettings(get()));
   },
   setAutoArchiveDoneAfterDays: (autoArchiveDoneAfterDays) => {
@@ -1117,6 +1124,7 @@ function selectSharedSettings(state: SharedSettingsState): SharedSettingsInput {
     staleThreadUnloadMinutes: state.staleThreadUnloadMinutes,
     turnRetryMaxAttempts: state.turnRetryMaxAttempts,
     turnRetryIntervalSeconds: state.turnRetryIntervalSeconds,
+    autoUpdateAgentClis: state.autoUpdateAgentClis,
     autoArchiveDoneAfterDays: state.autoArchiveDoneAfterDays,
     archiveRetention: state.archiveRetention,
     scrollSpeed: state.scrollSpeed,

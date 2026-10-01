@@ -168,6 +168,8 @@ export class InterHarnessMessageBus {
       id: threadId,
       projectId,
       title: `${harness}:${nativeId}`,
+      // Technical placeholder — not user-authored; a later title pass may refine it.
+      titleSource: "fallback",
       agentKind: harness,
       config: { model: CLAIM_MODEL_PLACEHOLDER },
       status: "inactive",

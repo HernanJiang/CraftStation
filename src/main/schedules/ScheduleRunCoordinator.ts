@@ -205,6 +205,8 @@ export class ScheduleRunCoordinator {
       id: threadId,
       projectId: project.id,
       title: task.name,
+      // The schedule name is the thread title — authoritative, never auto-titled.
+      titleSource: "user",
       agentKind: task.agentKind,
       config,
       status: "launching",

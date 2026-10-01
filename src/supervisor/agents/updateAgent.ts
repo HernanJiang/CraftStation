@@ -77,6 +77,7 @@ export async function runUpdateCommand(
   const location = detectProbeLocation(envContext);
   const result = await readAgentCommandOutput(location, command.binary, command.args, {
     timeoutMs: 5 * 60 * 1000,
+    ...(command.env ? { env: command.env } : {}),
   });
 
   const combined = [result.stdout, result.stderr].filter((s) => s.length > 0).join("\n");

@@ -23,6 +23,7 @@ import { TopShortcutBar } from "./TopShortcuts/TopShortcutBar";
 import { useUpdateStore, type UpdatePhase } from "@/renderer/state/updateStore";
 import { useScheduleStore } from "@/renderer/state/scheduleStore";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { envLabelForStatus } from "@/renderer/utils/acpRegistryAuth";
 import { extractAcpGenericInstanceId, type AgentStatus } from "@/shared/contracts";
 import { isNewerVersion } from "@/shared/agents/updateResolver";
@@ -72,6 +73,7 @@ export function CliUpdateMenu() {
   const inFlightRef = useRef(0);
   const statusesRef = useRef<{ key: string; status: AgentStatus }[]>([]);
   const autoCheckedKeysetRef = useRef<string | null>(null);
+  const autoUpdatedRef = useRef<Set<string>>(new Set());
   const statuses = useMemo(() => {
     const byKey = new Map<string, AgentStatus>();
     for (const status of [...agentStatuses, ...wslAgentStatuses]) {
@@ -170,6 +172,38 @@ export function CliUpdateMenu() {
     autoCheckedKeysetRef.current = keyset;
     void runCheck();
   }, [statuses, runCheck]);
+
+  const autoUpdateAgentClis = useSharedSettings((state) => state.autoUpdateAgentClis);
+
+  // Settings → Agents · General「自动更新 CLI」(default on): run each newly
+  // discovered update through the same path as a manual click — same toasts,
+  // same in-flight guard, same post-update refresh. Deduped by key@latest so
+  // a failed update isn't retried on every status churn; a later newer
+  // release gets a fresh attempt.
+  useEffect(() => {
+    if (!autoUpdateAgentClis) return;
+    const pending = updates.filter(
+      (entry) => !autoUpdatedRef.current.has(`${entry.key}@${entry.latest}`),
+    );
+    if (pending.length === 0) return;
+    for (const entry of pending) {
+      autoUpdatedRef.current.add(`${entry.key}@${entry.latest}`);
+    }
+    void (async () => {
+      // Sequential: parallel `npm i -g` calls would race the same global dir.
+      for (const entry of pending) {
+        await runCliUpdateBinary({
+          key: entry.key,
+          agentKind: entry.status.kind,
+          label: entry.status.label,
+          latest: entry.latest,
+        });
+      }
+      // Re-check once so landed updates drop off the menu; failed ones stay
+      // listed but are marked attempted — no silent retry loop.
+      await runCheck({ force: true });
+    })();
+  }, [updates, autoUpdateAgentClis, runCheck]);
 
   const updateOne = async (entry: CliUpdate) => {
     if (updatingKey) return;

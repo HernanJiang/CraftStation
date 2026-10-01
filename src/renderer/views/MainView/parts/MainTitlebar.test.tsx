@@ -118,6 +118,7 @@ vi.mock("@/renderer/state/updateStore", () => ({
   useUpdateStore: Object.assign((selector: (state: unknown) => unknown) => selector(updateState), {
     getState: () => ({
       phase: updateStoreMock.state.phase,
+      agentUpdates: {},
       setAvailableCliUpdates: vi.fn<() => void>(),
       beginAgentUpdate: vi.fn<() => void>(),
       finishAgentUpdate: vi.fn<() => void>(),
@@ -220,6 +221,9 @@ describe("MainTitlebar CLI 更新入口", () => {
     updateStoreMock.reset();
     toastMock.danger.mockReset();
     toastMock.success.mockReset();
+    // These tests assert exact check counts — disable the Agents · General
+    // auto-update path so discovered updates don't re-trigger checks.
+    useSharedSettings.setState({ autoUpdateAgentClis: false });
   });
 
   it("点击版本号触发手动应用更新检查并在已是最新时提示", async () => {

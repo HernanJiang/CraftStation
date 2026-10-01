@@ -1618,6 +1618,10 @@ msgstr "自動選択"
 msgid "Auto-show terminal panel"
 msgstr "端末パネルの自動表示"
 
+#: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
+msgid "Auto-update CLIs"
+msgstr ""
+
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconPicker.tsx
 msgid "Automatic"
 msgstr "自動"
@@ -5634,13 +5638,13 @@ msgstr "Git レビュー モード"
 
 #. placeholder {0}: props.projectName
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Git status for {0}"
-msgstr "{0}の Git ステータス"
+#~ msgid "Git status for {0}"
+#~ msgstr "{0}の Git ステータス"
 
 #. placeholder {0}: props.projectName
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Git status for {0}: not a Git repository"
-msgstr "{0}の Git ステータス: Git リポジトリではありません"
+#~ msgid "Git status for {0}: not a Git repository"
+#~ msgstr "{0}の Git ステータス: Git リポジトリではありません"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Git 工具"
@@ -8094,8 +8098,8 @@ msgid "Not a git repository"
 msgstr "git リポジトリではありません"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Not a Git repository"
-msgstr "Git リポジトリではありません"
+#~ msgid "Not a Git repository"
+#~ msgstr "Git リポジトリではありません"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "not a repo"
@@ -8379,8 +8383,8 @@ msgid "Open fullscreen"
 msgstr "全画面で開く"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Open Git panel"
-msgstr "Gitパネルを開く"
+#~ msgid "Open Git panel"
+#~ msgstr "Gitパネルを開く"
 
 #: src/renderer/commands/registry.ts
 msgid "Open Git Review"
@@ -13856,6 +13860,10 @@ msgstr "新着情報"
 msgid "What's new in CraftStation, newest first."
 msgstr "CraftStationの新着情報（新しい順）。"
 
+#: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
+msgid "When a version check finds a newer release, update each agent CLI automatically — including account-pool managed binaries. Manual update stays available either way."
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/SearchSettings.tsx
 msgid "When enabled, search respects <0>.gitignore</0> entries."
 msgstr "有効にすると、検索では <0>.gitignore</0> エントリが尊重されます。"
@@ -14098,9 +14106,7 @@ msgstr "ワークツリーの保存場所"
 msgid "Worktree threads are marked done as soon as CraftStation sees their pull request merge. Threads mid-turn wait until the turn finishes."
 msgstr "CraftStation がプルリクエストのマージを検知すると、ワークツリーのスレッドは完了になります。ターン実行中のスレッドはターンが終わるまで待機します。"
 
-#. placeholder {0}: props.projectName
 #. placeholder {0}: props.worktreeBranch
-#: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/WorktreeGroupHeader.tsx
 msgid "Worktree: {0}"
 msgstr "ワークツリー:{0}"

@@ -38,6 +38,19 @@ export const threadGoalSchema = z.object({
 });
 export type ThreadGoal = z.infer<typeof threadGoalSchema>;
 
+/**
+ * Provenance of `thread.title`:
+ * - "fallback": prompt-derived placeholder written at creation; the one-shot
+ *   AI title generation may replace it exactly once.
+ * - "agent": set by AI title generation.
+ * - "user": set by an explicit user rename or an externally-provided title
+ *   (remote `start`/`schedule` name). Locked — auto-title never overwrites it.
+ * Rows written before this field existed carry no value and are treated as
+ * "user" (locked) so a late auto-title can never stomp an existing title.
+ */
+export const threadTitleSourceSchema = z.enum(["fallback", "agent", "user"]);
+export type ThreadTitleSource = z.infer<typeof threadTitleSourceSchema>;
+
 export const threadSchema = z.object({
   id: z.string().min(1),
   /** Server-owned identity for a transient thread mirrored into a desktop client. */
@@ -45,6 +58,7 @@ export const threadSchema = z.object({
   remoteId: z.string().min(1).optional(),
   projectId: z.string().min(1),
   title: z.string().min(1),
+  titleSource: threadTitleSourceSchema.optional(),
   agentKind: agentKindSchema,
   /** Optional reference to a user-registered ACP instance (Phase 7). */
   agentInstanceId: agentInstanceIdSchema.optional(),

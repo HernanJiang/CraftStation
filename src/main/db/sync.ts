@@ -166,7 +166,7 @@ function runProjectSync(stmt: SqliteStatement, project: Project, sortOrder: numb
 function prepareThreadSyncStatement(sqlite: InstanceType<typeof Database>): SqliteStatement {
   return sqlite.prepare(`
     INSERT INTO threads (
-      id, project_id, title, agent_kind, agent_instance_id, config, status,
+      id, project_id, title, title_source, agent_kind, agent_instance_id, config, status,
       attention, can_resume_with_config, session_ref, terminal_prompt, worktree_path,
       composition_provenance,
       account_binding,
@@ -175,7 +175,7 @@ function prepareThreadSyncStatement(sqlite: InstanceType<typeof Database>): Sqli
       starred, pinned_at, presentation_mode, sort_order, created_at, updated_at,
       active_turn_started_at, last_turn_started_at, last_turn_ended_at
     ) VALUES (
-      @id, @projectId, @title, @agentKind, @agentInstanceId, @config, @status,
+      @id, @projectId, @title, @titleSource, @agentKind, @agentInstanceId, @config, @status,
       @attention, @canResumeWithConfig, @sessionRef, NULL, @worktreePath,
       @compositionProvenance,
       @accountBinding,
@@ -186,6 +186,7 @@ function prepareThreadSyncStatement(sqlite: InstanceType<typeof Database>): Sqli
     )
     ON CONFLICT(id) DO UPDATE SET
       title = excluded.title,
+      title_source = excluded.title_source,
       agent_instance_id = excluded.agent_instance_id,
       config = excluded.config,
       status = excluded.status,
@@ -230,6 +231,7 @@ function runThreadSync(stmt: SqliteStatement, thread: Thread, sortOrder: number)
     id: thread.id,
     projectId: thread.projectId,
     title: thread.title,
+    titleSource: thread.titleSource ?? null,
     agentKind: thread.agentKind,
     agentInstanceId: thread.agentInstanceId ?? null,
     config: JSON.stringify(thread.config),

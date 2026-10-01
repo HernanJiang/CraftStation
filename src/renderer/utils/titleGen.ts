@@ -3,7 +3,7 @@ import { resolveAiLanguageName } from "@/shared/locale";
 import { readBridge } from "@/renderer/bridge";
 import { generateTitleWithFallback } from "@/renderer/components/providers/titleGen";
 import { detectOSLocale } from "@/renderer/i18n/locales";
-import { useAppStore, makeThreadTitle } from "@/renderer/state/appStore";
+import { useAppStore } from "@/renderer/state/appStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 
 export function generateTitleAsync(
@@ -20,8 +20,11 @@ export function generateTitleAsync(
     .then((title) => {
       const store = useAppStore.getState();
       const thread = store.threads.find((t) => t.id === threadId);
-      if (thread && thread.title === makeThreadTitle(prompt)) {
-        store.renameThread(threadId, title);
+      // Only a prompt-derived placeholder may be replaced. `renameThread`
+      // enforces the same rule atomically, so a user rename that landed after
+      // this check still cannot be overwritten.
+      if (thread && thread.titleSource === "fallback") {
+        store.renameThread(threadId, title, "agent");
       }
     })
     .catch((err) => {

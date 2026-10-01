@@ -359,6 +359,27 @@ describe("runUpdateCommandWithFallback", () => {
     });
     expect(readAgentCommandOutputMock.mock.calls[0]?.[3]).not.toHaveProperty("env");
   });
+
+  it("forwards the update command's declared env to the spawn", async () => {
+    readAgentCommandOutputMock.mockResolvedValue({ ok: true, stdout: "updated", stderr: "" });
+    const adapter = makeAdapter("grok", {
+      buildUpdateCommand: () => ({
+        binary: "grok",
+        args: ["update"],
+        strategy: "built-in",
+        env: { GROK_HOME: "C:\\managed-profile" },
+      }),
+    });
+    const status = makeStatus({ kind: "grok", executablePath: "C:\\grok.cmd" });
+
+    const result = await runUpdateCommandWithFallback(adapter, status, NATIVE_WIN);
+
+    expect(result.ok).toBe(true);
+    expect(readAgentCommandOutputMock).toHaveBeenCalledWith(expect.anything(), "grok", ["update"], {
+      timeoutMs: 5 * 60 * 1000,
+      env: { GROK_HOME: "C:\\managed-profile" },
+    });
+  });
 });
 
 describe("getLatestVersionForAdapter", () => {

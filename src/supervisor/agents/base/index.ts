@@ -761,6 +761,7 @@ export async function detectAgentInstall(
         executablePath,
         ...(ctx?.agentSettings ? { agentSettings: ctx.agentSettings } : {}),
         ...(probeEnv ? { probeEnv } : {}),
+        ...(ctx?.baseDir ? { baseDir: ctx.baseDir } : {}),
         ...(ctx?.signal ? { signal: ctx.signal } : {}),
       })
     : await readDetectedVersion(location, executablePath, versionArgs, probeEnv, ctx?.signal);
@@ -778,6 +779,7 @@ export async function detectAgentInstall(
       executablePath,
       version,
       ...(ctx?.agentSettings ? { agentSettings: ctx.agentSettings } : {}),
+      ...(ctx?.baseDir ? { baseDir: ctx.baseDir } : {}),
       probeEnv,
       ...(ctx?.signal ? { signal: ctx.signal } : {}),
     };
@@ -820,6 +822,7 @@ export async function detectAgentInstall(
     executablePath,
     version,
     ...(ctx?.agentSettings ? { agentSettings: ctx.agentSettings } : {}),
+    ...(ctx?.baseDir ? { baseDir: ctx.baseDir } : {}),
     ...(ctx?.signal ? { signal: ctx.signal } : {}),
   };
 

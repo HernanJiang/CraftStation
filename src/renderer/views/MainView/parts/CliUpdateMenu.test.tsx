@@ -3,6 +3,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import type { AgentStatus } from "@/shared/contracts";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useUpdateStore } from "@/renderer/state/updateStore";
 import { CliUpdateMenu } from "./MainTitlebar";
 
@@ -55,6 +56,9 @@ describe("CliUpdateMenu", () => {
       wslAgentStatuses: [],
     });
     useUpdateStore.setState({ agentUpdates: {}, availableCliUpdates: [] });
+    // Auto-update OFF for the existing cases — otherwise the mount auto-check
+    // would consume the discovered update before the test can click it.
+    useSharedSettings.setState({ autoUpdateAgentClis: false });
     bridgeMock.getLatestAgentVersion.mockResolvedValue({ version: "v9.9.9", source: "npm" });
     bridgeMock.refreshAgentStatuses.mockResolvedValue({});
   });
@@ -154,6 +158,32 @@ describe("CliUpdateMenu", () => {
     expect(
       within(menu).getByRole("menuitem", { name: /Checking for CraftStation update/u }),
     ).toBeTruthy();
+  });
+
+  it("auto-updates discovered CLIs when the Agents · General toggle is on", async () => {
+    useSharedSettings.setState({ autoUpdateAgentClis: true });
+    bridgeMock.updateAgentBinary.mockResolvedValue({ ok: true });
+
+    render(<CliUpdateMenu />);
+
+    await waitFor(() =>
+      expect(bridgeMock.updateAgentBinary).toHaveBeenCalledWith({
+        agentKind: "codex",
+        envKind: "windows",
+      }),
+    );
+    // Post-update refresh + availability re-check close the loop so a failed
+    // landing would reappear in the menu.
+    await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalled());
+    await waitFor(() => expect(bridgeMock.getLatestAgentVersion).toHaveBeenCalledTimes(2));
+  });
+
+  it("does not auto-update when the toggle is off", async () => {
+    render(<CliUpdateMenu />);
+    await waitFor(() => expect(bridgeMock.getLatestAgentVersion).toHaveBeenCalledTimes(1));
+    // Give the auto-update effect a beat — it must not fire.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(bridgeMock.updateAgentBinary).not.toHaveBeenCalled();
   });
 
   it("lists the app itself with restart-to-install once downloaded", async () => {

@@ -1619,6 +1619,10 @@ msgstr "자동 선택"
 msgid "Auto-show terminal panel"
 msgstr "터미널 패널 자동 표시"
 
+#: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
+msgid "Auto-update CLIs"
+msgstr ""
+
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconPicker.tsx
 msgid "Automatic"
 msgstr "자동"
@@ -5635,13 +5639,13 @@ msgstr "Git 리뷰 모드"
 
 #. placeholder {0}: props.projectName
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Git status for {0}"
-msgstr "{0}의 Git 상태"
+#~ msgid "Git status for {0}"
+#~ msgstr "{0}의 Git 상태"
 
 #. placeholder {0}: props.projectName
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Git status for {0}: not a Git repository"
-msgstr "{0}에 대한 Git 상태: Git 저장소가 아닙니다."
+#~ msgid "Git status for {0}: not a Git repository"
+#~ msgstr "{0}에 대한 Git 상태: Git 저장소가 아닙니다."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Git 工具"
@@ -8096,8 +8100,8 @@ msgid "Not a git repository"
 msgstr "Git 저장소가 아닙니다."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Not a Git repository"
-msgstr "Git 저장소가 아님"
+#~ msgid "Not a Git repository"
+#~ msgstr "Git 저장소가 아님"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "not a repo"
@@ -8381,8 +8385,8 @@ msgid "Open fullscreen"
 msgstr "전체 화면 열기"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Open Git panel"
-msgstr "Git 패널 열기"
+#~ msgid "Open Git panel"
+#~ msgstr "Git 패널 열기"
 
 #: src/renderer/commands/registry.ts
 msgid "Open Git Review"
@@ -13858,6 +13862,10 @@ msgstr "새 소식"
 msgid "What's new in CraftStation, newest first."
 msgstr "CraftStation의 새 소식, 최신순."
 
+#: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
+msgid "When a version check finds a newer release, update each agent CLI automatically — including account-pool managed binaries. Manual update stays available either way."
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/SearchSettings.tsx
 msgid "When enabled, search respects <0>.gitignore</0> entries."
 msgstr "활성화되면 검색은 <0>.gitignore</0> 항목을 존중합니다."
@@ -14100,9 +14108,7 @@ msgstr "작업 트리 저장 위치"
 msgid "Worktree threads are marked done as soon as CraftStation sees their pull request merge. Threads mid-turn wait until the turn finishes."
 msgstr "CraftStation가 풀 리퀘스트 병합을 감지하면 작업 트리 스레드가 완료로 표시됩니다. 작업이 진행 중인 스레드는 작업이 끝날 때까지 기다립니다."
 
-#. placeholder {0}: props.projectName
 #. placeholder {0}: props.worktreeBranch
-#: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/WorktreeGroupHeader.tsx
 msgid "Worktree: {0}"
 msgstr "작업 트리:{0}"

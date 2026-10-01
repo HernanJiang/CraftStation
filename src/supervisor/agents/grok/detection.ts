@@ -7,15 +7,23 @@ import {
   type AgentProviderMetadata,
   type ProjectLocation,
 } from "@/shared/contracts";
+import { isNewerVersion } from "@/shared/agents/updateResolver";
+import { resolveCraftStationBaseDir } from "@/shared/craftstationPaths";
 import { splitFastModelVariants, vendorConventionFastBases } from "@/shared/fastModelVariants";
 import { dedupeAcpAuthMethods, probeAcpCapabilities } from "../acp";
 import {
   batchWslCommandsAsync,
   buildAgentCommand,
   envVarAuthProbe,
+  readDetectedVersion,
   type CapabilitiesProbeResult,
   type DetectionSpec,
 } from "../base";
+import {
+  craftStationAccountsRoot,
+  grokBinVersionFromDir,
+  listManagedGrokBinDirs,
+} from "../../runtime/managedGrokBinaries";
 import { buildContextSizeCapabilities } from "../contextWindowLabel";
 import { getAgentProbeCwd, resolveProbeSpawnCwd } from "../probeCwd";
 
@@ -313,6 +321,45 @@ async function grokAuthFileProbe(
   return r.stdout.trim() === "yes" ? "authenticated" : "missing";
 }
 
+/**
+ * Account-pool Grok sessions run `GROK_HOME=<profile>/bin/grok` — a copy the
+ * npm wrapper never version-checks (see managedGrokBinaries.ts). The PATH /
+ * default-home version therefore misrepresents what actually executes: report
+ * the OLDEST managed binary instead so a stale profile still flags "outdated"
+ * even when the global install is fresh.
+ */
+async function grokVersionProbe(
+  ctx: Parameters<NonNullable<DetectionSpec["versionProbe"]>>[0],
+): Promise<string | undefined> {
+  const versionArgs = ["--version"];
+  const base = await readDetectedVersion(
+    ctx.location,
+    ctx.executablePath,
+    versionArgs,
+    ctx.probeEnv,
+    ctx.signal,
+  );
+  if (ctx.location.kind === "wsl") return base;
+  const accountsRoot = craftStationAccountsRoot(ctx.baseDir ?? resolveCraftStationBaseDir());
+  const managedDirs = listManagedGrokBinDirs(accountsRoot);
+  if (managedDirs.length === 0) return base;
+  let oldest: string | undefined;
+  for (const dir of managedDirs) {
+    const versioned = grokBinVersionFromDir(dir);
+    const version =
+      versioned ??
+      (await readDetectedVersion(
+        ctx.location,
+        join(dir, process.platform === "win32" ? "grok.exe" : "grok"),
+        versionArgs,
+        ctx.probeEnv,
+        ctx.signal,
+      ));
+    if (version && (!oldest || isNewerVersion(oldest, version))) oldest = version;
+  }
+  return oldest ?? base;
+}
+
 export const grokDetectionSpec: DetectionSpec = {
   kind: "grok",
   label: "Grok Build",
@@ -320,6 +367,7 @@ export const grokDetectionSpec: DetectionSpec = {
   loginCommand: ({ location }) =>
     location.kind === "wsl" ? "grok login --device-auth" : "grok login",
   capabilities: grokDefaultCapabilities,
+  versionProbe: grokVersionProbe,
   update: {
     builtIn: { binary: "grok", args: ["update"] },
     npm: "@xai-official/grok",

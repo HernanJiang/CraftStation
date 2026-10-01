@@ -852,6 +852,7 @@ export class SupervisorRuntime {
       adapters: this.adapters,
       settingsPath: this.settingsPath,
       statusCachePath: paths.statusCachePath,
+      baseDir: paths.baseDir,
       emit,
     });
     this.pluginRegistry = new PluginRegistry({

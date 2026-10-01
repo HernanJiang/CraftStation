@@ -436,6 +436,11 @@ export const sharedSettingsSchema = z.object({
   turnRetryMaxAttempts: z.number().int().min(0).max(10),
   /** Seconds to wait between automatic turn retry attempts. */
   turnRetryIntervalSeconds: z.number().int().min(1).max(300),
+  /**
+   * 自动更新各 agent CLI：版本检查发现更新时自动执行该 CLI 的更新管线
+   * （与右上角手动更新同一通道）。默认开启；关闭后仍可手动更新。
+   */
+  autoUpdateAgentClis: z.boolean().default(true),
   /** Days a thread can stay marked done before it is auto-archived. 0 disables auto-archive. */
   autoArchiveDoneAfterDays: z.number().int().min(0),
   /**
@@ -804,6 +809,7 @@ export const defaultSharedSettings: SharedSettings = {
   staleThreadUnloadMinutes: 60,
   turnRetryMaxAttempts: 2,
   turnRetryIntervalSeconds: 5,
+  autoUpdateAgentClis: true,
   autoArchiveDoneAfterDays: 3,
   archiveRetention: "7d",
   scrollSpeed: 2,

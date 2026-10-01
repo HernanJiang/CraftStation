@@ -78,8 +78,9 @@ describe("database migration registry", () => {
       [45, "scheduled tasks unified schedule capability"],
       [46, "scheduled tasks host capability provenance and occurrence claim"],
       [47, "usage_events ts index for retention pruning"],
+      [48, "threads.title_source"],
     ]);
-    expect(LATEST_SCHEMA_VERSION).toBe(47);
+    expect(LATEST_SCHEMA_VERSION).toBe(48);
     expect(() => validateMigrationRegistry()).not.toThrow();
   });
 

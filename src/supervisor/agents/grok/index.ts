@@ -18,6 +18,12 @@ import { buildGrokAcpArgs, buildGrokArgs } from "./argv";
 import { createGrokAcpSessionUpdateTransform } from "./acpTransform";
 import { buildGrokCommand, grokDefaultCapabilities, grokDetectionSpec } from "./detection";
 import {
+  craftStationAccountsRoot,
+  defaultGrokHomeDir,
+  syncManagedGrokBinaries,
+} from "../../runtime/managedGrokBinaries";
+import { resolveCraftStationBaseDir } from "@/shared/craftstationPaths";
+import {
   installGrokPlugin,
   isGrokPluginInstalled,
   readBundledGrokPluginVersion,
@@ -129,6 +135,34 @@ export function createGrokAdapter(): AgentAdapter {
       const status = await detectAgentInstall(ctx, grokDetectionSpec);
       capabilities = status.capabilities;
       return status;
+    },
+
+    /**
+     * `grok update` (or the npm fallback) only rewrites the default
+     * `$GROK_HOME/bin`. Account-pool profiles each pin their own
+     * `<profile>/bin/grok` that the wrapper launches without a version check —
+     * copy the fresh binary into every managed home so sessions actually run
+     * the updated version.
+     */
+    async postUpdate(ctx) {
+      if (ctx.envKind === "wsl") return undefined;
+      const report = syncManagedGrokBinaries({
+        accountsRoot: craftStationAccountsRoot(ctx.baseDir ?? resolveCraftStationBaseDir()),
+        sourceHome: defaultGrokHomeDir(),
+      });
+      if (!report.sourceVersion) return undefined;
+      const lines: string[] = [];
+      if (report.synced.length > 0) {
+        lines.push(
+          `Synced grok ${report.sourceVersion} into ${report.synced.length} managed account profile(s).`,
+        );
+      }
+      if (report.stale.length > 0) {
+        lines.push(
+          `Could not refresh ${report.stale.length} managed profile(s) — a running Grok thread may hold the binary; retry after closing it.`,
+        );
+      }
+      return lines.length > 0 ? lines.join("\n") : undefined;
     },
 
     buildLaunchArgv(location, config, prompt, sessionRef, _launchOptions) {

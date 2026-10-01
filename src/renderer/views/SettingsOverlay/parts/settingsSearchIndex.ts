@@ -610,6 +610,13 @@ export const SETTINGS_SEARCH_INDEX: readonly SettingsSearchEntry[] = [
   // Agents · General
   {
     section: "agentsGeneral",
+    anchor: "agentsGeneral.autoUpdateClis",
+    title: msg`Auto-update CLIs`,
+    description: msg`When a version check finds a newer release, update each agent CLI automatically — including account-pool managed binaries. Manual update stays available either way.`,
+    keywords: "auto update cli upgrade agents clis version check",
+  },
+  {
+    section: "agentsGeneral",
     anchor: "agentsGeneral.visibleModels",
     title: msg`Visible models`,
     keywords: "show hide model picker providers toggle filter",

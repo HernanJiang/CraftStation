@@ -227,6 +227,10 @@ async function startRemoteThread(
     id: command.threadId,
     projectId: command.projectId,
     title: makeThreadTitle(titlePrompt) || "New thread",
+    // Prompt-derived placeholder — the desktop renderer's title generation may
+    // still replace it. An explicit remote `start` title rides `command.title`
+    // into the renderer's createThread which marks it "user".
+    titleSource: "fallback",
     agentKind: command.agentKind,
     ...(command.agentInstanceId ? { agentInstanceId: command.agentInstanceId } : {}),
     config: command.config,

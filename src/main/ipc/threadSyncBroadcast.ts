@@ -84,6 +84,7 @@ export function diffSyncedThreads(
     if (
       !prior ||
       prior.title !== thread.title ||
+      prior.titleSource !== thread.titleSource ||
       prior.status !== thread.status ||
       prior.done !== thread.done ||
       prior.starred !== thread.starred ||

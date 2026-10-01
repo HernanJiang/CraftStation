@@ -139,6 +139,7 @@ export async function createAppThread(
     id: threadId,
     projectId: project.id,
     title,
+    titleSource: customTitle ? "user" : "fallback",
     agentKind: request.agentKind,
     config,
     status: "launching",

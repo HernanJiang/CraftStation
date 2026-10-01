@@ -1619,6 +1619,10 @@ msgstr "Selección automática"
 msgid "Auto-show terminal panel"
 msgstr "Mostrar el panel del terminal automáticamente"
 
+#: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
+msgid "Auto-update CLIs"
+msgstr ""
+
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconPicker.tsx
 msgid "Automatic"
 msgstr "Automático"
@@ -5635,13 +5639,13 @@ msgstr "Modo de revisión de Git"
 
 #. placeholder {0}: props.projectName
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Git status for {0}"
-msgstr "Estado de Git para {0}"
+#~ msgid "Git status for {0}"
+#~ msgstr "Estado de Git para {0}"
 
 #. placeholder {0}: props.projectName
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Git status for {0}: not a Git repository"
-msgstr "Estado de Git para {0}: no es un repositorio Git"
+#~ msgid "Git status for {0}: not a Git repository"
+#~ msgstr "Estado de Git para {0}: no es un repositorio Git"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Git 工具"
@@ -8096,8 +8100,8 @@ msgid "Not a git repository"
 msgstr "No es un repositorio git"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Not a Git repository"
-msgstr "No es un repositorio Git"
+#~ msgid "Not a Git repository"
+#~ msgstr "No es un repositorio Git"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "not a repo"
@@ -8381,8 +8385,8 @@ msgid "Open fullscreen"
 msgstr "Abrir en pantalla completa"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
-msgid "Open Git panel"
-msgstr "Abrir panel de Git"
+#~ msgid "Open Git panel"
+#~ msgstr "Abrir panel de Git"
 
 #: src/renderer/commands/registry.ts
 msgid "Open Git Review"
@@ -13858,6 +13862,10 @@ msgstr "Novedades"
 msgid "What's new in CraftStation, newest first."
 msgstr "Novedades en CraftStation, las más recientes primero."
 
+#: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
+msgid "When a version check finds a newer release, update each agent CLI automatically — including account-pool managed binaries. Manual update stays available either way."
+msgstr ""
+
 #: src/renderer/views/SettingsOverlay/parts/SearchSettings.tsx
 msgid "When enabled, search respects <0>.gitignore</0> entries."
 msgstr "Cuando está activado, la búsqueda respeta las entradas de <0>.gitignore</0>."
@@ -14100,9 +14108,7 @@ msgstr "Ubicación de almacenamiento de worktrees"
 msgid "Worktree threads are marked done as soon as CraftStation sees their pull request merge. Threads mid-turn wait until the turn finishes."
 msgstr "Los hilos de worktree se marcan como hechos en cuanto CraftStation detecta que su pull request se fusiona. Los hilos con un turno en curso esperan a que el turno termine."
 
-#. placeholder {0}: props.projectName
 #. placeholder {0}: props.worktreeBranch
-#: src/renderer/views/MainView/parts/Sidebar/parts/GitBadge.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/WorktreeGroupHeader.tsx
 msgid "Worktree: {0}"
 msgstr "Worktree: {0}"

@@ -739,6 +739,13 @@ export const DATABASE_MIGRATIONS = [
       `);
     },
   },
+  {
+    version: 48,
+    name: "threads.title_source",
+    // NULL on existing rows = "user" semantics in the row mapper: a title the
+    // user already sees must never be overwritten by a late auto-title.
+    migrate: (sqlite) => addColumnIfMissing(sqlite, "threads", "title_source", "TEXT"),
+  },
 ] as const satisfies readonly DatabaseMigration[];
 
 export const LATEST_SCHEMA_VERSION = DATABASE_MIGRATIONS[DATABASE_MIGRATIONS.length - 1]!.version;

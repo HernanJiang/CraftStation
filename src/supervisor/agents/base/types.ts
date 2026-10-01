@@ -356,6 +356,12 @@ export interface DetectProbeCtx {
   signal?: AbortSignal;
   agentSettings?: Record<string, boolean | string>;
   /**
+   * CraftStation data base dir (same source as {@link AgentEnvContext.baseDir})
+   * so probes can inspect managed state under it — e.g. account-pool profiles
+   * in `<baseDir>/craftstation-accounts`.
+   */
+  baseDir?: string | undefined;
+  /**
    * The merged {@link DetectionSpec.baseSpawnEnv} + {@link DetectionSpec.probeEnv},
    * so `capabilitiesProbe`/`statusProbe` can forward it to their own spawns.
    */
@@ -721,6 +727,15 @@ export interface AgentUpdater {
    * status probes.
    */
   buildUpdateCommand?(ctx: AgentEnvContext, status: AgentStatus): AgentUpdaterCommand | undefined;
+
+  /**
+   * Runs after a successful binary update, before status refresh. For agents
+   * whose runtime executable is not the updated install — e.g. account-pool
+   * profiles pinning their own binary copy — this is the seam that brings the
+   * actual run targets up to date. Return a note line appended to the update
+   * result output, or undefined when there is nothing to report.
+   */
+  postUpdate?(ctx: AgentEnvContext, status: AgentStatus): Promise<string | undefined>;
 }
 
 export interface AgentCliHookPluginSupport {

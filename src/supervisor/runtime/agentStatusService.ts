@@ -267,6 +267,11 @@ export interface AgentStatusServiceOptions {
   adapters: Map<string, AgentAdapter>;
   settingsPath: string;
   statusCachePath: string;
+  /**
+   * CraftStation data base dir. Detection ctx carries it so probes can inspect
+   * managed state (account-pool profiles under `craftstation-accounts/`).
+   */
+  baseDir: string;
   emit(event: SupervisorEvent): void;
 }
 
@@ -504,6 +509,7 @@ export class AgentStatusService {
         }
       : {
           envKind: nativeEnvKind,
+          baseDir: this.options.baseDir,
           ...(agentSettings ? { agentSettings } : {}),
         };
     // A wedged adapter probe (e.g. an ACP handshake that never answers) must
@@ -709,6 +715,7 @@ export class AgentStatusService {
             const agentSettings = settings.agentSettings[adapter.kind];
             const detected = await adapter.detectInstall({
               envKind: nativeEnvKind,
+              baseDir: this.options.baseDir,
               ...(agentSettings ? { agentSettings } : {}),
             });
             status = { ...detected, envKind: nativeEnvKind };

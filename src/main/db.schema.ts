@@ -34,6 +34,8 @@ export const threads = sqliteTable("threads", {
     .notNull()
     .references(() => projects.id, { onDelete: "cascade" }),
   title: text("title").notNull(),
+  /** "fallback" | "agent" | "user" — see threadTitleSourceSchema. NULL = legacy, locked. */
+  titleSource: text("title_source"),
   agentKind: text("agent_kind").notNull(), // provider kind
   /** Optional id of a user-registered ACP instance backing this thread. */
   agentInstanceId: text("agent_instance_id"),

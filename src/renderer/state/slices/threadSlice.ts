@@ -101,7 +101,15 @@ export interface ThreadSlice {
     isEphemeral?: boolean;
   }) => Thread;
   deleteThread: (threadId: string) => void;
-  renameThread: (threadId: string, title: string) => void;
+  /**
+   * `titleSource` defaults to "user" — every explicit rename locks the title
+   * against auto-generation. The one-shot AI title path passes "agent".
+   */
+  renameThread: (
+    threadId: string,
+    title: string,
+    titleSource?: Exclude<Thread["titleSource"], "fallback">,
+  ) => void;
   setThreadWorktree: (
     threadId: string,
     worktreePath: string,
@@ -259,6 +267,9 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
       ...(remoteServerId ? { remoteServerId } : {}),
       ...(remoteId ? { remoteId } : {}),
       title: title ?? makeThreadTitle(prompt),
+      // An explicit title is authoritative (locked); a prompt-derived title is
+      // a placeholder the one-shot AI title generation may still replace.
+      titleSource: title ? "user" : "fallback",
       agentKind,
       ...(agentInstanceId ? { agentInstanceId } : {}),
       config,
@@ -382,11 +393,21 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
         view: nextView,
       };
     }),
-  renameThread: (threadId, title) =>
+  renameThread: (threadId, title, titleSource = "user") =>
     set((state) => ({
-      threads: state.threads.map((thread) =>
-        thread.id === threadId ? { ...thread, title } : thread,
-      ),
+      threads: state.threads.map((thread) => {
+        if (thread.id !== threadId) return thread;
+        // An AI-generated title may only replace a placeholder ("fallback") or
+        // refresh an earlier AI title — never a user-set or legacy (absent)
+        // title. "user" writes are unconditional: they always win.
+        if (
+          titleSource === "agent" &&
+          thread.titleSource !== "fallback" &&
+          thread.titleSource !== "agent"
+        )
+          return thread;
+        return { ...thread, title, titleSource };
+      }),
     })),
   setThreadWorktree: (threadId, worktreePath, worktreeBranch, options) =>
     set((state) => {

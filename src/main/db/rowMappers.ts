@@ -89,6 +89,9 @@ export function rowToThread(row: typeof schema.threads.$inferSelect): Thread {
     id: row.id,
     projectId: row.projectId,
     title: row.title,
+    ...(row.titleSource === "fallback" || row.titleSource === "agent" || row.titleSource === "user"
+      ? { titleSource: row.titleSource }
+      : {}),
     agentKind: row.agentKind as Thread["agentKind"],
     ...(row.agentInstanceId ? { agentInstanceId: row.agentInstanceId } : {}),
     config: JSON.parse(row.config),
