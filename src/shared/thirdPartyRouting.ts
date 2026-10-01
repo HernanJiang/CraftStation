@@ -252,6 +252,12 @@ export function foreignAcpModelId(config: {
   if (source === "commandcode" && model) {
     return JSON.stringify(["commandcode", normalizeCommandCodeModelId(model)]);
   }
+  // OpenCode Go catalog rows ride an isolated dsh home whose pi-ai provider id
+  // IS the channel prefix, so the advertised tuple's provider/model spelling
+  // is the catalog id itself.
+  if (modelProviderPrefix(model) === "opencode-go") {
+    return JSON.stringify(["opencode-go", stripModelProviderPrefix(model)]);
+  }
   return config.model;
 }
 

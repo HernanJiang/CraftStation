@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import type { ProjectLocation } from "@/shared/contracts";
 import { normalizeCommandCodeModelId } from "@/shared/thirdPartyRouting";
+import { dshForeignCompatEnv, writeDshForeignProviderHome } from "../deepseek/foreignDshHome";
 import { resolveAgentHomeSubpath } from "../base";
 
 /**
@@ -58,15 +59,11 @@ export function commandCodeCompatEnv(
   isolationDir?: string,
   baseUrl?: string,
 ): Record<string, string> {
-  const url = baseUrl?.trim() || COMMANDCODE_OPENAI_COMPAT_BASE_URL;
-  return {
-    DEEPSEEK_API_KEY: apiKey,
-    DEEPSEEK_BASE_URL: url,
-    OPENAI_API_KEY: apiKey,
-    OPENAI_BASE_URL: url,
-    DSH_TELEMETRY_DISABLED: "1",
-    ...(isolationDir ? { DSH_HOME: isolationDir } : {}),
-  };
+  return dshForeignCompatEnv(
+    apiKey,
+    isolationDir,
+    baseUrl?.trim() || COMMANDCODE_OPENAI_COMPAT_BASE_URL,
+  );
 }
 
 /**
@@ -79,10 +76,6 @@ export function commandCodeDshAcpModelId(providerModelId: string): string {
   return JSON.stringify([COMMANDCODE_DSH_PROVIDER_ID, model]);
 }
 
-function yamlSingleQuoted(value: string): string {
-  return `'${value.replaceAll("'", "''")}'`;
-}
-
 /**
  * Isolated `$DSH_HOME` so ACP (`dsh --profile acp`) uses Command Code as a
  * pi-ai custom provider instead of `deepseek-official` + api.deepseek.com.
@@ -93,33 +86,12 @@ export function writeCommandCodeDshHome(input: {
   modelId: string;
   baseUrl?: string;
 }): void {
-  mkdirSync(input.isolationDir, { recursive: true });
-  const model = normalizeCommandCodeModelId(input.modelId) || "deepseek/deepseek-v4.1-flash";
-  const baseUrl = input.baseUrl?.trim() || COMMANDCODE_OPENAI_COMPAT_BASE_URL;
-  const settings = [
-    "llm-deepseek:",
-    `  baseURL: ${yamlSingleQuoted(baseUrl)}`,
-    "  apiKeyEnv: DEEPSEEK_API_KEY",
-    "llm-pi-ai:",
-    "  providers:",
-    `    ${COMMANDCODE_DSH_PROVIDER_ID}:`,
-    "      displayName: Command Code",
-    "      apiKeyEnv: DEEPSEEK_API_KEY",
-    "      api: openai-completions",
-    `      baseURL: ${yamlSingleQuoted(baseUrl)}`,
-    "      models:",
-    `        - id: ${yamlSingleQuoted(model)}`,
-    "agent-default-model:",
-    `  provider: ${COMMANDCODE_DSH_PROVIDER_ID}`,
-    `  model: ${yamlSingleQuoted(model)}`,
-    "",
-  ].join("\n");
-  writeFileSync(join(input.isolationDir, "settings.yaml"), settings, "utf8");
-  const credentials = [
-    "version: 1",
-    "refs:",
-    `  DEEPSEEK_API_KEY: ${yamlSingleQuoted(input.apiKey)}`,
-    "",
-  ].join("\n");
-  writeFileSync(join(input.isolationDir, ".credentials.yaml"), credentials, { encoding: "utf8", mode: 0o600 });
+  writeDshForeignProviderHome({
+    isolationDir: input.isolationDir,
+    providerId: COMMANDCODE_DSH_PROVIDER_ID,
+    displayName: "Command Code",
+    apiKey: input.apiKey,
+    baseUrl: input.baseUrl?.trim() || COMMANDCODE_OPENAI_COMPAT_BASE_URL,
+    modelId: normalizeCommandCodeModelId(input.modelId) || "deepseek/deepseek-v4.1-flash",
+  });
 }

@@ -101,6 +101,25 @@ describe("dsh ACP model wire values", () => {
     expect(resolved?.value).not.toContain("anthropic:");
   });
 
+  it("resolves an OpenCode Go catalog id onto its advertised provider tuple", () => {
+    const GO_MODEL_OPTION = {
+      id: "model",
+      category: "model",
+      type: "select",
+      currentValue: '["opencode-go","deepseek-v4.1-flash"]',
+      options: [
+        {
+          value: '["opencode-go","deepseek-v4.1-flash"]',
+          name: "DeepSeek V4.1 Flash (OpenCode Go)",
+        },
+      ],
+    };
+    const resolved = resolveModelConfigValue(config("opencode-go/deepseek-v4.1-flash"), [
+      GO_MODEL_OPTION,
+    ]);
+    expect(resolved?.value).toBe('["opencode-go","deepseek-v4.1-flash"]');
+  });
+
   it("does not match a catalog id the runtime does not advertise", () => {
     expect(
       resolveModelConfigValue(config("deepseek-v4.1-pro"), [DSH_MODEL_OPTION]),

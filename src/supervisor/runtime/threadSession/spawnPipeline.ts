@@ -35,6 +35,12 @@ import {
 import type { McpThreadIdentity } from "@/shared/browserMcpThread";
 import { resolveAgentPresentationMode } from "@/shared/agentStatus";
 import { modelCatalogChannel, normalizeCommandCodeModelId } from "@/shared/thirdPartyRouting";
+import { modelProviderPrefix } from "@/shared/harnessCompatibility";
+import {
+  OPENCODE_GO_DSH_PROVIDER_ID,
+  openCodeGoDshCompatEnv,
+  writeOpenCodeGoDshHome,
+} from "../../agents/deepseek/foreignDshHome";
 import type { AgentNativePlugin } from "@/supervisor/agents/base";
 import {
   resolveBrowserMcpHttpConfigForLaunch,
@@ -1884,8 +1890,50 @@ export class SpawnPipeline {
     projectLocation?: ProjectLocation;
   }): Promise<{ env?: Record<string, string>; cleanup?: () => void }> {
     if (baseAgentKind(input.agentKind) !== "deepseek") return {};
-    if (input.thirdPartyAccountId) return {};
     const model = (input.model ?? "").trim();
+    if (modelProviderPrefix(model) === OPENCODE_GO_DSH_PROVIDER_ID) {
+      // OpenCode Go catalog rows ride an isolated dsh home that registers the
+      // `opencode-go` pi-ai provider, so the ACP model selector advertises
+      // `["opencode-go", <leaf>]` and strict model binding can resolve the
+      // pick. The key comes from the bound third-party account when present
+      // (its env is already projected via resolveAccountSessionEnv), else the
+      // ambient OpenCode CLI login — never the DeepSeek subscription pool.
+      let apiKey: string | undefined;
+      let accountBaseUrl: string | undefined;
+      if (input.thirdPartyAccountId) {
+        const accountEnv = await this.ctx.options.resolveAccountSessionEnv?.({
+          provider: "deepseek",
+          threadId: input.threadId ?? "",
+          model,
+          thirdPartyAccountId: input.thirdPartyAccountId,
+        });
+        apiKey = accountEnv?.env?.OPENAI_API_KEY ?? accountEnv?.env?.DEEPSEEK_API_KEY;
+        accountBaseUrl = accountEnv?.env?.OPENAI_BASE_URL ?? accountEnv?.env?.DEEPSEEK_BASE_URL;
+      } else {
+        apiKey = readOpenCodeGoApiKey();
+      }
+      if (!apiKey) {
+        throw new AccountControlError(
+          "ACCOUNT_NOT_FOUND",
+          "OpenCode Go 未登录，无法把 opencode-go 模型接到 DeepSeek Harness。请先在「模型与用量」登录 OpenCode Go。",
+          { provider: OPENCODE_GO_DSH_PROVIDER_ID },
+        );
+      }
+      const isolationDir = input.threadId
+        ? join(tmpdir(), "craftstation-dsh-go", input.threadId)
+        : undefined;
+      if (isolationDir) {
+        writeOpenCodeGoDshHome({
+          isolationDir,
+          apiKey,
+          modelId: model,
+          sessionId: `craftstation-${input.threadId}`,
+          ...(accountBaseUrl ? { baseUrl: accountBaseUrl } : {}),
+        });
+      }
+      return { env: openCodeGoDshCompatEnv(apiKey, isolationDir, accountBaseUrl) };
+    }
+    if (input.thirdPartyAccountId) return {};
     const source =
       (input.sourceProviderKind ?? "").trim().toLowerCase() || modelCatalogChannel(model) || "";
     const commandCodeCatalogModel = /^(deepseek)\//iu.test(model);

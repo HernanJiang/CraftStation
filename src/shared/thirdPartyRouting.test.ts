@@ -553,6 +553,17 @@ describe("third-party picker harness", () => {
     expect(foreignAcpModelId({ model: "commandcode/deepseek-v4-flash" })).toBe(
       JSON.stringify(["commandcode", "deepseek/deepseek-v4-flash"]),
     );
+    // OpenCode Go catalog rows ride a dsh provider whose id IS the channel
+    // prefix; the upstream model name is the bare leaf.
+    expect(foreignAcpModelId({ model: "opencode-go/deepseek-v4.1-flash" })).toBe(
+      JSON.stringify(["opencode-go", "deepseek-v4.1-flash"]),
+    );
+    expect(
+      foreignAcpModelId({
+        model: "opencode-go/deepseek-v4.1-flash",
+        sourceProviderKind: "opencode",
+      }),
+    ).toBe(JSON.stringify(["opencode-go", "deepseek-v4.1-flash"]));
     expect(foreignAcpModelId({ model: "gpt-5.6-sol" })).toBe("gpt-5.6-sol");
     expect(catalogProviderKind({ agentKind: "commandcode" })).toBe("commandcode");
     expect(
