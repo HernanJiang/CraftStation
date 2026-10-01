@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "1.7.4",
+      "date": "2026-10-01",
+      "title": "Gemini answers no longer end mid-sentence",
+      "summary": "A one-fix patch: Gemini/Antigravity replies could visually stop mid-list-item (e.g. at \"1. *\") because a mid-turn rewritten snapshot of the same answer was appended after the already-complete text.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Antigravity",
+          "text": "Gemini/Antigravity replies no longer look cut off mid-sentence: when the CLI rewrites the answer mid-turn and sends a snapshot of the revised variant, the dedup now detects that the candidate slice replays text the stream already showed and appends nothing — the complete answer you saw streaming is what stays. Short coincidental head/tail matches (a shared \"*\" or digit) also no longer truncate deltas."
+        }
+      ]
+    },
+    {
       "version": "1.7.3",
       "date": "2026-10-01",
       "title": "Thread rename actually opens",

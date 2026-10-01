@@ -87,10 +87,10 @@ Version reporting reflects the binary your sessions really launch: for providers
 
 Download the installer or the portable build from GitHub Releases, not from the source tree.
 
-**Current build: 1.7.3**
+**Current build: 1.7.4**
 
-- Installer: [CraftStation-Setup-1.7.3-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.7.3/CraftStation-Setup-1.7.3-x64.exe)
-- Portable: [CraftStation-Portable-1.7.3-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.7.3/CraftStation-Portable-1.7.3-x64.exe)
+- Installer: [CraftStation-Setup-1.7.4-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.7.4/CraftStation-Setup-1.7.4-x64.exe)
+- Portable: [CraftStation-Portable-1.7.4-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.7.4/CraftStation-Portable-1.7.4-x64.exe)
 
 ([GitHub Releases](https://github.com/HernanJiang/CraftStation/releases))
 
