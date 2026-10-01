@@ -34,11 +34,17 @@ import {
 } from "@/shared/contracts";
 import type { McpThreadIdentity } from "@/shared/browserMcpThread";
 import { resolveAgentPresentationMode } from "@/shared/agentStatus";
-import { modelCatalogChannel, normalizeCommandCodeModelId } from "@/shared/thirdPartyRouting";
-import { modelProviderPrefix } from "@/shared/harnessCompatibility";
 import {
+  modelCatalogChannel,
+  normalizeCommandCodeModelId,
+  THIRD_PARTY_OPENCODE_PROVIDER_ID,
+} from "@/shared/thirdPartyRouting";
+import { modelProviderPrefix, stripModelProviderPrefix } from "@/shared/harnessCompatibility";
+import {
+  dshForeignCompatEnv,
   OPENCODE_GO_DSH_PROVIDER_ID,
   openCodeGoDshCompatEnv,
+  writeDshForeignProviderHome,
   writeOpenCodeGoDshHome,
 } from "../../agents/deepseek/foreignDshHome";
 import type { AgentNativePlugin } from "@/supervisor/agents/base";
@@ -1933,7 +1939,52 @@ export class SpawnPipeline {
       }
       return { env: openCodeGoDshCompatEnv(apiKey, isolationDir, accountBaseUrl) };
     }
-    if (input.thirdPartyAccountId) return {};
+    if (input.thirdPartyAccountId) {
+      // Any bound third-party account rides an isolated dsh home so strict
+      // model binding sees an advertised `[provider, leaf]` tuple instead of
+      // failing on `deepseek-official`. The account env supplies key +
+      // Base URL; the pi-ai provider id is the catalog channel prefix (or
+      // `craftstation` for bare model ids) so the advertised tuple aliases
+      // back onto the catalog row the user picked.
+      const accountEnv = await this.ctx.options.resolveAccountSessionEnv?.({
+        provider: "deepseek",
+        threadId: input.threadId ?? "",
+        model,
+        thirdPartyAccountId: input.thirdPartyAccountId,
+      });
+      const apiKey = accountEnv?.env?.OPENAI_API_KEY ?? accountEnv?.env?.DEEPSEEK_API_KEY;
+      const baseUrl = accountEnv?.env?.OPENAI_BASE_URL ?? accountEnv?.env?.DEEPSEEK_BASE_URL;
+      if (!apiKey || !baseUrl) {
+        throw new AccountControlError(
+          "ACCOUNT_PROJECTION_FAILED",
+          "第三方 API 账号缺少密钥或 Base URL，请重新验证该账号后再试。",
+          { provider: "deepseek", accountId: input.thirdPartyAccountId },
+        );
+      }
+      const channelSource = (input.sourceProviderKind ?? "").trim().toLowerCase();
+      const providerId =
+        channelSource === "commandcode"
+          ? "commandcode"
+          : (modelProviderPrefix(model) ?? THIRD_PARTY_OPENCODE_PROVIDER_ID);
+      const leaf =
+        channelSource === "commandcode"
+          ? normalizeCommandCodeModelId(model) || stripModelProviderPrefix(model)
+          : stripModelProviderPrefix(model);
+      const isolationDir = input.threadId
+        ? join(tmpdir(), "craftstation-dsh-tp", input.threadId)
+        : undefined;
+      if (isolationDir) {
+        writeDshForeignProviderHome({
+          isolationDir,
+          providerId,
+          displayName: providerId,
+          apiKey,
+          baseUrl,
+          modelId: leaf,
+        });
+      }
+      return { env: dshForeignCompatEnv(apiKey, isolationDir, baseUrl) };
+    }
     const source =
       (input.sourceProviderKind ?? "").trim().toLowerCase() || modelCatalogChannel(model) || "";
     const commandCodeCatalogModel = /^(deepseek)\//iu.test(model);

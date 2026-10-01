@@ -5,6 +5,7 @@
 - **LaTeX 渲染根因（真实消息取证）**：模型输出两类畸形——`$$…$` 分界符不配对（micromark 按 arity 配对，`$$` 原样透出）与 `$$…$$` 内花括号缺一个 `}`（KaTeX 抛错回退裸源码）。修复：`ItemMarkdown.tsx` 新增 `normalizeMathDollarRuns`（行级修复 `$$…$`/`$…$$`/无闭合 `$$`，LaTeX 信号门控 + 保护围栏/行内/缩进代码/货币 `$5`/多行 `$$` 块）与 `repairMathSyntax`（span 内补缺失 `}` 与 `\right.`）。
 - **验证**：真实 20KB 消息端到端渲染 66 个 KaTeX span、0 裸 `$$`、0 error；另一条消息 65 span / 1 个 `\mathb` 模型笔误保留源码（合理）；新增单测覆盖分界符修复 + 配对修复 + tuple 映射 + dsh home 写入；相关区域 320+ 项测试全过；typecheck、lint（普通 + type-aware）0 错误。
 - **注意**：第三方显式账号的 baseUrl 可覆盖默认 Go 端点；`opencode-go` tuple 重写与既有 `commandcode` 先例同为 harness 无关的目录层投影。
+- **泛化（同日后续）**：任意绑定 `openai-compatible` 第三方账号的模型都可走 DeepSeek Harness——`prepareDeepseekForeignLaunch` 的 `thirdPartyAccountId` 早退改为通用分支：从账号 env 取 key+baseUrl（缺则 `ACCOUNT_PROJECTION_FAILED`），pi-ai providerId 取目录渠道前缀（`commandcode` 源例外用 `commandcode`+native leaf，裸模型回退 `craftstation`），写入 `craftstation-dsh-tp/<threadId>` 隔离 home 并投 `dshForeignCompatEnv`；wire 侧零改动——广告 tuple 的 `provider/leaf` 与 `leaf` 别名天然匹配目录 id。spawn 测试覆盖 `openai/gpt-5` 与裸 `gpt-5` 两种形态。
 
 ## OpenCode 新 Console 额度窗口修复 + 侧边栏 Git 图标移除（2026-09-30）
 

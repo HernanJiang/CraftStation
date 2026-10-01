@@ -1,3 +1,6 @@
+import { readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isolateRuntimeMcpEnvironment } from "../testSupport/runtimeEnvironment";
 import type { SessionRuntime } from "../sessionTypes";
@@ -866,6 +869,48 @@ describe("switchThreadProvider transactional lifecycle", () => {
       expect.objectContaining({ provider: "opencode", thirdPartyAccountId: "acc-9" }),
     );
   });
+
+  it.each(["openai/gpt-5", "gpt-5"])(
+    "binds a third-party account model (%s) to DeepSeek Harness through an isolated DSH_HOME",
+    async (model) => {
+      const handle = makeHandle();
+      const { pipeline, oldSession, adapter, resolveAccountSessionEnv } = makePipeline(handle);
+      resolveAccountSessionEnv.mockResolvedValue({
+        accountId: "acc-1",
+        reason: "third-party",
+        env: {
+          OPENAI_API_KEY: "sk-third-party",
+          OPENAI_BASE_URL: "https://relay.example.com/v1",
+          DEEPSEEK_API_KEY: "sk-third-party",
+          DEEPSEEK_BASE_URL: "https://relay.example.com/v1",
+        },
+      });
+      const isolationDir = join(tmpdir(), "craftstation-dsh-tp", "t1");
+      rmSync(isolationDir, { recursive: true, force: true });
+
+      await pipeline.switchThreadProvider(
+        oldSession as never,
+        "deepseek",
+        adapter as never,
+        { model },
+        { thirdPartyAccountId: "acc-1" },
+      );
+
+      expect(resolveAccountSessionEnv).toHaveBeenCalledWith(
+        expect.objectContaining({ provider: "deepseek", thirdPartyAccountId: "acc-1" }),
+      );
+      const firstCall = adapter.createStructuredSession.mock.calls[0] as unknown[] | undefined;
+      const spawnArg = firstCall?.[0] as { baseSpawnEnv?: Record<string, string> } | undefined;
+      expect(spawnArg?.baseSpawnEnv?.DSH_HOME).toBe(isolationDir);
+      expect(spawnArg?.baseSpawnEnv?.DEEPSEEK_BASE_URL).toBe("https://relay.example.com/v1");
+      const settings = readFileSync(join(isolationDir, "settings.yaml"), "utf8");
+      const providerId = model.includes("/") ? "openai" : "craftstation";
+      expect(settings).toContain(`    ${providerId}:`);
+      expect(settings).toContain("'gpt-5'");
+      expect(settings).toContain("'https://relay.example.com/v1'");
+      rmSync(isolationDir, { recursive: true, force: true });
+    },
+  );
 
   it("does not reuse the source native session ref across harnesses", async () => {
     const handle = makeHandle();
