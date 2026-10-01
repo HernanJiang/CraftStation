@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, readdirSync, renameSync } from "node:fs";
+import { copyFileSync, existsSync, linkSync, readdirSync, renameSync, rmSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, join } from "node:path";
 import { isNewerVersion } from "@/shared/agents/updateResolver";
@@ -79,10 +79,47 @@ export interface GrokManagedSyncReport {
 }
 
 /**
+ * Place `src` at `dest` (dest must not exist). A hardlink keeps every managed
+ * profile's binary on the same inode as the source-home copy — ~150 MB per
+ * profile instead of a full duplicate — with copy as the cross-device/
+ * unsupported fallback.
+ */
+function placeBinary(src: string, dest: string): void {
+  try {
+    linkSync(src, dest);
+  } catch {
+    copyFileSync(src, dest);
+  }
+}
+
+/** Drop superseded versioned copies and parked swap files from a bin dir. */
+function cleanupStaleGrokFiles(binDir: string, keepVersion: string): void {
+  let entries;
+  try {
+    entries = readdirSync(binDir, { withFileTypes: true });
+  } catch {
+    return;
+  }
+  for (const entry of entries) {
+    if (!entry.isFile()) continue;
+    const versioned = GROK_VERSIONED_RE.exec(entry.name)?.[1];
+    const stale =
+      (versioned !== undefined && isNewerVersion(keepVersion, versioned)) ||
+      entry.name.startsWith(`${GROK_BIN_NAME}.old-`);
+    if (!stale) continue;
+    try {
+      rmSync(join(binDir, entry.name), { force: true });
+    } catch {
+      // Locked by a running process — leave it for the next pass.
+    }
+  }
+}
+
+/**
  * Copy the newest versioned binary from `sourceHome/bin` into every managed
  * profile bin dir and swap the canonical `grok(.exe)` onto it. A running
  * session locks `grok.exe` on Windows, so the swap first tries an in-place
- * overwrite and falls back to parking the old file as `grok.exe.old-*`;
+ * replace and falls back to parking the old file as `grok.exe.old-*`;
  * profiles that still fail are reported stale instead of throwing.
  */
 export function syncManagedGrokBinaries(input: {
@@ -100,30 +137,33 @@ export function syncManagedGrokBinaries(input: {
 
   for (const binDir of listManagedGrokBinDirs(input.accountsRoot)) {
     const profile = basename(binDir.replace(/[\\/]bin$/, ""));
-    const existing = grokBinVersionFromDir(binDir);
-    if (existing && !isNewerVersion(sourceVersion, existing)) {
-      report.current.push(profile);
-      continue;
-    }
     try {
-      const destVersioned = join(binDir, `grok-${sourceVersion}${ext}`);
-      if (!existsSync(destVersioned)) copyFileSync(sourceFile, destVersioned);
-      const canonical = join(binDir, GROK_BIN_NAME);
-      try {
-        copyFileSync(destVersioned, canonical);
-      } catch {
-        // A running session locks the exe; rename-aside still works on
-        // Windows (rename is allowed on running images, delete is not).
-        renameSync(canonical, `${canonical}.old-${Date.now().toString(36)}`);
-        copyFileSync(destVersioned, canonical);
+      const existing = grokBinVersionFromDir(binDir);
+      if (existing && !isNewerVersion(sourceVersion, existing)) {
+        report.current.push(profile);
+      } else {
+        const destVersioned = join(binDir, `grok-${sourceVersion}${ext}`);
+        if (!existsSync(destVersioned)) placeBinary(sourceFile, destVersioned);
+        const canonical = join(binDir, GROK_BIN_NAME);
+        try {
+          rmSync(canonical, { force: true });
+          placeBinary(destVersioned, canonical);
+        } catch {
+          // A running session locks the exe; rename-aside still works on
+          // Windows (rename is allowed on running images, delete is not).
+          renameSync(canonical, `${canonical}.old-${Date.now().toString(36)}`);
+          placeBinary(destVersioned, canonical);
+        }
+        report.synced.push(profile);
       }
-      report.synced.push(profile);
     } catch (error) {
       report.stale.push({
         profile,
         error: error instanceof Error ? error.message : String(error),
       });
+      continue;
     }
+    cleanupStaleGrokFiles(binDir, sourceVersion);
   }
   return report;
 }

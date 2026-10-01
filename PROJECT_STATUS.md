@@ -1,3 +1,11 @@
+## 线程重命名失效真根因 + Grok 二进制硬链接瘦身（2026-10-01）
+
+- **重命名真根因（CDP 实测复现）**：同一线程可同时在多个侧栏区块渲染（项目列表 `thread:` + Workspace 收件箱快捷行 `workspace:` + 置顶区 `pinned:`）。所有 `SortableThreadItem` 都判断 `editingThreadId === thread.id` → 点重命名时**每个重复行各挂一个输入框**，互相抢焦点：失焦方 `onBlur` → commit 未改名 → `onCancel` → `setEditingThreadId(null)` → 全部卸载，一帧内完成 = 「按了没用」。与 `titleSource` 无关。
+- **修复**：编辑态改绑**行唯一键** `row.key`（`thread:`/`workspace:`/`pinned:`/`wt:*:thread:`/`group:*:thread:`），`SortableThreadItem` 新增必填 `editKey` prop，`SidebarThreadRow` 传 `row.key`——只有被点的行进编辑态。CDP 实测：右键 → Rename → 输入框保持焦点 → Enter → `title`+`titleSource:"user"` 经 `dbSyncAll` 落库。
+- **Grok 二进制瘦身**：`managedGrokBinaries` 同步时版本化副本改用 **NTFS 硬链接**（同 inode、每 profile 省 ~150MB，跨设备回退 copy），并在每次同步后清理**严格更旧**的 `grok-<ver>` 副本与 `grok.exe.old-*` parked 文件。已回收本机 ~1.36GB（8×151MB 版本副本转硬链接 + `~/.grok/bin/grok-1.0.44.exe`）。
+- **附带发现（未改，记录）**：`dbSyncAll` 的 `persistedThreadSchema` 要求 `config.model` 必填——任何一条非法线程会让**整批** projects/threads 同步静默失败（仅 console.error）。当前真实数据均合规，但若未来出现无 model 线程会全量丢持久化。
+- **验证**：Sidebar 28 文件 238 项测试全过（新增双行 editKey 回归用例）、managedGrokBinaries 7 项（新增硬链接/清理用例）、typecheck 0 错、oxlint 0 错。
+
 ## 线程标题归属 + Grok 托管二进制更新 + CLI 自动更新（2026-10-01）
 
 - **线程命名**：`Thread` 新增 `titleSource`（`fallback`/`agent`/`user`），迁移 v48 `threads.title_source`（存量行 NULL→视为 `user`、锁定防覆盖）。`renameThread` 原子守卫：`agent` 来源只可替换 `fallback`/`agent`；用户改名无条件获胜。`titleGen` 只在 `fallback` 时写——用户改名后到达的迟来 AI 标题不再覆盖。schema/migration/rowMapper/sync upsert/threadSyncBroadcast diff/appThreadLauncher/threadCommands 全链路带字段。

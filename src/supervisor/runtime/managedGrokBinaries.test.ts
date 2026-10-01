@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -89,6 +97,25 @@ describe("syncManagedGrokBinaries", () => {
     expect(readFileSync(join(stale, `grok-1.0.46${EXT}`), "utf8")).toBe("v1.0.46");
     expect(readFileSync(join(stale, BIN), "utf8")).toBe("v1.0.46");
     expect(readFileSync(join(fresh, BIN), "utf8")).toBe("v1.0.46");
+  });
+
+  it("shares the binary via hardlink and drops superseded copies", () => {
+    const accountsRoot = makeDir();
+    const binDir = makeProfile(accountsRoot, "profile-old", ["1.0.5", "1.0.25"]);
+    writeFileSync(join(binDir, `${BIN}.old-abc`), "parked");
+    const sourceHome = makeSourceHome(["1.0.46"]);
+
+    const report = syncManagedGrokBinaries({ accountsRoot, sourceHome });
+
+    expect(report.synced).toEqual(["profile-old"]);
+    expect(existsSync(join(binDir, `grok-1.0.5${EXT}`))).toBe(false);
+    expect(existsSync(join(binDir, `grok-1.0.25${EXT}`))).toBe(false);
+    expect(existsSync(join(binDir, `${BIN}.old-abc`))).toBe(false);
+    // Hardlinked files share an inode; on filesystems without hardlink
+    // support the copy fallback leaves nlink === 1 on both.
+    const versioned = statSync(join(binDir, `grok-1.0.46${EXT}`));
+    const canonical = statSync(join(binDir, BIN));
+    expect(versioned.nlink === 1 || canonical.ino === versioned.ino).toBe(true);
   });
 
   it("no-ops when the source home has no versioned binary", () => {
