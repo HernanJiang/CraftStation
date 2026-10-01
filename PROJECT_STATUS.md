@@ -1,3 +1,11 @@
+## Antigravity/Gemini 重复输出修复 + v1.7.3 发布（2026-10-01）
+
+- **根因**：`result.response` 终态快照会把已流式的 status 行折进正文**中间**——真实形态 `[草稿正文][status1][status2][修正正文]`（4008 字符单 chunk 落到 `text-2`）。`finalResponseRemainder` 只处理已流文本在快照**前缀/后缀/重叠**的情形，中间嵌入全部落空 → 整段追加 → 界面重复两遍。
+- **修复**：`finalResponseRemainder` 末尾新增嵌入回显检查——对 `streamed` 的**最长后缀**做二分查找（命中性随长度单调递减，O(log n) 次 `includes`），定位其在快照中最后一次出现的位置，返回其后内容（回显贴尾则返回前缀）；头部前缀方向作对称兜底；`MIN_EMBEDDED_ECHO=8` 下限防止 `\n` 等短串误切正文。
+- **真实数据验证**：线程 `2b79e4b5`（简历优化）的 4008 字符真实快照经新逻辑裁为 1977 字符 = 仅修正版正文（草稿版与两条 status 行均剔除）。
+- **发布**：v1.7.3 tag `28c712b8`（原先指向修复前 `2d35742c`，已 force-move）；远端已存在的预发布 Release 资产为修复前产物，删除后重建，4 个资产（Setup 148,554,857 / Portable 127,267,214 / blockmap / latest.yml）全部为含修复的新构建。
+- **验证**：canonicalizer 23 项 + structuredSession 20 项测试全过（新增 3 项嵌入回显用例 + 1 项 session 级回归），typecheck/oxlint 0 错。
+
 ## 线程重命名失效真根因 + Grok 二进制硬链接瘦身（2026-10-01）
 
 - **重命名真根因（CDP 实测复现）**：同一线程可同时在多个侧栏区块渲染（项目列表 `thread:` + Workspace 收件箱快捷行 `workspace:` + 置顶区 `pinned:`）。所有 `SortableThreadItem` 都判断 `editingThreadId === thread.id` → 点重命名时**每个重复行各挂一个输入框**，互相抢焦点：失焦方 `onBlur` → commit 未改名 → `onCancel` → `setEditingThreadId(null)` → 全部卸载，一帧内完成 = 「按了没用」。与 `titleSource` 无关。
