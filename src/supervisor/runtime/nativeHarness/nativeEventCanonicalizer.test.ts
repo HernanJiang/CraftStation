@@ -433,6 +433,36 @@ describe("finalResponseRemainder", () => {
     const snapshot = "第一行。\n第二行。\n第三行。\n";
     expect(finalResponseRemainder(streamed, snapshot)).toBe(snapshot);
   });
+
+  // Real shape from conversation 421235c2 (thread 简历优化): the stream
+  // already carried the complete draft answer, then a snapshot arrived as a
+  // re-rendered revision — identical opening, edited middle — truncated
+  // mid-token. Appending any slice of it produced "[complete answer][second
+  // opening cut off at '1. *']", which looked like the answer was cut short.
+  const sharedHead =
+    "结论：这份简历已经足够优秀，可以直接投递。\n\n### 一、优势\n\n1. 叙事契合度极高；\n";
+  const draftTail =
+    "舒展展开；\n更多旧版细节：甲乙丙丁戊己庚辛壬癸。\n\n### 三、收尾\n\n祝您投递顺利！\n";
+  const revisedTail =
+    "舒展开；\n更多旧版细节：甲乙丙丁戊己庚辛壬癸。\n\n### 三、收尾\n\n祝您投递顺利！";
+  const streamedDraft = sharedHead + draftTail;
+  const revision = sharedHead + revisedTail;
+
+  it("drops a mid-turn rewritten snapshot of an already-complete answer", () => {
+    const partialRevision = revision.slice(0, revision.length - 20);
+    expect(finalResponseRemainder(streamedDraft, partialRevision)).toBe("");
+  });
+
+  it("drops a fully rewritten closing snapshot of the same answer", () => {
+    expect(finalResponseRemainder(streamedDraft, revision)).toBe("");
+  });
+
+  it("still appends when a snapshot extends the answer past an interleaved status line", () => {
+    const prose = "回答正文第一部分内容，已经完整流出。";
+    const status = "正在生成预览，请稍候。";
+    const continuation = prose + "第二部分是新的正文内容。";
+    expect(finalResponseRemainder(prose + status, continuation)).toBe("第二部分是新的正文内容。");
+  });
 });
 
 describe("canonicalizeNativeEvent DeepSeek turn/end reason kinds", () => {

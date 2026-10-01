@@ -106,6 +106,13 @@ function rawIndexAfterNonWhitespace(text: string, count: number): number {
 }
 
 /**
+ * Chars sampled next to the embedded echo when checking whether the slice to
+ * append re-renders text the stream already showed. Long enough that an
+ * accidental hit is implausible, short enough to survive edit points.
+ */
+const REVISION_EDGE = 24;
+
+/**
  * Removes the already-streamed part of a terminal `result.response` snapshot.
  * Antigravity repeats the complete answer in its closing `result` frame; its
  * step deltas, however, drop the newline separators the snapshot restores, so
@@ -118,7 +125,9 @@ export function finalResponseRemainder(streamed: string, response: string): stri
   if (response.startsWith(streamed)) return response.slice(streamed.length);
   if (streamed.endsWith(response)) return "";
   const maxOverlap = Math.min(streamed.length, response.length);
-  for (let length = maxOverlap; length > 0; length -= 1) {
+  for (let length = maxOverlap; length >= MIN_EMBEDDED_ECHO; length -= 1) {
+    // Below MIN a head/tail "overlap" is more likely a shared markdown char
+    // (`*`, `-`, digit) than a real continuation — do not cut the delta.
     if (streamed.endsWith(response.slice(0, length))) return response.slice(length);
   }
   const sqStreamed = streamed.replace(/\s+/g, "");
@@ -128,7 +137,7 @@ export function finalResponseRemainder(streamed: string, response: string): stri
     return response.slice(rawIndexAfterNonWhitespace(response, sqStreamed.length));
   }
   const maxSqOverlap = Math.min(sqStreamed.length, sqResponse.length);
-  for (let length = maxSqOverlap; length > 0; length -= 1) {
+  for (let length = maxSqOverlap; length >= MIN_EMBEDDED_ECHO; length -= 1) {
     if (sqStreamed.endsWith(sqResponse.slice(0, length))) {
       return response.slice(rawIndexAfterNonWhitespace(response, length));
     }
@@ -157,8 +166,27 @@ export function finalResponseRemainder(streamed: string, response: string): stri
     if (best === 0) continue;
     const seed = fromEnd ? streamed.slice(streamed.length - best) : streamed.slice(0, best);
     const at = response.lastIndexOf(seed);
-    const after = response.slice(at + seed.length);
-    return after || response.slice(0, at);
+    const next = response.slice(at + seed.length) || response.slice(0, at);
+    // Revision guard: agy can rewrite the answer mid-turn, so a snapshot can
+    // carry a re-rendered variant of the same document (same opening, edited
+    // or truncated middle). Two tells, either sufficient: the slice about to
+    // be appended replays text sitting right next to the echo in the
+    // ALREADY-streamed part the seed did not cover, or the slice's own tail
+    // is a stretch that part already showed. Both mean "same document" —
+    // appending would pile a truncated copy of the answer onto the complete
+    // text ("…1. *" mid-token cut). The interleaved-status case keeps
+    // working because a status line never reappears inside the new prose.
+    const unseen = fromEnd ? streamed.slice(0, streamed.length - best) : streamed.slice(best);
+    const headEdge = fromEnd ? unseen.slice(-REVISION_EDGE) : unseen.slice(0, REVISION_EDGE);
+    const tailEdge = next.slice(-REVISION_EDGE);
+    if (
+      next &&
+      ((headEdge.length >= MIN_EMBEDDED_ECHO && next.includes(headEdge)) ||
+        (tailEdge.length >= MIN_EMBEDDED_ECHO && unseen.includes(tailEdge)))
+    ) {
+      return "";
+    }
+    return next;
   }
   return response;
 }

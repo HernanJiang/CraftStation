@@ -750,4 +750,70 @@ describe("AntigravityStructuredSession", () => {
       ]),
     );
   });
+
+  it("drops a mid-turn rewritten snapshot instead of showing a cut-off second copy", async () => {
+    // Real shape from thread 简历优化 (agy conversation 421235c2): the turn
+    // streamed the complete answer, then a step snapshot re-rendered it with
+    // an edited middle but was cut mid-token at "1. *". Appending that slice
+    // made the reply look truncated after its true ending.
+    const sharedHead =
+      "结论：这份简历已经足够优秀，可以直接投递。\n\n### 一、优势\n\n1. 叙事契合度极高；\n";
+    const streamedAnswer =
+      sharedHead +
+      "舒展展开；\n更多旧版细节：甲乙丙丁戊己庚辛壬癸。\n\n### 三、收尾\n\n祝您投递顺利！\n";
+    const revision =
+      sharedHead +
+      "舒展开；\n更多旧版细节：甲乙丙丁戊己庚辛壬癸。\n\n### 三、收尾\n\n祝您投递顺利！";
+    const partialRevision = revision.slice(0, revision.length - 20);
+    const fixture = new AntigravityFixture((emit) => {
+      emit({ event: "init", conversation_id: "agy-conversation-1" });
+      emit({
+        event: "step_update",
+        step_update: {
+          step_type: "agent_response",
+          state: "ACTIVE",
+          text_delta: streamedAnswer,
+        },
+      });
+      emit({
+        event: "step_update",
+        step_update: {
+          step_type: "agent_response",
+          state: "ACTIVE",
+          text_delta: partialRevision,
+        },
+      });
+      emit({
+        event: "result",
+        result: { status: "SUCCESS", response: revision },
+      });
+    });
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+    await session.startTurn("polish?", { model: "Gemini 3.5 Flash" });
+
+    const joined = events
+      .filter(
+        (event): event is Extract<RuntimeEvent, { type: "content.delta" }> =>
+          event.type === "content.delta" && event.stream === "assistant_text",
+      )
+      .map((event) => event.delta)
+      .join("");
+    expect(joined).toBe(streamedAnswer);
+    expect(joined.endsWith("祝您投递顺利！\n")).toBe(true);
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "turn.completed", state: "completed" }),
+      ]),
+    );
+    await session.dispose();
+  });
 });
