@@ -4,12 +4,17 @@
       "version": "1.7.3",
       "date": "2026-10-01",
       "title": "Thread rename actually opens",
-      "summary": "A patch release: renaming a thread in the sidebar finally works for threads shown in more than one section, and managed Grok binaries stop doubling their disk footprint.",
+      "summary": "A patch release: renaming a thread in the sidebar finally works for threads shown in more than one section, Antigravity/Gemini answers no longer repeat when status lines get folded into the final snapshot, and managed Grok binaries stop doubling their disk footprint.",
       "changes": [
         {
           "kind": "fixed",
           "label": "Threads",
           "text": "Rename now opens and commits reliably: when a thread appears in several sidebar sections (project list, Workspace inbox, Pinned), only the row you clicked enters edit mode — previously every duplicate row mounted an input at once and the focus race cancelled the rename within a frame."
+        },
+        {
+          "kind": "fixed",
+          "label": "Antigravity",
+          "text": "Gemini/Antigravity replies no longer render twice: the CLI's closing snapshot can embed already-streamed status lines in the middle of the response (a superseded draft, queued notices, then the regenerated answer), and the dedup now cuts the response at the last replayed stretch — not only at prefix or suffix boundaries — so just the final answer is appended."
         },
         {
           "kind": "improved",

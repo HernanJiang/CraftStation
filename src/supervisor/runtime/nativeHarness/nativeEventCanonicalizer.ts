@@ -10,6 +10,10 @@ import { createContextUsageEvent, usageFromProviderRecord } from "@/supervisor/a
 import type { NativeWireEvent } from "./nativeTransport";
 import { redactNativePayload } from "./nativeTransport";
 
+// An embedded echo shorter than this is too easy to produce by chance — a
+// lone "\n" or short token appears in any long snapshot and must not cut it.
+const MIN_EMBEDDED_ECHO = 8;
+
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
@@ -128,6 +132,33 @@ export function finalResponseRemainder(streamed: string, response: string): stri
     if (sqStreamed.endsWith(sqResponse.slice(0, length))) {
       return response.slice(rawIndexAfterNonWhitespace(response, length));
     }
+  }
+  // The replay can sit inside the snapshot instead of at its edges: agy folds
+  // queued status lines into its closing `response`, wrapping already-seen
+  // text in fresh text ([draft][status echo][final]). Anchor on the longest
+  // streamed stretch the snapshot still contains — a suffix match is
+  // monotonic in length so binary search finds it; the streamed head is the
+  // fallback for replays of older text. Text after the last echo is new, and
+  // an echo flush with the end means the new part is what precedes it.
+  for (const fromEnd of [true, false]) {
+    let lo = MIN_EMBEDDED_ECHO;
+    let hi = Math.min(streamed.length, response.length);
+    let best = 0;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      const candidate = fromEnd ? streamed.slice(streamed.length - mid) : streamed.slice(0, mid);
+      if (response.includes(candidate)) {
+        best = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    if (best === 0) continue;
+    const seed = fromEnd ? streamed.slice(streamed.length - best) : streamed.slice(0, best);
+    const at = response.lastIndexOf(seed);
+    const after = response.slice(at + seed.length);
+    return after || response.slice(0, at);
   }
   return response;
 }

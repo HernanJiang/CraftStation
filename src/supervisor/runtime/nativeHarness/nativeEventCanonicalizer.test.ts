@@ -406,6 +406,33 @@ describe("finalResponseRemainder", () => {
       "completely different",
     );
   });
+
+  it("cuts an echo embedded mid-snapshot and keeps the regenerated tail", () => {
+    // Real shape from an agy conversation: the closing `result.response`
+    // carried [draft answer][status 1][status 2][corrected answer] as one
+    // chunk while only the two status lines had streamed.
+    const earlier = "前半部分已经流过的长回复段落。\n";
+    const statusA = "正在测试提炼精简后的方案并生成排版效果图，稍后为您展示最新效果。\n";
+    const statusB = "正在更新官方文档并重新编译导出 PDF，稍后为您汇报结果。\n";
+    const draft = "确实，“亟需打造……”这类词带有较浓的公文腔。\n* *精炼后**：\n  > 草稿版引用\n";
+    const final = draft.replace("* *精炼后**", "* **精炼后**").replace("草稿版", "定稿版");
+    const streamed = earlier + statusA + statusB;
+    const snapshot = draft + statusA + statusB + final;
+    expect(finalResponseRemainder(streamed, snapshot)).toBe(final);
+  });
+
+  it("keeps the new prefix when the embedded echo ends flush with the snapshot", () => {
+    const status = "正在生成预览，稍后为您展示最新效果。\n";
+    const streamed = `另一段落。\n${status}`;
+    const snapshot = `新的结论正文，此前从未流出。${status}`;
+    expect(finalResponseRemainder(streamed, snapshot)).toBe("新的结论正文，此前从未流出。");
+  });
+
+  it("does not cut a snapshot on a coincidental short match", () => {
+    const streamed = "done.\n";
+    const snapshot = "第一行。\n第二行。\n第三行。\n";
+    expect(finalResponseRemainder(streamed, snapshot)).toBe(snapshot);
+  });
 });
 
 describe("canonicalizeNativeEvent DeepSeek turn/end reason kinds", () => {

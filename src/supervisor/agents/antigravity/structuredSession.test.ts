@@ -443,6 +443,49 @@ describe("AntigravityStructuredSession", () => {
     ).toBe("hello world");
   });
 
+  it("keeps only the regenerated tail when the result snapshot embeds streamed text mid-body", async () => {
+    const statusA = "正在测试提炼精简后的方案并生成排版效果图，稍后为您展示最新效果。\n";
+    const statusB = "正在更新官方文档并重新编译导出 PDF，稍后为您汇报结果。\n";
+    const draft = "草稿版正文，带有 * *已修正的格式瑕疵**。\n";
+    const final = draft.replace("* *已修正的格式瑕疵**", "* **格式已修正**");
+    const fixture = new AntigravityFixture((emit) => {
+      emit({ event: "init", conversation_id: "agy-conversation-1" });
+      emit({
+        event: "step_update",
+        step_update: { step_type: "agent_response", state: "ACTIVE", text_delta: statusA },
+      });
+      emit({
+        event: "step_update",
+        step_update: { step_type: "agent_response", state: "ACTIVE", text_delta: statusB },
+      });
+      emit({
+        event: "result",
+        result: { status: "SUCCESS", response: draft + statusA + statusB + final },
+      });
+    });
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+    await session.startTurn("hello", { model: "Gemini 3.5 Flash" });
+
+    expect(
+      events
+        .filter(
+          (event): event is Extract<RuntimeEvent, { type: "content.delta" }> =>
+            event.type === "content.delta" && event.stream === "assistant_text",
+        )
+        .map((event) => event.delta)
+        .join(""),
+    ).toBe(statusA + statusB + final);
+  });
+
   it("completes streamed thinking when the result envelope arrives", async () => {
     const fixture = new AntigravityFixture((emit) => {
       emit({ event: "init", conversation_id: "agy-conversation-1" });
