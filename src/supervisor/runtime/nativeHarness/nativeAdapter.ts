@@ -30,6 +30,7 @@ import { inlinePromptSegmentText } from "@/shared/promptContent";
 import {
   canonicalizeNativeEvent,
   createNativeCanonicalizerTurnState,
+  finalResponseRemainder,
   type NativeCanonicalizerTurnState,
 } from "./nativeEventCanonicalizer";
 import {
@@ -88,17 +89,6 @@ function effectiveOverrides(plan: CraftPlan): RuntimeOverrides {
 
 function publicError(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function finalResponseRemainder(streamed: string, response: string): string {
-  if (!streamed) return response;
-  if (response.startsWith(streamed)) return response.slice(streamed.length);
-  if (streamed.endsWith(response)) return "";
-  const maxOverlap = Math.min(streamed.length, response.length);
-  for (let length = maxOverlap; length > 0; length -= 1) {
-    if (streamed.endsWith(response.slice(0, length))) return response.slice(length);
-  }
-  return response;
 }
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {

@@ -20,6 +20,11 @@
           "kind": "fixed",
           "label": "Chat",
           "text": "Maximizing the side panel no longer crashes the conversation view, and crash details are now recorded for faster diagnosis."
+        },
+        {
+          "kind": "fixed",
+          "label": "Antigravity",
+          "text": "Gemini narration now interleaves with tool calls in true timeline order instead of collapsing into one block above all tools, and the closing response snapshot no longer duplicates the streamed answer."
         }
       ]
     },

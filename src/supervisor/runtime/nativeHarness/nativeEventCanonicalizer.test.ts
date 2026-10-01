@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canonicalizeNativeEvent,
   createNativeCanonicalizerTurnState,
+  finalResponseRemainder,
 } from "./nativeEventCanonicalizer";
 import {
   ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
@@ -235,6 +236,175 @@ describe("canonicalizeNativeEvent step-less thinking run splitting", () => {
       ]),
     );
     expect(state.thoughtRuns).toBe(1);
+  });
+});
+
+describe("canonicalizeNativeEvent agent_response text run splitting", () => {
+  function agyEventWithState(
+    event: { type: string; payload: Record<string, unknown>; sequence: number },
+    state: ReturnType<typeof createNativeCanonicalizerTurnState>,
+  ) {
+    return canonicalizeNativeEvent({
+      descriptor: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
+      threadId: "t1",
+      turnId: "turn-1",
+      correlationId: "c1",
+      event,
+      thoughtRunState: state,
+    });
+  }
+
+  it("keeps contiguous narration deltas on the shared turn item", () => {
+    const state = createNativeCanonicalizerTurnState();
+    let seq = 0;
+    const next = (payload: Record<string, unknown>) =>
+      agyEventWithState(
+        { type: "step_update", payload: { step_update: payload }, sequence: ++seq },
+        state,
+      );
+    next({ step_type: "agent_response", state: "ACTIVE", text_delta: "part one " });
+    const continued = next({
+      step_type: "agent_response",
+      state: "ACTIVE",
+      text_delta: "part two",
+    });
+    expect(continued).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "content.delta",
+          itemId: "item:turn-1",
+          stream: "assistant_text",
+          delta: "part two",
+        }),
+      ]),
+    );
+    expect(state.textRuns).toBe(1);
+  });
+
+  it("anchors narration after an interrupting tool step on a fresh item", () => {
+    const state = createNativeCanonicalizerTurnState();
+    let seq = 0;
+    const next = (payload: Record<string, unknown>) =>
+      agyEventWithState(
+        { type: "step_update", payload: { step_update: payload }, sequence: ++seq },
+        state,
+      );
+
+    next({ step_type: "agent_response", state: "ACTIVE", text_delta: "narration before tool" });
+    next({ step_type: "tool", step_index: 0, state: "ACTIVE", tool_name: "grep" });
+    const resumed = next({
+      step_type: "agent_response",
+      state: "ACTIVE",
+      text_delta: "narration after tool",
+    });
+
+    expect(resumed).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "item.completed", itemId: "item:turn-1" }),
+        expect.objectContaining({ type: "item.started", itemId: "item:turn-1:text-1" }),
+        expect.objectContaining({
+          type: "content.delta",
+          itemId: "item:turn-1:text-1",
+          stream: "assistant_text",
+          delta: "narration after tool",
+        }),
+      ]),
+    );
+  });
+
+  it("opens a new text run after an interrupting thinking run too", () => {
+    const state = createNativeCanonicalizerTurnState();
+    let seq = 0;
+    const next = (payload: Record<string, unknown>) =>
+      agyEventWithState(
+        { type: "step_update", payload: { step_update: payload }, sequence: ++seq },
+        state,
+      );
+
+    next({ step_type: "agent_response", state: "ACTIVE", text_delta: "prose" });
+    next({ step_type: "thinking", state: "ACTIVE", thinking_delta: "pondering" });
+    const resumed = next({
+      step_type: "agent_response",
+      state: "ACTIVE",
+      text_delta: "more prose",
+    });
+    expect(resumed).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "item.started", itemId: "item:turn-1:text-1" }),
+      ]),
+    );
+  });
+
+  it("completes the open text and thinking runs at result", () => {
+    const state = createNativeCanonicalizerTurnState();
+    let seq = 0;
+    const next = (type: string, payload: Record<string, unknown>) =>
+      agyEventWithState({ type, payload, sequence: ++seq }, state);
+
+    next("step_update", {
+      step_update: { step_type: "agent_response", state: "ACTIVE", text_delta: "first" },
+    });
+    next("step_update", {
+      step_update: { step_type: "tool", step_index: 0, state: "DONE", tool_name: "grep" },
+    });
+    next("step_update", {
+      step_update: { step_type: "agent_response", state: "ACTIVE", text_delta: "second" },
+    });
+    next("step_update", {
+      step_update: { step_type: "thinking", state: "ACTIVE", thinking_delta: "tail thought" },
+    });
+    const result = next("result", { result: { status: "DONE", response: "firstsecond" } });
+
+    expect(result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "item.completed", itemId: "item:turn-1" }),
+        expect.objectContaining({ type: "item.completed", itemId: "item:turn-1:text-1" }),
+        expect.objectContaining({ type: "item.completed", itemId: "thought:turn-1" }),
+        expect.objectContaining({ type: "turn.completed", state: "completed" }),
+      ]),
+    );
+    // The snapshot echo lands on the still-open second text run so a remainder
+    // suffix continues the live item instead of resurrecting the closed one.
+    expect(result).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "content.delta",
+          itemId: "item:turn-1:text-1",
+          stream: "assistant_text",
+          delta: "firstsecond",
+        }),
+      ]),
+    );
+  });
+});
+
+describe("finalResponseRemainder", () => {
+  it("drops a snapshot echo that only differs in whitespace", () => {
+    const streamed =
+      "I have launched the check and will examine once completed.I have started searching.";
+    const snapshot =
+      "I have launched the check and will examine once completed.\nI have started searching.\n";
+    expect(finalResponseRemainder(streamed, snapshot)).toBe("");
+  });
+
+  it("emits only the untold suffix when the snapshot extends the stream", () => {
+    const streamed = "first line.Second line.";
+    const snapshot = "first line.\nSecond line.\nA closing note.";
+    expect(finalResponseRemainder(streamed, snapshot)).toBe("\nA closing note.");
+  });
+
+  it("returns the response intact when nothing was streamed", () => {
+    expect(finalResponseRemainder("", "the whole answer")).toBe("the whole answer");
+  });
+
+  it("returns empty when the stream already contains the response", () => {
+    expect(finalResponseRemainder("long answer tail", "tail")).toBe("");
+  });
+
+  it("returns the response when it shares no content with the stream", () => {
+    expect(finalResponseRemainder("streamed words", "completely different")).toBe(
+      "completely different",
+    );
   });
 });
 

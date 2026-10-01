@@ -1,3 +1,11 @@
+## Antigravity 思考/工具时间线错位 + 正文重复修复（2026-10-01）
+
+- **用户反馈**：Gemini 线程里思考/叙述文本全挤在上方、工具调用全挤在下方；最终回复与正文还会重复输出两遍（muse 报告同类，muse 车道按 provider `itemId` 分条、机制不同，需真实复现线程再查）。
+- **根因（真实 DB 取证）**：agy 的 `step_update` 里 `agent_response` 文本 delta 全部写进单一 `item:{turnId}`（`INSERT OR IGNORE` 锚定首个 position），工具步穿插期间到达的叙述被并回顶部 item——线程 `2b79e4b5` 实测 60 个 tool_call + 1 条 assistant_message（15485 字符）证实；agy 上游 `conversations/*.db` 的 step_type 15（文本步）与 132（工具步）在 idx 上天然交替。其二，`result.response` 全量快照（补回 delta 里缺失的换行，实测 diff 在偏移 109 处发散）过不了 `finalResponseRemainder` 的精确 `startsWith` → 整段快照再 append 一遍 → 正文翻倍。
+- **修复**：`nativeEventCanonicalizer.ts` 的 `NativeCanonicalizerTurnState` 扩展文本 run（`openTextItemId`/`textRuns`/`textInterrupted`）——tool/subagent/thinking 步打断文本 run，下一段 `agent_response` delta 落到新 `item:{turnId}:text-N`（run 0 保持 `item:{turnId}` 兼容），与既有 thinking-run 切分对称；`result` 收尾补发所有打开 run 的 `item.completed`（原实现只发 run-0 id，run-N 的 reasoning/text item 会永远停在 started）；`finalResponseRemainder` 提升为共享导出（`nativeAdapter`/`structuredSession` 各有一份副本已删除）并新增空白符容错比对（`\s+` 压平后做等值/前缀/重叠匹配，再映射回 raw offset 取未流出 suffix）。
+- **验证**：canonicalizer 20 项 + structuredSession 19 项 + nativeAdapter 33 项单测全过（含新增 8 项：文本 run 切分/run 收尾/空白容错 remainder 全分支）；nativeHarness + antigravity + threadSession 面 39 文件 405 项全过；typecheck、oxlint、`git diff --check` 全净。
+- **注意**：structuredSession 里 `finalResponseRemainder` 必须对每条 assistant_text delta 生效（agy DONE `agent_response` step 会用 `text_delta` 重发整步快照），不能只在 `result` 帧裁剪——已验证收窄会回归（`hello hello world`）。
+
 ## DeepSeek Harness opencode-go 第三方模型绑定修复 + 聊天 LaTeX 兼容修复（2026-10-01）
 
 - **用户反馈**：DeepSeek Harness 选 `opencode-go/deepseek-v4.1-flash` 报 `DSH model binding failed`；聊天里 `$$…$$` 数学公式与 Markdown 结构原样显示。

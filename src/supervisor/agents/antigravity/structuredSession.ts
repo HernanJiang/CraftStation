@@ -16,6 +16,7 @@ import { ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR } from "@/supervisor/runtime/nati
 import {
   canonicalizeNativeEvent,
   createNativeCanonicalizerTurnState,
+  finalResponseRemainder,
   type NativeCanonicalizerTurnState,
 } from "@/supervisor/runtime/nativeHarness/nativeEventCanonicalizer";
 import {
@@ -46,17 +47,6 @@ interface AntigravityStructuredSessionOptions {
   supportsPrintTimeout?: boolean;
   defaultModel: string;
   spawnProcess?: typeof spawn;
-}
-
-function finalResponseRemainder(streamed: string, response: string): string {
-  if (!streamed) return response;
-  if (response.startsWith(streamed)) return response.slice(streamed.length);
-  if (streamed.endsWith(response)) return "";
-  const maxOverlap = Math.min(streamed.length, response.length);
-  for (let length = maxOverlap; length > 0; length -= 1) {
-    if (streamed.endsWith(response.slice(0, length))) return response.slice(length);
-  }
-  return response;
 }
 
 function resultPayload(event: NativeWireEvent): Record<string, unknown> {
@@ -434,6 +424,10 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
         this.openReasoningItemIds.delete(runtimeEvent.itemId);
       }
       if (runtimeEvent.type === "content.delta" && runtimeEvent.stream === "assistant_text") {
+        // agy reuses `text_delta` for whole-step snapshots (a DONE
+        // agent_response step re-sends its full text), and `result.response`
+        // replays the whole answer — every delta must be remainder-trimmed
+        // against the running stream, not only the terminal echo.
         const delta = finalResponseRemainder(this.streamedAssistantText, runtimeEvent.delta);
         if (!delta) continue;
         this.streamedAssistantText += delta;

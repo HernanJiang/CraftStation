@@ -49,14 +49,17 @@ function isThinkingStep(stepType: string): boolean {
 }
 
 /**
- * Per-turn mutable state for thinking-run attribution. Some providers emit
- * thinking `step_update` frames without a `step_index`; without extra state
- * every one of those deltas collapses into a single `thought:{turnId}` item
- * anchored at the turn's top, so thoughts that actually arrived *between*
- * tool calls all render as one block above the tools. The state splits the
- * stream into one item per contiguous thinking run: a tool/subagent step or
- * assistant text closes the open run, and the next thinking delta opens a new
- * one at its true timeline position.
+ * Per-turn mutable state for thinking- and text-run attribution. Some
+ * providers emit thinking `step_update` frames without a `step_index`;
+ * without extra state every one of those deltas collapses into a single
+ * `thought:{turnId}` item anchored at the turn's top, so thoughts that
+ * actually arrived *between* tool calls all render as one block above the
+ * tools. The state splits the stream into one item per contiguous run: a
+ * tool/subagent step or a step of the other kind closes the open run, and the
+ * next delta opens a new one at its true timeline position. The same rule
+ * applies to `agent_response` narration: agy emits prose deltas interleaved
+ * with tool steps, and every stretch must anchor on its own item or the whole
+ * answer collapses into one turn-top `item:{turnId}` message.
  */
 export interface NativeCanonicalizerTurnState {
   /** Item id of the currently open thinking run, if any. */
@@ -65,10 +68,68 @@ export interface NativeCanonicalizerTurnState {
   thoughtRuns: number;
   /** A non-thinking step arrived since the open run started. */
   interrupted: boolean;
+  /** Item id of the currently open assistant-text run, if any. */
+  openTextItemId: string | undefined;
+  /** Assistant-text runs allocated so far this turn (run 0 keeps the legacy id). */
+  textRuns: number;
+  /** A tool/subagent/thinking step arrived since the open text run started. */
+  textInterrupted: boolean;
 }
 
 export function createNativeCanonicalizerTurnState(): NativeCanonicalizerTurnState {
-  return { openThoughtItemId: undefined, thoughtRuns: 0, interrupted: false };
+  return {
+    openThoughtItemId: undefined,
+    thoughtRuns: 0,
+    interrupted: false,
+    openTextItemId: undefined,
+    textRuns: 0,
+    textInterrupted: false,
+  };
+}
+
+/**
+ * Offset in `text` just past its `count`-th non-whitespace character, so a
+ * whitespace-normalized prefix match can be mapped back to a raw slice point.
+ */
+function rawIndexAfterNonWhitespace(text: string, count: number): number {
+  let seen = 0;
+  let index = 0;
+  while (index < text.length && seen < count) {
+    if (!/\s/.test(text[index]!)) seen += 1;
+    index += 1;
+  }
+  return index;
+}
+
+/**
+ * Removes the already-streamed part of a terminal `result.response` snapshot.
+ * Antigravity repeats the complete answer in its closing `result` frame; its
+ * step deltas, however, drop the newline separators the snapshot restores, so
+ * exact prefix matching misses near-identical echoes. After the exact checks
+ * the comparison retries on whitespace-stripped text and maps the cut point
+ * back to a raw `response` offset.
+ */
+export function finalResponseRemainder(streamed: string, response: string): string {
+  if (!streamed) return response;
+  if (response.startsWith(streamed)) return response.slice(streamed.length);
+  if (streamed.endsWith(response)) return "";
+  const maxOverlap = Math.min(streamed.length, response.length);
+  for (let length = maxOverlap; length > 0; length -= 1) {
+    if (streamed.endsWith(response.slice(0, length))) return response.slice(length);
+  }
+  const sqStreamed = streamed.replace(/\s+/g, "");
+  const sqResponse = response.replace(/\s+/g, "");
+  if (sqResponse === sqStreamed) return "";
+  if (sqResponse.startsWith(sqStreamed)) {
+    return response.slice(rawIndexAfterNonWhitespace(response, sqStreamed.length));
+  }
+  const maxSqOverlap = Math.min(sqStreamed.length, sqResponse.length);
+  for (let length = maxSqOverlap; length > 0; length -= 1) {
+    if (sqStreamed.endsWith(sqResponse.slice(0, length))) {
+      return response.slice(rawIndexAfterNonWhitespace(response, length));
+    }
+  }
+  return response;
 }
 
 function visibleText(value: string | undefined): string | undefined {
@@ -209,7 +270,10 @@ export function canonicalizeNativeEvent(input: {
         ? String(payload.step_index)
         : undefined;
     if (stepType === "tool" || stepType === "subagent") {
-      if (thoughtRunState) thoughtRunState.interrupted = true;
+      if (thoughtRunState) {
+        thoughtRunState.interrupted = true;
+        thoughtRunState.textInterrupted = true;
+      }
       const stepIndex = String(payload.step_index ?? event.sequence);
       const itemId = `${stepType}:${conversationId}:${stepIndex}`;
       const state = String(payload.state ?? "").toUpperCase();
@@ -306,6 +370,7 @@ export function canonicalizeNativeEvent(input: {
     const thoughtText = visibleText(
       thinkingFrom(payload) ?? (thinkingStep ? textFrom(payload) : undefined),
     );
+    if (thoughtText && thoughtRunState) thoughtRunState.textInterrupted = true;
     if (thoughtText) {
       result.push(
         attach({
@@ -334,18 +399,45 @@ export function canonicalizeNativeEvent(input: {
     if (text) {
       // Visible assistant text also closes the open thinking run: a thought
       // that arrives after prose belongs after it in the timeline.
-      if (thoughtRunState) thoughtRunState.interrupted = true;
+      // The same run rule applies in reverse: agy narrates between tool steps
+      // via agent_response deltas, so a text stretch after a tool/thinking
+      // step must land on a fresh item or every narration collapses into the
+      // turn-top message above all tools.
+      let textItemId = `item:${turnId}`;
+      if (thoughtRunState) {
+        thoughtRunState.interrupted = true;
+        if (!thoughtRunState.openTextItemId || thoughtRunState.textInterrupted) {
+          if (thoughtRunState.openTextItemId) {
+            result.push(
+              attach({
+                type: "item.completed",
+                threadId,
+                itemId: thoughtRunState.openTextItemId,
+              }),
+            );
+          }
+          textItemId =
+            thoughtRunState.textRuns === 0
+              ? `item:${turnId}`
+              : `item:${turnId}:text-${thoughtRunState.textRuns}`;
+          thoughtRunState.textRuns += 1;
+          thoughtRunState.openTextItemId = textItemId;
+          thoughtRunState.textInterrupted = false;
+        } else {
+          textItemId = thoughtRunState.openTextItemId;
+        }
+      }
       result.push(
         attach({
           type: "item.started",
           threadId,
-          itemId: `item:${turnId}`,
+          itemId: textItemId,
           itemType: "assistant_message",
         }),
         attach({
           type: "content.delta",
           threadId,
-          itemId: `item:${turnId}`,
+          itemId: textItemId,
           stream: "assistant_text",
           delta: text,
         }),
@@ -395,34 +487,41 @@ export function canonicalizeNativeEvent(input: {
           ? String((rawError as Record<string, unknown>).message ?? "Native provider error.")
           : undefined;
     const failedMessage = providerError ?? `Native provider returned status ${status || "ERROR"}.`;
+    // A snapshot remainder continues the open text run; item/thought closures
+    // must hit the open run ids, not just the run-0 ids.
+    const responseItemId = thoughtRunState?.openTextItemId ?? `item:${turnId}`;
+    const openItemIds = new Set<string>([`item:${turnId}`, `thought:${turnId}`]);
+    if (thoughtRunState?.openTextItemId) openItemIds.add(thoughtRunState.openTextItemId);
+    if (thoughtRunState?.openThoughtItemId) openItemIds.add(thoughtRunState.openThoughtItemId);
+    if (thoughtRunState) {
+      thoughtRunState.openTextItemId = undefined;
+      thoughtRunState.openThoughtItemId = undefined;
+    }
     return [
       ...(response
         ? [
             attach({
               type: "item.started",
               threadId,
-              itemId: `item:${turnId}`,
+              itemId: responseItemId,
               itemType: "assistant_message",
             }),
             attach({
               type: "content.delta",
               threadId,
-              itemId: `item:${turnId}`,
+              itemId: responseItemId,
               stream: "assistant_text",
               delta: response,
             }),
           ]
         : []),
-      attach({
-        type: "item.completed",
-        threadId,
-        itemId: `item:${turnId}`,
-      }),
-      attach({
-        type: "item.completed",
-        threadId,
-        itemId: `thought:${turnId}`,
-      }),
+      ...[...openItemIds].map((itemId) =>
+        attach({
+          type: "item.completed" as const,
+          threadId,
+          itemId,
+        }),
+      ),
       ...(state === "failed" && !isRetryableCapacityError(failedMessage)
         ? [
             attach({
