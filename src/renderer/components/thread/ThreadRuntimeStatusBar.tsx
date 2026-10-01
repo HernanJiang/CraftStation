@@ -6,6 +6,7 @@ import type { Thread } from "@/shared/contracts";
 import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
 import { useAppStore } from "@/renderer/state/appStore";
 import { formatTokenCount } from "./formatTokenCount";
+import { formatTokenRate } from "@/shared/tokenSpeed";
 import { resolveThreadContextUsageSummary } from "./threadContextUsage";
 
 type RuntimeState = "working" | "completed" | "error" | "idle";
@@ -52,6 +53,7 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
   const completedTurns = useAppStore(
     (state) => state.runtimeCompletedTurnsByThread[threadId] ?? EMPTY_COMPLETED_TURNS,
   );
+  const turnOutput = useAppStore((state) => state.runtimeTurnOutputByThread[threadId]);
   const triggerRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(() => Date.now());
   const [pos, setPos] = useState<{ right: number; bottom: number } | null>(null);
@@ -88,6 +90,16 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
     : undefined;
   const currentTokens = summary?.usedTokens;
   const previousTurn = completedTurns.at(-1);
+  // Decode-window average (first delta → latest delta), mirroring the
+  // deepseek-harness throughput fold. While streaming, `lastDeltaAt` tracks
+  // `now`; during tool gaps it freezes so the reading stays a generation
+  // rate, not wall-clock dilation.
+  const decodeSeconds =
+    turnOutput && turnOutput.lastDeltaAt > turnOutput.firstDeltaAt
+      ? (turnOutput.lastDeltaAt - turnOutput.firstDeltaAt) / 1000
+      : 0;
+  const tokensPerSecond =
+    turnOutput && decodeSeconds > 0 ? turnOutput.estimatedTokens / decodeSeconds : undefined;
   const icon =
     state === "working" ? (
       <LoaderCircle className="size-3.5 animate-spin" />
@@ -158,6 +170,9 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
         {icon}
         <span>{label}</span>
         {elapsed ? <span className="tabular-nums opacity-75">{elapsed}</span> : null}
+        {tokensPerSecond !== undefined ? (
+          <span className="tabular-nums opacity-75">{formatTokenRate(tokensPerSecond)}</span>
+        ) : null}
         {state === "error" ? <Clipboard className="size-3 opacity-60" /> : null}
       </button>
       {pos
@@ -174,6 +189,9 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
                 label="本轮 Token"
                 value={currentTokens === undefined ? "未提供" : formatTokenCount(currentTokens)}
               />
+              {tokensPerSecond !== undefined ? (
+                <Detail label="输出速度" value={`${formatTokenRate(tokensPerSecond)}（估算）`} />
+              ) : null}
               {state === "completed" ? (
                 <Detail label="完成时间" value={formatClock(endedAt)} />
               ) : null}

@@ -82,6 +82,19 @@ export function toRuntimeChatItem(item: PersistedRuntimeItem): RuntimeChatItem {
   };
 }
 
+/**
+ * Estimated model-output throughput for the active (or just-finished) turn.
+ * Accumulates `content.delta` text on model-output streams only —
+ * `command_output`/`file_change_output` are tool output, never model speed.
+ * Timestamps bound the decode window (first delta → latest delta) so the
+ * rate is a generation-speed reading, not wall time padded by tool calls.
+ */
+export interface RuntimeTurnOutput {
+  estimatedTokens: number;
+  firstDeltaAt: number;
+  lastDeltaAt: number;
+}
+
 export interface OpenRuntimeRequest {
   requestId: string;
   threadId: string;
@@ -129,6 +142,8 @@ export interface RuntimeEventSlice {
    * safety net). See reopenGuiTurnForLiveRuntimeActivity.
    */
   runtimeOpenTurnByThread: Record<string, boolean>;
+  /** Per-thread output-rate accumulator for the working-pill tok/s reading. */
+  runtimeTurnOutputByThread: Record<string, RuntimeTurnOutput>;
   /** File-backed checkpoint snapshots keyed by checkpoint item id. */
   fileCheckpointsByThread: Record<string, Record<string, FileCheckpointRecord>>;
   /** Completed turn file diffs keyed by the turn anchor/checkpoint item id. */
@@ -220,6 +235,7 @@ export function createInitialRuntimeEventState(): Pick<
   | "runtimeStructuralVersionByThread"
   | "runtimeCompletedTurnsByThread"
   | "runtimeOpenTurnByThread"
+  | "runtimeTurnOutputByThread"
   | "userCancelledTurnStartsByThread"
   | "fileCheckpointsByThread"
   | "fileCheckpointTurnsByThread"
@@ -232,6 +248,7 @@ export function createInitialRuntimeEventState(): Pick<
     runtimeStructuralVersionByThread: {},
     runtimeCompletedTurnsByThread: {},
     runtimeOpenTurnByThread: {},
+    runtimeTurnOutputByThread: {},
     userCancelledTurnStartsByThread: {},
     fileCheckpointsByThread: {},
     fileCheckpointTurnsByThread: {},
@@ -259,7 +276,8 @@ export const createRuntimeEventSlice: SliceCreator<RuntimeEventSlice> = (set) =>
         !(threadId in state.runtimeContextByThread) &&
         !(threadId in state.runtimeStructuralVersionByThread) &&
         !(threadId in state.runtimeCompletedTurnsByThread) &&
-        !(threadId in state.runtimeOpenTurnByThread)
+        !(threadId in state.runtimeOpenTurnByThread) &&
+        !(threadId in state.runtimeTurnOutputByThread)
       ) {
         return {};
       }
@@ -277,6 +295,8 @@ export const createRuntimeEventSlice: SliceCreator<RuntimeEventSlice> = (set) =>
         state.runtimeCompletedTurnsByThread;
       const { [threadId]: _droppedOpenTurn, ...runtimeOpenTurnByThread } =
         state.runtimeOpenTurnByThread;
+      const { [threadId]: _droppedTurnOutput, ...runtimeTurnOutputByThread } =
+        state.runtimeTurnOutputByThread;
       return {
         runtimeItemIdsByThread,
         runtimeItemsByIdByThread,
@@ -285,6 +305,7 @@ export const createRuntimeEventSlice: SliceCreator<RuntimeEventSlice> = (set) =>
         runtimeStructuralVersionByThread,
         runtimeCompletedTurnsByThread,
         runtimeOpenTurnByThread,
+        runtimeTurnOutputByThread,
       };
     }),
 

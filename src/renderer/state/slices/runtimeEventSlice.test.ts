@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { create } from "zustand";
 import type { RuntimeEvent } from "@/shared/contracts";
 import { MAX_RUNTIME_OUTPUT_CHARS, RUNTIME_OUTPUT_TRUNCATION_MARKER } from "@/shared/runtimeStream";
@@ -970,5 +970,68 @@ describe("runtimeEventSlice.applyRuntimeEvent", () => {
     expect(store.getState().runtimeItemsByIdByThread["t2"]?.["b1"]?.streams.assistant_text).toBe(
       "world",
     );
+  });
+
+  describe("turn output speed accumulation", () => {
+    const nowSpy = () => vi.spyOn(Date, "now");
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    function delta(itemId: string, stream: string, text: string) {
+      return {
+        type: "content.delta" as const,
+        threadId: "t1",
+        itemId,
+        stream: stream as never,
+        delta: text,
+      };
+    }
+
+    function startItem(itemId: string, itemType = "assistant_message") {
+      apply("t1", {
+        type: "item.started",
+        threadId: "t1",
+        itemId,
+        itemType: itemType as never,
+      });
+    }
+
+    it("accumulates estimated tokens across model-output deltas with a decode window", () => {
+      startItem("i1");
+      const now = nowSpy();
+      now.mockReturnValue(1_000);
+      apply("t1", delta("i1", "assistant_text", "Hello")); // 5 ASCII → 1.25 tok
+      now.mockReturnValue(1_500);
+      apply("t1", delta("i1", "reasoning_text", "world")); // 5 ASCII → 1.25 tok
+      now.mockReturnValue(2_000);
+      apply("t1", delta("i1", "assistant_text", "你好世界")); // 4 CJK → 2.5 tok
+
+      const stats = store.getState().runtimeTurnOutputByThread["t1"];
+      expect(stats?.estimatedTokens).toBeCloseTo(5);
+      expect(stats?.firstDeltaAt).toBe(1_000);
+      expect(stats?.lastDeltaAt).toBe(2_000);
+    });
+
+    it("ignores tool-output streams", () => {
+      startItem("c1", "command_execution");
+      apply("t1", delta("c1", "command_output", "x".repeat(1_000)));
+      apply("t1", delta("c1", "file_change_output", "y".repeat(500)));
+      expect(store.getState().runtimeTurnOutputByThread["t1"]).toBeUndefined();
+    });
+
+    it("resets stats when a new turn starts", () => {
+      startItem("i1");
+      apply("t1", delta("i1", "assistant_text", "Hello"));
+      expect(store.getState().runtimeTurnOutputByThread["t1"]?.estimatedTokens).toBeGreaterThan(0);
+
+      apply("t1", {
+        type: "turn.started",
+        threadId: "t1",
+        turnId: "turn-2",
+      });
+      expect(store.getState().runtimeTurnOutputByThread["t1"]).toBeUndefined();
+    });
   });
 });

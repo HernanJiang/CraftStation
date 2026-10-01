@@ -52,6 +52,7 @@ function seed(thread: Thread, usage?: { usedTokens: number; maxTokens: number })
         },
       ],
     },
+    runtimeTurnOutputByThread: {},
   } as never);
 }
 
@@ -61,6 +62,7 @@ describe("ThreadRuntimeStatusBar", () => {
       threads: [],
       runtimeContextByThread: {},
       runtimeCompletedTurnsByThread: {},
+      runtimeTurnOutputByThread: {},
     } as never);
   });
 
@@ -107,6 +109,44 @@ describe("ThreadRuntimeStatusBar", () => {
     expect(popover).not.toHaveTextContent("Cache read");
     expect(popover).not.toHaveTextContent("上一轮 Token");
     expect(popover).not.toHaveTextContent("缓存命中率");
+  });
+
+  it("shows the average output rate while streaming and in the popover", () => {
+    seed(makeThread(), { usedTokens: 218_000, maxTokens: 262_000 });
+    useAppStore.setState({
+      runtimeTurnOutputByThread: {
+        "thread-1": {
+          estimatedTokens: 84,
+          firstDeltaAt: Date.now() - 2_000,
+          lastDeltaAt: Date.now(),
+        },
+      },
+    } as never);
+    render(<ThreadRuntimeStatusBar threadId="thread-1" />);
+
+    // 84 est. tokens over a 2s decode window → ~42 tok/s.
+    expect(screen.getByTestId("thread-runtime-status")).toHaveTextContent("≈ 42 tok/s");
+
+    fireEvent.mouseEnter(screen.getByTestId("thread-runtime-status"));
+    const popover = screen.getByTestId("thread-runtime-status-popover");
+    expect(popover).toHaveTextContent("输出速度");
+    expect(popover).toHaveTextContent("≈ 42 tok/s");
+  });
+
+  it("hides the rate for a single-delta turn with no decode window", () => {
+    seed(makeThread(), { usedTokens: 218_000, maxTokens: 262_000 });
+    useAppStore.setState({
+      runtimeTurnOutputByThread: {
+        "thread-1": {
+          estimatedTokens: 12,
+          firstDeltaAt: Date.now(),
+          lastDeltaAt: Date.now(),
+        },
+      },
+    } as never);
+    render(<ThreadRuntimeStatusBar threadId="thread-1" />);
+
+    expect(screen.getByTestId("thread-runtime-status")).not.toHaveTextContent("tok/s");
   });
 
   it("does not claim a token total when the runtime has not reported usage", () => {

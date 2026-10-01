@@ -1,4 +1,10 @@
-import type { RuntimeEvent, ThreadContextUsage, ToolCallPayload } from "@/shared/contracts";
+import type {
+  RuntimeContentStreamKind,
+  RuntimeEvent,
+  ThreadContextUsage,
+  ToolCallPayload,
+} from "@/shared/contracts";
+import { estimateStreamedTokens } from "@/shared/tokenSpeed";
 import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
 import { isDelegatedAgentTool } from "@/shared/toolCallClassification";
 import { appendRuntimeStream } from "@/shared/runtimeStream";
@@ -19,6 +25,7 @@ type RuntimeEventState = Pick<
   | "runtimeStructuralVersionByThread"
   | "runtimeCompletedTurnsByThread"
   | "runtimeOpenTurnByThread"
+  | "runtimeTurnOutputByThread"
 > &
   Pick<AppStoreState, "threads">;
 
@@ -49,6 +56,7 @@ export function applyRuntimeEventBatchesToState(
     runtimeStructuralVersionByThread: state.runtimeStructuralVersionByThread,
     runtimeCompletedTurnsByThread: state.runtimeCompletedTurnsByThread ?? {},
     runtimeOpenTurnByThread: state.runtimeOpenTurnByThread ?? {},
+    runtimeTurnOutputByThread: state.runtimeTurnOutputByThread ?? {},
     threads: state.threads ?? [],
   };
   let changed = false;
@@ -235,13 +243,28 @@ function applyRuntimeEventToRuntimeState(
       // renderer keeps no token state (the dock reads context.updated only).
       return {};
 
-    case "turn.started":
+    case "turn.started": {
       // Mark the runtime turn open so live activity may (re)open the GUI turn.
-      // No item state to mutate; status flows through the thread-state channel.
-      if (state.runtimeOpenTurnByThread[threadId] === true) return {};
-      return {
-        runtimeOpenTurnByThread: { ...state.runtimeOpenTurnByThread, [threadId]: true },
-      };
+      // Status flows through the thread-state channel; the only state here is
+      // the open flag plus the per-turn output-rate accumulator, which resets
+      // so a finished turn's tok/s never bleeds into the next turn.
+      const openPatch =
+        state.runtimeOpenTurnByThread[threadId] === true
+          ? {}
+          : {
+              runtimeOpenTurnByThread: {
+                ...state.runtimeOpenTurnByThread,
+                [threadId]: true,
+              },
+            };
+      const { [threadId]: _droppedTurnOutput, ...remainingTurnOutput } =
+        state.runtimeTurnOutputByThread;
+      const outputPatch =
+        threadId in state.runtimeTurnOutputByThread
+          ? { runtimeTurnOutputByThread: remainingTurnOutput }
+          : {};
+      return { ...openPatch, ...outputPatch };
+    }
 
     case "turn.completed": {
       // Mark the runtime turn closed. Trailing live events that land after this
@@ -386,11 +409,13 @@ function applyRuntimeEventToRuntimeState(
         },
       };
       items[event.itemId] = next;
+      const outputPatch = accumulateTurnOutput(state, threadId, event.stream, event.delta);
       return {
         runtimeItemsByIdByThread: {
           ...state.runtimeItemsByIdByThread,
           [threadId]: items,
         },
+        ...outputPatch,
       };
     }
 
@@ -466,6 +491,34 @@ function applyRuntimeEventToRuntimeState(
     default:
       return {};
   }
+}
+
+/** Model-output streams. Tool output buckets never feed the speed estimate. */
+const MODEL_OUTPUT_STREAMS: ReadonlySet<RuntimeContentStreamKind> = new Set([
+  "assistant_text",
+  "reasoning_text",
+  "plan_text",
+]);
+
+function accumulateTurnOutput(
+  state: RuntimeEventState,
+  threadId: string,
+  stream: RuntimeContentStreamKind,
+  delta: string,
+): Partial<RuntimeEventState> {
+  if (!MODEL_OUTPUT_STREAMS.has(stream) || delta.length === 0) return {};
+  const now = Date.now();
+  const prev = state.runtimeTurnOutputByThread[threadId];
+  return {
+    runtimeTurnOutputByThread: {
+      ...state.runtimeTurnOutputByThread,
+      [threadId]: {
+        estimatedTokens: (prev?.estimatedTokens ?? 0) + estimateStreamedTokens(delta),
+        firstDeltaAt: prev?.firstDeltaAt || now,
+        lastDeltaAt: now,
+      },
+    },
+  };
 }
 
 function mergeContextUsage(
