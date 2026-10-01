@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.7.1",
+      "date": "2026-10-01",
+      "title": "Third-party models on DeepSeek Harness, math & crash fixes",
+      "summary": "A patch release: third-party and OpenCode Go models now run correctly on DeepSeek Harness, malformed LaTeX formulas in chat render instead of leaking raw source, and maximizing the side panel no longer crashes the conversation view.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "DeepSeek Harness",
+          "text": "Third-party models now launch on DeepSeek Harness instead of failing with a model binding error — OpenCode Go catalog picks, Command Code rows, and any bound OpenAI-compatible account all get a correctly projected provider."
+        },
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "LaTeX formulas and Markdown structure in assistant messages render again, even when the model emits malformed ..$ delimiters or unbalanced braces inside a formula."
+        },
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "Maximizing the side panel no longer crashes the conversation view, and crash details are now recorded for faster diagnosis."
+        }
+      ]
+    },
+    {
       "version": "1.7.0",
       "date": "2026-09-30",
       "title": "Unified capability management, OpenCode quotas & a calmer sidebar",
