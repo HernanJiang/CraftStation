@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "1.7.9",
+      "date": "2026-10-02",
+      "title": "Update badge clears after a landed update",
+      "summary": "A small fix for the update indicator that kept showing a pending update after the CLI had already been updated.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Updates",
+          "text": "The titlebar update badge no longer stays lit after a CLI update lands — the post-update re-check now compares against the freshly detected version instead of a stale snapshot."
+        }
+      ]
+    },
+    {
       "version": "1.7.8",
       "date": "2026-10-02",
       "title": "A real follow-up queue & tidier thread header",
