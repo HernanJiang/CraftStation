@@ -140,6 +140,9 @@ export class PiRpcSession implements StructuredSessionHandle {
   private usageScopeId: string | undefined;
   private usageEpoch = 0;
   private usageScopeFresh = false;
+  /** Session-cumulative `tokens.output` at the last stats poll, for turn deltas. */
+  private lastSampledOutputSessionId: string | undefined;
+  private lastSampledOutputTokens = 0;
 
   private constructor(
     private readonly input: CreateStructuredSessionInput,
@@ -892,6 +895,19 @@ export class PiRpcSession implements StructuredSessionHandle {
       this.sessionRef = createKnownSessionRef(sessionId);
       this.publishUsageSpent(stats, sessionId);
     }
+    // Turn-attributable output: `stats.tokens.output` is session-cumulative, so
+    // the reported throughput sample is the delta since the previous poll.
+    // A changed session id re-baselines instead of emitting history.
+    const sessionOutput = readNonNegativeInteger(recordOf(stats?.tokens)?.output);
+    let generatedTokens: number | undefined;
+    if (sessionOutput !== undefined && sessionId) {
+      if (this.lastSampledOutputSessionId === sessionId) {
+        const delta = sessionOutput - this.lastSampledOutputTokens;
+        if (delta > 0) generatedTokens = delta;
+      }
+      this.lastSampledOutputSessionId = sessionId;
+      this.lastSampledOutputTokens = sessionOutput;
+    }
     if (!usage) return;
     const tokens = typeof usage.tokens === "number" ? usage.tokens : null;
     const contextWindow = typeof usage.contextWindow === "number" ? usage.contextWindow : 0;
@@ -901,6 +917,7 @@ export class PiRpcSession implements StructuredSessionHandle {
       usage: {
         ...(tokens !== null ? { usedTokens: tokens } : {}),
         ...(contextWindow > 0 ? { maxTokens: contextWindow } : {}),
+        ...(generatedTokens !== undefined ? { generatedTokens } : {}),
       },
     });
   }

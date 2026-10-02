@@ -1135,6 +1135,60 @@ describe("runtimeEventSlice.applyRuntimeEvent", () => {
       expect(store.getState().runtimeTurnOutputByThread["t1"]).toBeUndefined();
     });
 
+    it("anchors generatedTokens side-channel samples even when dock fields are unchanged", () => {
+      apply("t1", { type: "turn.started", threadId: "t1", turnId: "turn-1" });
+      apply("t1", {
+        type: "context.updated",
+        threadId: "t1",
+        usage: { usedTokens: 1_000, maxTokens: 200_000 },
+      });
+      const dockBefore = store.getState().runtimeContextByThread["t1"];
+      startItem("i1");
+      const now = nowSpy();
+      now.mockReturnValue(1_000);
+      apply("t1", delta("i1", "assistant_text", "Hello"));
+      // Identical dock occupancy + a throughput-only field — must still fold.
+      apply("t1", {
+        type: "context.updated",
+        threadId: "t1",
+        usage: { usedTokens: 1_000, maxTokens: 200_000, generatedTokens: 42 },
+      });
+
+      const stats = store.getState().runtimeTurnOutputByThread["t1"];
+      expect(stats?.segment?.reportedTokens).toBe(42);
+      expect(stats?.segment?.reportedBaseline).toBeCloseTo(1.25);
+      // The dock snapshot must not be polluted by the side-channel sample.
+      expect(store.getState().runtimeContextByThread["t1"]?.usedTokens).toBe(
+        dockBefore?.usedTokens,
+      );
+    });
+
+    it("folds a post-turn generatedTokens float into the finished turn's rate", () => {
+      apply("t1", { type: "turn.started", threadId: "t1", turnId: "turn-1" });
+      startItem("i1");
+      const now = nowSpy();
+      now.mockReturnValue(1_000);
+      apply("t1", delta("i1", "assistant_text", "Hello"));
+      now.mockReturnValue(2_000);
+      apply("t1", delta("i1", "assistant_text", "world"));
+      apply("t1", {
+        type: "turn.completed",
+        threadId: "t1",
+        turnId: "turn-1",
+        state: "completed",
+      });
+      // Pi-style: the stats poll resolves after turn.completed.
+      apply("t1", {
+        type: "context.updated",
+        threadId: "t1",
+        usage: { generatedTokens: 87 },
+      });
+
+      const stats = store.getState().runtimeTurnOutputByThread["t1"];
+      expect(stats?.floatingReported).toBe(87);
+      expect(stats?.decodeMs).toBe(1_000);
+    });
+
     it("ignores tool-output streams", () => {
       startItem("c1", "command_execution");
       apply("t1", delta("c1", "command_output", "x".repeat(1_000)));

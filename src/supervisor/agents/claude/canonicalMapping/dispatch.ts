@@ -413,6 +413,16 @@ function mapClaudeSdkMessageInner(
     }
     if (usageSpentEvent) events.push(usageSpentEvent);
     if (goalSpendEvent) events.push(goalSpendEvent);
+    // Throughput anchor: the API call's real output count, side-channelled so
+    // it never overwrites the dock's context-occupancy snapshot.
+    const generatedTokens = message.message?.usage?.output_tokens;
+    if (typeof generatedTokens === "number" && generatedTokens > 0) {
+      events.push({
+        type: "context.updated",
+        threadId: state.threadId,
+        usage: { generatedTokens },
+      });
+    }
     const messageId = readClaudeAssistantMessageId(message.message);
     const skipTextSnapshot = messageId ? state.streamedAssistantMessageIds.has(messageId) : false;
     const content = (message.message as { content?: unknown }).content;

@@ -464,6 +464,16 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
       },
     });
 
+    // The same notification's `last` snapshot feeds context occupancy and the
+    // reported-token throughput anchor.
+    const contextEvent = emittedEvents.find((e) => e.type === "context.updated");
+    expect(contextEvent).toMatchObject({
+      type: "context.updated",
+      usage: {
+        breakdown: expect.arrayContaining([{ id: "output", label: "Output", tokens: 10 }]),
+      },
+    });
+
     const snapshot = session.getSnapshot();
     expect(snapshot.status).toBe("idle");
     expect(snapshot.activeTurnStatus).toBe("completed");

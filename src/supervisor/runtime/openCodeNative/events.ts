@@ -611,6 +611,9 @@ export function mapOpenCodeNativeEvent(
       const inputTokens = typeof properties.inputTokens === "number" ? properties.inputTokens : 0;
       const outputTokens =
         typeof properties.outputTokens === "number" ? properties.outputTokens : 0;
+      const reasoningTokens =
+        typeof properties.reasoningTokens === "number" ? properties.reasoningTokens : 0;
+      const generatedTokens = outputTokens + reasoningTokens;
       return {
         event: {
           type: "usage.spent",
@@ -624,6 +627,19 @@ export function mapOpenCodeNativeEvent(
           },
           nativeEnvelope: nativeEnv,
         },
+        // Throughput anchor — the call's real output count on the side channel
+        // so the dock's occupancy snapshot stays untouched.
+        ...(generatedTokens > 0
+          ? {
+              followUp: [
+                {
+                  type: "context.updated" as const,
+                  threadId,
+                  usage: { generatedTokens },
+                },
+              ],
+            }
+          : {}),
         envelope: nativeEnv,
       };
     }

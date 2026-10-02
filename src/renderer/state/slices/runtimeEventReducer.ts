@@ -439,13 +439,16 @@ function applyRuntimeEventToRuntimeState(
     case "context.updated": {
       const prev = state.runtimeContextByThread[threadId];
       const next = mergeContextUsage(prev, event.usage);
-      if (areContextUsagesEqual(prev, next)) return {};
+      // Throughput samples (generatedTokens / output breakdown) must be folded
+      // even when the dock-visible fields are unchanged.
+      const outputPatch = accumulateReportedOutput(state, threadId, event.usage);
+      if (areContextUsagesEqual(prev, next)) return outputPatch;
       return {
         runtimeContextByThread: {
           ...state.runtimeContextByThread,
           [threadId]: next,
         },
-        ...accumulateReportedOutput(state, threadId, event.usage),
+        ...outputPatch,
       };
     }
 
@@ -596,9 +599,14 @@ function accumulateReportedOutput(
   usage: ThreadContextUsage,
 ): Partial<RuntimeEventState> {
   if (usage.scope === "session") return {};
-  const reported = (usage.breakdown ?? [])
-    .filter((entry) => entry.id === "output" || entry.id === "reasoning")
-    .reduce((sum, entry) => sum + entry.tokens, 0);
+  // `generatedTokens` is the side-channel for adapters whose real output count
+  // must not overwrite the dock's occupancy fields; the breakdown buckets are
+  // the canonical path for full usage payloads.
+  const reported =
+    usage.generatedTokens ??
+    (usage.breakdown ?? [])
+      .filter((entry) => entry.id === "output" || entry.id === "reasoning")
+      .reduce((sum, entry) => sum + entry.tokens, 0);
   if (reported <= 0) return {};
   const prev = state.runtimeTurnOutputByThread[threadId];
   if (!prev && state.runtimeOpenTurnByThread[threadId] !== true) return {};

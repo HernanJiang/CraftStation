@@ -1,5 +1,6 @@
 import type { JsonRpcNotification } from "./types";
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
+import { createCodexTokenUsageEvent } from "@/supervisor/agents/codex/canonicalMapping/usage";
 function pushNativeDelta(
   events: RuntimeEvent[],
   context: EventMappingContext,
@@ -207,6 +208,10 @@ export function mapCodexNotificationToRuntimeEvents(
           },
         });
       }
+      // The per-call `last` snapshot also drives context occupancy and the
+      // reported-token throughput anchor — the chat lane emits the same event.
+      const tokenUsageEvent = createCodexTokenUsageEvent(threadId, params);
+      if (tokenUsageEvent) events.push(tokenUsageEvent);
       break;
     }
 

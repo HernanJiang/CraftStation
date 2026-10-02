@@ -1184,8 +1184,19 @@ describe("Cursor SDK canonical mapping — auxiliary updates and usage", () => {
           model: "composer-2.5",
         },
       },
+      // Throughput side-channel: output+reasoning, no occupancy fields.
+      {
+        type: "context.updated",
+        usage: { generatedTokens: 32 },
+      },
     ]);
-    expect(events.some((event) => event.type === "context.updated")).toBe(false);
+    expect(
+      events.every(
+        (event) =>
+          event.type !== "context.updated" ||
+          (event.usage.usedTokens === undefined && event.usage.maxTokens === undefined),
+      ),
+    ).toBe(true);
     expectCanonical(events);
   });
 
@@ -1198,7 +1209,7 @@ describe("Cursor SDK canonical mapping — auxiliary updates and usage", () => {
       cacheWriteTokens: 1,
       reasoningTokens: 1,
     };
-    expect(mapCursorSdkInteractionUpdate({ type: "turn-ended", usage }, state)).toHaveLength(1);
+    expect(mapCursorSdkInteractionUpdate({ type: "turn-ended", usage }, state)).toHaveLength(2);
     expect(
       mapCursorSdkMessage(
         { type: "usage", ...envelope, usage: { ...usage, totalTokens: 16 } },
@@ -1221,7 +1232,7 @@ describe("Cursor SDK canonical mapping — auxiliary updates and usage", () => {
         { type: "usage", ...envelope, usage: { ...usage, totalTokens: 16 } },
         state,
       ),
-    ).toHaveLength(1);
+    ).toHaveLength(2);
     expect(mapCursorSdkInteractionUpdate({ type: "turn-ended", usage }, state)).toEqual([]);
   });
 
@@ -1288,7 +1299,15 @@ describe("Cursor SDK canonical mapping — auxiliary updates and usage", () => {
         model: "composer-2.5",
       },
     });
-    expect(events.some((event) => event.type === "context.updated")).toBe(false);
+    // The throughput sample carries no occupancy fields — it must not be
+    // mistaken for context-window usage.
+    expect(
+      events.every(
+        (event) =>
+          event.type !== "context.updated" ||
+          (event.usage.usedTokens === undefined && event.usage.maxTokens === undefined),
+      ),
+    ).toBe(true);
     expect(events.at(-1)).toEqual({
       type: "turn.completed",
       threadId: "thread-1",

@@ -467,6 +467,7 @@ function mapUsage(
   state.usageSequence += 1;
   const runId = state.currentRunId ?? state.currentTurnId ?? state.threadId;
   const sampleId = `${runId}:turn-${state.usageSequence}`;
+  const generatedTokens = normalized.outputTokens + (normalized.reasoningTokens ?? 0);
   // Cursor documents this as per-turn spend, which can aggregate several
   // model/tool-loop calls. It is not current context-window occupancy.
   return [
@@ -484,6 +485,16 @@ function mapUsage(
         ...(state.model ? { model: state.model } : {}),
       },
     },
+    // Throughput anchor on the side channel — dock categories stay intact.
+    ...(generatedTokens > 0
+      ? [
+          {
+            type: "context.updated" as const,
+            threadId: state.threadId,
+            usage: { generatedTokens },
+          },
+        ]
+      : []),
   ];
 }
 

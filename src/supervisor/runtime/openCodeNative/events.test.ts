@@ -323,4 +323,30 @@ describe("OpenCode native SSE canonicalizer", () => {
     }
     expect(JSON.stringify(permission)).not.toContain("must-not-leak");
   });
+
+  it("emits a generatedTokens throughput sample alongside session.usage", () => {
+    const result = mapOpenCodeNativeEvent({
+      raw: {
+        type: "session.usage",
+        properties: {
+          sessionID: "ses_1",
+          inputTokens: 1_000,
+          outputTokens: 120,
+          reasoningTokens: 30,
+        },
+      },
+      threadId: "thread_1",
+      turnId: "turn_1",
+      sequence: 7,
+    });
+
+    expect(result.event).toMatchObject({ type: "usage.spent", usage: { counter: 1_120 } });
+    expect(result.followUp).toEqual([
+      {
+        type: "context.updated",
+        threadId: "thread_1",
+        usage: { generatedTokens: 150 },
+      },
+    ]);
+  });
 });

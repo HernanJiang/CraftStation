@@ -402,6 +402,14 @@ export const threadContextUsageSchema = z.object({
   cacheInputSemantics: z
     .enum(["fresh-excludes-cache", "input-includes-cache", "unknown"])
     .optional(),
+  /**
+   * Provider-reported model-GENERATED tokens (output + reasoning) attributable
+   * to the in-flight turn — throughput accounting only, never dock occupancy.
+   * Adapters emit it on this event when they have real output counts but must
+   * not overwrite the dock's `usedTokens`/`breakdown` (per-call or per-turn
+   * deltas, e.g. Claude message usage, Pi session-stats deltas).
+   */
+  generatedTokens: z.number().int().nonnegative().optional(),
   compaction: z
     .object({
       state: z.enum(["never", "running", "completed", "failed"]),

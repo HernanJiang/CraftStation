@@ -3284,6 +3284,35 @@ describe("sdkCanonicalMapping — context usage", () => {
 
     expect(events.some((event) => event.type === "context.updated")).toBe(false);
   });
+
+  it("emits a generatedTokens throughput sample from a main-thread assistant message", () => {
+    const state = createClaudeMapperState("thread-1");
+    const events = mapClaudeSdkMessage(
+      assistantUsageMessage("msg-main-1", { input_tokens: 10_000, output_tokens: 500 }),
+      state,
+    );
+
+    expect(events.find((event) => event.type === "context.updated")).toEqual({
+      type: "context.updated",
+      threadId: "thread-1",
+      usage: { generatedTokens: 500 },
+    });
+  });
+
+  it("does not emit generatedTokens for sub-agent assistant messages", () => {
+    const state = createClaudeMapperState("thread-1");
+    const subAgent = {
+      ...assistantUsageMessage("msg-sub-1", { input_tokens: 1_000, output_tokens: 200 }),
+      parent_tool_use_id: "toolu_parent",
+    } as unknown as SDKMessage;
+    const events = mapClaudeSdkMessage(subAgent, state);
+
+    expect(
+      events.some(
+        (event) => event.type === "context.updated" && event.usage.generatedTokens !== undefined,
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("sdkCanonicalMapping — compaction", () => {

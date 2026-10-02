@@ -110,6 +110,7 @@ interface StreamingTurnResult {
   reasoning: string;
   toolCalls: ApiToolCall[];
   promptTokens?: number;
+  completionTokens?: number;
   finishReason?: string;
 }
 
@@ -225,6 +226,7 @@ class DeepSeekApiCraftSession implements CraftSession {
     let responseText = "";
     let reasoningText = "";
     let promptTokens: number | undefined;
+    let completionTokens: number | undefined;
     let finishReason: string | undefined;
     const toolCalls = new Map<number, ApiToolCall>();
     const consume = (line: string) => {
@@ -245,6 +247,7 @@ class DeepSeekApiCraftSession implements CraftSession {
       const reasoning = typeof delta?.reasoning_content === "string" ? delta.reasoning_content : "";
       const usage = record(record(parsed)?.usage);
       if (typeof usage?.prompt_tokens === "number") promptTokens = usage.prompt_tokens;
+      if (typeof usage?.completion_tokens === "number") completionTokens = usage.completion_tokens;
       if (Array.isArray(delta?.tool_calls)) {
         for (const entry of delta.tool_calls) {
           const chunk = record(entry);
@@ -306,6 +309,7 @@ class DeepSeekApiCraftSession implements CraftSession {
         .sort(([left], [right]) => left - right)
         .map(([, call]) => call),
       ...(promptTokens !== undefined ? { promptTokens } : {}),
+      ...(completionTokens !== undefined ? { completionTokens } : {}),
       ...(finishReason ? { finishReason } : {}),
     };
   }
@@ -396,6 +400,7 @@ class DeepSeekApiCraftSession implements CraftSession {
       const turnMessages: JsonRecord[] = [{ role: "user", content: command.prompt }];
       let finalReasoning = "";
       let promptTokens: number | undefined;
+      let generatedTokens = 0;
       let maxTokenContinuationsRemaining = this.options.maxTokenContinuations;
       let toolRounds = 0;
       while (true) {
@@ -435,6 +440,7 @@ class DeepSeekApiCraftSession implements CraftSession {
         const result = await this.readStreamingResponse(response, turnId);
         finalReasoning += result.reasoning;
         promptTokens = result.promptTokens ?? promptTokens;
+        generatedTokens += result.completionTokens ?? 0;
         if (result.toolCalls.length === 0) {
           this._response += result.response;
           turnMessages.push({
@@ -486,11 +492,14 @@ class DeepSeekApiCraftSession implements CraftSession {
         }
       }
       this._messages.push(...turnMessages);
-      if (promptTokens !== undefined) {
+      if (promptTokens !== undefined || generatedTokens > 0) {
         this.emit({
           type: "context.updated",
           threadId: this.threadId,
-          usage: { usedTokens: promptTokens },
+          usage: {
+            ...(promptTokens !== undefined ? { usedTokens: promptTokens } : {}),
+            ...(generatedTokens > 0 ? { generatedTokens } : {}),
+          },
         });
       }
       this._status = "idle";

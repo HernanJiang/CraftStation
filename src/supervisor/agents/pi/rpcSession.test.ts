@@ -12,6 +12,7 @@ import { PiRpcSession } from "./rpcSession";
 const MOCK_PI_SOURCE = `#!/usr/bin/env node
 import { createInterface } from "node:readline";
 const rl = createInterface({ input: process.stdin });
+let statsCalls = 0;
 function send(msg) { process.stdout.write(JSON.stringify(msg) + "\\n"); }
 rl.on("line", (line) => {
   let req;
@@ -84,7 +85,8 @@ rl.on("line", (line) => {
     return;
   }
   if (type === "get_session_stats") {
-    send({ type: "response", id, command: "get_session_stats", success: true, data: { sessionId: "mock-session-1", contextUsage: { tokens: 100, contextWindow: 1000, percent: 10 }, tokens: { input: 60, output: 25, cacheRead: 10, cacheWrite: 5, total: 100 }, cost: 0.01 } });
+    statsCalls += 1;
+    send({ type: "response", id, command: "get_session_stats", success: true, data: { sessionId: "mock-session-1", contextUsage: { tokens: 100, contextWindow: 1000, percent: 10 }, tokens: { input: 60, output: 25 * statsCalls, cacheRead: 10, cacheWrite: 5, total: 100 }, cost: 0.01 } });
     return;
   }
   if (type === "get_commands") {
@@ -229,6 +231,22 @@ describe("PiRpcSession (mock pi --mode rpc)", () => {
         model: "mock/model",
       },
     });
+    await disposeSettledSession(session, events, updates);
+  });
+
+  it("reports per-turn output tokens as a generatedTokens delta from cumulative stats", async () => {
+    const { session, events, updates } = await createSession();
+    await session.startTurn?.("hello", { model: "mock/model", effort: "off" });
+
+    // First stats poll baselines the session-cumulative counter — no sample.
+    await waitFor(events, (e) => e.type === "context.updated");
+    expect(
+      events.every((e) => e.type !== "context.updated" || e.usage.generatedTokens === undefined),
+    ).toBe(true);
+
+    await session.startTurn?.("again", { model: "mock/model", effort: "off" });
+    // Second poll: cumulative output 25 → 50, so the turn contributed 25.
+    await waitFor(events, (e) => e.type === "context.updated" && e.usage.generatedTokens === 25);
     await disposeSettledSession(session, events, updates);
   });
 
