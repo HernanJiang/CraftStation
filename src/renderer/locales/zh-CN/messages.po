@@ -1624,6 +1624,7 @@ msgid "Auto-show terminal panel"
 msgstr "自动显示终端面板"
 
 #: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Auto-update CLIs"
 msgstr "自动更新 CLI"
 
@@ -4052,8 +4053,12 @@ msgid "Delete permanently"
 msgstr "永久删除"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
-msgid "Delete queue"
-msgstr "删除队列"
+#~ msgid "Delete queue"
+#~ msgstr "删除队列"
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Delete queued message"
+msgstr "删除该消息"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "Delete run"
@@ -13870,6 +13875,7 @@ msgid "What's new in CraftStation, newest first."
 msgstr "CraftStation 的新功能，最新优先。"
 
 #: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "When a version check finds a newer release, update each agent CLI automatically — including account-pool managed binaries. Manual update stays available either way."
 msgstr "版本检查发现新版本时，自动更新各智能体 CLI（包括账号池托管的二进制）。手动更新始终可用。"
 

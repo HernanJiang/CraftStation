@@ -416,6 +416,14 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
                 </Tooltip.Content>
               </Tooltip>
             ) : null}
+            <ThreadStatusCapsule
+              threadId={thread.id}
+              projectId={thread.projectId}
+              {...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {})}
+              projectLocation={projectLocation}
+              collaborationRefreshKey={collaborationRefreshKey}
+              onOpenCollaboration={() => setCollaborationDialogOpen(true)}
+            />
             {showCloseButton && onClose ? (
               <button
                 type="button"
@@ -430,14 +438,6 @@ export const ThreadView = memo(function ThreadView(props: ThreadViewProps) {
                 <X className="size-3.5" />
               </button>
             ) : null}
-            <ThreadStatusCapsule
-              threadId={thread.id}
-              projectId={thread.projectId}
-              {...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {})}
-              projectLocation={projectLocation}
-              collaborationRefreshKey={collaborationRefreshKey}
-              onOpenCollaboration={() => setCollaborationDialogOpen(true)}
-            />
           </div>
         </div>
       </div>

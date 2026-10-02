@@ -26,7 +26,7 @@ import {
   clearThreadPendingSteer,
 } from "@/renderer/actions/threadRuntimeActions";
 import {
-  clearQueuedFollowUp,
+  removeQueuedFollowUpItem,
   sendQueuedFollowUpNow,
 } from "@/renderer/actions/queuedFollowUpActions";
 import { modelVisibilityKey } from "@/renderer/components/common/ProviderModelMenu/parts/providerIdentity";
@@ -726,7 +726,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   const canInterruptStructuredTurn = canShowRuntimeChrome && thread.status === "working";
   const pendingSteer = useAppStore((s) => s.pendingSteerByThreadId[thread.id]);
   const visiblePendingSteer = useDelayedPendingSteer(pendingSteer);
-  const queuedFollowUp = useAppStore((s) => s.queuedFollowUpByThreadId[thread.id]);
+  const queuedFollowUps = useAppStore((s) => s.queuedFollowUpByThreadId[thread.id]);
   const usesPendingSteerPath =
     !isConnecting && !usesTerminalPresentation && thread.status === "working";
   const runtimeRequests = useAppStore((s) => s.runtimeRequestsByThread[thread.id]);
@@ -740,7 +740,10 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   const hideActionDocks = props.hideActionDocks === true;
   const composerRuntimeRequest = hideActionDocks ? undefined : activeRuntimeRequest;
   const composerPendingSteer = hideActionDocks ? undefined : visiblePendingSteer;
-  const composerQueuedFollowUp = hideActionDocks ? undefined : queuedFollowUp;
+  const composerQueuedFollowUps =
+    hideActionDocks || !queuedFollowUps || queuedFollowUps.length === 0
+      ? undefined
+      : queuedFollowUps;
   const showAuthInComposer = authRequired && !hideActionDocks;
   const reportedContextUsage = useAppStore((s) =>
     canShowRuntimeChrome ? s.runtimeContextByThread[thread.id] : undefined,
@@ -816,9 +819,11 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
 
   // Move a queued follow-up back into the composer for editing: text segments
   // restore into the editor, attachment segments become composer attachments
-  // again, and the queue entry is consumed.
-  function handleEditQueuedFollowUp() {
-    const queued = useAppStore.getState().queuedFollowUpByThreadId[thread.id];
+  // again, and that queue entry is consumed.
+  function handleEditQueuedFollowUp(itemId: string) {
+    const queued = useAppStore
+      .getState()
+      .queuedFollowUpByThreadId[thread.id]?.find((item) => item.id === itemId);
     if (!queued) return;
     const segments = queued.segments ?? [];
     const textSegments = segments.filter((segment) => segment.kind !== "attachment");
@@ -836,7 +841,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     }
     setPrompt(queued.prompt);
     setHasContent(true);
-    clearQueuedFollowUp(thread.id);
+    removeQueuedFollowUpItem(thread.id, itemId);
     mentionRef.current?.focus();
   }
 
@@ -1224,22 +1229,22 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
             threadId={thread.id}
             showGoalStrip={!hideInfoDocks && !usesTerminalPresentation}
             {...(thread.worktreePath ? { worktreePath: thread.worktreePath } : {})}
-            {...(composerQueuedFollowUp
+            {...(composerQueuedFollowUps
               ? {
                   afterContextBar: (
                     <ThreadQueuedFollowUpStrip
-                      queued={composerQueuedFollowUp}
-                      onSendNow={() => {
+                      items={composerQueuedFollowUps}
+                      onSendNow={(itemId) => {
                         // Never let a failed steer (e.g. a supervisor IPC
                         // timeout) escape as an unhandled rejection — that
                         // tears down the whole renderer with the crash overlay.
-                        void sendQueuedFollowUpNow(thread).catch((error: unknown) => {
+                        void sendQueuedFollowUpNow(thread, itemId).catch((error: unknown) => {
                           console.error("[thread] failed to send queued follow-up", error);
                           toast.danger(friendlyError(error));
                         });
                       }}
                       onEdit={handleEditQueuedFollowUp}
-                      onDelete={() => clearQueuedFollowUp(thread.id)}
+                      onDelete={(itemId) => removeQueuedFollowUpItem(thread.id, itemId)}
                       {...(attachmentImageUrlForPath
                         ? { imageUrlForPath: attachmentImageUrlForPath }
                         : {})}

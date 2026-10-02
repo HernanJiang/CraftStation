@@ -6,7 +6,7 @@ import {
   resolveThreadServerRequest,
 } from "@/renderer/actions/threadRuntimeActions";
 import {
-  clearQueuedFollowUp,
+  removeQueuedFollowUpItem,
   sendQueuedFollowUpNow,
 } from "@/renderer/actions/queuedFollowUpActions";
 import { ThreadAuthRequiredDock } from "@/renderer/components/thread/ThreadAuthRequiredDock";
@@ -52,7 +52,7 @@ export function ComposerActionDocks(props: {
   const pendingSteer = useDelayedPendingSteer(
     useAppStore((state) => state.pendingSteerByThreadId[thread.id]),
   );
-  const queuedFollowUp = useAppStore((state) => state.queuedFollowUpByThreadId[thread.id]);
+  const queuedFollowUps = useAppStore((state) => state.queuedFollowUpByThreadId[thread.id]);
   const { authRequired } = resolveThreadAuthState({
     authState: effectiveAgentStatus?.authState,
     errorDockStates: props.dockState.errorDockStates,
@@ -62,7 +62,13 @@ export function ComposerActionDocks(props: {
     model: thread.config.model,
   });
   const showAuthDock = authRequired && effectiveAgentStatus !== undefined;
-  if (!showAuthDock && !pendingSteer && !queuedFollowUp && !request) return null;
+  if (
+    !showAuthDock &&
+    !pendingSteer &&
+    (!queuedFollowUps || queuedFollowUps.length === 0) &&
+    !request
+  )
+    return null;
 
   return (
     <div className="m-thread-action-docks">
@@ -72,19 +78,21 @@ export function ComposerActionDocks(props: {
           {...(project ? { project } : {})}
         />
       ) : null}
-      {queuedFollowUp ? (
+      {queuedFollowUps && queuedFollowUps.length > 0 ? (
         <ThreadQueuedFollowUpStrip
-          queued={queuedFollowUp}
-          onSendNow={() => {
-            void sendQueuedFollowUpNow(thread);
+          items={queuedFollowUps}
+          onSendNow={(itemId) => {
+            void sendQueuedFollowUpNow(thread, itemId);
           }}
-          onDelete={() => clearQueuedFollowUp(thread.id)}
+          onDelete={(itemId) => removeQueuedFollowUpItem(thread.id, itemId)}
           // The strip is a sibling of the composer here (no shared ref), so
           // editing routes through the composer input inbox — the composer's
           // drain effect restores text into the editor and attachment segments
           // back into the attachment bar.
-          onEdit={() => {
-            const queuedEntry = useAppStore.getState().queuedFollowUpByThreadId[thread.id];
+          onEdit={(itemId) => {
+            const queuedEntry = useAppStore
+              .getState()
+              .queuedFollowUpByThreadId[thread.id]?.find((item) => item.id === itemId);
             if (!queuedEntry) return;
             const segments = queuedEntry.segments ?? [];
             useComposerInputInbox
@@ -93,7 +101,7 @@ export function ComposerActionDocks(props: {
                 thread.id,
                 segments.length > 0 ? segments : [{ kind: "text", content: queuedEntry.prompt }],
               );
-            clearQueuedFollowUp(thread.id);
+            removeQueuedFollowUpItem(thread.id, itemId);
           }}
         />
       ) : null}

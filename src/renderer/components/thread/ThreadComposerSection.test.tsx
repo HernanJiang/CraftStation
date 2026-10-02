@@ -1247,7 +1247,7 @@ describe("ThreadComposerSection", () => {
     fireEvent.click(screen.getByText("send"));
 
     await waitFor(() => {
-      expect(useAppStore.getState().queuedFollowUpByThreadId[guiThread.id]?.prompt).toBe(
+      expect(useAppStore.getState().queuedFollowUpByThreadId[guiThread.id]?.[0]?.prompt).toBe(
         "change direction",
       );
     });
@@ -1263,19 +1263,22 @@ describe("ThreadComposerSection", () => {
   it("moves a queued follow-up back into the composer with its attachments when Edit is pressed", async () => {
     useAppStore.setState({
       queuedFollowUpByThreadId: {
-        [guiThread.id]: {
-          prompt: "change direction",
-          segments: [
-            {
-              kind: "attachment",
-              path: "C:\\attachments\\queued\\image-1.png",
-              mimeType: "image/png",
-            },
-            { kind: "text", content: "change direction" },
-          ],
-          queuedAt: Date.now(),
-          paused: false,
-        },
+        [guiThread.id]: [
+          {
+            id: "qf-1",
+            prompt: "change direction",
+            segments: [
+              {
+                kind: "attachment",
+                path: "C:\\attachments\\queued\\image-1.png",
+                mimeType: "image/png",
+              },
+              { kind: "text", content: "change direction" },
+            ],
+            queuedAt: Date.now(),
+            paused: false,
+          },
+        ],
       },
     });
     renderComposer({
@@ -1285,7 +1288,7 @@ describe("ThreadComposerSection", () => {
     expect(screen.getByTestId("thread-queued-follow-up").tagName).toBe("SPAN");
     expect(screen.getByRole("button", { name: "Send now" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Edit" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Delete queue" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete queued message" })).toBeInTheDocument();
     // The queued image stays visible in the strip instead of disappearing.
     const stripAttachments = screen.getByTestId("thread-queued-follow-up-attachments");
     expect(stripAttachments.querySelector('img[alt="image-1.png"]')).not.toBeNull();
@@ -1325,12 +1328,15 @@ describe("ThreadComposerSection", () => {
   it("sends a queued follow-up immediately when the user chooses Send now", async () => {
     useAppStore.setState({
       queuedFollowUpByThreadId: {
-        [guiThread.id]: {
-          prompt: "change direction",
-          segments: [{ kind: "text", content: "change direction" }],
-          queuedAt: Date.now(),
-          paused: false,
-        },
+        [guiThread.id]: [
+          {
+            id: "qf-1",
+            prompt: "change direction",
+            segments: [{ kind: "text", content: "change direction" }],
+            queuedAt: Date.now(),
+            paused: false,
+          },
+        ],
       },
     });
     renderComposer({
@@ -1353,18 +1359,21 @@ describe("ThreadComposerSection", () => {
   it("removes the queued follow-up when the queue is deleted", async () => {
     useAppStore.setState({
       queuedFollowUpByThreadId: {
-        [guiThread.id]: {
-          prompt: "later",
-          queuedAt: Date.now(),
-          paused: false,
-        },
+        [guiThread.id]: [
+          {
+            id: "qf-1",
+            prompt: "later",
+            queuedAt: Date.now(),
+            paused: false,
+          },
+        ],
       },
     });
     renderComposer({
       thread: { ...guiThread, status: "working", attention: "working" },
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "Delete queue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete queued message" }));
 
     await waitFor(() => {
       expect(useAppStore.getState().queuedFollowUpByThreadId[guiThread.id]).toBeUndefined();

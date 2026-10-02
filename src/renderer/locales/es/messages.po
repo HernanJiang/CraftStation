@@ -1620,6 +1620,7 @@ msgid "Auto-show terminal panel"
 msgstr "Mostrar el panel del terminal automáticamente"
 
 #: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Auto-update CLIs"
 msgstr ""
 
@@ -4048,7 +4049,11 @@ msgid "Delete permanently"
 msgstr "Eliminar permanentemente"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
-msgid "Delete queue"
+#~ msgid "Delete queue"
+#~ msgstr ""
+
+#: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
+msgid "Delete queued message"
 msgstr ""
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
@@ -13863,6 +13868,7 @@ msgid "What's new in CraftStation, newest first."
 msgstr "Novedades en CraftStation, las más recientes primero."
 
 #: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
+#: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "When a version check finds a newer release, update each agent CLI automatically — including account-pool managed binaries. Manual update stays available either way."
 msgstr ""
 

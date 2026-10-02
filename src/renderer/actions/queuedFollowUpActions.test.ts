@@ -54,12 +54,19 @@ describe("queued follow-up actions", () => {
 
   it("enqueues a follow-up without submitting", () => {
     enqueueThreadFollowUp("thread-q", "check later", [{ kind: "text", content: "check later" }]);
-    expect(useAppStore.getState().queuedFollowUpByThreadId["thread-q"]).toMatchObject({
-      prompt: "check later",
-      paused: false,
-    });
+    expect(useAppStore.getState().queuedFollowUpByThreadId["thread-q"]).toMatchObject([
+      { prompt: "check later", paused: false },
+    ]);
     expect(submitThreadInput).not.toHaveBeenCalled();
     expect(setThreadPendingSteer).not.toHaveBeenCalled();
+  });
+
+  it("appends new follow-ups behind existing ones instead of overwriting", () => {
+    enqueueThreadFollowUp("thread-q", "first", undefined);
+    enqueueThreadFollowUp("thread-q", "second", undefined);
+    enqueueThreadFollowUp("thread-q", "third", undefined);
+    const queue = useAppStore.getState().queuedFollowUpByThreadId["thread-q"];
+    expect(queue?.map((item) => item.prompt)).toEqual(["first", "second", "third"]);
   });
 
   it("Send now on a working thread steers immediately and clears the queue", async () => {
@@ -73,15 +80,40 @@ describe("queued follow-up actions", () => {
     expect(useAppStore.getState().queuedFollowUpByThreadId["thread-q"]).toBeUndefined();
   });
 
+  it("Send now on one item removes only that item and keeps the rest in order", async () => {
+    enqueueThreadFollowUp("thread-q", "first", undefined);
+    enqueueThreadFollowUp("thread-q", "second", undefined);
+    const secondId = useAppStore.getState().queuedFollowUpByThreadId["thread-q"]?.[1]?.id;
+    await sendQueuedFollowUpNow(thread(), secondId);
+    expect(setThreadPendingSteer).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "thread-q" }),
+      "second",
+      undefined,
+    );
+    expect(
+      useAppStore.getState().queuedFollowUpByThreadId["thread-q"]?.map((item) => item.prompt),
+    ).toEqual(["first"]);
+  });
+
   it("restores the queued follow-up when the steer send fails", async () => {
     enqueueThreadFollowUp("thread-q", "go now", [{ kind: "text", content: "go now" }]);
     vi.mocked(setThreadPendingSteer).mockRejectedValueOnce(
       new Error('Supervisor request "setPendingSteer" timed out'),
     );
     await expect(sendQueuedFollowUpNow(thread())).rejects.toThrow("timed out");
-    expect(useAppStore.getState().queuedFollowUpByThreadId["thread-q"]).toMatchObject({
-      prompt: "go now",
-    });
+    expect(useAppStore.getState().queuedFollowUpByThreadId["thread-q"]).toMatchObject([
+      { prompt: "go now" },
+    ]);
+  });
+
+  it("restores a failed send ahead of still-queued items", async () => {
+    enqueueThreadFollowUp("thread-q", "first", undefined);
+    enqueueThreadFollowUp("thread-q", "second", undefined);
+    vi.mocked(setThreadPendingSteer).mockRejectedValueOnce(new Error("timed out"));
+    await expect(sendQueuedFollowUpNow(thread())).rejects.toThrow("timed out");
+    expect(
+      useAppStore.getState().queuedFollowUpByThreadId["thread-q"]?.map((item) => item.prompt),
+    ).toEqual(["first", "second"]);
   });
 
   it("Send now on an idle thread submits as a normal follow-up", async () => {
@@ -104,13 +136,24 @@ describe("queued follow-up actions", () => {
     expect(useAppStore.getState().queuedFollowUpByThreadId["thread-q"]).toBeUndefined();
   });
 
+  it("flushes only the head item and keeps the rest queued", async () => {
+    enqueueThreadFollowUp("thread-q", "first", undefined);
+    enqueueThreadFollowUp("thread-q", "second", undefined);
+    useAppStore.setState({ threads: [thread({ status: "idle" })] });
+    await flushQueuedFollowUp("thread-q");
+    expect(submitThreadInput).toHaveBeenCalledWith("thread-q", "first", undefined, undefined);
+    expect(
+      useAppStore.getState().queuedFollowUpByThreadId["thread-q"]?.map((item) => item.prompt),
+    ).toEqual(["second"]);
+  });
+
   it("does not auto-flush a paused queue", async () => {
     enqueueThreadFollowUp("thread-q", "held", undefined);
     useAppStore.getState().pauseQueuedFollowUp("thread-q");
     useAppStore.setState({ threads: [thread({ status: "idle" })] });
     await flushQueuedFollowUp("thread-q");
     expect(submitThreadInput).not.toHaveBeenCalled();
-    expect(useAppStore.getState().queuedFollowUpByThreadId["thread-q"]?.paused).toBe(true);
+    expect(useAppStore.getState().queuedFollowUpByThreadId["thread-q"]?.[0]?.paused).toBe(true);
   });
 
   it("auto-sends when a working thread becomes idle", async () => {
@@ -137,7 +180,7 @@ describe("queued follow-up actions", () => {
     useAppStore.setState({ threads: [thread({ status: "idle" })] });
     await Promise.resolve();
     expect(submitThreadInput).not.toHaveBeenCalled();
-    expect(useAppStore.getState().queuedFollowUpByThreadId["thread-q"]?.prompt).toBe("held");
+    expect(useAppStore.getState().queuedFollowUpByThreadId["thread-q"]?.[0]?.prompt).toBe("held");
     stop();
   });
 
