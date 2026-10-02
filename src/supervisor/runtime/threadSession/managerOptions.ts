@@ -201,6 +201,17 @@ export interface ThreadSessionManagerOptions {
    */
   handleAccountPromptError?(input: { provider: string; accountId: string; error: unknown }): void;
   /**
+   * Live rate-limit windows pushed mid-session for the session's bound pool
+   * account (Codex `account/rateLimits/updated`). The runtime merges them
+   * per axis into the account row — same semantics as a usage poll, without
+   * waiting for one.
+   */
+  handleAccountQuotaWindows?(input: {
+    provider: string;
+    accountId: string;
+    windows: readonly import("@/shared/contracts").AccountQuotaWindow[];
+  }): void;
+  /**
    * Next usable third-party channel serving the same model, excluding every
    * row that already died this turn. Powers same-turn channel failover for
    * sticky `openai-compatible` sessions (ChatGPT-via-relay and every other

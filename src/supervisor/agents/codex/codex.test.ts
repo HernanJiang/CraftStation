@@ -3237,6 +3237,40 @@ describe("CodexStructuredSession", () => {
     expect(onPoolQuotaTurnFailed).not.toHaveBeenCalled();
   });
 
+  it("feeds account/rateLimits/updated pushes to the pool quota observer", () => {
+    const { onMessage, session } = makeNotificationSession();
+    const onRateLimitsUpdated = vi.fn<(windows: unknown) => void>();
+    (session as unknown as Record<string, unknown>)["onRateLimitsUpdated"] = onRateLimitsUpdated;
+
+    onMessage({
+      jsonrpc: "2.0",
+      method: "account/rateLimits/updated",
+      params: {
+        rateLimits: {
+          primary: {
+            usedPercent: 100,
+            windowDurationMins: 300,
+            resetsAt: 1_800_000_000,
+          },
+          secondary: { usedPercent: 63, windowDurationMins: 10080 },
+        },
+      },
+    });
+
+    // The Plus `session-5h` axis reaches the pool ONLY through this push —
+    // the usage poller never reports it.
+    expect(onRateLimitsUpdated).toHaveBeenCalledTimes(1);
+    expect(onRateLimitsUpdated).toHaveBeenCalledWith([
+      {
+        id: "session-5h",
+        label: "Session (5h)",
+        usedPercent: 100,
+        resetsAt: 1_800_000_000_000,
+      },
+      { id: "weekly", label: "Weekly", usedPercent: 63 },
+    ]);
+  });
+
   it("replays when the quota text lands on a thread/error after the turn already settled", () => {
     vi.useFakeTimers();
     try {

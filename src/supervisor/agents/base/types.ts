@@ -1,4 +1,5 @@
 import type {
+  AccountQuotaWindow,
   AgentAuthMethod,
   AgentCapability,
   AgentKind,
@@ -228,6 +229,12 @@ export interface CreateStructuredSessionInput {
    * wired for pool-bound sessions; ignored otherwise.
    */
   onPoolQuotaTurnFailed?: (failedTurn: PoolQuotaFailedTurn) => void;
+  /**
+   * Provider rate-limit push (`account/rateLimits/updated`) mapped to quota
+   * windows for the session's bound pool account. Only wired for pool-bound
+   * sessions; ambient sessions leave it undefined.
+   */
+  onRateLimitsUpdated?: (windows: AccountQuotaWindow[]) => void;
   /**
    * Provider-boundary guard for ACP agents that can incorrectly return a
    * successful `end_turn` without emitting any agent activity.

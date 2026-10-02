@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import {
   areAgentSlashCommandsEqual,
+  type AccountQuotaWindow,
   type AgentSlashCommand,
   type PromptSegment,
   type ProjectLocation,
@@ -139,6 +140,63 @@ function isPlainActiveStatus(status: CodexThreadStatus): boolean {
  * auth, e.g. `The 'glm-5.3-flash' model is not supported when using Codex
  * with a ChatGPT account.` (status 400 / invalid_request_error).
  */
+const CODEX_SESSION_WINDOW_MINUTES = 300;
+const CODEX_WEEKLY_WINDOW_MINUTES = 10080;
+
+/**
+ * One `rateLimits.primary`/`secondary` entry from `account/rateLimits/updated`
+ * (v2 serde camelCase wire shape; snake_case accepted defensively).
+ */
+interface CodexRateLimitWindowWire {
+  usedPercent?: number;
+  used_percent?: number;
+  windowDurationMins?: number;
+  window_duration_mins?: number;
+  resetsAt?: number;
+  resets_at?: number;
+}
+
+/**
+ * Map a pushed `RateLimitSnapshot` onto pool quota windows. Cadence comes
+ * from `windowDurationMins` exactly like the `/wham/usage` collector (300min
+ * → `session-5h`, 10080min → `weekly`), falling back to the slot's usual
+ * axis when the duration is absent. An absent window yields nothing — the
+ * caller merges per axis, so "not pushed" never clears stored evidence.
+ */
+export function codexRateLimitsToQuotaWindows(rateLimits: unknown): AccountQuotaWindow[] {
+  if (!rateLimits || typeof rateLimits !== "object") return [];
+  const snapshot = rateLimits as {
+    primary?: CodexRateLimitWindowWire;
+    secondary?: CodexRateLimitWindowWire;
+  };
+  const windows: AccountQuotaWindow[] = [];
+  for (const [raw, fallback] of [
+    [snapshot.primary, "session-5h"],
+    [snapshot.secondary, "weekly"],
+  ] as const) {
+    if (!raw) continue;
+    const usedPercent = raw.usedPercent ?? raw.used_percent;
+    if (typeof usedPercent !== "number" || !Number.isFinite(usedPercent)) continue;
+    const durationMins = raw.windowDurationMins ?? raw.window_duration_mins;
+    const axis =
+      durationMins === CODEX_WEEKLY_WINDOW_MINUTES
+        ? "weekly"
+        : durationMins === CODEX_SESSION_WINDOW_MINUTES
+          ? "session-5h"
+          : fallback;
+    const resetsAtSeconds = raw.resetsAt ?? raw.resets_at;
+    windows.push({
+      id: axis,
+      label: axis === "weekly" ? "Weekly" : "Session (5h)",
+      usedPercent: Math.min(100, Math.max(0, Math.round(usedPercent * 10) / 10)),
+      ...(typeof resetsAtSeconds === "number" && Number.isFinite(resetsAtSeconds)
+        ? { resetsAt: resetsAtSeconds * 1000 }
+        : {}),
+    });
+  }
+  return windows;
+}
+
 function isModelNotSupportedError(message: string): boolean {
   return /model.+not supported|not supported.+model/i.test(message);
 }
@@ -254,6 +312,13 @@ export class CodexStructuredSession implements StructuredSessionHandle {
    */
   public onPromptError?: (error: unknown) => void | Promise<void>;
   public onPoolQuotaTurnFailed?: (failedTurn: PoolQuotaFailedTurn) => void;
+  /**
+   * `account/rateLimits/updated` push, mapped to quota windows for the bound
+   * pool account. This is the only real-time evidence for the 5h axis on
+   * plans whose `/wham/usage` poll omits it (Plus), so sessions forward it
+   * whenever the callback is wired.
+   */
+  public onRateLimitsUpdated?: (windows: AccountQuotaWindow[]) => void;
   /**
    * The live user turn's prompt context, retained so a quota-shaped async
    * failure (which settles after `startTurn` returned) can still replay the
@@ -657,6 +722,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     );
     if (input.onPromptError) session.onPromptError = input.onPromptError;
     if (input.onPoolQuotaTurnFailed) session.onPoolQuotaTurnFailed = input.onPoolQuotaTurnFailed;
+    if (input.onRateLimitsUpdated) session.onRateLimitsUpdated = input.onRateLimitsUpdated;
     session.attachRpcHandlers();
 
     return session;
@@ -1506,6 +1572,21 @@ export class CodexStructuredSession implements StructuredSessionHandle {
     }
 
     if (method === "account/rateLimits/updated" && params && "rateLimits" in params) {
+      if (this.onRateLimitsUpdated) {
+        const windows = codexRateLimitsToQuotaWindows(
+          (params as { rateLimits?: unknown }).rateLimits,
+        );
+        if (windows.length > 0) {
+          try {
+            this.onRateLimitsUpdated(windows);
+          } catch (callbackError) {
+            console.warn(
+              "[codex] rateLimits/updated observer failed:",
+              callbackError instanceof Error ? callbackError.message : String(callbackError),
+            );
+          }
+        }
+      }
       return;
     }
 

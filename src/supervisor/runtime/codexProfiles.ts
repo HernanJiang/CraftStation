@@ -4,7 +4,12 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseCodexAuth, resolveCodexToken, sanitizeCodexAuthJson } from "./codexCredentials";
 import { isCodexRouterOverlayHome } from "../agents/codex/codexRouterOverlay";
-import { AccountStore, shouldPreserveInferenceExhaustion } from "./accountStore";
+import {
+  AccountStore,
+  liveQuotaWindows,
+  mergeQuotaWindows,
+  shouldPreserveQuotaMark,
+} from "./accountStore";
 import type { AccountView } from "@/shared/contracts";
 import { AccountControlError } from "@/shared/contracts";
 import {
@@ -491,21 +496,38 @@ export class CodexProfileService {
       usedPercent: window.usedPercent,
       ...(window.resetsAt !== undefined ? { resetsAt: window.resetsAt } : {}),
       ...(window.limit !== undefined ? { limit: window.limit } : {}),
+      ...(window.unit !== undefined ? { unit: window.unit } : {}),
     }));
+    // Merge per axis: a poll that omits `session-5h` (Plus accounts never
+    // report it) must not erase an inferred 5h block, and a lagged sub-100
+    // reading must not un-mark an axis a turn failure just exhausted.
+    const now = Date.now();
+    const mergedWindows = mergeQuotaWindows(quotaWindows, account.quotaWindows, now);
+    // Re-derive status from the merged live windows — an inferred axis mark
+    // survives the merge and keeps the row exhausted; a recovered axis drops
+    // out of `liveQuotaWindows` so the row can heal without a fresh mark.
+    const mergedStatus =
+      snapshot.status === "ok"
+        ? quotaStatusForWindows(
+            liveQuotaWindows(mergedWindows, now).filter(
+              (window) => window.id !== CODEX_RESET_CREDIT_WINDOW_ID,
+            ),
+          )
+        : status;
     if (
-      (status === "available" || status === "quota-low") &&
-      shouldPreserveInferenceExhaustion(this.options.store.getRecord(accountId), Date.now())
+      (mergedStatus === "available" || mergedStatus === "quota-low") &&
+      shouldPreserveQuotaMark(this.options.store.getRecord(accountId), now)
     ) {
       // A real inference failure outranks % windows (different budget): keep
       // the row out of scheduling, but persist the fresh windows so the bars
       // stay truthful. The mark expires via TTL; newer quota evidence after
       // that recovers the row normally.
-      return this.options.store.updateQuota(accountId, quotaWindows) ?? withMetadata;
+      return this.options.store.updateQuota(accountId, mergedWindows) ?? withMetadata;
     }
-    const updated = this.options.store.updateStatus(accountId, status, {
+    const updated = this.options.store.updateStatus(accountId, mergedStatus, {
       ...(snapshot.error ? { lastError: snapshot.error } : {}),
       lastQuotaAt: snapshot.fetchedAt,
     });
-    return this.options.store.updateQuota(accountId, quotaWindows) ?? withMetadata ?? updated;
+    return this.options.store.updateQuota(accountId, mergedWindows) ?? withMetadata ?? updated;
   }
 }

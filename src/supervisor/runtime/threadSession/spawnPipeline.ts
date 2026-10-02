@@ -2345,6 +2345,15 @@ export class SpawnPipeline {
                     }
                   })();
                 },
+                // Live rate-limit pushes land on the session's bound account
+                // only — Codex Plus never reports `session-5h` to the usage
+                // poller, so this is the axis's only real-time evidence.
+                onRateLimitsUpdated: (windows) =>
+                  this.ctx.options.handleAccountQuotaWindows?.({
+                    provider: effectiveProvider,
+                    accountId: accountEnv.accountId,
+                    windows,
+                  }),
               }
             : {}),
         });

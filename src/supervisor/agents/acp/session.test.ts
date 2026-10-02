@@ -23,6 +23,7 @@ import {
 } from "./session";
 import { shouldSpawnAcpSession } from "./sessionFactory";
 import {
+  classifyKimiPoolQuotaError,
   isAcpPromptQuotaExhaustedError,
   isGrokPoolQuotaError,
   isKimiPoolQuotaError,
@@ -451,6 +452,28 @@ describe("resolveAcpPromptFailureMessage — prompt rejection after agent-surfac
     expect(isKimiPoolQuotaError(new Error("403 forbidden: plan has no access to this model"))).toBe(
       false,
     );
+  });
+
+  it("classifies Kimi quota failures onto the right budget axis", () => {
+    // The 5h rolling window names itself verbatim; balance/membership
+    // exhaustion lands on the long axis instead.
+    const fiveHour =
+      "provider.auth_error: 403 You've reached your 5-hour usage limit. Your quota will reset when the current 5-hour window ends.";
+    expect(classifyKimiPoolQuotaError(new Error(fiveHour))?.axisId).toBe("session-5h");
+    expect(
+      classifyKimiPoolQuotaError({ data: { http_status: 403, message: fiveHour } })?.axisId,
+    ).toBe("session-5h");
+    expect(
+      classifyKimiPoolQuotaError({
+        data: { http_status: 402, message: "payment required" },
+      })?.axisId,
+    ).toBe("weekly");
+    expect(classifyKimiPoolQuotaError(new Error("Kimi 额度已耗尽"))?.axisId).toBe("weekly");
+    // Non-quota errors never classify.
+    expect(classifyKimiPoolQuotaError(new Error("429 too many requests"))).toBeUndefined();
+    expect(
+      classifyKimiPoolQuotaError({ data: { http_status: 403, message: "forbidden" } }),
+    ).toBeUndefined();
   });
 
   it("treats a 403 carrying quota wording as Grok pool quota, never a refusal", () => {

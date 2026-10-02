@@ -299,23 +299,20 @@ export function isGrokPoolQuotaError(error: unknown): boolean {
 const KIMI_QUOTA_WINDOW_RE =
   /usage\s+limit|quota\s+will\s+reset|quota\s+(?:exceeded|exhausted)|额度(?:已)?耗尽|额度不足|套餐已用完/i;
 
+function kimiPoolErrorMessage(error: unknown): string {
+  if (typeof error === "string") return error;
+  if (!error || typeof error !== "object") return "";
+  const record = error as { data?: unknown; message?: unknown };
+  const data =
+    record.data && typeof record.data === "object" ? (record.data as Record<string, unknown>) : {};
+  if (typeof data["message"] === "string" && data["message"].trim()) {
+    return data["message"];
+  }
+  return typeof record.message === "string" ? record.message : "";
+}
+
 export function isKimiPoolQuotaError(error: unknown): boolean {
-  const message =
-    typeof error === "string"
-      ? error
-      : error && typeof error === "object"
-        ? (() => {
-            const record = error as { data?: unknown; message?: unknown };
-            const data =
-              record.data && typeof record.data === "object"
-                ? (record.data as Record<string, unknown>)
-                : {};
-            if (typeof data["message"] === "string" && data["message"].trim()) {
-              return data["message"];
-            }
-            return typeof record.message === "string" ? record.message : "";
-          })()
-        : "";
+  const message = kimiPoolErrorMessage(error);
   if (message === "Kimi 额度已耗尽") return true;
   if (!error || typeof error !== "object") {
     return /payment required|额度(?:已)?耗尽|额度不足|套餐已用完/i.test(message);
@@ -342,6 +339,30 @@ export function isKimiPoolQuotaError(error: unknown): boolean {
   return /payment required|quota|insufficient|\bbalance\b|额度(?:已)?耗尽|额度不足|套餐已用完|membership (?:expired|exhausted)|usage (?:limit|balance) exhausted|usage\s+limit/i.test(
     message,
   );
+}
+
+/** Which budget axis a quota failure blocks (aligned with collector window ids). */
+export interface KimiQuotaClassification {
+  axisId: "session-5h" | "weekly";
+  /** Epoch milliseconds the axis resets at, when the error carried one. */
+  recoversAt?: number | undefined;
+}
+
+/**
+ * Classify a Kimi quota failure onto one budget axis. The rolling 5h window
+ * is named verbatim (`5-hour usage limit` / `5 小时`); balance and
+ * membership exhaustion are the long axis. Kimi's 5h message carries no
+ * absolute reset time, so `recoversAt` stays undefined and the store
+ * applies the 5h fallback — a real `resetsAt` supersedes it on the next
+ * successful usages poll.
+ */
+export function classifyKimiPoolQuotaError(error: unknown): KimiQuotaClassification | undefined {
+  if (!isKimiPoolQuotaError(error)) return undefined;
+  const message = kimiPoolErrorMessage(error);
+  if (/(?<!\d)5[-\s]?hours?\b|(?<!\d)5h\b|5\s*个?小时/i.test(message)) {
+    return { axisId: "session-5h" };
+  }
+  return { axisId: "weekly" };
 }
 
 /**

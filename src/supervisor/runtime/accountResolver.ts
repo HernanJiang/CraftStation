@@ -9,7 +9,13 @@ import {
   type AccountSchedulingMode,
   type AccountStatus,
 } from "@/shared/contracts";
-import { AccountStore } from "./accountStore";
+import {
+  AccountStore,
+  effectiveQuotaStatus,
+  isQuotaWindowBlocking,
+  liveQuotaWindows,
+  quotaAxisForWindowId,
+} from "./accountStore";
 
 function candidate(
   accountId: string,
@@ -20,8 +26,29 @@ function candidate(
   return { accountId, status, eligible, reason };
 }
 
-function isUsable(account: AccountRecord): boolean {
-  return account.enabled && (account.status === "available" || account.status === "quota-low");
+function isUsable(account: AccountRecord, now: number = Date.now()): boolean {
+  if (!account.enabled) return false;
+  const status = effectiveQuotaStatus(account, now);
+  return status === "available" || status === "quota-low";
+}
+
+/**
+ * Human-readable explanation for a quota-skipped row: name the blocking axis
+ * and its reset so pool diagnostics can tell a 5h cooldown from a weekly
+ * exhaustion instead of a bare "skipped".
+ */
+function quotaBlockReason(account: AccountRecord, now: number): string | undefined {
+  const blocked = (account.quotaWindows ?? []).filter((window) =>
+    isQuotaWindowBlocking(window, now),
+  );
+  if (blocked.length === 0) return undefined;
+  const weekly = blocked.find((window) => quotaAxisForWindowId(window.id) === "weekly");
+  const session = blocked.find((window) => quotaAxisForWindowId(window.id) === "session-5h");
+  const blocking = weekly ?? session ?? blocked[0]!;
+  const name = weekly ? "weekly" : session ? "session-5h" : blocking.id;
+  const until =
+    blocking.resetsAt !== undefined ? ` until ${new Date(blocking.resetsAt).toLocaleString()}` : "";
+  return `quota ${name} exhausted${until}`;
 }
 
 function usableRecords(accounts: AccountRecord[]): AccountRecord[] {
@@ -29,15 +56,18 @@ function usableRecords(accounts: AccountRecord[]): AccountRecord[] {
 }
 
 function pickPriorityAccount(usable: AccountRecord[]): AccountRecord | undefined {
+  const now = Date.now();
   const ranked = [...usable].sort((left, right) => {
-    const leftLow = left.status === "quota-low" ? 1 : 0;
-    const rightLow = right.status === "quota-low" ? 1 : 0;
+    const leftLow = effectiveQuotaStatus(left, now) === "quota-low" ? 1 : 0;
+    const rightLow = effectiveQuotaStatus(right, now) === "quota-low" ? 1 : 0;
     if (leftLow !== rightLow) return leftLow - rightLow;
     if (leftLow === 1) {
       const leftUsed =
-        blockingUsedPercent(left.provider, left.quotaWindows) ?? Number.POSITIVE_INFINITY;
+        blockingUsedPercent(left.provider, liveQuotaWindows(left.quotaWindows, now)) ??
+        Number.POSITIVE_INFINITY;
       const rightUsed =
-        blockingUsedPercent(right.provider, right.quotaWindows) ?? Number.POSITIVE_INFINITY;
+        blockingUsedPercent(right.provider, liveQuotaWindows(right.quotaWindows, now)) ??
+        Number.POSITIVE_INFINITY;
       if (leftUsed !== rightUsed) return leftUsed - rightUsed;
     }
     return left.order - right.order;
@@ -158,7 +188,14 @@ export class AccountResolver {
           candidate(account.accountId, account.status, false, `${mode} excluded (tried this turn)`),
         );
       } else if (!this.isUsable(account)) {
-        candidates.push(candidate(account.accountId, account.status, false, `${mode} skipped`));
+        candidates.push(
+          candidate(
+            account.accountId,
+            effectiveQuotaStatus(account, Date.now()),
+            false,
+            quotaBlockReason(account, Date.now()) ?? `${mode} skipped`,
+          ),
+        );
       }
     }
 

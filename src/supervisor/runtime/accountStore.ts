@@ -27,6 +27,7 @@ import {
   type ProviderPoolConfig,
 } from "@/shared/contracts";
 import { isOpenCodePrivateRuntimeEnvironmentKey } from "./privateRuntimeEnvironment";
+import { blockingWindow } from "@craftstation/agents-usage";
 
 interface AccountFile {
   version: 2;
@@ -163,6 +164,7 @@ export class AccountStore {
   }
 
   list(provider?: string): AccountView[] {
+    this.sweepQuotaExpiryLazily(provider);
     this.scrubIdentityLessAccounts(provider);
     return this.read()
       .accounts.filter((account) => provider === undefined || account.provider === provider)
@@ -171,18 +173,35 @@ export class AccountStore {
   }
 
   get(accountId: string): AccountView | undefined {
+    this.sweepQuotaExpiryLazily();
     const account = this.read().accounts.find((entry) => entry.accountId === accountId);
     return account ? this.toView(account) : undefined;
   }
 
   getRecord(accountId: string): AccountRecord | undefined {
+    this.sweepQuotaExpiryLazily();
     return this.read().accounts.find((entry) => entry.accountId === accountId);
   }
 
   records(provider?: string): AccountRecord[] {
+    this.sweepQuotaExpiryLazily(provider);
     return this.read()
       .accounts.filter((account) => provider === undefined || account.provider === provider)
       .sort((left, right) => left.order - right.order);
+  }
+
+  /**
+   * Read-path quota convergence. A contended lock means another mutation is
+   * already in flight — serve the read from the last written state instead of
+   * failing it; the next read sweeps again.
+   */
+  private sweepQuotaExpiryLazily(provider?: string): void {
+    try {
+      this.reconcileQuotaExpiry(provider);
+    } catch (error) {
+      if (error instanceof AccountControlError && error.code === "ACCOUNT_LOCKED") return;
+      throw error;
+    }
   }
 
   /** Effective pool scheduling config for a provider (defaults to priority). */
@@ -389,6 +408,138 @@ export class AccountStore {
     return this.update(accountId, (account) => {
       account.quotaWindows = quotaWindows.map((window) => ({ ...window }));
     });
+  }
+
+  /**
+   * Mark one quota axis exhausted from a turn-time error. The block lands as
+   * an `inferred` `quotaWindows` entry so a later usage poll can supersede
+   * that same axis with real data while leaving the other axis untouched —
+   * a 5h reset must never clear a weekly block, and a poll that omits an
+   * axis (Codex Plus reports no `session-5h`) must not erase the inferred
+   * evidence either. `recoversAt` falls back to the axis window duration
+   * when the error carries no reset timestamp.
+   */
+  markQuotaAxisBlocked(
+    accountId: string,
+    input: {
+      axisId: QuotaAxisId;
+      recoversAt?: number | undefined;
+      lastError?: string | undefined;
+    },
+  ): AccountView {
+    return this.update(accountId, (account) => {
+      const now = Date.now();
+      // A parsed real reset time wins; the fallback only fills the gap when
+      // the error carried none. A stale/past parsed time floors to +60s so
+      // the mark still blocks briefly rather than healing instantly.
+      const resetsAt =
+        input.recoversAt !== undefined
+          ? Math.max(input.recoversAt, now + 60_000)
+          : now + QUOTA_AXIS_FALLBACK_MS[input.axisId];
+      account.quotaWindows = upsertQuotaWindow(account.quotaWindows, {
+        id: input.axisId,
+        label: input.axisId === "weekly" ? "Weekly" : "Session (5h)",
+        usedPercent: 100,
+        resetsAt,
+        inferred: true,
+      });
+      // Only quota-family and healthy statuses flip to exhausted — an
+      // `auth-expired`/`error`/`disabled` row keeps its stronger state;
+      // those already block scheduling and mean something different.
+      if (
+        account.status === "available" ||
+        account.status === "quota-low" ||
+        account.status === "quota-exhausted"
+      ) {
+        account.status = "quota-exhausted";
+      }
+      if (input.lastError !== undefined) {
+        account.lastError = input.lastError;
+      }
+      account.lastQuotaAt = now;
+    });
+  }
+
+  /**
+   * Merge provider-pushed rate-limit windows (e.g. Codex
+   * `account/rateLimits/updated`) into the row: same per-axis merge rules as
+   * a usage poll — live inferred blocks beat lagged sub-100 readings of the
+   * same axis, absent axes keep their stored evidence. Status is re-derived
+   * only among the quota states, so a push can neither resurrect an
+   * `auth-expired`/`disabled` row nor erase a fresh legacy inference mark.
+   */
+  applyObservedQuotaWindows(
+    accountId: string,
+    windows: readonly AccountQuotaWindow[],
+  ): AccountView {
+    return this.update(accountId, (account) => {
+      const now = Date.now();
+      account.quotaWindows = mergeQuotaWindows(windows, account.quotaWindows, now);
+      if (
+        account.status === "available" ||
+        account.status === "quota-low" ||
+        account.status === "quota-exhausted"
+      ) {
+        const next = effectiveQuotaStatus(account, now);
+        if (next !== account.status) {
+          account.status = next;
+          if (next === "available" || next === "quota-low") {
+            delete account.lastError;
+          }
+        }
+      }
+    });
+  }
+
+  /**
+   * Converge stored quota state: drop 100% windows whose reset has passed
+   * and recompute status from what remains. The scheduler and the accounts
+   * surface call this on their existing read paths, so a recovered axis
+   * returns the account to the pool without waiting for a quota poll.
+   * Returns the accountIds whose stored state changed.
+   */
+  reconcileQuotaExpiry(provider?: string): string[] {
+    const lock = this.acquireLock(this.lockPath);
+    try {
+      const file = this.read();
+      const now = Date.now();
+      const changed: string[] = [];
+      for (const account of file.accounts) {
+        if (provider !== undefined && account.provider !== provider) {
+          continue;
+        }
+        // Disabled rows are already out of scheduling; their stored quota
+        // status is display-only state and heals on re-enable, not silently.
+        if (!account.enabled) {
+          continue;
+        }
+        if (account.status !== "quota-exhausted" && account.status !== "quota-low") {
+          continue;
+        }
+        const liveWindows = liveQuotaWindows(account.quotaWindows, now);
+        const nextStatus = effectiveQuotaStatus(account, now);
+        const windowsChanged = liveWindows.length !== (account.quotaWindows ?? []).length;
+        if (!windowsChanged && nextStatus === account.status) {
+          continue;
+        }
+        if (windowsChanged) {
+          account.quotaWindows = liveWindows;
+        }
+        if (nextStatus !== account.status) {
+          account.status = nextStatus;
+        }
+        if (nextStatus === "available" || nextStatus === "quota-low") {
+          delete account.lastError;
+        }
+        changed.push(account.accountId);
+      }
+      if (changed.length > 0) {
+        this.writeUnlocked(file);
+      }
+      return changed;
+    } finally {
+      this.releaseLock(lock);
+    }
   }
   /**
    * Persist non-secret provider metadata learned during an identity/quota probe.
@@ -934,4 +1085,198 @@ export function shouldPreserveInferenceExhaustion(
   const markTime = stored.lastQuotaAt;
   if (typeof markTime !== "number" || !Number.isFinite(markTime)) return false;
   return now - markTime < QUOTA_INFERENCE_MARK_TTL_MS;
+}
+
+/**
+ * The legacy-mark rule above, minus records carrying axis evidence. An
+ * inferred window owns its own lifecycle: while live it already keeps the
+ * derived status exhausted; once expired the mark is over and a lingering
+ * `lastError` must NOT stretch it back out to the 6h TTL.
+ */
+export function shouldPreserveQuotaMark(
+  record: Pick<AccountRecord, "status" | "lastError" | "lastQuotaAt" | "quotaWindows"> | undefined,
+  now: number,
+): boolean {
+  if (!record) return false;
+  if ((record.quotaWindows ?? []).some((window) => window.inferred === true)) {
+    return false;
+  }
+  return shouldPreserveInferenceExhaustion(record, now);
+}
+
+/**
+ * The two independent budget axes a pooled account can be blocked on.
+ * Aligned with the collector window ids (`session-5h`, `weekly`); a window
+ * id ending in one of these (e.g. `codex:{family}:weekly`) belongs to that
+ * axis, so provider-specific secondary windows share the axis lifecycle.
+ */
+export type QuotaAxisId = "session-5h" | "weekly";
+
+/** Reset-time fallback when a quota error carries no absolute reset timestamp. */
+export const QUOTA_AXIS_FALLBACK_MS: Record<QuotaAxisId, number> = {
+  "session-5h": 5 * 3_600_000,
+  weekly: 7 * 24 * 3_600_000,
+};
+
+/** The quota axis a stored window id belongs to, or undefined for non-axis windows. */
+export function quotaAxisForWindowId(id: string): QuotaAxisId | undefined {
+  if (id === "session-5h" || id.endsWith(":session-5h")) return "session-5h";
+  if (id === "weekly" || id.endsWith(":weekly")) return "weekly";
+  return undefined;
+}
+
+/** A saturated window keeps blocking only until its advertised reset. */
+export function isQuotaWindowBlocking(
+  window: Pick<AccountQuotaWindow, "usedPercent" | "resetsAt">,
+  now: number,
+): boolean {
+  return window.usedPercent >= 100 && (window.resetsAt === undefined || window.resetsAt > now);
+}
+
+/**
+ * Windows with elapsed resets no longer describe reality: a saturated window
+ * past `resetsAt` is a recovered axis, not a blocker. Sub-100 windows keep
+ * their stale percentage for display; the scheduler never blocks on them.
+ */
+export function liveQuotaWindows(
+  windows: readonly AccountQuotaWindow[] | undefined,
+  now: number,
+): AccountQuotaWindow[] {
+  return (windows ?? []).filter(
+    (window) =>
+      !(window.usedPercent >= 100 && window.resetsAt !== undefined && window.resetsAt <= now),
+  );
+}
+
+function upsertQuotaWindow(
+  windows: readonly AccountQuotaWindow[] | undefined,
+  window: AccountQuotaWindow,
+): AccountQuotaWindow[] {
+  const next = (windows ?? []).filter((existing) => existing.id !== window.id);
+  next.push({ ...window });
+  return next;
+}
+
+/**
+ * Merge freshly observed windows into stored ones on a per-axis basis:
+ *
+ * - A live inferred block (saturated, `resetsAt` in the future) beats a fresh
+ *   sub-100% observation of the same axis — the usage probe can lag the
+ *   rate-limit engine, so a just-failed turn is fresher evidence than a
+ *   lagged percentage.
+ * - EXCEPTION: a sub-100% observation carrying a DIFFERENT `resetsAt` proves
+ *   the window rolled into a new period — the axis genuinely reset — so the
+ *   fresh window supersedes (this is how a weekly-blocked account recovers
+ *   on schedule, and how a guessed fallback `resetsAt` corrects early).
+ * - A fresh ≥100% observation supersedes the inferred mark (same verdict,
+ *   better `resetsAt`).
+ * - An axis the poll did not report keeps whatever stored evidence exists;
+ *   "not observed" is never "recovered".
+ * - Expired inferred blocks drop out; their axis is governed by fresh data.
+ */
+export function mergeQuotaWindows(
+  fresh: readonly AccountQuotaWindow[],
+  stored: readonly AccountQuotaWindow[] | undefined,
+  now: number,
+): AccountQuotaWindow[] {
+  const freshClean = fresh.map((window) => {
+    const clean = { ...window };
+    delete clean.inferred;
+    return clean;
+  });
+  const freshIds = new Set(freshClean.map((window) => window.id));
+  const merged: AccountQuotaWindow[] = [...freshClean];
+  for (const window of liveQuotaWindows(stored, now)) {
+    const axis = quotaAxisForWindowId(window.id);
+    const sameAxisFresh =
+      axis === undefined
+        ? []
+        : freshClean.filter((entry) => quotaAxisForWindowId(entry.id) === axis);
+    const coveredByFresh = freshIds.has(window.id) || sameAxisFresh.length > 0;
+    if (window.inferred === true && isQuotaWindowBlocking(window, now) && coveredByFresh) {
+      const sameLaneFresh =
+        axis === undefined ? freshClean.filter((entry) => entry.id === window.id) : sameAxisFresh;
+      const superseded =
+        sameLaneFresh.some((entry) => entry.usedPercent >= 100) ||
+        sameLaneFresh.some(
+          (entry) => entry.resetsAt !== undefined && entry.resetsAt !== window.resetsAt,
+        );
+      if (!superseded) {
+        // A lagged sub-100 reading of the same period cannot disprove a live
+        // turn-level inference mark — and the fresh copy of the same lane
+        // must not sit next to it in the merged list.
+        for (let index = merged.length - 1; index >= 0; index--) {
+          if (merged[index]!.id === window.id) merged.splice(index, 1);
+        }
+        merged.push({ ...window });
+      }
+      continue;
+    }
+    if (!coveredByFresh) {
+      // The observation says nothing about this lane — "not observed" is
+      // never "recovered", so live stored evidence survives the merge.
+      merged.push({ ...window });
+    }
+    // Otherwise the fresh observation governs this axis and the stale stored
+    // window drops out.
+  }
+  return merged;
+}
+
+/**
+ * Scheduling-time truth for quota statuses: re-derive `quota-exhausted` /
+ * `quota-low` against `now` so an elapsed axis block never keeps an account
+ * out of the pool. Non-quota statuses (`auth-expired`, `disabled`, `error`,
+ * `unavailable`, `available`) pass through unchanged — credentials and
+ * user intent are authoritative.
+ *
+ * A stored `quota-exhausted` with no surviving axis evidence still honors
+ * the legacy inference mark (`lastError` + fresh `lastQuotaAt`), preserving
+ * the pre-axis semantics for providers without window data (Grok 402s).
+ */
+export function effectiveQuotaStatus(
+  record: Pick<AccountRecord, "provider" | "status" | "quotaWindows" | "lastError" | "lastQuotaAt">,
+  now: number,
+): AccountStatus {
+  if (record.status !== "quota-exhausted" && record.status !== "quota-low") {
+    return record.status;
+  }
+  const stored = record.quotaWindows ?? [];
+  if (stored.length === 0) {
+    // No axis evidence at all: the stored status is authoritative. A bare or
+    // legacy-marked `quota-exhausted` (Grok 402s, manual writes) keeps
+    // blocking — an empty window set proves nothing about recovery.
+    return record.status;
+  }
+  const live = liveQuotaWindows(stored, now);
+  if (live.length === 0) {
+    // Axis evidence existed and every saturated window's reset has elapsed:
+    // affirmative recovery, independent of any lingering legacy mark.
+    return "available";
+  }
+  const blocking = blockingWindow(record.provider, live);
+  if (!blocking) {
+    // Live windows that never drive the blocking lane (usd overage, reset
+    // credits, model carve-outs) cannot prove a recovery either.
+    return record.status;
+  }
+  const derived =
+    blocking.usedPercent >= 100
+      ? "quota-exhausted"
+      : blocking.usedPercent >= 90
+        ? "quota-low"
+        : "available";
+  if (
+    record.status === "quota-exhausted" &&
+    derived !== "quota-exhausted" &&
+    !stored.some((window) => window.inferred === true) &&
+    shouldPreserveInferenceExhaustion(record, now)
+  ) {
+    // Pure observed windows that read healthy cannot disprove a fresh
+    // turn-level inference mark — the % probe lags the rate-limit engine.
+    // Once the mark's TTL lapses (or inferred axis evidence takes over the
+    // lifecycle), the derived status wins and the row heals normally.
+    return "quota-exhausted";
+  }
+  return derived;
 }

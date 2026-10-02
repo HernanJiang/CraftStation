@@ -35,6 +35,20 @@ export interface AccountQuotaWindow {
   usedPercent: number;
   resetsAt?: number | undefined;
   /**
+   * Written from a turn-time quota error rather than a usage probe
+   * (e.g. Codex Plus never reports `session-5h` to `/wham/usage`, so a
+   * `usage_limit_reached` turn failure is the only evidence). Inferred
+   * windows always carry `resetsAt`; they block scheduling until it passes
+   * or a real observation of the same window id supersedes them.
+   */
+  inferred?: boolean | undefined;
+  /**
+   * Collector unit ("percent", "credits", "usd", ...). Persisted so the
+   * stored row keeps `isIgnored` semantics — a `usd` overage window must not
+   * flip an account to exhausted when status is re-derived from stored data.
+   */
+  unit?: string | undefined;
+  /**
    * Optional absolute amounts for balance-style providers (e.g. StepFun
    * prepaid `balance`/`total_*` from `/v1/accounts`): `remaining` is the
    * currently spendable amount, `limit` the total granted credit, `used`
@@ -81,6 +95,8 @@ export const accountViewSchema = z.object({
         label: z.string(),
         usedPercent: z.number().min(0).max(100),
         resetsAt: z.number().int().nonnegative().optional(),
+        inferred: z.boolean().optional(),
+        unit: z.string().optional(),
         /** Absolute balance amounts (see AccountQuotaWindow). */
         used: z.number().nonnegative().optional(),
         limit: z.number().nonnegative().optional(),

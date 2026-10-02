@@ -13,7 +13,7 @@ import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { AccountControlError, type AccountView } from "@/shared/contracts";
-import { shouldPreserveInferenceExhaustion } from "./accountStore";
+import { liveQuotaWindows, mergeQuotaWindows, shouldPreserveQuotaMark } from "./accountStore";
 import {
   collectKimi,
   quotaStatusFromWindows,
@@ -318,23 +318,36 @@ export class KimiProfileService {
       });
     }
     if (snapshot.status === "rate-limited") {
-      const updated = this.options.store.updateStatus(accountId, "quota-exhausted", {
-        lastQuotaAt: Date.now(),
+      // The probe was throttled, not proven empty: mark the 5h axis only and
+      // bound the block by the endpoint's retry hint (or the 5h fallback) so
+      // the account re-enters the pool automatically instead of staying dead
+      // until the next successful poll.
+      return this.options.store.markQuotaAxisBlocked(accountId, {
+        axisId: "session-5h",
+        ...(snapshot.rateLimitedUntil !== undefined
+          ? { recoversAt: snapshot.rateLimitedUntil }
+          : {}),
+        ...(snapshot.error ? { lastError: snapshot.error } : {}),
       });
-      return this.options.store.updateQuota(accountId, []) ?? updated;
     }
 
-    const quotaWindows = snapshot.windows.map(({ id, label, usedPercent, resetsAt }) => ({
+    const quotaWindows = snapshot.windows.map(({ id, label, usedPercent, resetsAt, unit }) => ({
       id,
       label,
       usedPercent,
       ...(resetsAt !== undefined ? { resetsAt } : {}),
+      ...(unit !== undefined ? { unit } : {}),
     }));
-    const quotaView = this.options.store.updateQuota(accountId, quotaWindows);
-    const status = quotaStatusFromWindows("kimi", snapshot.windows);
+    const now = Date.now();
+    // Merge per axis: a poll that omits `session-5h` must not erase an
+    // inferred 5h block from a failed turn, and a lagged sub-100 reading
+    // must not un-mark an axis a turn failure just exhausted.
+    const mergedWindows = mergeQuotaWindows(quotaWindows, account.quotaWindows, now);
+    const quotaView = this.options.store.updateQuota(accountId, mergedWindows);
+    const status = quotaStatusFromWindows("kimi", liveQuotaWindows(mergedWindows, now));
     if (
       (status === "available" || status === "quota-low") &&
-      shouldPreserveInferenceExhaustion(this.options.store.getRecord(accountId), Date.now())
+      shouldPreserveQuotaMark(this.options.store.getRecord(accountId), now)
     ) {
       // A fresh inference failure outranks % windows (different budget): keep
       // the row out of scheduling; the windows above stay truthful. The mark

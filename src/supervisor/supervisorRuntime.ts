@@ -200,7 +200,11 @@ import { permissionConfigSchema } from "@/shared/contracts/config";
 import { NativeCodexRuntimeAdapter } from "./runtime/nativeCodex";
 import { CraftingError } from "@/shared/crafting/errors";
 import { AccountResolver } from "./runtime/accountResolver";
-import { AccountStore, QUOTA_INFERENCE_MARK_TTL_MS } from "./runtime/accountStore";
+import {
+  AccountStore,
+  effectiveQuotaStatus,
+  QUOTA_INFERENCE_MARK_TTL_MS,
+} from "./runtime/accountStore";
 import {
   MAX_POOL_FAILOVER_ATTEMPTS_PER_TURN,
   POOL_FAILOVER_PROVIDERS,
@@ -212,11 +216,11 @@ import {
 } from "./runtime/poolQuota";
 import { createNativeHarnessRuntimeAdapter } from "./runtime/nativeHarness";
 import {
+  classifyKimiPoolQuotaError,
   isGrokPoolQuotaError,
-  isKimiPoolQuotaError,
   resolveAcpPromptRpcErrorMessage,
 } from "./agents/acp/sessionErrors";
-import { isCodexPoolQuotaError } from "./agents/codex/sessionErrors";
+import { classifyCodexPoolQuotaError } from "./agents/codex/sessionErrors";
 import {
   createRuntimeLedgerTokenUsageScanner,
   TokenUsageAdapter,
@@ -1089,22 +1093,16 @@ export class SupervisorRuntime {
       // turn on a dead binding).
       isPoolAccountUsable: (provider, accountId) => {
         const record = this.accountStore.getRecord(accountId);
-        return (
-          !!record &&
-          record.provider === provider &&
-          record.enabled &&
-          (record.status === "available" || record.status === "quota-low")
-        );
+        if (!record || record.provider !== provider || !record.enabled) return false;
+        const status = effectiveQuotaStatus(record, Date.now());
+        return status === "available" || status === "quota-low";
       },
       hasUsablePoolAccount: (provider) =>
-        this.accountStore
-          .records(provider)
-          .some(
-            (account) =>
-              account.enabled &&
-              (account.status === "available" || account.status === "quota-low") &&
-              this.hasManagedCredential(provider, account),
-          ),
+        this.accountStore.records(provider).some((account) => {
+          if (!account.enabled || !this.hasManagedCredential(provider, account)) return false;
+          const status = effectiveQuotaStatus(account, Date.now());
+          return status === "available" || status === "quota-low";
+        }),
       // Failover notice identities (providerAccountId → masked → label).
       describePoolAccount: (provider, accountId) => {
         const view = this.accountStore.get(accountId);
@@ -1145,6 +1143,17 @@ export class SupervisorRuntime {
           return;
         }
         this.handleGrokNativePromptError(input.accountId, input.error);
+      },
+      handleAccountQuotaWindows: (input) => {
+        // Live rate-limit pushes (Codex `account/rateLimits/updated`) refresh
+        // the bound row's windows per axis — the only real-time evidence for
+        // axes the usage poller never reports (Plus `session-5h`).
+        try {
+          this.accountStore.applyObservedQuotaWindows(input.accountId, input.windows);
+          this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
+        } catch (windowsError) {
+          console.warn("[supervisor] failed to apply pushed quota windows:", windowsError);
+        }
       },
       ...(this.wslHookBridge ? { wslBridge: this.wslHookBridge } : {}),
       resolvePluginEnvForSpawn: (input) =>
@@ -3130,6 +3139,30 @@ export class SupervisorRuntime {
             ...(skills.inlineInstructions
               ? { inlineSkillInstructions: skills.inlineInstructions }
               : {}),
+            ...(accountBinding
+              ? {
+                  // Live rate-limit pushes land on the bound row only — for
+                  // Plus the `session-5h` axis never reaches the usage poller,
+                  // so this push is its sole real-time block evidence.
+                  onRateLimitsUpdated: (windows) => {
+                    try {
+                      this.accountStore.applyObservedQuotaWindows(
+                        accountBinding.accountId,
+                        windows,
+                      );
+                      this.emit({
+                        type: "usage-accounts",
+                        accounts: this.accountStore.list(),
+                      });
+                    } catch (windowsError) {
+                      console.warn(
+                        "[supervisor] failed to apply pushed quota windows:",
+                        windowsError,
+                      );
+                    }
+                  },
+                }
+              : {}),
           })
         : createNativeHarnessRuntimeAdapter(plan.runtimeBinding.harnessKind, {
             projectLocation,
@@ -4136,12 +4169,17 @@ export class SupervisorRuntime {
    * recovers on its own, the latter needs a human re-login.
    */
   private handleKimiNativePromptError(accountId: string, error: unknown): void {
-    if (!isKimiPoolQuotaError(error)) return;
-    const message = "Kimi 额度已耗尽";
+    const classification = classifyKimiPoolQuotaError(error);
+    if (!classification) return;
     try {
-      this.accountStore.updateStatus(accountId, "quota-exhausted", {
-        lastError: message,
-        lastQuotaAt: Date.now(),
+      // Axis-scoped mark: a 5h window exhaustion blocks `session-5h` until
+      // the fallback reset and heals on its own; a membership/balance
+      // failure blocks `weekly`. Marking the whole row flat would let a
+      // recovering poll erase the other axis's evidence.
+      this.accountStore.markQuotaAxisBlocked(accountId, {
+        axisId: classification.axisId,
+        recoversAt: classification.recoversAt,
+        lastError: "Kimi 额度已耗尽",
       });
       this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     } catch (statusError) {
@@ -4150,17 +4188,23 @@ export class SupervisorRuntime {
   }
 
   /**
-   * Codex counterpart to handleGrokNativePromptError: same contract. Only
-   * the verified exhausted shape marks; rate-limit nudges and `willRetry`
-   * warnings never do.
+   * Codex counterpart to handleGrokNativePromptError: same contract, but the
+   * mark is axis-scoped — a `try again at` timestamp inside 6h lands on
+   * `session-5h` (the window Plus polls never report, which is why a flat
+   * mark was the only signal it ever produced); a further reset or spend-cap
+   * wording lands on `weekly`. Only the verified exhausted shape marks;
+   * rate-limit nudges, `willRetry` warnings, and bare 429s never do.
    */
   private handleCodexNativePromptError(accountId: string, error: unknown): void {
-    if (!isCodexPoolQuotaError(error)) return;
+    const record = this.accountStore.getRecord(accountId);
+    const classification = classifyCodexPoolQuotaError(error, record?.quotaWindows);
+    if (!classification) return;
     const message = error instanceof Error ? error.message : String(error ?? "");
     try {
-      this.accountStore.updateStatus(accountId, "quota-exhausted", {
+      this.accountStore.markQuotaAxisBlocked(accountId, {
+        axisId: classification.axisId,
+        recoversAt: classification.recoversAt,
         lastError: message,
-        lastQuotaAt: Date.now(),
       });
       this.emit({ type: "usage-accounts", accounts: this.accountStore.list() });
     } catch (statusError) {

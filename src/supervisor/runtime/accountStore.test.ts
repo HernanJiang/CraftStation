@@ -2,11 +2,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { AccountControlError } from "@/shared/contracts";
+import { AccountControlError, type AccountQuotaWindow } from "@/shared/contracts";
 import { AccountResolver } from "./accountResolver";
 import {
   AccountStore,
+  effectiveQuotaStatus,
+  liveQuotaWindows,
   maskIdentity,
+  mergeQuotaWindows,
   QUOTA_INFERENCE_MARK_TTL_MS,
   shouldPreserveInferenceExhaustion,
 } from "./accountStore";
@@ -264,22 +267,23 @@ describe("AccountStore", () => {
   it("keeps the inference mark's lastError across degraded-state refreshes", () => {
     const store = createStore();
     const account = store.add({ provider: "codex", label: "codex one" });
+    const markTime = Date.now();
 
     // The quota-inference write-back marks the dead account…
     store.updateStatus(account.accountId, "quota-exhausted", {
       lastError: "You've hit your usage limit.",
-      lastQuotaAt: 1,
+      lastQuotaAt: markTime,
     });
     // …then the quota poller re-marks the same degraded state without
     // lastError. The evidence must survive: `shouldPreserveInferenceExhaustion`
     // discriminates inference marks from window-derived rows by lastError, so
     // wiping it lets the next healthy-looking probe flip the dead account
     // back to `available` and re-elect it into the failover chain.
-    store.updateStatus(account.accountId, "quota-exhausted", { lastQuotaAt: 2 });
+    store.updateStatus(account.accountId, "quota-exhausted", { lastQuotaAt: markTime + 1 });
     expect(store.get(account.accountId)).toMatchObject({
       status: "quota-exhausted",
       lastError: "You've hit your usage limit.",
-      lastQuotaAt: 2,
+      lastQuotaAt: markTime + 1,
     });
     // A healthy transition still clears it.
     store.updateStatus(account.accountId, "available");
@@ -590,5 +594,208 @@ describe("AccountStore", () => {
         ),
       ).toBe(false);
     });
+  });
+});
+
+describe("dual-axis quota", () => {
+  const HOUR = 3_600_000;
+
+  function axisWindow(
+    id: "session-5h" | "weekly",
+    resetsAt: number,
+    usedPercent = 100,
+  ): AccountQuotaWindow {
+    return {
+      id,
+      label: id === "weekly" ? "Weekly" : "Session (5h)",
+      usedPercent,
+      resetsAt,
+      inferred: true,
+    };
+  }
+
+  it("marks one axis exhausted without touching the other", () => {
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "Plus" });
+    store.updateStatus(account.accountId, "available");
+    const recoversAt = Date.now() + 2 * HOUR;
+    store.markQuotaAxisBlocked(account.accountId, {
+      axisId: "session-5h",
+      recoversAt,
+      lastError: "You've hit your usage limit",
+    });
+    const record = store.getRecord(account.accountId)!;
+    expect(record.status).toBe("quota-exhausted");
+    const window = record.quotaWindows?.find((w) => w.id === "session-5h");
+    expect(window?.inferred).toBe(true);
+    expect(window?.usedPercent).toBe(100);
+    expect(window?.resetsAt).toBe(recoversAt);
+  });
+
+  it("skips a 5h-blocked account at resolve time and re-elects it after reset", () => {
+    const store = createStore();
+    const plus = store.add({ provider: "codex", label: "Plus" });
+    const pro = store.add({ provider: "codex", label: "Pro" });
+    store.updateStatus(plus.accountId, "available");
+    store.updateStatus(pro.accountId, "available");
+    const resolver = new AccountResolver(store);
+
+    store.markQuotaAxisBlocked(plus.accountId, {
+      axisId: "session-5h",
+      recoversAt: Date.now() + 2 * HOUR,
+      lastError: "usage limit",
+    });
+    const first = resolver.resolve({ provider: "codex", mode: "auto" });
+    expect(first.account.accountId).toBe(pro.accountId);
+    expect(first.candidates.find((c) => c.accountId === plus.accountId)?.reason).toContain(
+      "session-5h",
+    );
+
+    // The window resets: overwrite the mark with an expired inferred window
+    // (what reconcile sees after the timestamp passes) and re-resolve.
+    store.updateQuota(plus.accountId, [axisWindow("session-5h", Date.now() - 1)]);
+    const second = resolver.resolve({ provider: "codex", mode: "auto" });
+    expect(second.account.accountId).toBe(plus.accountId);
+  });
+
+  it("keeps a weekly block after the 5h window resets", () => {
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "Codex" });
+    const now = Date.now();
+    store.updateQuota(account.accountId, [
+      axisWindow("session-5h", now - 60_000),
+      axisWindow("weekly", now + 3 * 24 * HOUR),
+    ]);
+    store.updateStatus(account.accountId, "quota-exhausted", {
+      lastError: "weekly exhausted",
+      lastQuotaAt: now - 60_000,
+    });
+    const healed = store.reconcileQuotaExpiry("codex");
+    const record = store.getRecord(account.accountId)!;
+    // 5h evidence dropped (windows changed → swept), weekly still blocks.
+    expect(record.quotaWindows?.some((w) => w.id === "session-5h")).toBe(false);
+    expect(record.status).toBe("quota-exhausted");
+    expect(healed).toContain(account.accountId);
+  });
+
+  it("recovers a 5h-expired account even with a fresh legacy-style mark", () => {
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "Codex" });
+    const now = Date.now();
+    store.updateQuota(account.accountId, [
+      axisWindow("session-5h", now - 1),
+      { id: "weekly", label: "Weekly", usedPercent: 42, resetsAt: now + 7 * 24 * HOUR },
+    ]);
+    store.updateStatus(account.accountId, "quota-exhausted", {
+      lastError: "usage limit",
+      lastQuotaAt: now,
+    });
+    const healed = store.reconcileQuotaExpiry("codex");
+    expect(healed).toContain(account.accountId);
+    const record = store.getRecord(account.accountId)!;
+    expect(record.status).toBe("available");
+    expect(record.lastError).toBeUndefined();
+  });
+
+  it("mergeQuotaWindows keeps a live inferred block when the poll omits the axis", () => {
+    const now = Date.now();
+    const merged = mergeQuotaWindows(
+      [{ id: "weekly", label: "Weekly", usedPercent: 10, resetsAt: now + 5 * 24 * HOUR }],
+      [axisWindow("session-5h", now + 2 * HOUR)],
+      now,
+    );
+    expect(merged.find((w) => w.id === "session-5h")?.inferred).toBe(true);
+    expect(merged.find((w) => w.id === "weekly")?.usedPercent).toBe(10);
+  });
+
+  it("mergeQuotaWindows: a same-window lagged reading cannot disprove a live mark", () => {
+    const now = Date.now();
+    const resetsAt = now + 2 * HOUR;
+    const merged = mergeQuotaWindows(
+      [{ id: "session-5h", label: "Session (5h)", usedPercent: 30, resetsAt }],
+      [axisWindow("session-5h", resetsAt)],
+      now,
+    );
+    const window = merged.find((w) => w.id === "session-5h");
+    expect(window?.inferred).toBe(true);
+    expect(window?.usedPercent).toBe(100);
+  });
+
+  it("mergeQuotaWindows: a different resetsAt proves a new period and supersedes", () => {
+    const now = Date.now();
+    const merged = mergeQuotaWindows(
+      [{ id: "weekly", label: "Weekly", usedPercent: 8, resetsAt: now + 9 * 24 * HOUR }],
+      [axisWindow("weekly", now + 2 * 24 * HOUR)],
+      now,
+    );
+    const window = merged.find((w) => w.id === "weekly");
+    expect(window?.inferred).toBeUndefined();
+    expect(window?.usedPercent).toBe(8);
+  });
+
+  it("mergeQuotaWindows: a fresh >=100% observation supersedes the inferred mark", () => {
+    const now = Date.now();
+    const realReset = now + 4 * HOUR;
+    const merged = mergeQuotaWindows(
+      [{ id: "session-5h", label: "Session (5h)", usedPercent: 100, resetsAt: realReset }],
+      [axisWindow("session-5h", now + 5 * HOUR)],
+      now,
+    );
+    const window = merged.find((w) => w.id === "session-5h");
+    expect(window?.inferred).toBeUndefined();
+    expect(window?.resetsAt).toBe(realReset);
+  });
+
+  it("applyObservedQuotaWindows updates the pushed axis without clearing the other", () => {
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "Codex" });
+    const now = Date.now();
+    store.updateQuota(account.accountId, [axisWindow("session-5h", now + 2 * HOUR)]);
+    store.updateStatus(account.accountId, "quota-exhausted", {
+      lastError: "5h exhausted",
+      lastQuotaAt: now,
+    });
+    // Push carries only the healthy weekly axis: the 5h mark survives and the
+    // row stays exhausted.
+    store.applyObservedQuotaWindows(account.accountId, [
+      { id: "weekly", label: "Weekly", usedPercent: 15, resetsAt: now + 6 * 24 * HOUR },
+    ]);
+    const record = store.getRecord(account.accountId)!;
+    expect(record.status).toBe("quota-exhausted");
+    expect(record.quotaWindows?.some((w) => w.id === "session-5h")).toBe(true);
+    expect(record.quotaWindows?.find((w) => w.id === "weekly")?.usedPercent).toBe(15);
+  });
+
+  it("applyObservedQuotaWindows never resurrects auth-expired rows", () => {
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "Codex" });
+    store.updateStatus(account.accountId, "auth-expired", { lastError: "401" });
+    store.applyObservedQuotaWindows(account.accountId, [
+      { id: "session-5h", label: "Session (5h)", usedPercent: 10 },
+    ]);
+    expect(store.getRecord(account.accountId)!.status).toBe("auth-expired");
+  });
+
+  it("effectiveQuotaStatus recovers expired windows and honors legacy marks", () => {
+    const now = Date.now();
+    // Expired 100% window drops from the live set.
+    const expired = liveQuotaWindows(
+      [{ id: "session-5h", label: "Session (5h)", usedPercent: 100, resetsAt: now - 1 }],
+      now,
+    );
+    expect(expired).toEqual([]);
+    // Legacy shape (no windows, fresh mark) stays exhausted until the TTL.
+    expect(
+      effectiveQuotaStatus(
+        {
+          provider: "grok",
+          status: "quota-exhausted",
+          quotaWindows: [],
+          lastError: "usage balance exhausted",
+          lastQuotaAt: now,
+        },
+        now,
+      ),
+    ).toBe("quota-exhausted");
   });
 });

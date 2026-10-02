@@ -23,9 +23,11 @@ import { logCraftingEvent } from "@/shared/crafting/logging";
 import {
   AccountControlError,
   type AccountBinding,
+  type AccountQuotaWindow,
   type PromptSegment,
   type ResolvedMcpServer,
 } from "@/shared/contracts";
+import { codexRateLimitsToQuotaWindows } from "@/supervisor/agents/codex/acp";
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
 import { buildCodexMcp } from "@/supervisor/agents/userMcp";
 import { explainNativeNetworkError } from "@/supervisor/agents/nativeNetworkError";
@@ -85,6 +87,12 @@ export interface NativeCodexAdapterOptions {
   profileMode?: "subscription" | "endpoint" | undefined;
   skillSegments?: readonly PromptSegment[] | undefined;
   inlineSkillInstructions?: string | undefined;
+  /**
+   * `account/rateLimits/updated` pushes mapped to quota windows for the bound
+   * account — the only real-time evidence for axes the usage poller never
+   * reports (Plus `session-5h`).
+   */
+  onRateLimitsUpdated?: ((windows: AccountQuotaWindow[]) => void) | undefined;
 }
 
 export class NativeCodexCraftSession implements CraftSession {
@@ -103,6 +111,11 @@ export class NativeCodexCraftSession implements CraftSession {
   // received the matching `turn/completed` (gateway/provider failures).
   // Cancelled by the next `turn/started`, any completion, or terminate.
   private _turnErrorSettleTimer?: ReturnType<typeof setTimeout> | undefined;
+  /**
+   * Pool quota observer: the adapter assigns this after construction so the
+   * crafted lane feeds `account/rateLimits/updated` into the account store.
+   */
+  public onRateLimitsUpdated?: ((windows: AccountQuotaWindow[]) => void) | undefined;
 
   constructor(
     readonly id: string,
@@ -130,6 +143,16 @@ export class NativeCodexCraftSession implements CraftSession {
     // Listen to official server notifications and map them to CraftStation RuntimeEvents
     this._unsubscribeNotif = this.client.onNotification((notif) => {
       const params = (notif.params ?? {}) as Record<string, any>;
+      if (notif.method === "account/rateLimits/updated" && this.onRateLimitsUpdated) {
+        const windows = codexRateLimitsToQuotaWindows(params["rateLimits"]);
+        if (windows.length > 0) {
+          try {
+            this.onRateLimitsUpdated(windows);
+          } catch (error) {
+            console.warn("[codex] rateLimits/updated observer failed:", error);
+          }
+        }
+      }
       const childEvents = this._subAgentRouter.routeChildNotification(notif.method, params);
       const events =
         childEvents ??
@@ -727,7 +750,7 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
         threadId,
       });
 
-      return new NativeCodexCraftSession(
+      const session = new NativeCodexCraftSession(
         sessionId,
         entity.id,
         threadId,
@@ -741,6 +764,8 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
         this.options?.skillSegments,
         this.options?.inlineSkillInstructions,
       );
+      session.onRateLimitsUpdated = this.options?.onRateLimitsUpdated;
+      return session;
     } catch (error) {
       this.diagnostics.push(
         codexDiagnostic("start", "createSession", error, { entityId: entity.id }),
@@ -776,7 +801,7 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
         details: { sessionRef },
       });
 
-      return new NativeCodexCraftSession(
+      const session = new NativeCodexCraftSession(
         sessionId,
         entity.id,
         threadId,
@@ -790,6 +815,8 @@ export class NativeCodexRuntimeAdapter implements HarnessRuntimeAdapter {
         this.options?.skillSegments,
         this.options?.inlineSkillInstructions,
       );
+      session.onRateLimitsUpdated = this.options?.onRateLimitsUpdated;
+      return session;
     } catch (error) {
       this.diagnostics.push(
         codexDiagnostic("resume", "resumeSession", error, { entityId: entity.id, sessionRef }),
