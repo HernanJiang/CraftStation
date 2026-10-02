@@ -1,13 +1,13 @@
 /**
  * Estimated token throughput for streamed model output.
  *
- * Providers do not push per-token counters mid-decode (e.g. Codex's
- * `thread/tokenUsage/updated` only lands at each model-call boundary), so a
- * live "tok/s" reading has to be derived from the streamed text itself. The
- * estimate uses two bucket rates for cl100k-class tokenizers: ASCII/code at
- * ~4 chars/token and CJK text at ~1.6 chars/token. It is intentionally a
- * speed gauge, not a billing figure — the persisted usage ledger stays on
- * provider-reported counters only.
+ * The numerator prefers provider-reported output+reasoning tokens from
+ * `context.updated` samples (per model call). This estimator only covers
+ * whatever has streamed since the last sample — and the whole turn when a
+ * provider never reports — using two bucket rates for cl100k-class
+ * tokenizers: ASCII/code at ~4 chars/token and CJK text at ~1.6 chars/token.
+ * It is intentionally a speed gauge, not a billing figure — the persisted
+ * usage ledger stays on provider-reported counters only.
  */
 
 /** CJK Unified Ideographs + common CJK punctuation ranges (BMP). */

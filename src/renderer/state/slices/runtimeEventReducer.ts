@@ -275,10 +275,19 @@ function applyRuntimeEventToRuntimeState(
         state.runtimeOpenTurnByThread[threadId] === false
           ? {}
           : { runtimeOpenTurnByThread: { ...state.runtimeOpenTurnByThread, [threadId]: false } };
+      const segmentPatch = closeTurnOutputSegment(state, threadId);
       if (event.state !== "interrupted" && event.state !== "cancelled") {
-        return { ...closeTurnPatch, ...completeOpenReasoningItems(state, threadId) };
+        return {
+          ...closeTurnPatch,
+          ...segmentPatch,
+          ...completeOpenReasoningItems(state, threadId),
+        };
       }
-      return { ...closeTurnPatch, ...pruneTrailingInterruptedReasoningItems(state, threadId) };
+      return {
+        ...closeTurnPatch,
+        ...segmentPatch,
+        ...pruneTrailingInterruptedReasoningItems(state, threadId),
+      };
     }
 
     case "item.started": {
@@ -409,7 +418,13 @@ function applyRuntimeEventToRuntimeState(
         },
       };
       items[event.itemId] = next;
-      const outputPatch = accumulateTurnOutput(state, threadId, event.stream, event.delta);
+      const outputPatch = accumulateTurnOutput(
+        state,
+        threadId,
+        event.stream,
+        event.itemId,
+        event.delta,
+      );
       return {
         runtimeItemsByIdByThread: {
           ...state.runtimeItemsByIdByThread,
@@ -428,6 +443,7 @@ function applyRuntimeEventToRuntimeState(
           ...state.runtimeContextByThread,
           [threadId]: next,
         },
+        ...accumulateReportedOutput(state, threadId, event.usage),
       };
     }
 
@@ -500,22 +516,100 @@ const MODEL_OUTPUT_STREAMS: ReadonlySet<RuntimeContentStreamKind> = new Set([
   "plan_text",
 ]);
 
+/**
+ * Fold one model-output delta into the turn's throughput accumulator,
+ * mirroring the deepseek-harness decode fold: each contiguous streaming
+ * segment (one item's output between tool calls) gets a first→last-delta
+ * window, so tool execution and waiting never inflate the denominator.
+ * Provider-reported output tokens arrive via `context.updated` samples.
+ */
 function accumulateTurnOutput(
   state: RuntimeEventState,
   threadId: string,
   stream: RuntimeContentStreamKind,
+  itemId: string,
   delta: string,
 ): Partial<RuntimeEventState> {
   if (!MODEL_OUTPUT_STREAMS.has(stream) || delta.length === 0) return {};
   const now = Date.now();
   const prev = state.runtimeTurnOutputByThread[threadId];
+  const segment =
+    prev?.segment && prev.segment.itemId === itemId
+      ? { ...prev.segment, lastDeltaAt: now }
+      : { itemId, firstDeltaAt: now, lastDeltaAt: now };
+  const closedMs =
+    prev?.segment && prev.segment.itemId !== itemId
+      ? Math.max(0, prev.segment.lastDeltaAt - prev.segment.firstDeltaAt)
+      : 0;
   return {
     runtimeTurnOutputByThread: {
       ...state.runtimeTurnOutputByThread,
       [threadId]: {
         estimatedTokens: (prev?.estimatedTokens ?? 0) + estimateStreamedTokens(delta),
-        firstDeltaAt: prev?.firstDeltaAt || now,
-        lastDeltaAt: now,
+        reportedTokens: prev?.reportedTokens ?? 0,
+        estimatedBaseline: prev?.estimatedBaseline ?? 0,
+        lastSampleKey: prev?.lastSampleKey ?? null,
+        decodeMs: (prev?.decodeMs ?? 0) + closedMs,
+        segment,
+      },
+    },
+  };
+}
+
+/**
+ * Sum provider-reported output + reasoning tokens off a `context.updated`
+ * sample. `usageFromProviderRecord` scopes these to one model call
+ * (`scope: "turn"`), so each distinct sample contributes its own call's
+ * output — the real numerator for the throughput reading.
+ */
+function accumulateReportedOutput(
+  state: RuntimeEventState,
+  threadId: string,
+  usage: ThreadContextUsage,
+): Partial<RuntimeEventState> {
+  // Session-scoped samples are cumulative — summing them would double-count.
+  if (usage.scope === "session") return {};
+  const reported = (usage.breakdown ?? [])
+    .filter((entry) => entry.id === "output" || entry.id === "reasoning")
+    .reduce((sum, entry) => sum + entry.tokens, 0);
+  if (reported <= 0) return {};
+  const prev = state.runtimeTurnOutputByThread[threadId];
+  if (!prev && state.runtimeOpenTurnByThread[threadId] !== true) return {};
+  const inputish =
+    (usage.breakdown ?? [])
+      .filter((entry) => entry.id !== "output" && entry.id !== "reasoning")
+      .reduce((sum, entry) => sum + entry.tokens, 0) + (usage.usedTokens ?? 0);
+  const sampleKey = `${reported}:${inputish}`;
+  if (prev?.lastSampleKey === sampleKey) return {};
+  return {
+    runtimeTurnOutputByThread: {
+      ...state.runtimeTurnOutputByThread,
+      [threadId]: {
+        estimatedTokens: prev?.estimatedTokens ?? 0,
+        reportedTokens: (prev?.reportedTokens ?? 0) + reported,
+        estimatedBaseline: prev?.estimatedTokens ?? 0,
+        lastSampleKey: sampleKey,
+        decodeMs: prev?.decodeMs ?? 0,
+        segment: prev?.segment ?? null,
+      },
+    },
+  };
+}
+
+/** Close the open decode segment when the turn ends so its window stops growing. */
+function closeTurnOutputSegment(
+  state: RuntimeEventState,
+  threadId: string,
+): Partial<RuntimeEventState> {
+  const prev = state.runtimeTurnOutputByThread[threadId];
+  if (!prev?.segment) return {};
+  return {
+    runtimeTurnOutputByThread: {
+      ...state.runtimeTurnOutputByThread,
+      [threadId]: {
+        ...prev,
+        decodeMs: prev.decodeMs + Math.max(0, prev.segment.lastDeltaAt - prev.segment.firstDeltaAt),
+        segment: null,
       },
     },
   };

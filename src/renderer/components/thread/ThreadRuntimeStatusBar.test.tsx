@@ -117,8 +117,10 @@ describe("ThreadRuntimeStatusBar", () => {
       runtimeTurnOutputByThread: {
         "thread-1": {
           estimatedTokens: 84,
-          firstDeltaAt: Date.now() - 2_000,
-          lastDeltaAt: Date.now(),
+          reportedTokens: 0,
+          estimatedBaseline: 0,
+          decodeMs: 0,
+          segment: { itemId: "i1", firstDeltaAt: Date.now() - 2_000, lastDeltaAt: Date.now() },
         },
       },
     } as never);
@@ -139,8 +141,10 @@ describe("ThreadRuntimeStatusBar", () => {
       runtimeTurnOutputByThread: {
         "thread-1": {
           estimatedTokens: 12,
-          firstDeltaAt: Date.now(),
-          lastDeltaAt: Date.now(),
+          reportedTokens: 0,
+          estimatedBaseline: 0,
+          decodeMs: 0,
+          segment: { itemId: "i1", firstDeltaAt: Date.now(), lastDeltaAt: Date.now() },
         },
       },
     } as never);

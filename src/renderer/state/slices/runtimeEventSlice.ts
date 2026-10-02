@@ -90,9 +90,18 @@ export function toRuntimeChatItem(item: PersistedRuntimeItem): RuntimeChatItem {
  * rate is a generation-speed reading, not wall time padded by tool calls.
  */
 export interface RuntimeTurnOutput {
+  /** Char-estimated tokens over counted deltas — fallback numerator. */
   estimatedTokens: number;
-  firstDeltaAt: number;
-  lastDeltaAt: number;
+  /** Provider-reported output+reasoning tokens summed over this turn's usage samples. */
+  reportedTokens: number;
+  /** `estimatedTokens` snapshot at the last usage sample — keeps post-sample deltas counted once. */
+  estimatedBaseline: number;
+  /** Signature of the last counted usage sample; identical consecutive samples don't recount. */
+  lastSampleKey: string | null;
+  /** Closed decode windows in ms (per streaming segment: first delta → last delta). */
+  decodeMs: number;
+  /** The item currently streaming model output, if any. A new itemId closes the prior segment. */
+  segment: { itemId: string; firstDeltaAt: number; lastDeltaAt: number } | null;
 }
 
 export interface OpenRuntimeRequest {

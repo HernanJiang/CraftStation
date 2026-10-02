@@ -998,7 +998,7 @@ describe("runtimeEventSlice.applyRuntimeEvent", () => {
       });
     }
 
-    it("accumulates estimated tokens across model-output deltas with a decode window", () => {
+    it("accumulates estimated tokens across model-output deltas with an open segment", () => {
       startItem("i1");
       const now = nowSpy();
       now.mockReturnValue(1_000);
@@ -1010,8 +1010,84 @@ describe("runtimeEventSlice.applyRuntimeEvent", () => {
 
       const stats = store.getState().runtimeTurnOutputByThread["t1"];
       expect(stats?.estimatedTokens).toBeCloseTo(5);
-      expect(stats?.firstDeltaAt).toBe(1_000);
-      expect(stats?.lastDeltaAt).toBe(2_000);
+      expect(stats?.decodeMs).toBe(0);
+      expect(stats?.segment).toEqual({ itemId: "i1", firstDeltaAt: 1_000, lastDeltaAt: 2_000 });
+    });
+
+    it("keeps tool-call gaps out of the decode window via per-segment windows", () => {
+      startItem("i1");
+      const now = nowSpy();
+      now.mockReturnValue(1_000);
+      apply("t1", delta("i1", "assistant_text", "Hello"));
+      now.mockReturnValue(2_000);
+      apply("t1", delta("i1", "assistant_text", "world"));
+      // A long tool gap follows; the next message's deltas land on a new item.
+      now.mockReturnValue(42_000);
+      startItem("i2");
+      apply("t1", delta("i2", "assistant_text", "again"));
+      now.mockReturnValue(43_000);
+      apply("t1", delta("i2", "assistant_text", "done"));
+
+      const stats = store.getState().runtimeTurnOutputByThread["t1"];
+      // i1 closed at 1s of decode; i2's open window is another 1s — the 40s
+      // tool gap between them is not decode time.
+      expect(stats?.decodeMs).toBe(1_000);
+      expect(stats?.segment).toEqual({ itemId: "i2", firstDeltaAt: 42_000, lastDeltaAt: 43_000 });
+    });
+
+    it("closes the open segment when the turn completes", () => {
+      startItem("i1");
+      const now = nowSpy();
+      now.mockReturnValue(1_000);
+      apply("t1", delta("i1", "assistant_text", "Hello"));
+      now.mockReturnValue(3_000);
+      apply("t1", delta("i1", "assistant_text", "world"));
+      now.mockReturnValue(5_000);
+      apply("t1", {
+        type: "turn.completed",
+        threadId: "t1",
+        turnId: "turn-1",
+        state: "completed",
+      });
+
+      const stats = store.getState().runtimeTurnOutputByThread["t1"];
+      expect(stats?.segment).toBeNull();
+      // Decode ends at the last delta (~message-assembled), not turn completion.
+      expect(stats?.decodeMs).toBe(2_000);
+    });
+
+    it("sums provider-reported output+reasoning tokens and rebases the estimate", () => {
+      apply("t1", { type: "turn.started", threadId: "t1", turnId: "turn-1" });
+      startItem("i1");
+      const now = nowSpy();
+      now.mockReturnValue(1_000);
+      apply("t1", delta("i1", "assistant_text", "Hello"));
+      apply("t1", {
+        type: "context.updated",
+        threadId: "t1",
+        usage: {
+          scope: "turn",
+          breakdown: [
+            { id: "input", label: "Input", tokens: 9_999 },
+            { id: "output", label: "Output", tokens: 320 },
+            { id: "reasoning", label: "Reasoning", tokens: 180 },
+          ],
+        },
+      });
+
+      const stats = store.getState().runtimeTurnOutputByThread["t1"];
+      expect(stats?.reportedTokens).toBe(500);
+      expect(stats?.estimatedBaseline).toBeCloseTo(1.25);
+      // Input/cache buckets never count as model output speed.
+    });
+
+    it("ignores usage samples without output buckets or outside a turn", () => {
+      apply("t1", {
+        type: "context.updated",
+        threadId: "t1",
+        usage: { usedTokens: 12_000, maxTokens: 200_000 },
+      });
+      expect(store.getState().runtimeTurnOutputByThread["t1"]).toBeUndefined();
     });
 
     it("ignores tool-output streams", () => {

@@ -90,16 +90,18 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
     : undefined;
   const currentTokens = summary?.usedTokens;
   const previousTurn = completedTurns.at(-1);
-  // Decode-window average (first delta → latest delta), mirroring the
-  // deepseek-harness throughput fold. While streaming, `lastDeltaAt` tracks
-  // `now`; during tool gaps it freezes so the reading stays a generation
-  // rate, not wall-clock dilation.
-  const decodeSeconds =
-    turnOutput && turnOutput.lastDeltaAt > turnOutput.firstDeltaAt
-      ? (turnOutput.lastDeltaAt - turnOutput.firstDeltaAt) / 1000
-      : 0;
-  const tokensPerSecond =
-    turnOutput && decodeSeconds > 0 ? turnOutput.estimatedTokens / decodeSeconds : undefined;
+  // Decode throughput per the deepseek-harness fold: summed per-segment
+  // first→last-delta windows (tool gaps never enter the denominator), with
+  // provider-reported output tokens preferred over the char estimate.
+  const openMs = turnOutput?.segment
+    ? Math.max(0, turnOutput.segment.lastDeltaAt - turnOutput.segment.firstDeltaAt)
+    : 0;
+  const decodeMs = (turnOutput?.decodeMs ?? 0) + openMs;
+  const outputTokens = turnOutput
+    ? turnOutput.reportedTokens + (turnOutput.estimatedTokens - turnOutput.estimatedBaseline)
+    : 0;
+  const tokensPerSecond = turnOutput && decodeMs > 0 ? outputTokens / (decodeMs / 1000) : undefined;
+  const rateIsEstimated = turnOutput === undefined || turnOutput.reportedTokens === 0;
   const icon =
     state === "working" ? (
       <LoaderCircle className="size-3.5 animate-spin" />
@@ -187,7 +189,10 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
                 value={currentTokens === undefined ? "未提供" : formatTokenCount(currentTokens)}
               />
               {tokensPerSecond !== undefined ? (
-                <Detail label="输出速度" value={`${formatTokenRate(tokensPerSecond)}（估算）`} />
+                <Detail
+                  label="输出速度"
+                  value={`${formatTokenRate(tokensPerSecond)}${rateIsEstimated ? "（估算）" : ""}`}
+                />
               ) : null}
               {state === "completed" ? (
                 <Detail label="完成时间" value={formatClock(endedAt)} />
