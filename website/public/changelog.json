@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.7.5",
+      "date": "2026-10-02",
+      "title": "Account pools rotate on 5-hour and weekly quota axes",
+      "summary": "Codex and Kimi pool accounts now track the rolling 5-hour window and the weekly budget independently: a Plus account that hits its 5-hour limit steps aside for the next account and rejoins the pool automatically when the window resets.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Account Pools",
+          "text": "Codex Plus accounts that hit the 5-hour usage limit are now actually rotated out: the turn-level quota error is recorded as a per-axis block with its own reset time, so the pool skips that account until the window rolls over — previously Plus never reported the 5h window to the usage poller, so the account looked healthy and kept burning failed turns. Live rate-limit pushes from the app-server land on the bound account in both chat and crafted lanes."
+        },
+        {
+          "kind": "improved",
+          "label": "Account Pools",
+          "text": "Quota recovery is now evidence-driven: a healthy usage poll can no longer erase a still-live 5h block, a lagged percentage can't un-mark an axis a failed turn just exhausted, and expired windows heal the account on their own. Disabled and auth-expired rows are never silently revived. Kimi gets the same 5h/weekly treatment through its 402/403 quota classifier."
+        },
+        {
+          "kind": "added",
+          "label": "Threads",
+          "text": "The working indicator now shows a live output speed estimate (≈ 42 tok/s) — the average decode rate across the turn, ignoring tool-call gaps. It's computed from streamed text and marked as an estimate; billing numbers still come only from provider-reported counters."
+        }
+      ]
+    },
+    {
       "version": "1.7.4",
       "date": "2026-10-01",
       "title": "Gemini answers no longer end mid-sentence",
