@@ -111,7 +111,7 @@ describe("ThreadRuntimeStatusBar", () => {
     expect(popover).not.toHaveTextContent("缓存命中率");
   });
 
-  it("shows the average output rate while streaming and in the popover", () => {
+  it("shows the average output rate only in the details popover", () => {
     seed(makeThread(), { usedTokens: 218_000, maxTokens: 262_000 });
     useAppStore.setState({
       runtimeTurnOutputByThread: {
@@ -124,8 +124,8 @@ describe("ThreadRuntimeStatusBar", () => {
     } as never);
     render(<ThreadRuntimeStatusBar threadId="thread-1" />);
 
-    // 84 est. tokens over a 2s decode window → ~42 tok/s.
-    expect(screen.getByTestId("thread-runtime-status")).toHaveTextContent("≈ 42 tok/s");
+    // 84 est. tokens over a 2s decode window → ~42 tok/s, shown only on hover.
+    expect(screen.getByTestId("thread-runtime-status")).not.toHaveTextContent("tok/s");
 
     fireEvent.mouseEnter(screen.getByTestId("thread-runtime-status"));
     const popover = screen.getByTestId("thread-runtime-status-popover");

@@ -170,9 +170,6 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
         {icon}
         <span>{label}</span>
         {elapsed ? <span className="tabular-nums opacity-75">{elapsed}</span> : null}
-        {tokensPerSecond !== undefined ? (
-          <span className="tabular-nums opacity-75">{formatTokenRate(tokensPerSecond)}</span>
-        ) : null}
         {state === "error" ? <Clipboard className="size-3 opacity-60" /> : null}
       </button>
       {pos
