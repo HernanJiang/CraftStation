@@ -29,6 +29,9 @@ export class RuntimeEventBuffer {
         pending[pending.length - 1] = {
           ...event,
           delta: appendRuntimeStream(previous.delta, event.delta, event.stream),
+          // The merged event spans first→last sub-delta; carry the latest
+          // arrival so the decode window keeps the full span.
+          at: event.at ?? previous.at,
         };
       } else {
         pending.push(boundRuntimeEvent(event));
@@ -77,6 +80,7 @@ export class RuntimeEventBuffer {
 
 function boundRuntimeEvent(event: RuntimeEvent): RuntimeEvent {
   if (event.type !== "content.delta") return event;
-  const delta = appendRuntimeStream("", event.delta, event.stream);
-  return delta === event.delta ? event : { ...event, delta };
+  const stamped = event.at === undefined ? { ...event, at: Date.now() } : event;
+  const delta = appendRuntimeStream("", stamped.delta, stamped.stream);
+  return delta === stamped.delta ? stamped : { ...stamped, delta };
 }

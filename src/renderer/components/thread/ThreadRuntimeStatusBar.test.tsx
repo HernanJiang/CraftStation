@@ -116,11 +116,17 @@ describe("ThreadRuntimeStatusBar", () => {
     useAppStore.setState({
       runtimeTurnOutputByThread: {
         "thread-1": {
-          estimatedTokens: 84,
-          reportedTokens: 0,
-          estimatedBaseline: 0,
+          finalizedTokens: 0,
+          floatingReported: 0,
           decodeMs: 0,
-          segment: { itemId: "i1", firstDeltaAt: Date.now() - 2_000, lastDeltaAt: Date.now() },
+          segment: {
+            itemId: "i1",
+            firstDeltaAt: Date.now() - 2_000,
+            lastDeltaAt: Date.now(),
+            estimatedTokens: 84,
+            reportedTokens: 0,
+            reportedBaseline: 0,
+          },
         },
       },
     } as never);
@@ -140,11 +146,17 @@ describe("ThreadRuntimeStatusBar", () => {
     useAppStore.setState({
       runtimeTurnOutputByThread: {
         "thread-1": {
-          estimatedTokens: 12,
-          reportedTokens: 0,
-          estimatedBaseline: 0,
+          finalizedTokens: 0,
+          floatingReported: 0,
           decodeMs: 0,
-          segment: { itemId: "i1", firstDeltaAt: Date.now(), lastDeltaAt: Date.now() },
+          segment: {
+            itemId: "i1",
+            firstDeltaAt: Date.now(),
+            lastDeltaAt: Date.now(),
+            estimatedTokens: 12,
+            reportedTokens: 0,
+            reportedBaseline: 0,
+          },
         },
       },
     } as never);

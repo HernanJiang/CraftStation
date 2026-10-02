@@ -14,6 +14,7 @@ import {
   type OpenRuntimeRequest,
   type RuntimeChatItem,
   type RuntimeEventSlice,
+  type RuntimeTurnOutput,
 } from "./runtimeEventSlice";
 
 type RuntimeEventState = Pick<
@@ -424,6 +425,7 @@ function applyRuntimeEventToRuntimeState(
         event.stream,
         event.itemId,
         event.delta,
+        event.at,
       );
       return {
         runtimeItemsByIdByThread: {
@@ -516,12 +518,20 @@ const MODEL_OUTPUT_STREAMS: ReadonlySet<RuntimeContentStreamKind> = new Set([
   "plan_text",
 ]);
 
+/** A segment's token contribution: provider-reported when present, else estimated. */
+function segmentTokens(segment: NonNullable<RuntimeTurnOutput["segment"]>): number {
+  return segment.reportedTokens > 0
+    ? segment.reportedTokens + Math.max(0, segment.estimatedTokens - segment.reportedBaseline)
+    : segment.estimatedTokens;
+}
+
 /**
  * Fold one model-output delta into the turn's throughput accumulator,
  * mirroring the deepseek-harness decode fold: each contiguous streaming
  * segment (one item's output between tool calls) gets a first→last-delta
  * window, so tool execution and waiting never inflate the denominator.
- * Provider-reported output tokens arrive via `context.updated` samples.
+ * Switching items closes the prior segment's window and token count; a pending
+ * float sample finalizes too — it belonged to the call that just ended.
  */
 function accumulateTurnOutput(
   state: RuntimeEventState,
@@ -529,27 +539,43 @@ function accumulateTurnOutput(
   stream: RuntimeContentStreamKind,
   itemId: string,
   delta: string,
+  at: number | undefined,
 ): Partial<RuntimeEventState> {
   if (!MODEL_OUTPUT_STREAMS.has(stream) || delta.length === 0) return {};
-  const now = Date.now();
+  // Prefer the supervisor-side emission stamp: IPC and renderer batching
+  // compress receipt times, which collapses real decode windows.
+  const now = at ?? Date.now();
   const prev = state.runtimeTurnOutputByThread[threadId];
+  const prior = prev?.segment;
+  const closing = prior != null && prior.itemId !== itemId;
+  const opening = prev != null && prev.segment == null;
   const segment =
-    prev?.segment && prev.segment.itemId === itemId
-      ? { ...prev.segment, lastDeltaAt: now }
-      : { itemId, firstDeltaAt: now, lastDeltaAt: now };
-  const closedMs =
-    prev?.segment && prev.segment.itemId !== itemId
-      ? Math.max(0, prev.segment.lastDeltaAt - prev.segment.firstDeltaAt)
-      : 0;
+    !closing && prior
+      ? {
+          ...prior,
+          lastDeltaAt: now,
+          estimatedTokens: prior.estimatedTokens + estimateStreamedTokens(delta),
+        }
+      : {
+          itemId,
+          firstDeltaAt: now,
+          lastDeltaAt: now,
+          estimatedTokens: estimateStreamedTokens(delta),
+          reportedTokens: 0,
+          reportedBaseline: 0,
+        };
   return {
     runtimeTurnOutputByThread: {
       ...state.runtimeTurnOutputByThread,
       [threadId]: {
-        estimatedTokens: (prev?.estimatedTokens ?? 0) + estimateStreamedTokens(delta),
-        reportedTokens: prev?.reportedTokens ?? 0,
-        estimatedBaseline: prev?.estimatedBaseline ?? 0,
-        lastSampleKey: prev?.lastSampleKey ?? null,
-        decodeMs: (prev?.decodeMs ?? 0) + closedMs,
+        finalizedTokens:
+          (prev?.finalizedTokens ?? 0) +
+          (closing ? segmentTokens(prior) : 0) +
+          (opening ? (prev?.floatingReported ?? 0) : 0),
+        floatingReported: opening || closing ? 0 : (prev?.floatingReported ?? 0),
+        decodeMs:
+          (prev?.decodeMs ?? 0) +
+          (closing ? Math.max(0, prior.lastDeltaAt - prior.firstDeltaAt) : 0),
         segment,
       },
     },
@@ -557,17 +583,18 @@ function accumulateTurnOutput(
 }
 
 /**
- * Sum provider-reported output + reasoning tokens off a `context.updated`
- * sample. `usageFromProviderRecord` scopes these to one model call
- * (`scope: "turn"`), so each distinct sample contributes its own call's
- * output — the real numerator for the throughput reading.
+ * Attribute a `context.updated` sample's output + reasoning tokens to the
+ * currently open segment (the model call that just streamed), replacing the
+ * prior sample: providers re-publish or evolve a call's usage, so the newest
+ * attribution is authoritative. With no open segment the sample is a float —
+ * later floats replace it too (evolving snapshots), and it finalizes when the
+ * next segment opens. Session-scoped cumulative samples would double-count.
  */
 function accumulateReportedOutput(
   state: RuntimeEventState,
   threadId: string,
   usage: ThreadContextUsage,
 ): Partial<RuntimeEventState> {
-  // Session-scoped samples are cumulative — summing them would double-count.
   if (usage.scope === "session") return {};
   const reported = (usage.breakdown ?? [])
     .filter((entry) => entry.id === "output" || entry.id === "reasoning")
@@ -575,23 +602,38 @@ function accumulateReportedOutput(
   if (reported <= 0) return {};
   const prev = state.runtimeTurnOutputByThread[threadId];
   if (!prev && state.runtimeOpenTurnByThread[threadId] !== true) return {};
-  const inputish =
-    (usage.breakdown ?? [])
-      .filter((entry) => entry.id !== "output" && entry.id !== "reasoning")
-      .reduce((sum, entry) => sum + entry.tokens, 0) + (usage.usedTokens ?? 0);
-  const sampleKey = `${reported}:${inputish}`;
-  if (prev?.lastSampleKey === sampleKey) return {};
+  if (prev?.segment) {
+    return {
+      runtimeTurnOutputByThread: {
+        ...state.runtimeTurnOutputByThread,
+        [threadId]: {
+          ...prev,
+          segment: {
+            ...prev.segment,
+            reportedTokens: reported,
+            reportedBaseline: prev.segment.estimatedTokens,
+          },
+        },
+      },
+    };
+  }
+  if (!prev) {
+    return {
+      runtimeTurnOutputByThread: {
+        ...state.runtimeTurnOutputByThread,
+        [threadId]: {
+          finalizedTokens: 0,
+          floatingReported: reported,
+          decodeMs: 0,
+          segment: null,
+        },
+      },
+    };
+  }
   return {
     runtimeTurnOutputByThread: {
       ...state.runtimeTurnOutputByThread,
-      [threadId]: {
-        estimatedTokens: prev?.estimatedTokens ?? 0,
-        reportedTokens: (prev?.reportedTokens ?? 0) + reported,
-        estimatedBaseline: prev?.estimatedTokens ?? 0,
-        lastSampleKey: sampleKey,
-        decodeMs: prev?.decodeMs ?? 0,
-        segment: prev?.segment ?? null,
-      },
+      [threadId]: { ...prev, floatingReported: reported },
     },
   };
 }
@@ -602,13 +644,19 @@ function closeTurnOutputSegment(
   threadId: string,
 ): Partial<RuntimeEventState> {
   const prev = state.runtimeTurnOutputByThread[threadId];
-  if (!prev?.segment) return {};
+  if (!prev || (!prev.segment && prev.floatingReported === 0)) return {};
   return {
     runtimeTurnOutputByThread: {
       ...state.runtimeTurnOutputByThread,
       [threadId]: {
-        ...prev,
-        decodeMs: prev.decodeMs + Math.max(0, prev.segment.lastDeltaAt - prev.segment.firstDeltaAt),
+        finalizedTokens:
+          prev.finalizedTokens +
+          (prev.segment ? segmentTokens(prev.segment) : 0) +
+          prev.floatingReported,
+        floatingReported: 0,
+        decodeMs:
+          prev.decodeMs +
+          (prev.segment ? Math.max(0, prev.segment.lastDeltaAt - prev.segment.firstDeltaAt) : 0),
         segment: null,
       },
     },

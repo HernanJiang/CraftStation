@@ -89,19 +89,33 @@ export function toRuntimeChatItem(item: PersistedRuntimeItem): RuntimeChatItem {
  * Timestamps bound the decode window (first delta → latest delta) so the
  * rate is a generation-speed reading, not wall time padded by tool calls.
  */
+/**
+ * Per-segment decode accounting, mirroring the deepseek-harness step fold:
+ * each contiguous streaming burst (one item's output between tool calls) is a
+ * segment with its own first→last-delta window and its own token count —
+ * provider-reported output+reasoning when a `context.updated` sample arrives,
+ * char-estimated otherwise. This keeps evolving usage snapshots replaceable
+ * (OpenCode re-emits a message's usage as it grows) instead of additive, and
+ * keeps tool-execution time out of the denominator.
+ */
 export interface RuntimeTurnOutput {
-  /** Char-estimated tokens over counted deltas — fallback numerator. */
-  estimatedTokens: number;
-  /** Provider-reported output+reasoning tokens summed over this turn's usage samples. */
-  reportedTokens: number;
-  /** `estimatedTokens` snapshot at the last usage sample — keeps post-sample deltas counted once. */
-  estimatedBaseline: number;
-  /** Signature of the last counted usage sample; identical consecutive samples don't recount. */
-  lastSampleKey: string | null;
-  /** Closed decode windows in ms (per streaming segment: first delta → last delta). */
+  /** Summed token contribution of closed segments (reported preferred over estimate). */
+  finalizedTokens: number;
+  /** Latest usage sample with no streaming segment to anchor to (tool-only call). */
+  floatingReported: number;
+  /** Closed decode windows in ms (per segment: first delta → last delta). */
   decodeMs: number;
-  /** The item currently streaming model output, if any. A new itemId closes the prior segment. */
-  segment: { itemId: string; firstDeltaAt: number; lastDeltaAt: number } | null;
+  segment: {
+    itemId: string;
+    firstDeltaAt: number;
+    lastDeltaAt: number;
+    /** Char-estimated tokens of this segment's deltas. */
+    estimatedTokens: number;
+    /** Latest provider sample anchored to this segment (replaceable, not additive). */
+    reportedTokens: number;
+    /** Segment estimate snapshot at the last anchored sample — post-sample deltas still count. */
+    reportedBaseline: number;
+  } | null;
 }
 
 export interface OpenRuntimeRequest {

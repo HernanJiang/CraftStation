@@ -609,6 +609,13 @@ const canonicalRuntimeEventSchema = z.discriminatedUnion("type", [
     itemId: z.string(),
     stream: runtimeContentStreamKindSchema,
     delta: z.string(),
+    /**
+     * Supervisor-side emission time (ms epoch), stamped at the runtime-event
+     * buffer before IPC batching. The renderer's own receipt clock is wrong
+     * for timing math: events are coalesced (16ms main-side, rAF/250ms
+     * renderer-side), so arrival times compress real decode pacing.
+     */
+    at: z.number().nonnegative().optional(),
   }),
   z.object({
     type: z.literal("context.updated"),

@@ -40,6 +40,52 @@ describe("RuntimeEventBuffer", () => {
     });
   });
 
+  it("stamps emission time on deltas and keeps the latest stamp when coalescing", () => {
+    const published: SupervisorEvent[] = [];
+    const buffer = new RuntimeEventBuffer((event) => published.push(event));
+
+    buffer.append("thread-1", {
+      type: "content.delta",
+      threadId: "thread-1",
+      itemId: "msg-1",
+      stream: "assistant_text",
+      delta: "a",
+      at: 1_000,
+    });
+    buffer.append("thread-1", {
+      type: "content.delta",
+      threadId: "thread-1",
+      itemId: "msg-1",
+      stream: "assistant_text",
+      delta: "b",
+      at: 1_400,
+    });
+    buffer.flush();
+
+    const merged = published[0]?.type === "thread-runtime-event" ? published[0].event : undefined;
+    expect(merged).toMatchObject({ type: "content.delta", delta: "ab", at: 1_400 });
+  });
+
+  it("stamps Date.now() when the producer did not provide one", () => {
+    const published: SupervisorEvent[] = [];
+    const buffer = new RuntimeEventBuffer((event) => published.push(event));
+    const before = Date.now();
+    buffer.append("thread-1", {
+      type: "content.delta",
+      threadId: "thread-1",
+      itemId: "msg-1",
+      stream: "assistant_text",
+      delta: "a",
+    });
+    buffer.flush();
+
+    const merged = published[0]?.type === "thread-runtime-event" ? published[0].event : undefined;
+    if (merged?.type !== "content.delta") {
+      throw new Error("expected a single content.delta event");
+    }
+    expect(merged.at).toBeGreaterThanOrEqual(before);
+  });
+
   it("bounds a single oversized output delta before it reaches IPC", () => {
     const published: SupervisorEvent[] = [];
     const buffer = new RuntimeEventBuffer((event) => published.push(event));

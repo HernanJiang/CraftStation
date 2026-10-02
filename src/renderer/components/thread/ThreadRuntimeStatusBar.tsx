@@ -92,16 +92,25 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
   const previousTurn = completedTurns.at(-1);
   // Decode throughput per the deepseek-harness fold: summed per-segment
   // first→last-delta windows (tool gaps never enter the denominator), with
-  // provider-reported output tokens preferred over the char estimate.
-  const openMs = turnOutput?.segment
-    ? Math.max(0, turnOutput.segment.lastDeltaAt - turnOutput.segment.firstDeltaAt)
-    : 0;
+  // each segment's provider-reported output tokens preferred over its char
+  // estimate. Deltas carry a supervisor-side emission stamp so IPC batching
+  // can't compress the window.
+  const segment = turnOutput?.segment ?? null;
+  const openMs = segment ? Math.max(0, segment.lastDeltaAt - segment.firstDeltaAt) : 0;
   const decodeMs = (turnOutput?.decodeMs ?? 0) + openMs;
-  const outputTokens = turnOutput
-    ? turnOutput.reportedTokens + (turnOutput.estimatedTokens - turnOutput.estimatedBaseline)
+  const openTokens = segment
+    ? segment.reportedTokens > 0
+      ? segment.reportedTokens + Math.max(0, segment.estimatedTokens - segment.reportedBaseline)
+      : segment.estimatedTokens
     : 0;
+  const outputTokens =
+    (turnOutput?.finalizedTokens ?? 0) + (turnOutput?.floatingReported ?? 0) + openTokens;
   const tokensPerSecond = turnOutput && decodeMs > 0 ? outputTokens / (decodeMs / 1000) : undefined;
-  const rateIsEstimated = turnOutput === undefined || turnOutput.reportedTokens === 0;
+  const rateIsEstimated =
+    turnOutput === undefined ||
+    (turnOutput.finalizedTokens === 0 &&
+      turnOutput.floatingReported === 0 &&
+      (segment?.reportedTokens ?? 0) === 0);
   const icon =
     state === "working" ? (
       <LoaderCircle className="size-3.5 animate-spin" />
