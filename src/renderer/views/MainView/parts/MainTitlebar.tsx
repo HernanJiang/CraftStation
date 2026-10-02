@@ -56,6 +56,27 @@ type CliUpdate = {
   latest: string;
 };
 
+/** Installed CLIs eligible for update checks, keyed by `kind:env:distro`. */
+function collectUpdatableCliStatuses(
+  agentStatuses: AgentStatus[],
+  wslAgentStatuses: AgentStatus[],
+): { key: string; status: AgentStatus }[] {
+  const byKey = new Map<string, AgentStatus>();
+  for (const status of [...agentStatuses, ...wslAgentStatuses]) {
+    if (
+      !status.installed ||
+      !status.version ||
+      extractAcpGenericInstanceId(status.kind) ||
+      !status.update
+    ) {
+      continue;
+    }
+    const key = `${status.kind}:${status.envKind ?? "native"}:${status.envDistro ?? ""}`;
+    byKey.set(key, status);
+  }
+  return [...byKey.entries()].map(([key, status]) => ({ key, status }));
+}
+
 export function CliUpdateMenu() {
   const { t } = useLingui();
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
@@ -71,25 +92,12 @@ export function CliUpdateMenu() {
   const [updates, setUpdates] = useState<CliUpdate[]>([]);
   const [updatingKey, setUpdatingKey] = useState<string | null>(null);
   const inFlightRef = useRef(0);
-  const statusesRef = useRef<{ key: string; status: AgentStatus }[]>([]);
   const autoCheckedKeysetRef = useRef<string | null>(null);
   const autoUpdatedRef = useRef<Set<string>>(new Set());
-  const statuses = useMemo(() => {
-    const byKey = new Map<string, AgentStatus>();
-    for (const status of [...agentStatuses, ...wslAgentStatuses]) {
-      if (
-        !status.installed ||
-        !status.version ||
-        extractAcpGenericInstanceId(status.kind) ||
-        !status.update
-      ) {
-        continue;
-      }
-      const key = `${status.kind}:${status.envKind ?? "native"}:${status.envDistro ?? ""}`;
-      byKey.set(key, status);
-    }
-    return [...byKey.entries()].map(([key, status]) => ({ key, status }));
-  }, [agentStatuses, wslAgentStatuses]);
+  const statuses = useMemo(
+    () => collectUpdatableCliStatuses(agentStatuses, wslAgentStatuses),
+    [agentStatuses, wslAgentStatuses],
+  );
 
   const runCheck = useCallback(async (options?: { force?: boolean }) => {
     // Re-entrancy guard for the automatic path: agent-status store churn
@@ -112,11 +120,20 @@ export function CliUpdateMenu() {
         console.error("[craftstation][updates] check-for-update failed", error);
       });
     try {
+      // Read the freshest detected versions from the store at check time — a
+      // statuses snapshot captured before a post-update refresh would keep
+      // comparing the registry's latest against the pre-update version and
+      // re-list a CLI that already updated (the "badge stays after a
+      // successful update" defect).
+      const currentStatuses = collectUpdatableCliStatuses(
+        useAgentStatusesStore.getState().agentStatuses,
+        useAgentStatusesStore.getState().wslAgentStatuses,
+      );
       // Safety valve: each upstream probe aborts at 8s per URL, but adapters
       // can chain several URLs — never let the spinner stick past 30s.
       const settled = await Promise.race([
         Promise.all(
-          statusesRef.current.map(async ({ key, status }) => {
+          currentStatuses.map(async ({ key, status }) => {
             try {
               const result = await readBridge().getLatestAgentVersion({ agentKind: status.kind });
               return result.version && isNewerVersion(result.version, status.version ?? "")
@@ -163,7 +180,6 @@ export function CliUpdateMenu() {
   // changes (install/uninstall) — not on every agent-status array identity
   // churn, which happens on nearly every supervisor event.
   useEffect(() => {
-    statusesRef.current = statuses;
     const keyset = statuses
       .map((entry) => entry.key)
       .sort()

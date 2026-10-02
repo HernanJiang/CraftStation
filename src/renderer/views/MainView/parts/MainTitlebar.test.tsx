@@ -101,7 +101,10 @@ vi.mock("@/renderer/bridge", () => ({
 }));
 
 vi.mock("@/renderer/state/agentStatusesStore", () => ({
-  useAgentStatusesStore: (selector: (state: unknown) => unknown) => selector(agentStatusesState),
+  useAgentStatusesStore: Object.assign(
+    (selector: (state: unknown) => unknown) => selector(agentStatusesState),
+    { getState: () => agentStatusesState },
+  ),
 }));
 
 vi.mock("@/renderer/state/appStore", () => ({

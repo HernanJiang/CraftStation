@@ -116,6 +116,31 @@ describe("CliUpdateMenu", () => {
     );
   });
 
+  it("drops a landed update from the badge after the post-update re-check", async () => {
+    bridgeMock.updateAgentBinary.mockResolvedValue({ ok: true });
+    // The scoped refresh reports the freshly installed version; the forced
+    // re-check must compare the registry's latest against THAT — not the
+    // pre-update snapshot — or the menu keeps listing the updated CLI and the
+    // badge never clears.
+    bridgeMock.refreshAgentStatuses.mockResolvedValue({
+      windows: [status("codex", "v9.9.9")],
+      wsl: [],
+      fromCache: false,
+    });
+
+    render(<CliUpdateMenu />);
+    await waitFor(() => expect(bridgeMock.getLatestAgentVersion).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("1")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("titlebar-cli-update-button"));
+    const menu = await screen.findByRole("menu");
+    fireEvent.click(await within(menu).findByRole("menuitem", { name: /Codex Harness/u }));
+
+    await waitFor(() => expect(bridgeMock.getLatestAgentVersion).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText("1")).not.toBeInTheDocument());
+    expect(useUpdateStore.getState().availableCliUpdates).toEqual([]);
+  });
+
   it("does not rebuild the update list when a re-check finds the same availability", async () => {
     render(<CliUpdateMenu />);
     await waitFor(() => expect(bridgeMock.getLatestAgentVersion).toHaveBeenCalledTimes(1));

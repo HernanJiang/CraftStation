@@ -1,5 +1,6 @@
 import { toast } from "@heroui/react";
 import { readBridge } from "@/renderer/bridge";
+import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { useUpdateStore } from "@/renderer/state/updateStore";
 import { currentWslDistros } from "@/renderer/utils/acpRegistryAuth";
 
@@ -35,10 +36,20 @@ export async function runCliUpdateBinary(input: {
       return false;
     }
     toast.success(`${input.label} 已更新到 v${input.latest}。`);
-    await readBridge().refreshAgentStatuses(currentWslDistros(), {
+    const refreshed = await readBridge().refreshAgentStatuses(currentWslDistros(), {
       agentKinds: [input.agentKind],
       envs: [envKind === "wsl" && distro ? { kind: "wsl", distro } : { kind: "native" }],
     });
+    // Apply the merged full lists directly instead of waiting for the
+    // agent-status-updated events — a version check that runs right after
+    // this await (titlebar post-update re-check) must already see the new
+    // installed version, or it re-lists the just-updated CLI and its badge
+    // stays until the next check.
+    if (refreshed && !refreshed.degraded) {
+      const statusesStore = useAgentStatusesStore.getState();
+      if (refreshed.windows) statusesStore.setAgentStatuses(refreshed.windows);
+      if (refreshed.wsl) statusesStore.setWslAgentStatuses(refreshed.wsl);
+    }
     // Drop the entry: a fresh check (titlebar auto/manual) re-adds it if the
     // update did not actually land.
     store.setAvailableCliUpdates(
