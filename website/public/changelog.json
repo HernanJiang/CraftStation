@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.7.6",
+      "date": "2026-10-02",
+      "title": "Output speed reading now uses provider-reported tokens",
+      "summary": "The tok/s figure on a thread's status indicator is now measured the way DeepSeek Harness measures it: real per-model-call output tokens over per-segment decode windows, instead of a character estimate spread across the whole turn.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Threads",
+          "text": "The output-speed reading no longer collapses on tool-heavy turns. Decode time is now summed per streaming segment (first delta to last delta of each message), so tool execution and waiting never count as generation time — a 52-second turn with tool calls used to show ~2 tok/s because the whole turn wall-clock was the denominator."
+        },
+        {
+          "kind": "improved",
+          "label": "Threads",
+          "text": "The numerator is now real: provider-reported output + reasoning tokens from each model call's usage sample replace the character estimate, with the estimate covering only text streamed since the last sample. The rate moved off the status pill into the hover details panel, and the estimate marker only shows when no provider numbers have arrived."
+        }
+      ]
+    },
+    {
       "version": "1.7.5",
       "date": "2026-10-02",
       "title": "Account pools rotate on 5-hour and weekly quota axes",
