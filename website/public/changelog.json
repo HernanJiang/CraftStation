@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.7.7",
+      "date": "2026-10-02",
+      "title": "Real output tokens from every harness",
+      "summary": "The tok/s reading now prefers each harness's own token counters — Codex, Claude, OpenCode, Kimi, Grok, Cursor, Pi, Command Code, Muse and DeepSeek all report their real output where the CLI exposes it — and generation time is stamped where the provider emits it, so batching delays can't inflate the rate.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Threads",
+          "text": "The output-speed reading no longer explodes into the thousands: provider usage samples are attributed per message segment and evolving snapshots replace instead of accumulate, so a Codex or OpenCode usage push is never double-counted."
+        },
+        {
+          "kind": "improved",
+          "label": "Threads",
+          "text": "Decode time is now measured from when the provider emitted each delta, not when the UI got around to processing it — IPC and background batching can no longer compress the window and fake a faster rate."
+        },
+        {
+          "kind": "improved",
+          "label": "Threads",
+          "text": "Every harness that reports real output tokens now feeds the figure directly — Codex (both lanes), Claude, OpenCode (both paths), Cursor, Pi, Command Code, Muse, and DeepSeek included; providers with no per-call counter keep the clearly-marked character estimate."
+        }
+      ]
+    },
+    {
       "version": "1.7.6",
       "date": "2026-10-02",
       "title": "Output speed reading now uses provider-reported tokens",
