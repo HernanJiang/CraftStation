@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.7.8",
+      "date": "2026-10-02",
+      "title": "A real follow-up queue & tidier thread header",
+      "summary": "Queueing a message while a thread is working now stacks every message instead of silently replacing the previous one, and the pane close button sits where window controls belong.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Threads",
+          "text": "You can queue as many follow-up messages as you like — each gets its own row above the composer and sends in order when the turn settles, with Send now, Edit and Delete per message."
+        },
+        {
+          "kind": "fixed",
+          "label": "Threads",
+          "text": "Queueing a second message no longer overwrites the first — older messages stay queued and send before newer ones, and a failed send restores the message at the front instead of dropping it."
+        },
+        {
+          "kind": "improved",
+          "label": "Threads",
+          "text": "The pane close button moved to the far right of the thread header, after the pop-out control, so it no longer sits on the status capsule."
+        }
+      ]
+    },
+    {
       "version": "1.7.7",
       "date": "2026-10-02",
       "title": "Real output tokens from every harness",
