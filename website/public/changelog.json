@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.7.13",
+      "date": "2026-10-03",
+      "title": "Skill names accept underscores; quieter thread rows",
+      "summary": "Skills named with underscores (my_interview, _private_skill) now import, validate, and invoke through the composer, and sidebar thread rows show their full title by default with pin/more/archive actions revealed only on hover.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Skills",
+          "text": "Skill names with underscores are no longer filtered out — they import cleanly, pass validation, and bind through / or $ invocation in the composer."
+        },
+        {
+          "kind": "improved",
+          "label": "Sidebar",
+          "text": "Thread rows show their full title by default; the pin, more, and archive actions stay hidden until the row is hovered or focused, matching project rows."
+        }
+      ]
+    },
+    {
       "version": "1.7.12",
       "date": "2026-10-03",
       "title": "Locked-CLI updates land; cleaner update feedback",
