@@ -6,7 +6,7 @@ import type { Thread } from "@/shared/contracts";
 import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
 import { useAppStore } from "@/renderer/state/appStore";
 import { formatTokenCount } from "./formatTokenCount";
-import { formatTokenRate } from "@/shared/tokenSpeed";
+import { estimateStreamedTokens, formatTokenRate } from "@/shared/tokenSpeed";
 import { resolveThreadContextUsageSummary } from "./threadContextUsage";
 
 type RuntimeState = "working" | "completed" | "error" | "idle";
@@ -54,6 +54,8 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
     (state) => state.runtimeCompletedTurnsByThread[threadId] ?? EMPTY_COMPLETED_TURNS,
   );
   const turnOutput = useAppStore((state) => state.runtimeTurnOutputByThread[threadId]);
+  const itemIds = useAppStore((state) => state.runtimeItemIdsByThread[threadId]);
+  const itemsById = useAppStore((state) => state.runtimeItemsByIdByThread[threadId]);
   const triggerRef = useRef<HTMLDivElement>(null);
   const [now, setNow] = useState(() => Date.now());
   const [pos, setPos] = useState<{ right: number; bottom: number } | null>(null);
@@ -77,6 +79,23 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
         : undefined,
     [contextUsage, thread],
   );
+  // Estimated output for reopened threads (no live turn-output accumulator):
+  // sum persisted model-output text since the last user message.
+  const replayedOutputTokens = useMemo(() => {
+    if (turnOutput !== undefined || !itemIds || !itemsById) return 0;
+    let total = 0;
+    for (let i = itemIds.length - 1; i >= 0; i--) {
+      const item = itemsById[itemIds[i]!];
+      if (!item) continue;
+      if (item.type === "user_message") break;
+      if (item.type === "assistant_message" || item.type === "reasoning") {
+        total += estimateStreamedTokens(
+          (item.streams.assistant_text ?? "") + (item.streams.reasoning_text ?? ""),
+        );
+      }
+    }
+    return total;
+  }, [turnOutput, itemIds, itemsById]);
   if (!thread) return null;
 
   const startedAt = thread.activeTurnStartedAt ?? thread.lastTurnStartedAt;
@@ -103,10 +122,25 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
       ? segment.reportedTokens + Math.max(0, segment.estimatedTokens - segment.reportedBaseline)
       : segment.estimatedTokens
     : 0;
-  const outputTokens =
+  const liveOutputTokens =
     (turnOutput?.finalizedTokens ?? 0) + (turnOutput?.floatingReported ?? 0) + openTokens;
-  const tokensPerSecond = turnOutput && decodeMs > 0 ? outputTokens / (decodeMs / 1000) : undefined;
+  // Providers that deliver output in one/few chunks — or produce none of the
+  // live delta events at all — leave a zero-width (or absent) decode window,
+  // which hides the rate entirely. Fall back to whole-turn elapsed for the
+  // denominator, and to persisted stream text for the numerator on reopened
+  // threads, so every CLI shows a readable throughput (marked 估算).
+  const outputTokens = turnOutput !== undefined ? liveOutputTokens : replayedOutputTokens;
+  const turnElapsedMs = Number.isFinite(startedMs)
+    ? Math.max(0, (state === "working" || !Number.isFinite(endedMs) ? now : endedMs) - startedMs)
+    : 0;
+  const wholeTurnFallback = decodeMs <= 0 && outputTokens > 0;
+  const effectiveDecodeMs = decodeMs > 0 ? decodeMs : turnElapsedMs;
+  const tokensPerSecond =
+    outputTokens > 0 && effectiveDecodeMs > 0
+      ? outputTokens / (effectiveDecodeMs / 1000)
+      : undefined;
   const rateIsEstimated =
+    wholeTurnFallback ||
     turnOutput === undefined ||
     (turnOutput.finalizedTokens === 0 &&
       turnOutput.floatingReported === 0 &&

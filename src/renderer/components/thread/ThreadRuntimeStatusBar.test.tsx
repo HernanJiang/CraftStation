@@ -63,6 +63,8 @@ describe("ThreadRuntimeStatusBar", () => {
       runtimeContextByThread: {},
       runtimeCompletedTurnsByThread: {},
       runtimeTurnOutputByThread: {},
+      runtimeItemIdsByThread: {},
+      runtimeItemsByIdByThread: {},
     } as never);
   });
 
@@ -141,8 +143,20 @@ describe("ThreadRuntimeStatusBar", () => {
     expect(popover).toHaveTextContent("≈ 42 tok/s");
   });
 
-  it("hides the rate for a single-delta turn with no decode window", () => {
-    seed(makeThread(), { usedTokens: 218_000, maxTokens: 262_000 });
+  it("falls back to whole-turn elapsed for a single-delta turn", () => {
+    // Providers delivering output in one chunk leave a zero-width decode
+    // window — the rate must still render (whole-turn average, estimated).
+    seed(
+      makeThread({
+        status: "finished",
+        attention: "none",
+        done: true,
+        activeTurnStartedAt: undefined,
+        lastTurnStartedAt: "2026-09-13T01:34:15.000Z",
+        lastTurnEndedAt: "2026-09-13T01:35:15.000Z",
+      }),
+      { usedTokens: 218_000, maxTokens: 262_000 },
+    );
     useAppStore.setState({
       runtimeTurnOutputByThread: {
         "thread-1": {
@@ -153,7 +167,7 @@ describe("ThreadRuntimeStatusBar", () => {
             itemId: "i1",
             firstDeltaAt: Date.now(),
             lastDeltaAt: Date.now(),
-            estimatedTokens: 12,
+            estimatedTokens: 120,
             reportedTokens: 0,
             reportedBaseline: 0,
           },
@@ -162,7 +176,56 @@ describe("ThreadRuntimeStatusBar", () => {
     } as never);
     render(<ThreadRuntimeStatusBar threadId="thread-1" />);
 
-    expect(screen.getByTestId("thread-runtime-status")).not.toHaveTextContent("tok/s");
+    fireEvent.mouseEnter(screen.getByTestId("thread-runtime-status"));
+    const popover = screen.getByTestId("thread-runtime-status-popover");
+    // 120 est. tokens over the 60s turn → ≈ 2 tok/s, flagged as estimated.
+    expect(popover).toHaveTextContent("输出速度");
+    expect(popover).toHaveTextContent("≈ 2 tok/s");
+    expect(popover).toHaveTextContent("估算");
+  });
+
+  it("estimates output from persisted streams when no live turn output exists", () => {
+    // Reopened threads never saw live deltas — persisted item text estimates
+    // the numerator so the rate still shows for any provider.
+    seed(
+      makeThread({
+        status: "finished",
+        attention: "none",
+        done: true,
+        activeTurnStartedAt: undefined,
+        lastTurnStartedAt: "2026-09-13T01:34:15.000Z",
+        lastTurnEndedAt: "2026-09-13T01:35:15.000Z",
+      }),
+    );
+    useAppStore.setState({
+      runtimeItemIdsByThread: { "thread-1": ["u1", "a1"] },
+      runtimeItemsByIdByThread: {
+        "thread-1": {
+          u1: {
+            id: "u1",
+            type: "user_message",
+            state: "completed",
+            payload: {},
+            streams: {},
+          },
+          a1: {
+            id: "a1",
+            type: "assistant_message",
+            state: "completed",
+            payload: {},
+            streams: { assistant_text: "x".repeat(240) },
+          },
+        },
+      },
+    } as never);
+    render(<ThreadRuntimeStatusBar threadId="thread-1" />);
+
+    fireEvent.mouseEnter(screen.getByTestId("thread-runtime-status"));
+    const popover = screen.getByTestId("thread-runtime-status-popover");
+    // 240 ASCII chars ≈ 60 est. tokens over the 60s turn → ≈ 1 tok/s.
+    expect(popover).toHaveTextContent("输出速度");
+    expect(popover).toHaveTextContent("≈ 1 tok/s");
+    expect(popover).toHaveTextContent("估算");
   });
 
   it("does not claim a token total when the runtime has not reported usage", () => {
