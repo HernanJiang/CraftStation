@@ -1,6 +1,54 @@
 {
   "releases": [
     {
+      "version": "1.7.15",
+      "date": "2026-10-03",
+      "title": "Silent Antigravity updater, real Mermaid diagrams & smarter schedules",
+      "summary": "A fix release for the papercuts you actually saw: Antigravity no longer flashes a console window in the background, code blocks and Mermaid diagrams render with a proper header row, a pinned thread shows exactly one pin, and thread-bound schedules follow the thread's current agent.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Antigravity",
+          "text": "Background terminal windows no longer flash open when Antigravity runs — the CLI's update check is kept fresh so its background updater never spawns a console."
+        },
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "Code blocks now have a header row — language label on the left, copy button on the right — instead of a floating button covering the first line."
+        },
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "Mermaid diagrams render as real flowcharts again, including multi-line node labels that use <br>, instead of showing raw source text."
+        },
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "The token speed readout now appears for every agent — providers that stream in big chunks or reopen from history fall back to a whole-turn estimate."
+        },
+        {
+          "kind": "fixed",
+          "label": "Sidebar",
+          "text": "A pinned thread shows a single pin affordance — the trailing pin button doubles as the indicator and the unpin control."
+        },
+        {
+          "kind": "fixed",
+          "label": "Schedules",
+          "text": "A schedule bound to a thread follows that thread's current agent and model — switching the thread no longer sends the old model to the new harness."
+        },
+        {
+          "kind": "fixed",
+          "label": "Usage",
+          "text": "Codex cards put the 5-hour session bar first, and the backup gpt-reserve pool is labeled GPT Reserve instead of a raw slug."
+        },
+        {
+          "kind": "fixed",
+          "label": "Grok",
+          "text": "Grok builds that don't report MCP capability still get CraftStation's built-in MCP servers, so scheduled runs can actually use the Schedule tools."
+        }
+      ]
+    },
+    {
       "version": "1.7.14",
       "date": "2026-10-03",
       "title": "Antigravity answers settle on the authoritative response; cleaner markdown tables and math",
