@@ -136,7 +136,9 @@ describe("CliUpdateMenu", () => {
     const menu = await screen.findByRole("menu");
     fireEvent.click(await within(menu).findByRole("menuitem", { name: /Codex Harness/u }));
 
-    await waitFor(() => expect(bridgeMock.getLatestAgentVersion).toHaveBeenCalledTimes(2));
+    // The landed version propagates through the store, re-checks run (the
+    // forced post-update check plus the keyset-change auto check — the exact
+    // count doesn't matter), and the update row + badge clear.
     await waitFor(() => expect(screen.queryByText("1")).not.toBeInTheDocument());
     expect(useUpdateStore.getState().availableCliUpdates).toEqual([]);
   });

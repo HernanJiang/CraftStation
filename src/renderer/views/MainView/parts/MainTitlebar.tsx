@@ -177,11 +177,14 @@ export function CliUpdateMenu() {
   }, []);
 
   // Auto-check once per mount and again only when the SET of updatable CLIs
-  // changes (install/uninstall) — not on every agent-status array identity
-  // churn, which happens on nearly every supervisor event.
+  // changes (install/uninstall) or a detected installed version moves — an
+  // update that lands outside the menu's own flow (or a status-cache refresh
+  // catching up) must re-run the check or the menu keeps listing a CLI whose
+  // binary is already current. The key is included in the signature so this
+  // stays immune to per-event array identity churn.
   useEffect(() => {
     const keyset = statuses
-      .map((entry) => entry.key)
+      .map((entry) => `${entry.key}@${entry.status.version ?? ""}`)
       .sort()
       .join(",");
     if (autoCheckedKeysetRef.current === keyset) return;

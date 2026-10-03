@@ -399,6 +399,11 @@ export const devinDetectionSpec: DetectionSpec = {
   // and the last-resort updater would hit an unrelated package.
   update: {
     builtIn: { binary: "devin", args: ["update"] },
+    // `devin update` is advisory-only: it prints "To update, run: irm
+    // https://cli.devin.ai/install.ps1 | iex" and exits 0 without touching the
+    // binary. Require an observed version change so the no-op exits fall
+    // through to the installer script instead of reporting a fake success.
+    verifyBuiltInVersionChange: true,
     homebrewCask: "devin-cli",
     latestVersionUrls: ["https://static.devin.ai/cli/current/manifest.json"],
     installer: {
@@ -413,7 +418,7 @@ export const devinDetectionSpec: DetectionSpec = {
           "-NoProfile",
           "-NonInteractive",
           "-Command",
-          "irm https://static.devin.ai/cli/setup.ps1 | iex",
+          "irm https://cli.devin.ai/install.ps1 | iex",
         ],
       },
     },

@@ -38,6 +38,7 @@ describe("Devin detection", () => {
       versionArgs: ["--version"],
       update: {
         builtIn: { binary: "devin", args: ["update"] },
+        verifyBuiltInVersionChange: true,
         homebrewCask: "devin-cli",
         latestVersionUrls: ["https://static.devin.ai/cli/current/manifest.json"],
       },
@@ -69,7 +70,7 @@ describe("Devin detection", () => {
       "https://cli.devin.ai/install.sh",
     );
     expect(devinDetectionSpec.update?.installer?.windows.args.join(" ")).toContain(
-      "https://static.devin.ai/cli/setup.ps1",
+      "https://cli.devin.ai/install.ps1",
     );
     expect(devinDetectionSpec.capabilities).toMatchObject({
       liveInputMode: "server",
