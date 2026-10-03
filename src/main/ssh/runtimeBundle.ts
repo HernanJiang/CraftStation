@@ -281,7 +281,7 @@ export function ensureSshRuntimeBundle(options: SshRuntimeBundleOptions): SshRun
       execFileSync(
         options.tarCommand ?? (process.platform === "win32" ? "tar.exe" : "tar"),
         ["-czf", `${hash}.tar.gz`, "-C", stage, "."],
-        { cwd: options.cacheDir },
+        { cwd: options.cacheDir, windowsHide: true },
       );
     }
     cachedBundle = { key: cacheKey, hash, version: packageJson.version };
