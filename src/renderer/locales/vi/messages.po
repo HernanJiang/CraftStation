@@ -12363,8 +12363,8 @@ msgid "The skill name must match its folder name."
 msgstr "Tên skill phải khớp với tên thư mục."
 
 #: src/renderer/components/skills/SkillsManager.tsx
-msgid "The skill name must use lowercase letters, numbers, and hyphens."
-msgstr "Tên skill chỉ được dùng chữ thường, số và dấu gạch nối."
+msgid "The skill name must use lowercase letters, numbers, hyphens, and underscores."
+msgstr "Tên skill chỉ được dùng chữ thường, số, dấu gạch nối và dấu gạch dưới."
 
 #: src/renderer/components/skills/SkillImportModal.tsx
 msgid "The skill stays synchronized with its source and stops working if the source moves."

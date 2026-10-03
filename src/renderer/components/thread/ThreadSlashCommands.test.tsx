@@ -557,6 +557,35 @@ describe("ThreadSlashCommands", () => {
     ]);
   });
 
+  it.each(["/my_interview", "$my_interview", "/_private_skill"])(
+    "binds the typed underscore invocation %s for Antigravity",
+    (typed) => {
+      const name = typed.slice(1);
+      const path = `/skills/${name}/SKILL.md`;
+      const invocation = `Use the ${name} skill.`;
+      expect(
+        bindLeadingSkillInvocation(
+          [{ kind: "text", content: `${typed} Practice an interview.` }],
+          [
+            {
+              id: name,
+              label: name,
+              section: "skills",
+              skillName: name,
+              skillPath: path,
+              skillInvocation: invocation,
+              skillProvider: "Antigravity",
+              skillScope: "global",
+            },
+          ],
+        ),
+      ).toEqual([
+        { kind: "skill", name, path, invocation, provider: "Antigravity", scope: "global" },
+        { kind: "text", content: " Practice an interview." },
+      ]);
+    },
+  );
+
   it("leaves segments alone when no skill matches or a skill chip is already present", () => {
     const noMatch: PromptSegment[] = [{ kind: "text", content: "/unknown do something" }];
     expect(bindLeadingSkillInvocation(noMatch, [])).toEqual(noMatch);

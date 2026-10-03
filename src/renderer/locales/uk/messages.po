@@ -12363,8 +12363,8 @@ msgid "The skill name must match its folder name."
 msgstr "Назва навички має збігатися з назвою папки."
 
 #: src/renderer/components/skills/SkillsManager.tsx
-msgid "The skill name must use lowercase letters, numbers, and hyphens."
-msgstr "Назва навички може містити лише малі літери, цифри та дефіси."
+msgid "The skill name must use lowercase letters, numbers, hyphens, and underscores."
+msgstr "Назва навички може містити лише малі літери, цифри, дефіси та знаки підкреслення."
 
 #: src/renderer/components/skills/SkillImportModal.tsx
 msgid "The skill stays synchronized with its source and stops working if the source moves."

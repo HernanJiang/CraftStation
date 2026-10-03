@@ -216,18 +216,18 @@ describe("useSkills", () => {
 
 describe("buildSkillSlashCommands", () => {
   it.each(Object.entries(invocationByProvider))(
-    "adds the unified managed skill to the %s composer menu",
+    "adds a managed skill with underscores to the %s composer menu",
     (provider, invocation) => {
-      const id = `project:agents:unique-managed-skill:on`;
+      const id = `project:agents:unique-managed_skill:on`;
       const scan: SkillScanResult = {
         skills: [
           {
             id,
-            name: "unique-managed-skill",
+            name: "unique-managed_skill",
             description: "Unique managed test skill",
-            folderName: "unique-managed-skill",
-            absolutePath: "/project/.agents/skills/unique-managed-skill",
-            skillFilePath: "/project/.agents/skills/unique-managed-skill/SKILL.md",
+            folderName: "unique-managed_skill",
+            absolutePath: "/project/.agents/skills/unique-managed_skill",
+            skillFilePath: "/project/.agents/skills/unique-managed_skill/SKILL.md",
             rootPath: "/project/.agents/skills",
             providerId: "agents",
             providerLabel: "Shared agents",
@@ -248,17 +248,17 @@ describe("buildSkillSlashCommands", () => {
 
       expect(buildSkillSlashCommands(scan)).toEqual([
         expect.objectContaining({
-          id: "unique-managed-skill",
+          id: "unique-managed_skill",
           section: "skills",
-          skillName: "unique-managed-skill",
+          skillName: "unique-managed_skill",
           skillInvocation:
             invocation === "dollar"
-              ? "$unique-managed-skill"
+              ? "$unique-managed_skill"
               : invocation === "skill"
-                ? "/skill:unique-managed-skill"
+                ? "/skill:unique-managed_skill"
                 : invocation === "prompt"
-                  ? "Use the unique-managed-skill skill."
-                  : "/unique-managed-skill",
+                  ? "Use the unique-managed_skill skill."
+                  : "/unique-managed_skill",
         }),
       ]);
       expect(provider).toBeTruthy();

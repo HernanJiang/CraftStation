@@ -170,7 +170,7 @@ export function bindLeadingSkillInvocation(
   );
   const leading = index >= 0 ? segments[index] : undefined;
   if (!leading || leading.kind !== "text") return [...segments];
-  const match = /^\s*[/$]([a-z0-9][a-z0-9-]*)(\s|$)/iu.exec(leading.content);
+  const match = /^\s*[/$]([a-z0-9_][a-z0-9_-]*)(\s|$)/iu.exec(leading.content);
   if (!match) return [...segments];
   const name = match[1]!.toLowerCase();
   const command = commands.find(
@@ -247,10 +247,7 @@ export function resolveAvailableSlashCommands(
         hasEffort: context.hasEffort ?? false,
         supportsFast: context.supportsFast ?? false,
       });
-      return [
-        ...withProviderCompactCommands(gui, threadCommands ?? capabilityCommands),
-        ...skills,
-      ];
+      return [...withProviderCompactCommands(gui, threadCommands ?? capabilityCommands), ...skills];
     }
   }
   const base = threadCommands ?? capabilityCommands ?? EMPTY_SLASH_COMMANDS;

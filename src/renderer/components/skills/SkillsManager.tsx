@@ -1,6 +1,16 @@
 import { useEffect, useState } from "react";
 import { Input, Tooltip, toast } from "@heroui/react";
-import { Box, ChevronDown, Download, Plus, RefreshCw, Search, Share2, Store, Trash2 } from "lucide-react";
+import {
+  Box,
+  ChevronDown,
+  Download,
+  Plus,
+  RefreshCw,
+  Search,
+  Share2,
+  Store,
+  Trash2,
+} from "lucide-react";
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import type { SkillEntry } from "@/shared/contracts";
 import { readBridge } from "@/renderer/bridge";
@@ -578,7 +588,7 @@ function SkillRow(props: {
         "too-large": t`SKILL.md is too large.`,
         "missing-frontmatter": t`SKILL.md is missing YAML frontmatter.`,
         "missing-name": t`The skill name is missing.`,
-        "invalid-name": t`The skill name must use lowercase letters, numbers, and hyphens.`,
+        "invalid-name": t`The skill name must use lowercase letters, numbers, hyphens, and underscores.`,
         "name-mismatch": t`The skill name must match its folder name.`,
         "missing-description": t`The skill description is missing.`,
         "description-too-long": t`The skill description is too long.`,

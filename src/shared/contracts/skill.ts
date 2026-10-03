@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { projectLocationSchema, threadPresentationModeSchema } from "./common";
 
-const SKILL_NAME_PATTERN = /^(?!.*--)[a-z0-9]+(?:-[a-z0-9]+)*$/u;
+const SKILL_NAME_PATTERN = /^(?!.*--)[a-z0-9_]+(?:-[a-z0-9_]+)*$/u;
 const GITHUB_REPOSITORY_SOURCE_PATTERN = /^[a-z0-9_.-]+\/[a-z0-9_.-]+$/iu;
 
 export function isValidSkillName(name: string): boolean {

@@ -188,6 +188,40 @@ describe("SkillsService", () => {
     ).toMatchObject({ importState: "already-imported" });
   });
 
+  it.each(["my_interview", "my-interview_v2"])(
+    "imports and exposes the underscore skill %s to the agent",
+    async (name) => {
+      const source = join(home, ".claude", "skills", name);
+      await writeSkill(source, name, "Interview coaching");
+
+      const result = await service.import({
+        skills: [
+          {
+            sourcePath: source,
+            destinationScope: "global",
+            mode: "copy",
+            replace: false,
+            projectLocation,
+          },
+        ],
+      });
+      expect(result.imported).toEqual([join(home, ".agents", "skills", name)]);
+
+      await rm(source, { recursive: true, force: true });
+      await service.prepareForLaunch(projectLocation, "claude");
+      const scan = await service.scan({ projectLocation, agentKind: "claude" });
+      const skill = scan.skills.find(
+        (entry) => entry.providerId === "agents" && entry.name === name,
+      );
+      expect(skill).toMatchObject({ valid: true, portable: true });
+      expect(skill?.invalidReason).toBeUndefined();
+      expect(scan.effectiveSkillIds).toContain(skill!.id);
+      await expect(
+        readFile(join(home, ".claude", "skills", name, "SKILL.md"), "utf8"),
+      ).resolves.toContain("Interview coaching");
+    },
+  );
+
   it("imports CraftStation-only skills without projecting them into provider folders", async () => {
     const source = join(home, ".claude", "skills", "private-review");
     await writeSkill(source, "private-review", "Private review");

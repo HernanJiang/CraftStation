@@ -12363,8 +12363,8 @@ msgid "The skill name must match its folder name."
 msgstr "Nazwa umiejętności musi być zgodna z nazwą folderu."
 
 #: src/renderer/components/skills/SkillsManager.tsx
-msgid "The skill name must use lowercase letters, numbers, and hyphens."
-msgstr "Nazwa umiejętności może zawierać tylko małe litery, cyfry i łączniki."
+msgid "The skill name must use lowercase letters, numbers, hyphens, and underscores."
+msgstr "Nazwa umiejętności może zawierać tylko małe litery, cyfry, łączniki i podkreślenia."
 
 #: src/renderer/components/skills/SkillImportModal.tsx
 msgid "The skill stays synchronized with its source and stops working if the source moves."
