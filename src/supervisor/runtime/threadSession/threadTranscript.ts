@@ -95,6 +95,13 @@ export class ThreadTranscriptTracker {
         this.pendingAssistant.set(key, (this.pendingAssistant.get(key) ?? "") + event.delta);
         return;
       }
+      case "content.set": {
+        if (event.stream !== "assistant_text") return;
+        if (this.parentedItems.get(threadId)?.has(event.itemId)) return;
+        const key = `${threadId}:${event.itemId}`;
+        this.pendingAssistant.set(key, event.text);
+        return;
+      }
       case "item.completed": {
         this.parentedItems.get(threadId)?.delete(event.itemId);
         // seenUserItems is intentionally NOT pruned here: a failover replay

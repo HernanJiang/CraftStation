@@ -32,7 +32,10 @@ export function shouldReleaseInitialStructuredIdleSuppression(event: RuntimeEven
     return true;
   }
   return (
-    event.type === "content.delta" || event.type === "request.opened" || event.type === "error"
+    event.type === "content.delta" ||
+    event.type === "content.set" ||
+    event.type === "request.opened" ||
+    event.type === "error"
   );
 }
 

@@ -40,6 +40,7 @@ import { InlineFolderPathChip } from "./InlineFolderPathChip";
 import { LC_SELECTOR_LANG, tryParseSelectorPayload } from "./SelectorBadge";
 import {
   escapeBareAngleTags,
+  normalizeDisplayMathClosers,
   normalizeGfmTableSeparators,
   normalizeLatexMathDelimiters,
   normalizeMathDollarRuns,
@@ -143,7 +144,11 @@ export default function ItemMarkdownInner({ text }: ItemMarkdownInnerProps) {
           protectMathSpans(
             repairMathSyntax(
               normalizeLatexMathDelimiters(
-                normalizeMathDollarRuns(normalizeShortCodeFenceClosers(escapeBareAngleTags(text))),
+                normalizeMathDollarRuns(
+                  normalizeDisplayMathClosers(
+                    normalizeShortCodeFenceClosers(escapeBareAngleTags(text)),
+                  ),
+                ),
               ),
             ),
           ),

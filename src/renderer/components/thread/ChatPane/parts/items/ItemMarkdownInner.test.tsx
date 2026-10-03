@@ -104,6 +104,43 @@ $$`}
     expect(container.textContent).not.toContain("$$");
   });
 
+  it("renders a display-math block whose $$ closer is glued to the last content line", async () => {
+    // Real-world regression: Antigravity/Gemini emit `…\end{bmatrix}$$` with
+    // the closer sharing the content line. micromark math flow only sees `$$`
+    // at line start, so the whole block rendered as raw `$$` source.
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={
+            "$$\n\\begin{bmatrix} \\vec{v}_1 \\cdot \\vec{t}_1 & \\vec{v}_1 \\cdot \\vec{t}_2 \\\\ \\vec{v}_2 \\cdot \\vec{t}_1 & \\vec{v}_2 \\cdot \\vec{t}_2 \\end{bmatrix}$$\n\n继续分析结果。"
+          }
+        />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelectorAll(".katex")).toHaveLength(1));
+    expect(container.querySelector(".katex-error")).toBeNull();
+    expect(container.textContent).not.toContain("$$");
+    expect(container).toHaveTextContent("继续分析结果。");
+  });
+
+  it("renders a <br> inside a GFM table cell as a real line break", () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={"| 特征维度 | CLIP 解释 |\n|---|---|\n| 对角线 | 相似度 1<br>金毛图 vs. 金毛文 |\n"}
+        />
+      </AppProvider>,
+    );
+
+    const cell = Array.from(container.querySelectorAll("td")).find((td) =>
+      td.textContent?.includes("相似度"),
+    );
+    expect(cell).not.toBeNull();
+    expect(cell!.querySelector("br")).not.toBeNull();
+    expect(cell!.textContent).not.toContain("<br>");
+  });
+
   it("renders a display formula missing its closing brace", async () => {
     // Real-world regression: `\\mathbb{E}_{\\substack{…}` dropped the final
     // `}`, KaTeX threw, and the raw LaTeX source was shown instead.

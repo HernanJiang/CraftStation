@@ -110,4 +110,46 @@ describe("RuntimeEventBuffer", () => {
     expect(output).toHaveLength(MAX_RUNTIME_OUTPUT_CHARS);
     expect(output?.startsWith(RUNTIME_OUTPUT_TRUNCATION_MARKER)).toBe(true);
   });
+
+  it("a content.set supersedes queued deltas and later deltas append to it", () => {
+    const published: SupervisorEvent[] = [];
+    const buffer = new RuntimeEventBuffer((event) => published.push(event));
+
+    buffer.append("thread-1", {
+      type: "content.delta",
+      threadId: "thread-1",
+      itemId: "msg-1",
+      stream: "assistant_text",
+      delta: "stale",
+    });
+    buffer.append("thread-1", {
+      type: "content.delta",
+      threadId: "thread-1",
+      itemId: "msg-1",
+      stream: "assistant_text",
+      delta: " regen",
+    });
+    buffer.append("thread-1", {
+      type: "content.set",
+      threadId: "thread-1",
+      itemId: "msg-1",
+      stream: "assistant_text",
+      text: "authoritative",
+    });
+    buffer.append("thread-1", {
+      type: "content.delta",
+      threadId: "thread-1",
+      itemId: "msg-1",
+      stream: "assistant_text",
+      delta: " tail",
+    });
+    buffer.flush();
+
+    expect(published).toHaveLength(1);
+    expect(published[0]).toMatchObject({
+      type: "thread-runtime-event",
+      threadId: "thread-1",
+      event: { type: "content.set", text: "authoritative tail" },
+    });
+  });
 });

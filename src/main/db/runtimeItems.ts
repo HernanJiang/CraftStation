@@ -562,6 +562,21 @@ export function dbApplyThreadRuntimeEvents(
             break;
           }
 
+          case "content.set": {
+            const row = readItem(event.itemId);
+            if (!row) break;
+            const streams = row.streams ? (safeParse(row.streams) as Record<string, string>) : {};
+            streams[event.stream] = appendRuntimeStream("", event.text, event.stream);
+            updateItem.run(
+              row.state === "completed" ? "completed" : "updated",
+              row.payload,
+              JSON.stringify(streams),
+              threadId,
+              event.itemId,
+            );
+            break;
+          }
+
           case "context.updated": {
             const previous = dbGetThreadContextUsageFromSqlite(sqlite, threadId);
             replaceThreadContextUsageInSqlite(

@@ -400,13 +400,15 @@ class StructuredNativeCraftSession implements CraftSession {
     );
     this._activeTurnStatus = turnStatus;
     this._status = this._disposed ? "terminated" : "idle";
-    const response = events
-      .filter(
-        (event): event is Extract<RuntimeEvent, { type: "content.delta" }> =>
-          event.type === "content.delta" && event.stream === "assistant_text",
-      )
-      .map((event) => event.delta)
-      .join("");
+    const textByItem = new Map<string, string>();
+    for (const event of events) {
+      if (event.type === "content.delta" && event.stream === "assistant_text") {
+        textByItem.set(event.itemId, (textByItem.get(event.itemId) ?? "") + event.delta);
+      } else if (event.type === "content.set" && event.stream === "assistant_text") {
+        textByItem.set(event.itemId, event.text);
+      }
+    }
+    const response = [...textByItem.values()].join("");
     if (!completed) {
       this.emit({
         type: "turn.completed",

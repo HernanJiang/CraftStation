@@ -138,9 +138,15 @@ function mapRuntimePayloads(
 
 function boundRuntimeContentDeltas(event: RemoteBroadcastEvent): RemoteBroadcastEvent {
   const bound = (runtimeEvent: RuntimeEvent): RuntimeEvent => {
-    if (runtimeEvent.type !== "content.delta") return runtimeEvent;
-    const delta = appendRuntimeStream("", runtimeEvent.delta, runtimeEvent.stream);
-    return delta === runtimeEvent.delta ? runtimeEvent : { ...runtimeEvent, delta };
+    if (runtimeEvent.type === "content.delta") {
+      const delta = appendRuntimeStream("", runtimeEvent.delta, runtimeEvent.stream);
+      return delta === runtimeEvent.delta ? runtimeEvent : { ...runtimeEvent, delta };
+    }
+    if (runtimeEvent.type === "content.set") {
+      const text = appendRuntimeStream("", runtimeEvent.text, runtimeEvent.stream);
+      return text === runtimeEvent.text ? runtimeEvent : { ...runtimeEvent, text };
+    }
+    return runtimeEvent;
   };
   switch (event.type) {
     case "thread-runtime-event": {

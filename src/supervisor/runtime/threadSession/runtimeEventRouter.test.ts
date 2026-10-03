@@ -181,6 +181,7 @@ describe("RuntimeEventRouter", () => {
         itemId: "child-1",
         stream: "assistant_text",
         delta: "hi",
+        at: expect.any(Number),
       },
       {
         type: "item.started",

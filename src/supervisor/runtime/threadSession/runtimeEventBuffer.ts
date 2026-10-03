@@ -17,7 +17,7 @@ export class RuntimeEventBuffer {
   constructor(private readonly emit: (event: SupervisorEvent) => void) {}
 
   append(threadId: string, event: RuntimeEvent): void {
-    const pending = this.pending.get(threadId);
+    let pending = this.pending.get(threadId);
     if (pending) {
       const previous = pending[pending.length - 1];
       if (
@@ -33,6 +33,29 @@ export class RuntimeEventBuffer {
           // arrival so the decode window keeps the full span.
           at: event.at ?? previous.at,
         };
+      } else if (
+        previous?.type === "content.set" &&
+        event.type === "content.delta" &&
+        previous.itemId === event.itemId &&
+        previous.stream === event.stream
+      ) {
+        pending[pending.length - 1] = {
+          ...previous,
+          text: appendRuntimeStream(previous.text, event.delta, event.stream),
+          at: event.at ?? previous.at,
+        };
+      } else if (event.type === "content.set") {
+        // A snapshot supersedes queued deltas/sets for the same stream.
+        pending = pending.filter(
+          (queued) =>
+            !(
+              (queued.type === "content.delta" || queued.type === "content.set") &&
+              queued.itemId === event.itemId &&
+              queued.stream === event.stream
+            ),
+        );
+        pending.push(boundRuntimeEvent(event));
+        this.pending.set(threadId, pending);
       } else {
         pending.push(boundRuntimeEvent(event));
       }
@@ -79,6 +102,11 @@ export class RuntimeEventBuffer {
 }
 
 function boundRuntimeEvent(event: RuntimeEvent): RuntimeEvent {
+  if (event.type === "content.set") {
+    const stamped = event.at === undefined ? { ...event, at: Date.now() } : event;
+    const text = appendRuntimeStream("", stamped.text, stamped.stream);
+    return text === stamped.text ? stamped : { ...stamped, text };
+  }
   if (event.type !== "content.delta") return event;
   const stamped = event.at === undefined ? { ...event, at: Date.now() } : event;
   const delta = appendRuntimeStream("", stamped.delta, stamped.stream);

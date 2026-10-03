@@ -33,6 +33,7 @@ function isScopedContentEvent(event: RuntimeEvent): boolean {
     case "item.updated":
     case "item.completed":
     case "content.delta":
+    case "content.set":
       return true;
     default:
       return false;

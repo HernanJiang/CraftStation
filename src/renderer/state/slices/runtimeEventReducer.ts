@@ -436,6 +436,36 @@ function applyRuntimeEventToRuntimeState(
       };
     }
 
+    case "content.set": {
+      const items = state.runtimeItemsByIdByThread[threadId];
+      const prev = items?.[event.itemId];
+      if (!prev || !items) return {};
+      const prevStream = prev.streams[event.stream] ?? "";
+      if (prevStream === event.text) return {};
+      const next: RuntimeChatItem = {
+        ...prev,
+        state: prev.state === "completed" ? "completed" : "updated",
+        streams: {
+          ...prev.streams,
+          [event.stream]: appendRuntimeStream("", event.text, event.stream),
+        },
+      };
+      items[event.itemId] = next;
+      // Only the net growth is new model output — a replace that drops
+      // retracted text must not count toward the token rate.
+      const appended = event.text.startsWith(prevStream) ? event.text.slice(prevStream.length) : "";
+      const outputPatch = appended
+        ? accumulateTurnOutput(state, threadId, event.stream, event.itemId, appended, event.at)
+        : {};
+      return {
+        runtimeItemsByIdByThread: {
+          ...state.runtimeItemsByIdByThread,
+          [threadId]: items,
+        },
+        ...outputPatch,
+      };
+    }
+
     case "context.updated": {
       const prev = state.runtimeContextByThread[threadId];
       const next = mergeContextUsage(prev, event.usage);

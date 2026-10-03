@@ -424,6 +424,23 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
         this.openReasoningItemIds.delete(runtimeEvent.itemId);
       }
       if (runtimeEvent.type === "content.delta" && runtimeEvent.stream === "assistant_text") {
+        if (event.type === "result") {
+          // `result.response` is the turn's authoritative answer: agy can
+          // stream a REGENERATED second reply into the same item (probe-
+          // verified: the regen diverges from the first answer's stream, so
+          // per-chunk remainder trimming can never catch it). Replace the
+          // stream with the snapshot so retracted text is dropped, not left
+          // appended after the real answer.
+          this.streamedAssistantText = runtimeEvent.delta;
+          this.emitRuntime({
+            type: "content.set",
+            threadId: runtimeEvent.threadId,
+            itemId: runtimeEvent.itemId,
+            stream: runtimeEvent.stream,
+            text: runtimeEvent.delta,
+          });
+          continue;
+        }
         // agy reuses `text_delta` for whole-step snapshots (a DONE
         // agent_response step re-sends its full text), and `result.response`
         // replays the whole answer — every delta must be remainder-trimmed

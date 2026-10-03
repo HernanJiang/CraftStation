@@ -439,6 +439,34 @@ function appendRuntimeEvent(queue: RuntimeEvent[], event: RuntimeEvent): void {
     };
     return;
   }
+  if (
+    previous?.type === "content.set" &&
+    event.type === "content.delta" &&
+    previous.itemId === event.itemId &&
+    previous.stream === event.stream
+  ) {
+    queue[queue.length - 1] = {
+      ...previous,
+      text: appendRuntimeStream(previous.text, event.delta, event.stream),
+    };
+    return;
+  }
+  if (event.type === "content.set") {
+    // A snapshot supersedes every queued delta/set for the same stream.
+    for (let i = queue.length - 1; i >= 0; i -= 1) {
+      const queued = queue[i]!;
+      if (
+        (queued.type === "content.delta" || queued.type === "content.set") &&
+        queued.itemId === event.itemId &&
+        queued.stream === event.stream
+      ) {
+        queue.splice(i, 1);
+      }
+    }
+    const text = appendRuntimeStream("", event.text, event.stream);
+    queue.push(text === event.text ? event : { ...event, text });
+    return;
+  }
   if (event.type !== "content.delta") {
     queue.push(event);
     return;

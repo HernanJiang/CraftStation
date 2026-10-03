@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   escapeBareAngleTags,
+  normalizeDisplayMathClosers,
   normalizeGfmTableSeparators,
   normalizeLatexMathDelimiters,
   normalizeMathDollarRuns,
@@ -165,6 +166,38 @@ describe("escapeBareAngleTags", () => {
     // (and render back as literal `<` in the paragraph path).
     expect(escapeBareAngleTags("\\[x <tag> y\\]")).toBe("\\[x &lt;tag> y\\]");
     expect(escapeBareAngleTags("\\(x<t\\)")).toBe("\\(x&lt;t\\)");
+  });
+
+  it("keeps <br> as real inline HTML so table cells render a line break", () => {
+    const cell = "对角线、相似度 1<br>金毛图 vs. 金毛文";
+    expect(escapeBareAngleTags(cell)).toBe(cell);
+    expect(escapeBareAngleTags("a<br/>b<br />c")).toBe("a<br/>b<br />c");
+    // A look-alike pseudo-tag still escapes.
+    expect(escapeBareAngleTags("<break>x")).toBe("&lt;break>x");
+  });
+});
+
+describe("normalizeDisplayMathClosers", () => {
+  it("splits a $$ closer glued to the last content line", () => {
+    const source = "$$\n\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}$$\n";
+    expect(normalizeDisplayMathClosers(source)).toBe(
+      "$$\n\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}\n$$\n",
+    );
+  });
+
+  it("splits a glued closer after an opener that carries inline content", () => {
+    expect(normalizeDisplayMathClosers("$$ E = mc^2\nmore$$\n")).toBe("$$ E = mc^2\nmore\n$$\n");
+  });
+
+  it("leaves well-formed blocks, single-line spans, prose, and fences alone", () => {
+    const wellFormed = "$$\nx^2\n$$\n";
+    expect(normalizeDisplayMathClosers(wellFormed)).toBe(wellFormed);
+    const singleLine = "$$x^2$$\n";
+    expect(normalizeDisplayMathClosers(singleLine)).toBe(singleLine);
+    const prose = "price is 5$$\n";
+    expect(normalizeDisplayMathClosers(prose)).toBe(prose);
+    const fenced = "```\n$$\nx$$\n```\n";
+    expect(normalizeDisplayMathClosers(fenced)).toBe(fenced);
   });
 });
 

@@ -432,6 +432,69 @@ export function normalizeMathDollarRuns(text: string): string {
   return changed ? out.join("") : text;
 }
 
+/**
+ * Models (Gemini especially) close display-math blocks by appending `$$` to
+ * the last content line (`…\end{bmatrix}$$`) instead of putting it on its own
+ * line. micromark-extension-math flow math only recognizes a `$$` run at line
+ * start, so the glued closer is read as content — the whole block falls back
+ * to raw `$$…` source in the rendered output. Split the trailing run onto its
+ * own line whenever the block is open. Single-line `$$…$$` blocks and fenced
+ * code are left alone.
+ */
+export function normalizeDisplayMathClosers(text: string): string {
+  if (!text.includes("$$")) return text;
+  const lines = text.match(/[^\r\n]*(?:\r\n|\n|\r|$)/g);
+  if (!lines) return text;
+  const bodies: string[] = [];
+  const fenced: boolean[] = [];
+  {
+    let inFence = false;
+    for (const line of lines) {
+      const body = line.replace(/(?:\r\n|\n|\r)$/u, "");
+      if (/^ {0,3}(?:```|~~~)/.test(body)) inFence = !inFence;
+      bodies.push(body);
+      fenced.push(inFence);
+    }
+  }
+  const BARE_DOLLARS_RE = /^ {0,3}\$\$\s*$/;
+  const SINGLE_LINE_BLOCK_RE = /^ {0,3}\$\$[\s\S]*\$\$\s*$/;
+  const out: string[] = [];
+  let inMath = false;
+  let changed = false;
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    const body = bodies[i]!;
+    if (fenced[i]) {
+      out.push(line);
+      continue;
+    }
+    const newline = line.slice(body.length);
+    if (!inMath) {
+      if (
+        BARE_DOLLARS_RE.test(body) ||
+        (/^ {0,3}\$\$(?!\$)/.test(body) && !SINGLE_LINE_BLOCK_RE.test(body))
+      ) {
+        inMath = true;
+      }
+      out.push(line);
+      continue;
+    }
+    if (BARE_DOLLARS_RE.test(body)) {
+      inMath = false;
+      out.push(line);
+      continue;
+    }
+    if (body.endsWith("$$") && body.length > 2) {
+      out.push(`${body.slice(0, -2)}${newline}`, `$$${newline}`);
+      inMath = false;
+      changed = true;
+      continue;
+    }
+    out.push(line);
+  }
+  return changed ? out.join("") : text;
+}
+
 const MATH_SPAN_FOR_REPAIR_RE = /\$\$([\s\S]+?)\$\$|\$([^\s$][^$\n]*?[^\s$]|[^\s$])\$(?!\d)/gu;
 
 /**
@@ -598,6 +661,10 @@ export function protectMathSpans(text: string): string {
 function escapeBareTagOpens(text: string): string {
   return text.replace(/<(?=[A-Za-z/!?])/g, (match, offset: number) => {
     const rest = text.slice(offset);
+    // `<br>`/`<br/>` is real inline HTML (models emit it constantly inside
+    // table cells); escaping it would leak literal `&lt;br>` text, while
+    // leaving it lets micromark + rehype-raw render an actual line break.
+    if (/^<br\s*\/?>/iu.test(rest)) return match;
     // Genuine autolinks survive: `<scheme:…>` (no spaces) and `<user@host>`.
     const autolink = /^<[a-zA-Z][a-zA-Z0-9+.-]*:[^<>\s]*>/.exec(rest);
     if (autolink) return match;

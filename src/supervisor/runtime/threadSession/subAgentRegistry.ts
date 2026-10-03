@@ -40,7 +40,8 @@ export class SubAgentRegistry {
     if (
       event.type !== "item.updated" &&
       event.type !== "item.completed" &&
-      event.type !== "content.delta"
+      event.type !== "content.delta" &&
+      event.type !== "content.set"
     ) {
       return undefined;
     }
@@ -69,6 +70,27 @@ export class SubAgentRegistry {
     ) {
       buffer[buffer.length - 1] = { ...previous, delta: previous.delta + event.delta };
       return;
+    }
+    if (
+      event.type === "content.delta" &&
+      previous?.type === "content.set" &&
+      previous.itemId === event.itemId &&
+      previous.stream === event.stream
+    ) {
+      buffer[buffer.length - 1] = { ...previous, text: previous.text + event.delta };
+      return;
+    }
+    if (event.type === "content.set") {
+      for (let i = buffer.length - 1; i >= 0; i -= 1) {
+        const queued = buffer[i]!;
+        if (
+          (queued.type === "content.delta" || queued.type === "content.set") &&
+          queued.itemId === event.itemId &&
+          queued.stream === event.stream
+        ) {
+          buffer.splice(i, 1);
+        }
+      }
     }
     buffer.push(event);
   }

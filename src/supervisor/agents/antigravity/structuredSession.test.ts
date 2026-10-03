@@ -9,6 +9,19 @@ import { ANTIGRAVITY_PRINT_WAIT_TIMEOUT } from "./argv";
 
 type EmitFrame = (frame: Record<string, unknown>) => void;
 
+/** Folds assistant_text content events the way the renderer/persistence do. */
+function finalAssistantText(events: RuntimeEvent[], itemId?: string): string {
+  let text = "";
+  for (const event of events) {
+    if (event.type === "content.delta" && event.stream === "assistant_text") {
+      if (itemId === undefined || event.itemId === itemId) text += event.delta;
+    } else if (event.type === "content.set" && event.stream === "assistant_text") {
+      if (itemId === undefined || event.itemId === itemId) text = event.text;
+    }
+  }
+  return text;
+}
+
 function emitSuccessfulTurn(emit: EmitFrame): void {
   emit({ event: "init", conversation_id: "agy-conversation-1" });
   emit({
@@ -366,7 +379,7 @@ describe("AntigravityStructuredSession", () => {
     }
   });
 
-  it("appends only the final response tail that was not already streamed", async () => {
+  it("settles the streamed text to the authoritative result response", async () => {
     const fixture = new AntigravityFixture((emit) => {
       emit({ event: "init", conversation_id: "agy-conversation-1" });
       emit({
@@ -390,14 +403,16 @@ describe("AntigravityStructuredSession", () => {
     await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
     await session.startTurn("hello", { model: "Gemini 3.5 Flash" });
 
-    expect(
-      events
-        .filter(
-          (event): event is Extract<RuntimeEvent, { type: "content.delta" }> =>
-            event.type === "content.delta" && event.stream === "assistant_text",
-        )
-        .map((event) => event.delta),
-    ).toEqual(["hello ", "world"]);
+    expect(finalAssistantText(events)).toBe("hello world");
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "content.set",
+          stream: "assistant_text",
+          text: "hello world",
+        }),
+      ]),
+    );
   });
 
   it("does not re-append a step_update snapshot of the already streamed answer", async () => {
@@ -432,18 +447,50 @@ describe("AntigravityStructuredSession", () => {
     await session.openThread({ model: "Gemini 3.8 Flash", approvalPolicy: "yolo" });
     await session.startTurn("hello", { model: "Gemini 3.8 Flash" });
 
-    expect(
-      events
-        .filter(
-          (event): event is Extract<RuntimeEvent, { type: "content.delta" }> =>
-            event.type === "content.delta" && event.stream === "assistant_text",
-        )
-        .map((event) => event.delta)
-        .join(""),
-    ).toBe("hello world");
+    expect(finalAssistantText(events)).toBe("hello world");
   });
 
-  it("keeps only the regenerated tail when the result snapshot embeds streamed text mid-body", async () => {
+  it("drops a diverging regeneration that streamed into the same item", async () => {
+    // Probe-verified shape: agy can emit a SECOND, different answer inside one
+    // step (`agent_response` deltas that diverge from the first generation)
+    // while `result.response` stays the first answer. Per-chunk remainder
+    // trimming cannot catch this — the regen is genuinely new text — so the
+    // result snapshot must replace the stream.
+    const answer = "这个问题问到了 CLIP 最本质、最核心的机制！完整的回答正文。";
+    const regenHead = "这个问题问到了 CLIP 最本质、最核心的机制！改写后的回答被截断";
+    const fixture = new AntigravityFixture((emit) => {
+      emit({ event: "init", conversation_id: "agy-conversation-1" });
+      emit({
+        event: "step_update",
+        step_update: { step_type: "agent_response", state: "ACTIVE", text_delta: answer },
+      });
+      emit({
+        event: "step_update",
+        step_update: { step_type: "agent_response", state: "ACTIVE", text_delta: regenHead },
+      });
+      emit({
+        event: "result",
+        result: { status: "SUCCESS", response: answer },
+      });
+    });
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+    await session.startTurn("hello", { model: "Gemini 3.5 Flash" });
+
+    // The regen streamed live (deltas are not lossy), but the settled stream
+    // is exactly the declared response — the retracted copy is gone.
+    expect(finalAssistantText(events)).toBe(answer);
+  });
+
+  it("shows exactly the declared response when the snapshot embeds status lines", async () => {
     const statusA = "正在测试提炼精简后的方案并生成排版效果图，稍后为您展示最新效果。\n";
     const statusB = "正在更新官方文档并重新编译导出 PDF，稍后为您汇报结果。\n";
     const draft = "草稿版正文，带有 * *已修正的格式瑕疵**。\n";
@@ -475,15 +522,7 @@ describe("AntigravityStructuredSession", () => {
     await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
     await session.startTurn("hello", { model: "Gemini 3.5 Flash" });
 
-    expect(
-      events
-        .filter(
-          (event): event is Extract<RuntimeEvent, { type: "content.delta" }> =>
-            event.type === "content.delta" && event.stream === "assistant_text",
-        )
-        .map((event) => event.delta)
-        .join(""),
-    ).toBe(statusA + statusB + final);
+    expect(finalAssistantText(events)).toBe(draft + statusA + statusB + final);
   });
 
   it("completes streamed thinking when the result envelope arrives", async () => {

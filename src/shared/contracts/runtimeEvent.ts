@@ -626,6 +626,22 @@ const canonicalRuntimeEventSchema = z.discriminatedUnion("type", [
     at: z.number().nonnegative().optional(),
   }),
   z.object({
+    /**
+     * Authoritative full-text snapshot for a stream: replaces whatever the
+     * deltas accumulated so far. Providers whose terminal `result` frame
+     * carries the final response use this to drop text the model emitted but
+     * retracted — e.g. an antigravity regeneration that streamed a second,
+     * diverging answer into the same item before `result.response` settled on
+     * the first. Deltas that arrive after a set append on top of it.
+     */
+    type: z.literal("content.set"),
+    threadId: z.string(),
+    itemId: z.string(),
+    stream: runtimeContentStreamKindSchema,
+    text: z.string(),
+    at: z.number().nonnegative().optional(),
+  }),
+  z.object({
     type: z.literal("context.updated"),
     threadId: z.string(),
     usage: threadContextUsageSchema,

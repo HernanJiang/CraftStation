@@ -383,20 +383,12 @@ export class SubagentRunManager {
     let reaped = 0;
     for (const record of [...this.runs.values()]) {
       if (record.parentThreadId !== parentThreadId || record.status !== "running") continue;
-      if (
-        record.output !== "" ||
-        record.stepCount > 0 ||
-        record.pendingRequestIds.size > 0
-      ) {
+      if (record.output !== "" || record.stepCount > 0 || record.pendingRequestIds.size > 0) {
         continue;
       }
       if (now - record.createdAt < COMPLETE_TURN_SILENT_GRACE_MS) continue;
       record.cancelRequested = true;
-      this.settle(
-        record,
-        "cancelled",
-        "Parent turn ended before the subagent produced output.",
-      );
+      this.settle(record, "cancelled", "Parent turn ended before the subagent produced output.");
       reaped += 1;
     }
     return reaped;
@@ -525,6 +517,16 @@ export class SubagentRunManager {
           this.retag(record, attemptIndex, event),
         );
         return;
+      case "content.set":
+        // Snapshot semantics: the provider declares the item's final text.
+        // For the aggregate output the last-set stream wins — a regen that
+        // retracts earlier streamed text must not linger in the result.
+        if (event.stream === "assistant_text") record.output = event.text;
+        this.deps.host.appendRuntimeEvent(
+          record.parentThreadId,
+          this.retag(record, attemptIndex, event),
+        );
+        return;
       case "item.started":
         if (!event.parentItemId) {
           record.stepCount += 1;
@@ -617,7 +619,8 @@ export class SubagentRunManager {
     if (
       event.type === "item.updated" ||
       event.type === "item.completed" ||
-      event.type === "content.delta"
+      event.type === "content.delta" ||
+      event.type === "content.set"
     ) {
       return { ...event, threadId: record.parentThreadId, itemId: prefix + event.itemId };
     }

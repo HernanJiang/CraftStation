@@ -277,6 +277,47 @@ describe.skipIf(!sqliteAvailable)("runtimeItems incremental persistence", () => 
     expect(output?.endsWith("tail-marker")).toBe(true);
   });
 
+  it("content.set replaces the persisted stream instead of appending", () => {
+    dbApplyThreadRuntimeEvents("thread-1", [
+      {
+        type: "item.started",
+        threadId: "thread-1",
+        itemId: "assistant-1",
+        itemType: "assistant_message",
+      },
+      {
+        type: "content.delta",
+        threadId: "thread-1",
+        itemId: "assistant-1",
+        stream: "assistant_text",
+        delta: "full answer",
+      },
+      {
+        type: "content.delta",
+        threadId: "thread-1",
+        itemId: "assistant-1",
+        stream: "assistant_text",
+        delta: " — retracted regen",
+      },
+      {
+        type: "content.set",
+        threadId: "thread-1",
+        itemId: "assistant-1",
+        stream: "assistant_text",
+        text: "full answer",
+      },
+      { type: "item.completed", threadId: "thread-1", itemId: "assistant-1" },
+    ]);
+
+    expect(dbGetThreadRuntimeItems("thread-1")).toEqual([
+      expect.objectContaining({
+        id: "assistant-1",
+        state: "completed",
+        streams: { assistant_text: "full answer" },
+      }),
+    ]);
+  });
+
   it("compacts oversized legacy output rows in place", () => {
     const sqlite = getSqlite();
     sqlite
