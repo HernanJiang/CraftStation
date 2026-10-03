@@ -23,6 +23,8 @@ interface ThreadItemSuffixProps {
 
 const iconButtonClass =
   "flex size-[18px] shrink-0 items-center justify-center rounded-md text-muted/70 opacity-0 transition-[opacity,color,background-color] group-hover:opacity-100 focus-visible:opacity-100 hover:bg-[var(--row-hover)] hover:text-foreground";
+const pinnedIconButtonClass =
+  "flex size-[18px] shrink-0 items-center justify-center rounded-md text-muted/70 transition-[color,background-color] hover:bg-[var(--row-hover)] hover:text-foreground";
 
 function ThreadStatus(props: { thread: Thread; statusTone: StatusTone }) {
   const { t } = useLingui();
@@ -97,42 +99,69 @@ export function ThreadItemSuffix(props: ThreadItemSuffixProps) {
         </span>
       ) : null}
       {!props.isExperimentCandidate ? (
-        <span className="flex w-0 items-center gap-0.5 overflow-hidden transition-[width] group-hover:w-[58px] group-focus-within:w-[58px]">
-          <button
-            type="button"
-            aria-label={pinned ? t`Unpin ${props.thread.title}` : t`Pin ${props.thread.title}`}
-            className={`${iconButtonClass} ${pinned ? "text-foreground" : ""}`}
-            onClick={(event) => {
-              event.stopPropagation();
-              if (props.pinState) props.pinState.onToggle();
-              else toggleStarThread(props.thread.id);
-            }}
+        <>
+          {/* The pinned row's only pin mark: a persistent toggle at the
+              trailing edge (indicator + unpin affordance in one). The title
+              used to carry a second static glyph — two pin icons on hover. */}
+          {pinned ? (
+            <button
+              type="button"
+              aria-label={t`Unpin ${props.thread.title}`}
+              className={`${pinnedIconButtonClass} text-foreground`}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (props.pinState) props.pinState.onToggle();
+                else toggleStarThread(props.thread.id);
+              }}
+            >
+              <Pin className="size-3 fill-current" />
+            </button>
+          ) : null}
+          <span
+            className={`flex w-0 items-center gap-0.5 overflow-hidden transition-[width] ${
+              pinned
+                ? "group-hover:w-[38px] group-focus-within:w-[38px]"
+                : "group-hover:w-[58px] group-focus-within:w-[58px]"
+            }`}
           >
-            <Pin className={`size-3 ${pinned ? "fill-current" : ""}`} />
-          </button>
-          <button
-            type="button"
-            aria-label={t`More actions for ${props.thread.title}`}
-            className={iconButtonClass}
-            onClick={(event) => {
-              event.stopPropagation();
-              props.onMore?.(event);
-            }}
-          >
-            <Ellipsis className="size-3.5" />
-          </button>
-          <button
-            type="button"
-            aria-label={t`Archive ${props.thread.title}`}
-            className={iconButtonClass}
-            onClick={(event) => {
-              event.stopPropagation();
-              archiveThread(props.thread.id);
-            }}
-          >
-            <Archive className="size-3" />
-          </button>
-        </span>
+            {pinned ? null : (
+              <button
+                type="button"
+                aria-label={t`Pin ${props.thread.title}`}
+                className={iconButtonClass}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  if (props.pinState) props.pinState.onToggle();
+                  else toggleStarThread(props.thread.id);
+                }}
+              >
+                <Pin className="size-3" />
+              </button>
+            )}
+            <button
+              type="button"
+              aria-label={t`More actions for ${props.thread.title}`}
+              className={iconButtonClass}
+              onClick={(event) => {
+                event.stopPropagation();
+                props.onMore?.(event);
+              }}
+            >
+              <Ellipsis className="size-3.5" />
+            </button>
+            <button
+              type="button"
+              aria-label={t`Archive ${props.thread.title}`}
+              className={iconButtonClass}
+              onClick={(event) => {
+                event.stopPropagation();
+                archiveThread(props.thread.id);
+              }}
+            >
+              <Archive className="size-3" />
+            </button>
+          </span>
+        </>
       ) : null}
     </span>
   );
