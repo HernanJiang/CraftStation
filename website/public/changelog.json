@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.7.12",
+      "date": "2026-10-03",
+      "title": "Locked-CLI updates land; cleaner update feedback",
+      "summary": "Updates that download large bundles or replace a running binary now complete: downloads get a 30-minute window, staged builds swap in via rename while the process runs, and update output no longer shows raw terminal escapes.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Updates",
+          "text": "Devin can finally update — its installer downloads ~180MB and ends by overwriting a running exe, so the 5-minute timeout killed the download and the copy failed on the file lock. Downloads get 30 minutes, and the staged build is swapped in via rename instead."
+        },
+        {
+          "kind": "fixed",
+          "label": "Updates",
+          "text": "Update failure messages no longer show raw terminal escape sequences as garbage characters."
+        },
+        {
+          "kind": "fixed",
+          "label": "Updates",
+          "text": "Running an update against a CLI that is already at the latest version no longer reports a failure — the no-op is recognized as success."
+        }
+      ]
+    },
+    {
       "version": "1.7.11",
       "date": "2026-10-03",
       "title": "Update success is verified, shadowed CLIs heal",
