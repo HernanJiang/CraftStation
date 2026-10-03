@@ -51,8 +51,9 @@ import {
   getLatestSupportedNpmPackageVersion,
   getLatestVersionForAdapter,
   runUpdateCommandWithFallback,
+  tryRemoveShadowedWindowsExe,
 } from "../agents/updateAgent";
-import { clearAgentBinaryPathCache } from "../agents/binaryResolver";
+import { clearAgentBinaryPathCache, resolveAgentBinaryPath } from "../agents/binaryResolver";
 import type { AgentStatusService } from "./agentStatusService";
 import type { SupervisorSharedSettingsCache } from "./supervisorSharedSettings";
 
@@ -313,7 +314,52 @@ export class AgentRegistryService {
             },
           })
         : await runUpdateCommandWithFallback(adapter, status, envContext);
-    if (result.ok) {
+    // Post-update truth check: a strategy that exits 0 but leaves the resolved
+    // binary reporting the same version is a fake success — advisory built-ins
+    // that only print instructions, or a package-manager update rewritten next
+    // to a shadowing foreign `.exe`. Verify against the resolved path (the same
+    // artifact detection tracks) and either heal or report an honest failure.
+    let verifiedResult = result;
+    if (result.ok && status.version) {
+      const location = detectProbeLocation(envContext);
+      const probe = (path: string | undefined) =>
+        path ? readDetectedVersion(location, path, ["--version"]) : undefined;
+      const resolvedVersion = await probe(status.executablePath);
+      if (resolvedVersion !== undefined && resolvedVersion === status.version) {
+        const heal = tryRemoveShadowedWindowsExe({
+          envContext,
+          status,
+          strategy: result.strategy,
+          label: adapter.label,
+        });
+        let healedVersion: string | undefined;
+        if (heal.removed) {
+          clearAgentBinaryPathCache();
+          healedVersion = await probe(
+            adapter.binary ? resolveAgentBinaryPath(location, adapter.binary) : undefined,
+          );
+        }
+        if (healedVersion !== undefined && healedVersion !== status.version) {
+          verifiedResult = {
+            ...result,
+            output: [result.output, heal.note].filter(Boolean).join("\n"),
+          };
+        } else {
+          verifiedResult = {
+            ok: false,
+            strategy: result.strategy,
+            output: [
+              `${adapter.label} update ran but the resolved binary still reports v${status.version}.`,
+              heal.note,
+              result.output,
+            ]
+              .filter(Boolean)
+              .join("\n\n"),
+          };
+        }
+      }
+    }
+    if (verifiedResult.ok) {
       // Provider-owned post-update step (e.g. Grok propagating the fresh
       // binary into per-account managed homes). Runs before the status
       // refresh so re-detection already sees the synced binaries.
@@ -324,7 +370,7 @@ export class AgentRegistryService {
           return undefined;
         });
       if (postUpdateNote) {
-        result.output = [result.output, postUpdateNote].filter(Boolean).join("\n");
+        verifiedResult.output = [verifiedResult.output, postUpdateNote].filter(Boolean).join("\n");
       }
       // Drop the cached executable path so the next detection probe runs a
       // fresh `command -v` / `where.exe`. Without this we keep returning the
@@ -335,7 +381,7 @@ export class AgentRegistryService {
       clearAgentBinaryPathCache();
       await this.refreshAffectedAgentStatuses(this.sharedInstallationAgentKinds(status, pool));
     }
-    return result;
+    return verifiedResult;
   }
 
   async getLatestAgentVersion(

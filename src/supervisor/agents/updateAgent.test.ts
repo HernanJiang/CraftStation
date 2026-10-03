@@ -16,6 +16,7 @@ import {
   getLatestVersionForAdapter,
   resolveUpdateCommand,
   runUpdateCommandWithFallback,
+  tryRemoveShadowedWindowsExe,
 } from "./updateAgent";
 import { stepCodeDetectionSpec } from "./stepcode";
 
@@ -624,5 +625,117 @@ describe("getLatestSupportedNpmPackageVersion", () => {
     await getLatestSupportedNpmPackageVersion(cursorSdkQuery);
     await getLatestSupportedNpmPackageVersion(cursorSdkQuery);
     expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+describe("tryRemoveShadowedWindowsExe", () => {
+  const envContext: AgentEnvContext = { envKind: "windows", baseDir: "C:\\base" };
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "cs-shadow-"));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const npmDir = () => {
+    // The eligibility check for built-in strategies requires an npm-managed
+    // layout; package-manager strategies work from any directory.
+    const npm = join(dir, "AppData", "Roaming", "npm");
+    mkdirSync(npm, { recursive: true });
+    return npm;
+  };
+
+  const statusAt = (executablePath: string): AgentStatus =>
+    ({
+      kind: "opencode",
+      label: "OpenCode",
+      installed: true,
+      version: "1.18.25",
+      executablePath,
+    }) as AgentStatus;
+
+  it("removes a foreign .exe shadowing a package-managed .cmd shim (npm-global)", () => {
+    const npm = npmDir();
+    const exe = join(npm, "opencode.exe");
+    writeFileSync(exe, "stub");
+    writeFileSync(join(npm, "opencode.cmd"), "shim");
+
+    const result = tryRemoveShadowedWindowsExe({
+      envContext,
+      status: statusAt(exe),
+      strategy: "npm-global",
+      label: "OpenCode",
+    });
+    expect(result.removed).toBe(true);
+    expect(existsSync(exe)).toBe(false);
+    expect(existsSync(join(npm, "opencode.cmd"))).toBe(true);
+  });
+
+  it("heals after a built-in updater when the binary lives in an npm tree", () => {
+    const npm = npmDir();
+    const exe = join(npm, "opencode.exe");
+    writeFileSync(exe, "stub");
+    writeFileSync(join(npm, "opencode"), "shim");
+
+    const result = tryRemoveShadowedWindowsExe({
+      envContext,
+      status: statusAt(exe),
+      strategy: "built-in",
+      label: "OpenCode",
+    });
+    expect(result.removed).toBe(true);
+  });
+
+  it("refuses a built-in strategy binary outside package-manager dirs", () => {
+    const other = join(dir, "tools");
+    mkdirSync(other, { recursive: true });
+    const exe = join(other, "devin.exe");
+    writeFileSync(exe, "stub");
+    writeFileSync(join(other, "devin.cmd"), "shim");
+
+    const result = tryRemoveShadowedWindowsExe({
+      envContext,
+      status: statusAt(exe),
+      strategy: "built-in",
+      label: "Devin",
+    });
+    expect(result.removed).toBe(false);
+    expect(existsSync(exe)).toBe(true);
+  });
+
+  it("refuses when no sibling shim exists (the exe may be the real install)", () => {
+    const npm = npmDir();
+    const exe = join(npm, "opencode.exe");
+    writeFileSync(exe, "stub");
+
+    const result = tryRemoveShadowedWindowsExe({
+      envContext,
+      status: statusAt(exe),
+      strategy: "npm-global",
+      label: "OpenCode",
+    });
+    expect(result.removed).toBe(false);
+    expect(existsSync(exe)).toBe(true);
+  });
+
+  it("refuses non-windows environments", () => {
+    const npm = npmDir();
+    const exe = join(npm, "opencode.exe");
+    writeFileSync(exe, "stub");
+    writeFileSync(join(npm, "opencode.cmd"), "shim");
+
+    const result = tryRemoveShadowedWindowsExe({
+      envContext: { envKind: "posix", baseDir: "/tmp" },
+      status: statusAt(exe),
+      strategy: "npm-global",
+      label: "OpenCode",
+    });
+    expect(result.removed).toBe(false);
   });
 });

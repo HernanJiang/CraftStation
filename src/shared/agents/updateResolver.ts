@@ -42,7 +42,7 @@ function normalizeCommandPath(value: string): string {
   return value.replaceAll("\\", "/").toLowerCase();
 }
 
-function looksLikeNpmInstallPath(executablePath: string | undefined): boolean {
+export function looksLikeNpmInstallPath(executablePath: string | undefined): boolean {
   if (!executablePath) return false;
   const normalized = normalizeCommandPath(executablePath);
   return (

@@ -1,3 +1,5 @@
+import { existsSync, unlinkSync } from "node:fs";
+import { basename, dirname } from "node:path";
 import type {
   AgentStatus,
   GetLatestAgentVersionResult,
@@ -7,6 +9,7 @@ import type {
 import {
   formatUpdateCommandLine,
   getNpmPackageNameForUpdate,
+  looksLikeNpmInstallPath,
   pickLatestVersionInWindow,
   resolveSharedUpdateCommand,
 } from "@/shared/agents/updateResolver";
@@ -146,6 +149,54 @@ export async function runUpdateCommandWithFallback(
       ok: false,
       strategy: command.strategy,
       output: error instanceof Error ? error.message : String(error),
+    };
+  }
+}
+
+const PACKAGE_MANAGER_STRATEGIES = new Set(["npm-global", "pnpm-global", "bun-global"]);
+
+/**
+ * Recover the "shadowed shim" case: a bare `<name>.exe` sitting in the npm
+ * global root is not a package-manager artifact (npm only emits `.cmd`/`.ps1`/
+ * extensionless shims), but Windows resolves `.exe` ahead of `.cmd` via
+ * PATHEXT, so it hides the freshly updated package binary forever. Only call
+ * this after a package-manager strategy ran — in that context the orphan is
+ * provably foreign and safe to remove so the managed shim takes over.
+ */
+export function tryRemoveShadowedWindowsExe(options: {
+  envContext: AgentEnvContext;
+  status: AgentStatus;
+  strategy: string | undefined;
+  label: string;
+}): { removed: boolean; note?: string } {
+  const { envContext, status, strategy, label } = options;
+  const exePath = status.executablePath;
+  if (envContext.envKind !== "windows") return { removed: false };
+  if (!exePath?.toLowerCase().endsWith(".exe")) return { removed: false };
+  // Eligible when a package manager just rewrote the shims next to the orphan,
+  // or the built-in updater ran while the resolved binary itself lives in an
+  // npm-managed tree (self-updaters like `opencode upgrade` detect the npm
+  // layout and defer to `npm i -g`, which never touches the foreign `.exe`).
+  const eligible =
+    (strategy !== undefined && PACKAGE_MANAGER_STRATEGIES.has(strategy)) ||
+    (strategy === "built-in" && looksLikeNpmInstallPath(exePath));
+  if (!eligible) return { removed: false };
+
+  const dir = dirname(exePath);
+  const stem = basename(exePath, ".exe");
+  const hasSiblingShim = existsSync(`${dir}\\${stem}.cmd`) || existsSync(`${dir}\\${stem}`);
+  if (!hasSiblingShim) return { removed: false };
+
+  try {
+    unlinkSync(exePath);
+    return {
+      removed: true,
+      note: `Removed the shadowing executable ${exePath} (still at v${status.version}) so the package-managed ${stem}.cmd resolves instead.`,
+    };
+  } catch (error) {
+    return {
+      removed: false,
+      note: `${exePath} shadows the package-managed ${label} install but could not be removed (${error instanceof Error ? error.message : String(error)}). Close running ${label} processes or delete it manually.`,
     };
   }
 }
