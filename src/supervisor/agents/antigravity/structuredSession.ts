@@ -11,7 +11,11 @@ import type {
 import type { NativeHarnessDiagnostic } from "@/shared/crafting";
 import { isHomeScopeLocation } from "@/shared/homeScope";
 import { inlinePromptSegmentText } from "@/shared/promptContent";
-import { antigravitySessionEnvForLocation, ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV } from "./detection";
+import {
+  antigravitySessionEnvForLocation,
+  ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV,
+  primeAntigravityUpdateCheckTimestamp,
+} from "./detection";
 import { ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR } from "@/supervisor/runtime/nativeHarness/descriptors";
 import {
   canonicalizeNativeEvent,
@@ -216,6 +220,10 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       console.warn("[antigravity] ignored MCP servers for an unsupported WSL session.");
     }
     this.projection = createAntigravityMcpProjection(projectableMcpServers);
+    // The env switch silences this process's own updater check, but `agy`
+    // re-execs `language_server` with a filtered env — refresh the last-check
+    // mtime so the 15-minute gate stays closed for the whole tree.
+    primeAntigravityUpdateCheckTimestamp();
     const env = {
       // Kill switch is laid down first so it survives even a caller that
       // forgot baseSpawnEnv: the bg-updater escapes any pseudoconsole we can

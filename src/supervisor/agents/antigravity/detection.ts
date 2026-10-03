@@ -25,12 +25,21 @@ export const ANTIGRAVITY_DEFAULT_MODEL_ID = "Gemini 3.6 Flash";
 // set `AGY_CLI_DISABLE_AUTO_UPDATE` on every `agy` spawn we make (detection
 // probes, account probe, PTY launches, one-shots). `agy update` runs without
 // this env (separate path), so explicit updates still work.
+//
+// The env only silences the check inside the process that receives it — `agy`
+// re-execs itself as `language_server` with a filtered environment, so the
+// updater can still fire from that grandchild. The universal gate is the
+// `last_check.timestamp` mtime: keep it fresh (see
+// `primeAntigravityUpdateCheckTimestamp` in updateGate.ts) and no `agy`
+// invocation ever reaches the spawn branch.
 export const ANTIGRAVITY_CLOUDCODE_PRODUCTION_URL = GOOGLE_CLOUDCODE_PRODUCTION_URL;
 
 export const ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV: Record<string, string> = {
   AGY_CLI_DISABLE_AUTO_UPDATE: "1",
   ...GOOGLE_CLOUDCODE_PRODUCTION_ENV,
 };
+
+export { primeAntigravityUpdateCheckTimestamp } from "./updateGate";
 
 /**
  * Pool-account ADC scope redirects (`AGY_ADC_AUTH` +

@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -16,6 +16,7 @@ import {
   ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV,
   antigravityDetectionSpec,
   defaultAntigravityCapabilities,
+  primeAntigravityUpdateCheckTimestamp,
 } from "./detection";
 import {
   ANTIGRAVITY_KNOWN_MODEL_VARIANTS,
@@ -35,7 +36,9 @@ import {
 describe("defaultAntigravityCapabilities", () => {
   it("advertises Gemini 1M so the composer context dock can render", () => {
     expect(defaultAntigravityCapabilities.defaultContextSize).toBe("1M");
-    expect(defaultAntigravityCapabilities.contextSizes?.some((size) => size.id === "1M")).toBe(true);
+    expect(defaultAntigravityCapabilities.contextSizes?.some((size) => size.id === "1M")).toBe(
+      true,
+    );
     expect(defaultAntigravityCapabilities.modelContextSizes?.["Gemini 3.8 Flash"]).toEqual(["1M"]);
     expect(defaultAntigravityCapabilities.modelContextSizes?.["gemini-3.8-flash-high"]).toEqual([
       "1M",
@@ -116,12 +119,15 @@ describe("buildAntigravityArgs", () => {
       "--prompt-interactive",
       "hello",
     ]);
-    expect(
-      buildAntigravityArgs({ model: "gemini-3.8-flash", effort: "High" }, "hello"),
-    ).toEqual(["--model", "gemini-3.8-flash-high", "--prompt-interactive", "hello"]);
+    expect(buildAntigravityArgs({ model: "gemini-3.8-flash", effort: "High" }, "hello")).toEqual([
+      "--model",
+      "gemini-3.8-flash-high",
+      "--prompt-interactive",
+      "hello",
+    ]);
   });
 
-  it("never sends --effort \"\" on current agy (bare family + required effort)", () => {
+  it('never sends --effort "" on current agy (bare family + required effort)', () => {
     const defaultModel = ANTIGRAVITY_DEFAULT_MODEL_ID;
     expect(
       buildAntigravityArgs(
@@ -166,14 +172,7 @@ describe("buildAntigravityArgs", () => {
         defaultModel,
         true,
       ),
-    ).toEqual([
-      "--model",
-      "gemini-3.8-flash",
-      "--effort",
-      "high",
-      "--prompt-interactive",
-      "hello",
-    ]);
+    ).toEqual(["--model", "gemini-3.8-flash", "--effort", "high", "--prompt-interactive", "hello"]);
     expect(
       buildAntigravityArgs(
         { model: "gemini-3.8-flash", effort: "" },
@@ -249,6 +248,53 @@ describe("Antigravity Cloud Code endpoint", () => {
       "https://cloudcode-pa.googleapis.com",
     );
     expect(ANTIGRAVITY_CLOUDCODE_PRODUCTION_URL).not.toContain("daily-");
+  });
+});
+
+describe("primeAntigravityUpdateCheckTimestamp", () => {
+  // `agy`'s bg-updater gate is the mtime of last_check.timestamp: >15min old
+  // means the next `agy` invocation spawns the windowed updater. The prime
+  // keeps that mtime fresh so no invocation ever reaches the spawn branch.
+  it("refreshes the mtime of an existing timestamp file", () => {
+    const dir = mkdtempSync(join(tmpdir(), "agy-check-"));
+    try {
+      const file = join(dir, "last_check.timestamp");
+      writeFileSync(file, "");
+      const stale = new Date(Date.now() - 60 * 60 * 1000);
+      utimesSync(file, stale, stale);
+
+      primeAntigravityUpdateCheckTimestamp({ filePath: file });
+
+      expect(Math.abs(statSync(file).mtimeMs - Date.now())).toBeLessThan(10_000);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("creates the timestamp file (and parent dir) when missing", () => {
+    const dir = mkdtempSync(join(tmpdir(), "agy-check-"));
+    try {
+      const file = join(dir, "nested", "last_check.timestamp");
+      primeAntigravityUpdateCheckTimestamp({ filePath: file });
+      expect(existsSync(file)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("never throws on an unwritable path", () => {
+    const dir = mkdtempSync(join(tmpdir(), "agy-check-"));
+    try {
+      // A file where a directory is expected makes mkdirSync fail too — the
+      // whole prime must still resolve silently (best-effort like the reaper).
+      const blocker = join(dir, "blocker");
+      writeFileSync(blocker, "x");
+      expect(() =>
+        primeAntigravityUpdateCheckTimestamp({ filePath: join(blocker, "last_check.timestamp") }),
+      ).not.toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -719,7 +765,6 @@ describe("parseAntigravityModelsOutput", () => {
     const raw = ANTIGRAVITY_KNOWN_MODEL_VARIANTS.map((variant) => variant.cliModel).join("\n");
 
     expect(parseAntigravityModelsOutput(raw)).toEqual([
-
       { id: "Gemini 3.8 Flash", label: "Gemini 3.8 Flash", description: "Google DeepMind" },
       { id: "Gemini 3.7 Flash", label: "Gemini 3.7 Flash", description: "Google DeepMind" },
       { id: "Gemini 3.6 Flash", label: "Gemini 3.6 Flash", description: "Google DeepMind" },

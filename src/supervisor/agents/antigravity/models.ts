@@ -3,6 +3,7 @@ import type { AgentCapability, LabeledOption } from "@/shared/contracts";
 import { spawnAgentPty } from "@/supervisor/oneShotSpawn";
 import { buildAgentCommand, type DetectProbeCtx } from "../base";
 import { buildContextSizeCapabilities } from "../contextWindowLabel";
+import { primeAntigravityUpdateCheckTimestamp } from "./updateGate";
 
 const TEXT_MODEL_HINT = /\b(?:claude|gemini|gpt|opus|sonnet|haiku|flash|pro|oss)\b/i;
 const MARKER_RE = /^\s*(?:[-*\u2022]\s+|\d+[.)]\s+|\[[ xX]\]\s*)/;
@@ -199,7 +200,9 @@ function splitCliModel(
       ...(knownDisplay.effort ? { effort: knownDisplay.effort } : {}),
       cliModel: knownDisplay.cliModel,
       ...(knownDisplay.cliSlug ? { cliSlug: knownDisplay.cliSlug } : {}),
-      ...(provider ?? knownDisplay.provider ? { provider: (provider ?? knownDisplay.provider)! } : {}),
+      ...((provider ?? knownDisplay.provider)
+        ? { provider: (provider ?? knownDisplay.provider)! }
+        : {}),
     };
   }
   const parts = splitModelEffort(cleaned);
@@ -398,7 +401,11 @@ export function antigravityContextTokensForModel(modelId: string): number | unde
   const normalized = modelId.trim().toLowerCase();
   if (!normalized) return undefined;
   if (normalized.includes("gemini")) return GEMINI_CONTEXT_TOKENS;
-  if (normalized.includes("claude") || normalized.includes("sonnet") || normalized.includes("opus")) {
+  if (
+    normalized.includes("claude") ||
+    normalized.includes("sonnet") ||
+    normalized.includes("opus")
+  ) {
     return CLAUDE_CONTEXT_TOKENS;
   }
   if (normalized.includes("gpt") || normalized.includes("oss")) return GPT_OSS_CONTEXT_TOKENS;
@@ -554,6 +561,9 @@ export async function probeAntigravityRuntime(
     };
   }
   const executablePath = ctx.executablePath;
+  // `agy models`/`--help` still spin up the LS path that can arm the windowed
+  // bg-updater — keep the timestamp gate fresh before any probe spawn.
+  primeAntigravityUpdateCheckTimestamp();
   const readProbe = async (args: string[]) => {
     const spec = buildAgentCommand(ctx.location, executablePath, args, undefined, ctx.probeEnv);
     try {

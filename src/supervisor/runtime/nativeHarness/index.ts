@@ -10,6 +10,7 @@ import { createZCodeAdapter } from "@/supervisor/agents/zcode";
 import {
   ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV,
   antigravitySessionEnvForLocation,
+  primeAntigravityUpdateCheckTimestamp,
 } from "@/supervisor/agents/antigravity/detection";
 import { agentProxySpawnEnv } from "@/supervisor/agents/base/proxyEnv";
 import { mergeSpawnEnv } from "@/supervisor/agents/base/spawnEnv";
@@ -204,7 +205,10 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
     // FIRST so a bound account env can never displace them: the bg-updater
     // escapes any pseudoconsole and pops a stray terminal window, and this
     // lane used to spawn without the switch entirely (B-mode binds no account
-    // env for antigravity, so baseSpawnEnv arrives undefined here).
+    // env for antigravity, so baseSpawnEnv arrives undefined here). The env
+    // dies at the `language_server` re-exec, so the last-check mtime gate is
+    // primed too — the updater then never spawns at all.
+    primeAntigravityUpdateCheckTimestamp();
     const runtimeEnv = antigravitySessionEnvForLocation(
       mergeSpawnEnv(agentProxySpawnEnv(), ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV, baseSpawnEnv),
       projectLocation,

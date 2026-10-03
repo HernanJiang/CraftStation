@@ -16,6 +16,7 @@ import {
   ANTIGRAVITY_DEFAULT_MODEL_ID,
   createAntigravityDetectionSpec,
   defaultAntigravityCapabilities,
+  primeAntigravityUpdateCheckTimestamp,
 } from "./detection";
 import {
   describeAntigravityLocation,
@@ -185,6 +186,9 @@ export function createAntigravityAdapter(): AgentAdapter {
           locationCwd(location),
         );
       }
+      // PTY lane: `--prompt-interactive` agy spins the LS that can arm the
+      // windowed bg-updater — keep the timestamp gate fresh here too.
+      primeAntigravityUpdateCheckTimestamp();
       const args = buildAntigravityArgs(
         config,
         prompt,
@@ -200,6 +204,7 @@ export function createAntigravityAdapter(): AgentAdapter {
     },
 
     buildResumeArgv(_location, config, prompt, sessionRef) {
+      primeAntigravityUpdateCheckTimestamp();
       const args = buildAntigravityArgs(
         config,
         prompt,
@@ -301,6 +306,9 @@ export function createAntigravityAdapter(): AgentAdapter {
 
     buildOneShotCommand(model, effort, prompt) {
       if (!prompt) return undefined;
+      // `agy -p` spins the LS path that can arm the windowed bg-updater —
+      // keep the timestamp gate fresh at this spawn boundary too.
+      primeAntigravityUpdateCheckTimestamp();
       // `agy -p` persists a throwaway conversation AND rewrites
       // last_conversations.json[cwd] with its id. Running it in the project cwd
       // would race the real `--prompt-interactive` session for that cache key
@@ -328,6 +336,7 @@ export function createAntigravityAdapter(): AgentAdapter {
     },
 
     buildContextExtractionCommand(sessionRef, _location, model) {
+      primeAntigravityUpdateCheckTimestamp();
       return {
         command: "agy",
         args: [

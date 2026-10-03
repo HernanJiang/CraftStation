@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { batchWslCommandsAsync } from "../base";
 import { windowsPowershellPath } from "../../runtime/windowsPowershell";
+import { primeAntigravityUpdateCheckTimestamp } from "./updateGate";
 
 /**
  * Process- and port-discovery for the Antigravity language server. `agy` runs
@@ -19,11 +20,13 @@ const WSL_PID_OFFSET = 1_000_000_000;
  * `agy`'s detached background self-updater escapes the pseudoconsole its
  * parent runs in and allocates its own Windows console — with Windows
  * Terminal as the default host that pops a stray terminal window mid-session.
- * Every CraftStation spawn injects `AGY_CLI_DISABLE_AUTO_UPDATE=1` to prevent
- * it, but an updater can still leak through (a spawn path we don't own, an
- * `agy` build that ignores the switch, a long-hung updater). CraftStation owns
- * agent updates (Settings → `agy update`), so any `--bg-updater` we see in an
- * `agy` tree is stray and gets reaped at scan time.
+ * Every CraftStation spawn injects `AGY_CLI_DISABLE_AUTO_UPDATE=1` and every
+ * scan/launch also refreshes the `last_check.timestamp` mtime gate (see
+ * `primeAntigravityUpdateCheckTimestamp`), but an updater can still leak
+ * through (a spawn path we don't own, an `agy` build that ignores both, a
+ * long-hung updater). CraftStation owns agent updates (Settings → `agy
+ * update`), so any `--bg-updater` we see in an `agy` tree is stray and gets
+ * reaped at scan time.
  */
 const BG_UPDATER_RE = /agy(?:\.exe)?["']?\s+--bg-updater(?:\s|$)/;
 
@@ -245,6 +248,11 @@ export async function resolveAntigravityLsEndpoints(
   wslDistros: readonly string[] = [],
 ): Promise<{ ports: number[]; csrfTokens: string[] }> {
   const procs = await listProcesses(wslDistros);
+  // Prevention before the reap: a fresh last-check mtime closes the updater
+  // gate for EVERY `agy` invocation — including the `language_server` re-exec
+  // that loses AGY_CLI_DISABLE_AUTO_UPDATE — so this scan keeps the gate
+  // permanently shut while it runs (see primeAntigravityUpdateCheckTimestamp).
+  primeAntigravityUpdateCheckTimestamp();
   // Same process snapshot drives the stray-updater reap — no extra scans.
   void reapStrayAntigravityUpdaters(procs);
   const { pids, csrfTokens } = resolveTargets(procs);

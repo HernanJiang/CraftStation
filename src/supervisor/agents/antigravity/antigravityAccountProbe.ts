@@ -12,6 +12,7 @@ import {
 } from "./antigravityLanguageServer";
 import { resolveAntigravityLsEndpoints } from "./antigravityProcessScan";
 import { ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV } from "./detection";
+import { primeAntigravityUpdateCheckTimestamp } from "./updateGate";
 
 /**
  * Resolve the signed-in Antigravity account (email + plan) from its local
@@ -80,6 +81,10 @@ async function spawnAndReadAccount(
   // Isolate the cwd so `agy`'s throwaway `-p` conversation can't rewrite the
   // real project's `last_conversations.json[cwd]` (see antigravity/index.ts).
   const cwd = await mkdtemp(join(tmpdir(), "lc-agy-account-"));
+  // Refresh the updater timestamp before this `agy` launch: the env kill
+  // switch is dropped across `agy`'s `language_server` re-exec, while the
+  // last-check mtime gate applies to the whole process tree.
+  primeAntigravityUpdateCheckTimestamp();
   // `-p` runs non-interactively (no TTY needed) and the LS comes up within ~2s.
   const child = spawn(executablePath, ["-p", "."], {
     cwd,
@@ -90,9 +95,10 @@ async function spawnAndReadAccount(
     // console-subsystem grandchild its own fresh VISIBLE console window.
     windowsHide: true,
     // The account probe runs on a 5-minute TTL, which is exactly the cadence
-    // that keeps re-arming the CLI's background self-updater — and the updater
-    // detaches into its own console window (see
-    // ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV in detection.ts).
+    // that would re-arm the CLI's background self-updater — and the updater
+    // detaches into its own console window. The env switch silences this
+    // process's own check; the primed timestamp covers the grandchildren
+    // (see primeAntigravityUpdateCheckTimestamp in updateGate.ts).
     env: { ...process.env, ...ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV },
   });
   try {
