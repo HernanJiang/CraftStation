@@ -68,7 +68,12 @@ function ThreadStatus(props: { thread: Thread; statusTone: StatusTone }) {
   return null;
 }
 
-/** Keep the row quiet: status/unread sit on the far right; actions appear on hover. */
+/**
+ * Keep the row quiet: the title takes the full width; the status marker keeps
+ * its own slot only while something is shown, and the pin/more/archive actions
+ * stay collapsed until the row is hovered or focused — the same suffix recipe
+ * the project header uses.
+ */
 export function ThreadItemSuffix(props: ThreadItemSuffixProps) {
   const { t } = useLingui();
   const pinned = props.pinState ? props.pinState.pinned : props.thread.starred;
@@ -85,12 +90,14 @@ export function ThreadItemSuffix(props: ThreadItemSuffixProps) {
   );
 
   return (
-    <span className="relative ml-auto flex w-[58px] shrink-0 items-center justify-end">
-      <span className="flex size-[18px] items-center justify-end transition-opacity group-hover:opacity-0">
-        {marker}
-      </span>
+    <span className="ml-auto flex shrink-0 items-center justify-end">
+      {marker !== null ? (
+        <span className="flex w-[18px] shrink-0 items-center justify-end overflow-hidden transition-[width,opacity] group-hover:w-0 group-hover:opacity-0 group-focus-within:w-0 group-focus-within:opacity-0">
+          {marker}
+        </span>
+      ) : null}
       {!props.isExperimentCandidate ? (
-        <span className="pointer-events-none absolute inset-y-0 right-0 flex items-center gap-0.5 group-hover:pointer-events-auto">
+        <span className="flex w-0 items-center gap-0.5 overflow-hidden transition-[width] group-hover:w-[58px] group-focus-within:w-[58px]">
           <button
             type="button"
             aria-label={pinned ? t`Unpin ${props.thread.title}` : t`Pin ${props.thread.title}`}

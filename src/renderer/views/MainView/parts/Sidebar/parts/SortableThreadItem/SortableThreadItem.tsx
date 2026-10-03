@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { Pin } from "lucide-react";
+import { useLingui } from "@lingui/react/macro";
 import type { Project, Thread } from "@/shared/contracts";
 import { useExperimentStore } from "@/renderer/state/experimentStore";
 import { useSortable } from "@dnd-kit/react/sortable";
@@ -95,12 +97,14 @@ export function SortableThreadItem(props: {
   });
 
   const isDragging = useIsDraggingThread(thread.id);
+  const { t } = useLingui();
 
   const hasBackgroundActivity = useThreadHasBackgroundActivity(thread.id);
   const statusTone = getStatusTone(thread, { hasBackgroundActivity });
 
   const stacked = projectTag != null;
   const isEditing = editingThreadId === editKey;
+  const isPinned = pinState ? pinState.pinned : thread.starred;
   const titleNode = thread.done ? (
     <span className="opacity-50 line-through">{thread.title}</span>
   ) : (
@@ -166,12 +170,18 @@ export function SortableThreadItem(props: {
             stacked ? (
               <span className="flex min-w-0 items-center gap-1.5 pr-0.5">
                 <span className="min-w-0 flex-1 truncate">{titleContent}</span>
+                {isPinned && !isEditing ? (
+                  <Pin className="size-3 shrink-0 fill-current text-muted" aria-label={t`Pinned`} />
+                ) : null}
               </span>
             ) : isEditing ? (
               titleContent
             ) : (
               <span className="flex min-w-0 items-center gap-1.5">
                 <span className="min-w-0 flex-1 truncate">{titleNode}</span>
+                {isPinned ? (
+                  <Pin className="size-3 shrink-0 fill-current text-muted" aria-label={t`Pinned`} />
+                ) : null}
               </span>
             )
           }
