@@ -542,6 +542,67 @@ describe("ScheduleRunCoordinator", () => {
     expect([...runs.values()][0]).toMatchObject({ status: "succeeded" });
   });
 
+  it("rides the bound thread's live composition, not the creation-time snapshot", async () => {
+    // Task was recorded while the thread ran Grok; the user has since switched
+    // the same thread to Codex. The follow-up must use the thread's live
+    // agent+model — sending the stale grok model to a Codex session errors.
+    const sourceId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+    const switchedThread = {
+      id: sourceId,
+      projectId: HOME_PROJECT.id,
+      title: "Switched thread",
+      agentKind: "codex:home",
+      config: { model: "gpt-6.1-sol", effort: "medium" },
+      status: "idle",
+      attention: "none",
+      canResumeWithConfig: true,
+      archived: false,
+      done: false,
+      starred: false,
+      presentationMode: "gui",
+      threadStatusSource: "server",
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+      activeTurnStartedAt: null,
+    } as unknown as Thread;
+    const sendFollowUp = vi
+      .fn<
+        (input: { threadId: string; prompt: string; config: { model: string } }) => Promise<void>
+      >()
+      .mockResolvedValue(undefined);
+    const { coordinator, threads, runs } = makeHarness({
+      getThread: (id) => (id === sourceId ? switchedThread : null),
+      threadExists: (id) => id === sourceId || threads.has(id),
+      sendFollowUp,
+    });
+
+    const settled = coordinator.runScheduleAsThread({
+      ...task,
+      agentKind: "grok:home",
+      config: { model: "grok-4.7", effort: "extra-high" },
+      targetThreadId: sourceId,
+      threadTarget: { kind: "existing", threadId: sourceId },
+    });
+    await flush();
+
+    expect(sendFollowUp).toHaveBeenCalledTimes(1);
+    expect(sendFollowUp).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: sourceId,
+        config: expect.objectContaining({ model: "gpt-6.1-sol", effort: "medium" }),
+      }),
+    );
+    // The run's snapshot records what actually launched — not the stale task.
+    expect([...runs.values()][0]?.executionSnapshot).toMatchObject({
+      agentKind: "codex:home",
+      model: "gpt-6.1-sol",
+    });
+
+    coordinator.observeSupervisorEvent(threadState(sourceId, "working"));
+    coordinator.observeSupervisorEvent(threadState(sourceId, "idle"));
+    await expect(settled).resolves.toBeNull();
+  });
+
   it("fails the occurrence when the bound thread is busy — never mints a replacement", async () => {
     const sourceId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
     const sourceThread = {

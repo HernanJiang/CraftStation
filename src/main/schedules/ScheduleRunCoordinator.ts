@@ -430,7 +430,7 @@ export class ScheduleRunCoordinator {
         "Schedule follow-up delivery is unavailable on this host; cannot run a thread-bound schedule.",
       );
     }
-    const reused = await this.runScheduleAsFollowUp(task, threadId, invocation, project);
+    const reused = await this.runScheduleAsFollowUp(task, threadId, invocation, project, existing);
     if (reused.handled) return reused.summary;
     // Delivery failed (unknown/stale session, busy runtime, ...). The failed
     // attempt is already recorded by the follow-up path; fail the occurrence
@@ -452,16 +452,23 @@ export class ScheduleRunCoordinator {
     threadId: string,
     invocation: ScheduleRunInvocation,
     project: Project,
+    boundThread: Thread | null,
   ): Promise<{ handled: boolean; summary: string | null }> {
     const nowIso = this.nowIso();
     const workspace = projectLocationWorkspace(project.location);
+    // A thread-bound run rides the bound thread's LIVE composition. The task's
+    // creation-time snapshot goes stale the moment the user switches the
+    // thread's agent or model — reusing it sends e.g. a Grok model id to a
+    // Codex session (`session.config = payload.config` replaces wholesale).
+    // Detached (new-thread) runs keep the recorded snapshot instead.
+    const effectiveTask = this.boundRunTask(task, boundThread);
     const launch = (this.deps.resolveExecution ?? resolveScheduleExecution)({
-      task,
+      task: effectiveTask,
       runThreadId: threadId,
       ...(workspace ? { workspace } : {}),
       contextSnapshot: null,
     });
-    const config = await this.buildThreadConfig(task, project.location);
+    const config = await this.buildThreadConfig(effectiveTask, project.location);
     const run: ScheduledTaskRun = {
       id: (this.deps.newId ?? randomUUID)(),
       scheduleId: task.id,
@@ -540,6 +547,28 @@ export class ScheduleRunCoordinator {
       return { handled: false, summary: null };
     }
     return { handled: true, summary: await settled };
+  }
+
+  /**
+   * Rebind a task's recorded composition to the bound thread's current one.
+   * `null` means the row vanished between checks (the caller already failed
+   * the occurrence); otherwise the thread's agent and config win so the
+   * snapshot and launch path agree with the session that receives the turn.
+   * The recorded `harnessItemId` pinned the creation-time harness — drop it
+   * so resolution falls through to `harness:<existing.agentKind>`.
+   */
+  private boundRunTask(task: ScheduledTask, boundThread: Thread | null): ScheduledTask {
+    if (!boundThread) return task;
+    return {
+      ...task,
+      agentKind: boundThread.agentKind,
+      config: {
+        model: boundThread.config.model,
+        ...(boundThread.config.effort !== undefined ? { effort: boundThread.config.effort } : {}),
+        ...(boundThread.config.fast !== undefined ? { fast: boundThread.config.fast } : {}),
+        harnessItemId: null,
+      },
+    };
   }
 
   /**
