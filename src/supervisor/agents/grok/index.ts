@@ -214,18 +214,29 @@ export function createGrokAdapter(): AgentAdapter {
         [...acpArgs, "agent", "stdio"],
         resolveAgentBinaryPath(input.projectLocation, "grok"),
       );
-      return createAcpStructuredSession(command, {
-        ...input,
-        // Grok ACP proxies ReadFile through the client, including SKILL.md
-        // loads from ~/.grok/bundled/skills and ~/.grok/skills. Without a
-        // home-dir carve-out the shared fs bridge rejects those paths as
-        // outside the project and every global/bundled skill fails.
-        acpFsAgentHomeDirs: [".grok"],
-        ...(capabilities.fastModelVariants
-          ? { acpFastVariantByBase: capabilities.fastModelVariants }
-          : {}),
-        acpSessionUpdateTransform: createGrokAcpSessionUpdateTransform(),
-      });
+      return createAcpStructuredSession(
+        command,
+        {
+          ...input,
+          // Grok ACP proxies ReadFile through the client, including SKILL.md
+          // loads from ~/.grok/bundled/skills and ~/.grok/skills. Without a
+          // home-dir carve-out the shared fs bridge rejects those paths as
+          // outside the project and every global/bundled skill fails.
+          acpFsAgentHomeDirs: [".grok"],
+          ...(capabilities.fastModelVariants
+            ? { acpFastVariantByBase: capabilities.fastModelVariants }
+            : {}),
+          acpSessionUpdateTransform: createGrokAcpSessionUpdateTransform(),
+        },
+        // Older Grok builds answered `initialize` without a usable
+        // `mcpCapabilities` block (observed: a fired scheduled run had no
+        // Schedule tools and fell back to raw SQL on state.sqlite). Current
+        // builds advertise { http: true, sse: true } and accept HTTP MCP in
+        // session/new — assume it so under-reporting builds still receive
+        // CraftStation's built-in MCPs; a genuine rejection retries open
+        // without them and records the drops.
+        { assumedMcpCapabilities: { http: true } },
+      );
     },
 
     async buildAcpAuthCommand(ctx?: AgentEnvContext) {
