@@ -174,6 +174,9 @@ function formatCodexFamilyModelLabel(baseId: string): string | undefined {
  */
 function codexLimitLabel(limitName: string | undefined): string {
   const base = limitName?.trim() || "Additional Codex";
+  // `gpt-reserve` is the plan's reserve pool (backup GPT quota that engages
+  // when the primary windows exhaust) — render it as a name, not a raw slug.
+  if (codexUsageModelId(base) === "gpt-reserve") return "GPT Reserve";
   return formatCodexFamilyModelLabel(codexUsageModelId(base)) ?? base;
 }
 

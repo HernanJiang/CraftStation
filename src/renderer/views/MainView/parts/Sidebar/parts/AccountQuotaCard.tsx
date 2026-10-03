@@ -79,17 +79,16 @@ function quotaRows(windows: readonly QuotaWindowLike[], providerId: string): Quo
     ? [windows.find((window) => window.id === headline.id), ...rest]
     : [...windows];
   const present = ordered.filter((window): window is QuotaWindowLike => window !== undefined);
-  const fast = present.find(
+  // The 5h/session window is the one that blocks first — keep it on top even
+  // when the headline lane is the fullest weekly (multi-window codex cards
+  // used to bury Session under Weekly + per-model reserves).
+  const fastIndex = present.findIndex(
     (w) => w.id.toLowerCase().includes("5h") || w.id.toLowerCase().includes("session"),
   );
-  const long = present.find(
-    (w) =>
-      w.id.toLowerCase().includes("week") ||
-      w.id.toLowerCase().includes("month") ||
-      w.label.includes("周") ||
-      w.label.includes("月"),
-  );
-  if (fast && long && present.length <= 2) return [fast, long];
+  if (fastIndex > 0) {
+    const fast = present.splice(fastIndex, 1)[0]!;
+    present.unshift(fast);
+  }
   return present.slice(0, 4);
 }
 

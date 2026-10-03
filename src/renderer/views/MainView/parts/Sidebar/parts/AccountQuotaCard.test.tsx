@@ -121,6 +121,30 @@ describe("AccountQuotaCard openai-compatible", () => {
   });
 });
 
+describe("AccountQuotaCard window order", () => {
+  it("keeps the Session (5h) bar above Weekly even when weekly is the headline", () => {
+    const account: AccountView = {
+      accountId: "codex:plus",
+      provider: "codex",
+      label: "Codex",
+      createdAt: 1,
+      enabled: true,
+      selected: false,
+      order: 0,
+      status: "available",
+      credentialScopeRef: "managed:codex:plus",
+      quotaWindows: [
+        { id: "session-5h", label: "Session (5h)", usedPercent: 0 },
+        { id: "weekly", label: "Weekly", usedPercent: 16 },
+        { id: "codex:gpt-reserve:weekly", label: "GPT Reserve Weekly", usedPercent: 0 },
+      ],
+    };
+    render(<AccountQuotaCard account={account} />);
+    const labels = screen.getAllByRole("progressbar").map((bar) => bar.getAttribute("aria-label"));
+    expect(labels).toEqual(["Session (5h)", "Weekly", "GPT Reserve Weekly"]);
+  });
+});
+
 describe("AccountQuotaCard reset card", () => {
   it("shows an unused reset card separately from the 100% weekly meter", () => {
     const onRedeem = vi.fn<(account: AccountView) => void>();

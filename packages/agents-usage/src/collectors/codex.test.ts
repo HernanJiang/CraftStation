@@ -150,6 +150,30 @@ describe("parseCodexUsage", () => {
     });
   });
 
+  it("renders the gpt-reserve pool as GPT Reserve", () => {
+    const snap = parseCodexUsage(
+      {
+        additional_rate_limits: [
+          {
+            limit_name: "gpt-reserve",
+            rate_limit: {
+              secondary_window: { used_percent: 0, window_minutes: 10_080 },
+            },
+          },
+        ],
+      },
+      {},
+      FAKE_NOW_MS,
+    );
+    expect(snap.windows).toEqual([
+      expect.objectContaining({
+        id: "codex:gpt-reserve:weekly",
+        label: "GPT Reserve Weekly",
+        usedPercent: 0,
+      }),
+    ]);
+  });
+
   it("maps a weekly-only additional limit by duration", () => {
     const snap = parseCodexUsage(
       {
