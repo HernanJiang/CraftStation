@@ -20,6 +20,7 @@ import type {
 } from "@/shared/contracts";
 import { acpGenericKind, extractAcpGenericInstanceId } from "@/shared/contracts";
 import { msg } from "@/shared/messages";
+import { isNewerVersion } from "@/shared/agents/updateResolver";
 import { verifyAcpGenericAuthentication } from "../agents/acp-generic";
 import {
   dispatchAcpAuthenticate,
@@ -327,16 +328,23 @@ export class AgentRegistryService {
     if (verifiedResult.ok && status.version) {
       const resolvedVersion = await probeUpdatedVersion(status.executablePath);
       if (resolvedVersion !== undefined && resolvedVersion === status.version) {
-        verifiedResult = {
-          ok: false,
-          strategy: result.strategy,
-          output: [
-            `${adapter.label} update ran but the resolved binary still reports v${status.version}.`,
-            result.output,
-          ]
-            .filter(Boolean)
-            .join("\n\n"),
-        };
+        // Unchanged is only a failure when the binary isn't already at the
+        // registry's latest — an update fired against an already-current
+        // install (stale menu entry, pool re-run) is a legitimate no-op, not
+        // an update defect.
+        const latestVersion = (await getLatestVersionForAdapter(adapter)).version;
+        if (latestVersion === undefined || isNewerVersion(latestVersion, resolvedVersion)) {
+          verifiedResult = {
+            ok: false,
+            strategy: result.strategy,
+            output: [
+              `${adapter.label} update ran but the resolved binary still reports v${status.version}.`,
+              result.output,
+            ]
+              .filter(Boolean)
+              .join("\n\n"),
+          };
+        }
       }
     }
     if (

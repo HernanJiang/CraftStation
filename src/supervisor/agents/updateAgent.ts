@@ -15,6 +15,7 @@ import {
 } from "@/shared/agents/updateResolver";
 import type { AgentAdapter, AgentEnvContext, AgentUpdaterCommand } from "./base";
 import { detectProbeLocation, readAgentCommandOutput } from "./base";
+import { stripAnsi } from "@/shared/ansi";
 
 /**
  * Resolve the update command for `(adapter, env, status)`.
@@ -53,8 +54,9 @@ export function resolveUpdateCommand(
  * small even when the underlying tool (npm, brew) emits paragraphs of log.
  */
 function trimOutput(output: string, max = 4096): string {
-  if (output.length <= max) return output;
-  return `…\n${output.slice(output.length - max)}`;
+  const stripped = stripAnsi(output);
+  if (stripped.length <= max) return stripped;
+  return `…\n${stripped.slice(stripped.length - max)}`;
 }
 
 function withFallbackFailureOutput(
