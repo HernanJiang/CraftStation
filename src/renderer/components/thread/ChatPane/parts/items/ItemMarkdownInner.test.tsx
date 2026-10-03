@@ -25,6 +25,19 @@ vi.mock("./CodeBlock", () => ({
 
 const toastDangerSpy = vi.spyOn(toast, "danger").mockImplementation(() => undefined as never);
 
+// Our `code`/`pre` overrides replace Streamdown's default component that
+// dispatched diagram plugins, so mermaid renders through our own
+// MdMermaidDiagram -> plugin.getMermaid().render() path. Stub the plugin
+// factory so the diagram output is deterministic.
+vi.mock("@streamdown/mermaid", () => ({
+  createMermaidPlugin: () => ({
+    getMermaid: () => ({
+      initialize: () => {},
+      render: async () => ({ svg: '<svg data-mermaid-mock="true"></svg>' }),
+    }),
+  }),
+}));
+
 describe("ItemMarkdownInner", () => {
   beforeEach(() => {
     codeBlockSpy.mockClear();
@@ -49,6 +62,32 @@ describe("ItemMarkdownInner", () => {
         className: expect.stringContaining("lc-md-code-block"),
       }),
     );
+  });
+
+  it("renders a header row with the language label and copy button above the code body", () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={"```python\nprint(1)\n```"} />
+      </AppProvider>,
+    );
+
+    const copyButton = screen.getByRole("button", { name: "Copy code" });
+    const header = copyButton.closest(".lc-md-code-header");
+    expect(header).toHaveTextContent("python");
+    expect(header?.nextElementSibling).toBe(screen.getByTestId("code-block"));
+    // The copy button lives in the header — not floating over the body.
+    expect(container.querySelector(".group\\/codeblock")).toBeNull();
+  });
+
+  it("labels language-less fences as text in the header", () => {
+    render(
+      <AppProvider>
+        <ItemMarkdownInner text={"```\nplain block\n```"} />
+      </AppProvider>,
+    );
+
+    const header = screen.getByRole("button", { name: "Copy code" }).closest(".lc-md-code-header");
+    expect(header).toHaveTextContent("text");
   });
 
   it("keeps inline code on the inline code path", () => {
@@ -226,7 +265,7 @@ $$`}
     expect(container.querySelectorAll(".katex")).toHaveLength(0);
   });
 
-  it("renders Mermaid flowcharts and normalizes diagram fence aliases", async () => {
+  it("renders Mermaid flowcharts as diagrams inside the shared code header", async () => {
     const { container } = render(
       <AppProvider>
         <ItemMarkdownInner
@@ -238,8 +277,17 @@ flowchart TD
       </AppProvider>,
     );
 
-    await waitFor(() => expect(container.querySelector("svg")).not.toBeNull(), { timeout: 5000 });
+    await waitFor(() =>
+      expect(
+        container.querySelector('.lc-md-mermaid svg[data-mermaid-mock="true"]'),
+      ).not.toBeNull(),
+    );
     expect(screen.queryByTestId("code-block")).not.toBeInTheDocument();
+    // The diagram replaces the raw-source pre — it must not fall back to text.
+    expect(container.querySelector("pre > code.language-mermaid")).toBeNull();
+    const header = container.querySelector(".lc-md-code-header");
+    expect(header).toHaveTextContent("mermaid");
+    expect(header?.nextElementSibling).toHaveClass("lc-md-mermaid");
   });
 
   it("styles tensor pipeline prose like a code block", () => {

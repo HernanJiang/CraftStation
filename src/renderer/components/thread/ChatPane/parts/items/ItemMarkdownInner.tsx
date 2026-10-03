@@ -5,7 +5,9 @@ import {
   Children,
   cloneElement,
   isValidElement,
+  useEffect,
   useMemo,
+  useState,
   type ComponentProps,
   type ReactElement,
   type ReactNode,
@@ -188,18 +190,32 @@ const MD_COMPONENTS: StreamdownComponents = {
     }
     if (codeChild) {
       const language = normalizeHighlightLanguage(codeProps?.className);
+      if (rawLang === "mermaid") {
+        const text = flattenMdChildren(codeProps?.children).replace(/\r?\n$/, "");
+        return (
+          <MdCodeBlockFrame text={text} lang="mermaid">
+            <MdMermaidDiagram code={text} />
+          </MdCodeBlockFrame>
+        );
+      }
       if (language) {
         const text = flattenMdChildren(codeProps?.children).replace(/\r?\n$/, "");
         return (
-          <MdCodeBlockFrame text={text}>
-            <CodeBlock text={text} lang={language} className={markdownCodeBlockClass} />
+          <MdCodeBlockFrame
+            text={text}
+            lang={extractRawLangFromClassName(codeProps?.className) ?? language}
+          >
+            <CodeBlock text={text} lang={language} className={markdownCodeBlockInnerClass} />
           </MdCodeBlockFrame>
         );
       }
     }
     return (
-      <MdCodeBlockFrame text={flattenMdChildren(children).replace(/\r?\n$/, "")}>
-        <pre className={markdownCodeBlockClass}>{markCodeChildAsBlock(children)}</pre>
+      <MdCodeBlockFrame
+        text={flattenMdChildren(children).replace(/\r?\n$/, "")}
+        lang={extractRawLangFromClassName(codeProps?.className) ?? "text"}
+      >
+        <pre className={markdownCodeBlockInnerClass}>{markCodeChildAsBlock(children)}</pre>
       </MdCodeBlockFrame>
     );
   },
@@ -276,6 +292,10 @@ const inlineCodeChipClass =
   "rounded border-0 bg-foreground/10 px-[0.35em] py-[0.1em] font-mono text-[0.875em] leading-none align-baseline text-foreground [overflow-wrap:anywhere]";
 const markdownCodeBlockClass =
   "lc-md-code-block not-prose my-2 min-w-0 overflow-x-hidden rounded px-[0.75em] py-[0.5em] font-mono text-[0.875em] leading-snug text-foreground";
+// Same body styling minus margin/radius — used inside MdCodeBlockFrame, whose
+// header+container owns the card chrome.
+const markdownCodeBlockInnerClass =
+  "lc-md-code-block not-prose min-w-0 overflow-x-hidden px-[0.75em] py-[0.5em] font-mono text-[0.875em] leading-snug text-foreground";
 const transformMarkdownUrl: UrlTransform = (url, key, node) =>
   key === "src" && node.tagName === "img" && url.startsWith("craftstation-local://")
     ? url
@@ -335,20 +355,77 @@ function allowLocalImageProtocol(plugin: RehypePlugins[number]): RehypePlugins[n
 }
 
 /**
- * Wraps a fenced code block with a copy button that reveals on hover of the
- * code block itself (`group/codeblock`). Kept outside `CodeBlock` so
- * command-output viewports (which reuse `CodeBlock`) are not affected.
+ * Wraps a fenced code block with a header row — language label on the left,
+ * always-visible copy button on the right — above the body. The floating
+ * hover-reveal button used to sit on top of the first content line and was
+ * easy to miss. Kept outside `CodeBlock` so command-output viewports (which
+ * reuse `CodeBlock`) are not affected.
  */
-function MdCodeBlockFrame({ text, children }: { text: string; children?: ReactNode }) {
+function MdCodeBlockFrame({
+  text,
+  lang,
+  children,
+}: {
+  text: string;
+  lang?: string | undefined;
+  children?: ReactNode;
+}) {
   const { t } = useLingui();
   if (text.length === 0) return <>{children}</>;
   return (
-    <div className="group/codeblock relative">
-      {children}
-      <div className="absolute right-1 top-1 z-10 opacity-0 transition-opacity focus-within:opacity-100 group-hover/codeblock:opacity-100">
+    <div className="not-prose my-2 min-w-0 overflow-hidden rounded border border-foreground/10">
+      <div className="lc-md-code-header flex items-center justify-between gap-2 border-b border-foreground/10 bg-foreground/5 px-[0.75em] py-1">
+        <span className="select-none font-mono text-[10px] leading-none tracking-wide text-muted">
+          {lang ?? "text"}
+        </span>
         <CopyTextButton text={text} label={t`Copy code`} />
       </div>
+      {children}
     </div>
+  );
+}
+
+let mermaidRenderSeq = 0;
+
+/**
+ * Renders a ````mermaid` fence as an actual diagram. Streamdown dispatches
+ * diagram plugins inside its default `code` component, which our overrides
+ * replace — so mermaid fences would otherwise fall back to raw source. On
+ * render failure the source is shown like any other code block body.
+ */
+function MdMermaidDiagram({ code }: { code: string }) {
+  const [svg, setSvg] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    const id = `lc-mermaid-${mermaidRenderSeq++}`;
+    markdownMermaidPlugin
+      .getMermaid()
+      .render(id, code)
+      .then(({ svg: rendered }) => {
+        if (!cancelled) setSvg(rendered);
+      })
+      .catch(() => {
+        if (!cancelled) setFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [code]);
+
+  if (failed) {
+    return (
+      <pre className={markdownCodeBlockInnerClass}>
+        <code>{code}</code>
+      </pre>
+    );
+  }
+  if (!svg) return <div aria-hidden className="px-[0.75em] py-[0.5em]" />;
+  return (
+    <div
+      className="lc-md-mermaid overflow-x-auto px-[0.75em] py-[0.5em] [&_svg]:mx-auto [&_svg]:max-w-full"
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
   );
 }
 
