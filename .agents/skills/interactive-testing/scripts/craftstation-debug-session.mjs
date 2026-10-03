@@ -85,7 +85,8 @@ export async function listDebugSessions({ repoRoot, purpose } = {}) {
             if (repoRoot && normalizeForCompare(session.repoRoot) !== normalizeForCompare(repoRoot))
               return null;
             if (purpose && session.purpose !== purpose) return null;
-            return { ...session, active: isSessionActive(session) };
+            const settled = await reapDeadSession(session);
+            return { ...settled, active: isSessionActive(settled) };
           } catch {
             // Old smoke roots and partially written manifests are not sessions.
             return null;
@@ -302,6 +303,31 @@ function assertActiveSession(session) {
 
 function isSessionActive(session) {
   return ["starting", "ready"].includes(session.state) && isProcessRunning(session.ownerPid);
+}
+
+/**
+ * A launcher that died without teardown leaves `ready`/`starting` in its
+ * manifest forever, and every later resolution then fails with "multiple
+ * active sessions". A dead owner PID means nothing can drive the session —
+ * persist `stopped` so it stops being offered as a live choice.
+ */
+async function reapDeadSession(session) {
+  if (!["starting", "ready"].includes(session.state)) return session;
+  const ownerGone = !isProcessRunning(session.ownerPid);
+  // EPERM reads as "running" but a protected process may be squatting on a
+  // recycled PID — a dead appPid proves nothing is left to drive regardless.
+  const appGone =
+    Number.isInteger(session.appPid) && session.appPid > 0
+      ? !isProcessRunning(session.appPid)
+      : false;
+  if (!ownerGone && !appGone) return session;
+  const { sessionFile, ...rest } = session;
+  try {
+    await writeDebugSession(sessionFile, { ...rest, state: "stopped" });
+  } catch {
+    // Read-only manifests are fine — the in-memory copy still reports inactive.
+  }
+  return { ...session, state: "stopped" };
 }
 
 export function isProcessRunning(pid) {
