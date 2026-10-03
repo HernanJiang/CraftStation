@@ -28,14 +28,19 @@ const toastDangerSpy = vi.spyOn(toast, "danger").mockImplementation(() => undefi
 // Our `code`/`pre` overrides replace Streamdown's default component that
 // dispatched diagram plugins, so mermaid renders through our own
 // MdMermaidDiagram -> plugin.getMermaid().render() path. Stub the plugin
-// factory so the diagram output is deterministic.
+// factory so the diagram output is deterministic, and capture the config
+// so the htmlLabels-compatible security level is asserted.
+const mermaidPluginConfig = vi.hoisted(() => ({ value: undefined as unknown }));
 vi.mock("@streamdown/mermaid", () => ({
-  createMermaidPlugin: () => ({
-    getMermaid: () => ({
-      initialize: () => {},
-      render: async () => ({ svg: '<svg data-mermaid-mock="true"></svg>' }),
-    }),
-  }),
+  createMermaidPlugin: (options: { config?: unknown }) => {
+    mermaidPluginConfig.value = options?.config;
+    return {
+      getMermaid: () => ({
+        initialize: () => {},
+        render: async () => ({ svg: '<svg data-mermaid-mock="true"></svg>' }),
+      }),
+    };
+  },
 }));
 
 describe("ItemMarkdownInner", () => {
@@ -288,6 +293,12 @@ flowchart TD
     const header = container.querySelector(".lc-md-code-header");
     expect(header).toHaveTextContent("mermaid");
     expect(header?.nextElementSibling).toHaveClass("lc-md-mermaid");
+  });
+
+  it("configures mermaid with htmlLabels so <br> in labels breaks lines", () => {
+    // securityLevel "strict" disables htmlLabels and shows <br> literally;
+    // "antiscript" keeps label HTML minus script tags.
+    expect(mermaidPluginConfig.value).toMatchObject({ securityLevel: "antiscript" });
   });
 
   it("styles tensor pipeline prose like a code block", () => {

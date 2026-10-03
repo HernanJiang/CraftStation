@@ -69,7 +69,10 @@ const markdownMathPlugin = createMathPlugin({ singleDollarTextMath: true });
 const markdownMermaidPlugin = createMermaidPlugin({
   config: {
     startOnLoad: false,
-    securityLevel: "strict",
+    // "antiscript" keeps htmlLabels on so <br> in node labels renders as a
+    // real line break — "strict" disables htmlLabels and shows <br> literally.
+    // Script tags are still stripped, unlike "loose".
+    securityLevel: "antiscript",
     suppressErrorRendering: true,
     themeVariables: {
       background: "transparent",
