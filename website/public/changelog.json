@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.7.14",
+      "date": "2026-10-03",
+      "title": "Antigravity answers settle on the authoritative response; cleaner markdown tables and math",
+      "summary": "Antigravity turns no longer show a duplicated regenerated reply — the terminal result frame now replaces the stream with the provider's authoritative response instead of appending to it. Table cells render <br> as a real line break, and display-math blocks whose closing $$ shares the last content line render through KaTeX instead of leaking raw source.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Antigravity",
+          "text": "A regenerated second answer no longer gets appended after the real reply — the terminal result response replaces the assistant stream, dropping retracted text."
+        },
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "<br> tags inside markdown table cells render as line breaks instead of literal text."
+        },
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "Display-math blocks whose closing $$ is glued to the last content line (…\\end{bmatrix}$$) render as formulas instead of raw source."
+        }
+      ]
+    },
+    {
       "version": "1.7.13",
       "date": "2026-10-03",
       "title": "Skill names accept underscores; quieter thread rows",
