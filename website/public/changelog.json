@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.7.11",
+      "date": "2026-10-03",
+      "title": "Update success is verified, shadowed CLIs heal",
+      "summary": "CLI updates now prove the resolved binary actually changed before reporting success, and stale foreign executables that shadow a package-managed install are removed so the real update takes effect.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Updates",
+          "text": "An update that exits successfully without changing the resolved binary no longer reports success — the post-update version probe reports an honest failure instead, so the entry stays listed instead of pretending it landed."
+        },
+        {
+          "kind": "fixed",
+          "label": "Updates",
+          "text": "CLIs shadowed by a stale executable in the npm global folder now self-heal: Windows resolves the orphan .exe ahead of the managed .cmd shim, so package updates never took effect — the orphan is removed so the managed binary answers."
+        }
+      ]
+    },
+    {
       "version": "1.7.10",
       "date": "2026-10-03",
       "title": "CLI updates actually land, stale entries clear",
