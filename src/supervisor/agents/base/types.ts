@@ -722,6 +722,13 @@ export interface AgentUpdaterCommand {
     | "brew"
     | "winget"
     | "installer";
+  /**
+   * Per-command timeout override. Package-manager and installer strategies
+   * download large bundles (~200MB for bun-compiled CLIs), which needs far
+   * more than the default probe timeout on slow links — a killed download
+   * leaves a partial file and reads as a generic failure.
+   */
+  timeoutMs?: number;
 }
 
 export interface AgentUpdater {

@@ -404,6 +404,10 @@ export const devinDetectionSpec: DetectionSpec = {
     // binary. Require an observed version change so the no-op exits fall
     // through to the installer script instead of reporting a fake success.
     verifyBuiltInVersionChange: true,
+    // install.ps1 stages into `_versions/<v>/bin` then `Copy-Item -Force` onto
+    // `bin/devin.exe`, which fails while any devin process runs — the staged
+    // layout flag lets the supervisor swap the entrypoint via rename instead.
+    stagedWindowsInstallLayout: true,
     homebrewCask: "devin-cli",
     latestVersionUrls: ["https://static.devin.ai/cli/current/manifest.json"],
     installer: {

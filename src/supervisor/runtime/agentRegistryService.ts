@@ -52,6 +52,7 @@ import {
   getLatestVersionForAdapter,
   runUpdateCommandWithFallback,
   tryRemoveShadowedWindowsExe,
+  trySwapStagedWindowsEntrypoint,
 } from "../agents/updateAgent";
 import { clearAgentBinaryPathCache, resolveAgentBinaryPath } from "../agents/binaryResolver";
 import type { AgentStatusService } from "./agentStatusService";
@@ -320,43 +321,77 @@ export class AgentRegistryService {
     // to a shadowing foreign `.exe`. Verify against the resolved path (the same
     // artifact detection tracks) and either heal or report an honest failure.
     let verifiedResult = result;
-    if (result.ok && status.version) {
-      const location = detectProbeLocation(envContext);
-      const probe = (path: string | undefined) =>
-        path ? readDetectedVersion(location, path, ["--version"]) : undefined;
-      const resolvedVersion = await probe(status.executablePath);
+    const updateLocation = detectProbeLocation(envContext);
+    const probeUpdatedVersion = (path: string | undefined) =>
+      path ? readDetectedVersion(updateLocation, path, ["--version"]) : undefined;
+    if (verifiedResult.ok && status.version) {
+      const resolvedVersion = await probeUpdatedVersion(status.executablePath);
       if (resolvedVersion !== undefined && resolvedVersion === status.version) {
-        const heal = tryRemoveShadowedWindowsExe({
-          envContext,
-          status,
+        verifiedResult = {
+          ok: false,
           strategy: result.strategy,
-          label: adapter.label,
-        });
-        let healedVersion: string | undefined;
-        if (heal.removed) {
-          clearAgentBinaryPathCache();
-          healedVersion = await probe(
-            adapter.binary ? resolveAgentBinaryPath(location, adapter.binary) : undefined,
-          );
-        }
-        if (healedVersion !== undefined && healedVersion !== status.version) {
-          verifiedResult = {
-            ...result,
-            output: [result.output, heal.note].filter(Boolean).join("\n"),
-          };
-        } else {
-          verifiedResult = {
-            ok: false,
-            strategy: result.strategy,
-            output: [
-              `${adapter.label} update ran but the resolved binary still reports v${status.version}.`,
-              heal.note,
-              result.output,
-            ]
-              .filter(Boolean)
-              .join("\n\n"),
-          };
-        }
+          output: [
+            `${adapter.label} update ran but the resolved binary still reports v${status.version}.`,
+            result.output,
+          ]
+            .filter(Boolean)
+            .join("\n\n"),
+        };
+      }
+    }
+    if (
+      !verifiedResult.ok &&
+      envContext.envKind === "windows" &&
+      (status.update ?? adapter.update)?.stagedWindowsInstallLayout
+    ) {
+      // The vendor installer stages `_versions/<v>/bin` before its Copy-Item
+      // step dies on the running exe — the staged build is usually on disk
+      // even after a "failed" update, so swap it in via rename instead of
+      // asking the user to close every running instance first.
+      const swap = trySwapStagedWindowsEntrypoint(status);
+      if (swap.swapped) {
+        clearAgentBinaryPathCache();
+        const swappedVersion = await probeUpdatedVersion(status.executablePath);
+        verifiedResult =
+          swappedVersion !== undefined && swappedVersion !== status.version
+            ? { ok: true, strategy: result.strategy, output: swap.note }
+            : {
+                ok: false,
+                strategy: result.strategy,
+                output: [verifiedResult.output, swap.note].filter(Boolean).join("\n\n"),
+              };
+      } else if (swap.note) {
+        verifiedResult = {
+          ...verifiedResult,
+          output: [verifiedResult.output, swap.note].filter(Boolean).join("\n\n"),
+        };
+      }
+    }
+    if (!verifiedResult.ok && result.ok && status.version) {
+      const heal = tryRemoveShadowedWindowsExe({
+        envContext,
+        status,
+        strategy: result.strategy,
+        label: adapter.label,
+      });
+      let healedVersion: string | undefined;
+      if (heal.removed) {
+        clearAgentBinaryPathCache();
+        healedVersion = await probeUpdatedVersion(
+          adapter.binary ? resolveAgentBinaryPath(updateLocation, adapter.binary) : undefined,
+        );
+      }
+      if (healedVersion !== undefined && healedVersion !== status.version) {
+        verifiedResult = {
+          ok: true,
+          strategy: result.strategy,
+          output: [result.output, heal.note].filter(Boolean).join("\n"),
+        };
+      } else if (heal.note) {
+        verifiedResult = {
+          ...verifiedResult,
+          output: [verifiedResult.output, heal.note].filter(Boolean).join("\n\n"),
+        };
       }
     }
     if (verifiedResult.ok) {

@@ -32,7 +32,12 @@ export interface UpdateCommandSpec {
   binary: string;
   args: string[];
   strategy: UpdateStrategy;
+  /** Long-running strategies (large bundle downloads) get a raised timeout. */
+  timeoutMs?: number;
 }
+
+/** Bundle-download strategies need far more than a probe timeout on slow links. */
+const DOWNLOAD_TIMEOUT_MS = 30 * 60 * 1000;
 
 export function formatUpdateCommandLine(command: { binary: string; args: string[] }): string {
   return [command.binary, ...command.args].join(" ");
@@ -136,16 +141,23 @@ export function resolveSharedUpdateCommand(
       binary: "pnpm",
       args: ["add", "-g", `${pkg.npm}@latest`],
       strategy: "pnpm-global",
+      timeoutMs: DOWNLOAD_TIMEOUT_MS,
     };
   }
   if (pkg.npm && looksLikeBunGlobalPath(path)) {
-    return { binary: "bun", args: ["i", "-g", `${pkg.npm}@latest`], strategy: "bun-global" };
+    return {
+      binary: "bun",
+      args: ["i", "-g", `${pkg.npm}@latest`],
+      strategy: "bun-global",
+      timeoutMs: DOWNLOAD_TIMEOUT_MS,
+    };
   }
   if (pkg.npm && looksLikeNpmInstallPath(path)) {
     return {
       binary: "npm",
       args: ["install", "-g", `${pkg.npm}@latest`],
       strategy: "npm-global",
+      timeoutMs: DOWNLOAD_TIMEOUT_MS,
     };
   }
 
@@ -155,7 +167,12 @@ export function resolveSharedUpdateCommand(
   // conflicting global npm install. `posix` covers WSL too.
   if (pkg.installer) {
     const spec = input.envKind === "windows" ? pkg.installer.windows : pkg.installer.posix;
-    return { binary: spec.binary, args: spec.args, strategy: "installer" };
+    return {
+      binary: spec.binary,
+      args: spec.args,
+      strategy: "installer",
+      timeoutMs: DOWNLOAD_TIMEOUT_MS,
+    };
   }
 
   // Last resort: try npm-global. Most legacy agents publish via npm, so even
@@ -167,6 +184,7 @@ export function resolveSharedUpdateCommand(
       binary: "npm",
       args: ["install", "-g", `${pkg.npm}@latest`],
       strategy: "npm-global",
+      timeoutMs: DOWNLOAD_TIMEOUT_MS,
     };
   }
   if (pkg.brew) {

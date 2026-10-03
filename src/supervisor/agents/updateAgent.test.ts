@@ -17,6 +17,7 @@ import {
   resolveUpdateCommand,
   runUpdateCommandWithFallback,
   tryRemoveShadowedWindowsExe,
+  trySwapStagedWindowsEntrypoint,
 } from "./updateAgent";
 import { stepCodeDetectionSpec } from "./stepcode";
 
@@ -189,6 +190,7 @@ describe("resolveUpdateCommand", () => {
       binary: "npm",
       args: ["install", "-g", "@openai/codex@latest"],
       strategy: "npm-global",
+      timeoutMs: 30 * 60 * 1000,
     });
   });
 
@@ -202,6 +204,7 @@ describe("resolveUpdateCommand", () => {
       binary: "npm",
       args: ["install", "-g", "@xai-official/grok@latest"],
       strategy: "npm-global",
+      timeoutMs: 30 * 60 * 1000,
     });
   });
 
@@ -232,6 +235,7 @@ describe("resolveUpdateCommand", () => {
       binary: "npm",
       args: ["install", "-g", "@qwen-code/qwen-code@latest"],
       strategy: "npm-global",
+      timeoutMs: 30 * 60 * 1000,
     });
   });
 
@@ -337,7 +341,7 @@ describe("runUpdateCommandWithFallback", () => {
       expect.anything(),
       "npm",
       ["install", "-g", "@qwen-code/qwen-code@latest"],
-      { timeoutMs: 5 * 60 * 1000 },
+      { timeoutMs: 30 * 60 * 1000 },
     );
   });
 
@@ -628,7 +632,7 @@ describe("getLatestSupportedNpmPackageVersion", () => {
   });
 });
 
-import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -737,5 +741,98 @@ describe("tryRemoveShadowedWindowsExe", () => {
       label: "OpenCode",
     });
     expect(result.removed).toBe(false);
+  });
+});
+
+describe("trySwapStagedWindowsEntrypoint", () => {
+  const envContext: AgentEnvContext = { envKind: "windows", baseDir: "C:\\base" };
+  void envContext;
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "cs-swap-"));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  const layout = () => {
+    const bin = join(dir, "bin");
+    const versions = join(dir, "_versions");
+    mkdirSync(join(versions, "3000.11.3", "bin"), { recursive: true });
+    mkdirSync(bin, { recursive: true });
+    const exe = join(bin, "devin.exe");
+    writeFileSync(exe, "old-binary");
+    writeFileSync(join(versions, "3000.11.3", "bin", "devin.exe"), "new-binary");
+    return { exe, versions };
+  };
+
+  it("swaps the entrypoint for the newest staged build and backs up the old one", () => {
+    const { exe } = layout();
+    const result = trySwapStagedWindowsEntrypoint({
+      kind: "devin",
+      label: "Devin",
+      installed: true,
+      version: "3000.10.27",
+      executablePath: exe,
+    } as AgentStatus);
+    expect(result.swapped).toBe(true);
+    expect(readFileSync(exe, "utf8")).toBe("new-binary");
+    expect(readFileSync(`${exe}.old`, "utf8")).toBe("old-binary");
+  });
+
+  it("skips when the only staged dir is the current version", () => {
+    const bin = join(dir, "bin");
+    const versions = join(dir, "_versions");
+    mkdirSync(join(versions, "3000.10.27", "bin"), { recursive: true });
+    mkdirSync(bin, { recursive: true });
+    const exe = join(bin, "devin.exe");
+    writeFileSync(exe, "old-binary");
+    writeFileSync(join(versions, "3000.10.27", "bin", "devin.exe"), "same");
+
+    const result = trySwapStagedWindowsEntrypoint({
+      kind: "devin",
+      label: "Devin",
+      installed: true,
+      version: "3000.10.27",
+      executablePath: exe,
+    } as AgentStatus);
+    expect(result.swapped).toBe(false);
+    expect(readFileSync(exe, "utf8")).toBe("old-binary");
+  });
+
+  it("restores the original exe when the copy step fails", () => {
+    const { exe, versions } = layout();
+    // Point the staged path at a directory so copyFileSync throws EISDIR.
+    const stagedDir = join(versions, "3000.11.3", "bin", "devin.exe");
+    rmSync(stagedDir);
+    mkdirSync(stagedDir);
+
+    const result = trySwapStagedWindowsEntrypoint({
+      kind: "devin",
+      label: "Devin",
+      installed: true,
+      version: "3000.10.27",
+      executablePath: exe,
+    } as AgentStatus);
+    expect(result.swapped).toBe(false);
+    expect(existsSync(exe)).toBe(true);
+    expect(existsSync(`${exe}.old`)).toBe(false);
+  });
+
+  it("no-ops without a _versions layout", () => {
+    const bin = join(dir, "bin");
+    mkdirSync(bin, { recursive: true });
+    const exe = join(bin, "devin.exe");
+    writeFileSync(exe, "old-binary");
+    expect(
+      trySwapStagedWindowsEntrypoint({
+        kind: "devin",
+        label: "Devin",
+        installed: true,
+        version: "3000.10.27",
+        executablePath: exe,
+      } as AgentStatus).swapped,
+    ).toBe(false);
   });
 });

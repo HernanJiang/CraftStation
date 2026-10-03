@@ -1,5 +1,5 @@
-import { existsSync, unlinkSync } from "node:fs";
-import { basename, dirname } from "node:path";
+import { copyFileSync, existsSync, readdirSync, renameSync, unlinkSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
 import type {
   AgentStatus,
   GetLatestAgentVersionResult,
@@ -79,7 +79,7 @@ export async function runUpdateCommand(
 ): Promise<{ ok: boolean; output: string }> {
   const location = detectProbeLocation(envContext);
   const result = await readAgentCommandOutput(location, command.binary, command.args, {
-    timeoutMs: 5 * 60 * 1000,
+    timeoutMs: command.timeoutMs ?? 5 * 60 * 1000,
     ...(command.env ? { env: command.env } : {}),
   });
 
@@ -199,6 +199,85 @@ export function tryRemoveShadowedWindowsExe(options: {
       note: `${exePath} shadows the package-managed ${label} install but could not be removed (${error instanceof Error ? error.message : String(error)}). Close running ${label} processes or delete it manually.`,
     };
   }
+}
+
+function compareVersionDirNames(a: string, b: string): number {
+  const pa = a.split(".").map((p) => Number.parseInt(p, 10) || 0);
+  const pb = b.split(".").map((p) => Number.parseInt(p, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+/**
+ * Swap a locked Windows entry exe with the newest staged `_versions/<v>/bin`
+ * copy. The vendor installer (e.g. Devin's install.ps1) downloads and extracts
+ * the new version *before* its `Copy-Item -Force` onto the running exe fails —
+ * so the staged binary usually already sits on disk. Windows allows renaming a
+ * running executable, so `devin.exe` → `devin.exe.old` + copy staged in lands
+ * the update without killing the process; the new version takes effect on the
+ * next launch (the Chrome/VSCode updater pattern).
+ */
+export function trySwapStagedWindowsEntrypoint(status: AgentStatus): {
+  swapped: boolean;
+  note?: string;
+} {
+  const entryExe = status.executablePath;
+  if (!entryExe?.toLowerCase().endsWith(".exe")) return { swapped: false };
+
+  const installRoot = dirname(dirname(entryExe));
+  const versionsDir = join(installRoot, "_versions");
+  if (!existsSync(versionsDir)) return { swapped: false };
+
+  const exeName = basename(entryExe);
+  const staged = readdirSync(versionsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name !== status.version)
+    .map((entry) => ({
+      version: entry.name,
+      path: join(versionsDir, entry.name, "bin", exeName),
+    }))
+    .filter((entry) => existsSync(entry.path))
+    .sort((a, b) => compareVersionDirNames(b.version, a.version));
+  const newest = staged[0];
+  if (!newest) return { swapped: false };
+
+  const backup = `${entryExe}.old`;
+  try {
+    try {
+      renameSync(entryExe, backup);
+    } catch (renameError) {
+      // A leftover `<exe>.old` from a previous swap can block the rename —
+      // drop it (it's a stale backup, not the running image) and retry once.
+      if (existsSync(backup)) {
+        unlinkSync(backup);
+        renameSync(entryExe, backup);
+      } else {
+        throw renameError;
+      }
+    }
+    try {
+      copyFileSync(newest.path, entryExe);
+    } catch (copyError) {
+      try {
+        renameSync(backup, entryExe);
+      } catch {
+        // Restore best-effort failed — surface the copy error verbatim so the
+        // user can re-run the installer from a clean slate.
+      }
+      throw copyError;
+    }
+  } catch (error) {
+    return {
+      swapped: false,
+      note: `Could not swap in the staged ${exeName} build (${error instanceof Error ? error.message : String(error)}).`,
+    };
+  }
+  return {
+    swapped: true,
+    note: `Swapped ${entryExe} to the staged v${newest.version} build; running processes keep the old image until their next launch.`,
+  };
 }
 
 const LATEST_VERSION_TTL_MS = 30 * 60 * 1000;

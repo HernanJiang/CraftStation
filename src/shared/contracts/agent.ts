@@ -96,6 +96,14 @@ export const agentUpdateInfoSchema = z.object({
       windows: agentUpdateCommandSchema,
     })
     .optional(),
+  /**
+   * The vendor installer stages releases as `<root>/_versions/<ver>/bin/<bin>`
+   * with the entrypoint at `<root>/bin/<bin>` (Devin's install.ps1 layout).
+   * On Windows the entry exe is often locked by a running process — with this
+   * flag the supervisor may swap the staged binary in via rename-after-failure
+   * instead of reporting a lock error.
+   */
+  stagedWindowsInstallLayout: z.boolean().optional(),
   latestVersionUrls: z.array(z.string().url()).optional(),
 });
 export type AgentUpdateInfo = z.infer<typeof agentUpdateInfoSchema>;
