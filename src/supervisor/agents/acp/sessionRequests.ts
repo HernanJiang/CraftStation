@@ -12,6 +12,7 @@ import type {
   ThreadConfig,
   ThreadServerRequestId,
 } from "@/shared/contracts";
+import { isBypassApprovalPolicy } from "@/shared/agentSelection";
 import {
   mapAcpElicitationRequest,
   mapAcpPermissionRequest,
@@ -205,8 +206,10 @@ export class AcpSessionRequests {
     if (!config || config.mode === "plan" || !policy) return false;
     // User picked 完全访问权限. Grok still emits ACP permission cards for
     // shell even with `--always-approve` and a native bypass mode — honor
-    // the composer toggle, not the agent's leftover prompt.
-    return policy === "never" || policy === "yolo" || policy === "bypassPermissions";
+    // the composer toggle, not the agent's leftover prompt. Full-access ids
+    // are per-harness vocabulary (Devin `bypass`, Factory `auto-high`, …), so
+    // match the shared bypass set rather than a hardcoded subset.
+    return isBypassApprovalPolicy(policy);
   }
 
   private emitResolvedAndResume(requestId: ThreadServerRequestId, outcome: RequestOutcome): void {

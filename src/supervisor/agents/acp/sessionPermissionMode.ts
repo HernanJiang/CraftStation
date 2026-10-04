@@ -4,6 +4,7 @@
  * used when an agent has no native mode for the requested policy.
  */
 import type { RequestPermissionRequest } from "@agentclientprotocol/sdk";
+import { isBypassApprovalPolicy } from "@/shared/agentSelection";
 import { normalizeAcpModeId } from "./probe";
 
 function acpModeKey(modeId: string): string {
@@ -15,14 +16,14 @@ export function hasNativeAcpPermissionMode(policy: string, availableModeIds: str
   const normalizedPolicy = policy.toLowerCase();
 
   if (available.has(normalizedPolicy)) return true;
-  if (normalizedPolicy === "never") {
-    return available.has("yolo") || available.has("autopilot");
-  }
-  if (normalizedPolicy === "autopilot") {
-    return available.has("autopilot") || available.has("yolo");
+  // Full-access ids are per-harness vocabulary: any bypass pick counts as
+  // native when the agent advertises any bypass mode (`bypass`, `dangerous`,
+  // `auto-high`, `yolo`, `autopilot`, …).
+  if (isBypassApprovalPolicy(normalizedPolicy)) {
+    return [...available].some((modeId) => isBypassApprovalPolicy(modeId));
   }
   if (normalizedPolicy === "auto_edit") {
-    return available.has("autoedit");
+    return available.has("autoedit") || available.has("accept-edits");
   }
   return false;
 }

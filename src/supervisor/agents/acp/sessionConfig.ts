@@ -1,4 +1,5 @@
 import type { ThreadConfig } from "@/shared/contracts";
+import { isBypassApprovalPolicy } from "@/shared/agentSelection";
 import { foreignAcpModelId, normalizeCommandCodeModelId } from "@/shared/thirdPartyRouting";
 import { fastVariantModelId } from "@/shared/fastModelVariants";
 import { resolveOfficialDshModelId } from "../deepseek/modelIds";
@@ -33,20 +34,20 @@ export function resolveAcpMode(
     return available.get(approvalPolicy);
   }
 
-  if (config.mode === "autopilot" || config.approvalPolicy === "autopilot") {
-    if (available.has("autopilot")) return available.get("autopilot");
-    if (available.has("yolo")) return available.get("yolo");
+  // Full-access ids are per-harness vocabulary — Devin advertises `bypass`
+  // (argv alias `dangerous`), Factory `auto-high`, Gemini `autopilot`. Any
+  // CraftStation bypass pick resolves to whichever bypass mode the agent
+  // actually advertises instead of silently falling through to `default`.
+  if (config.mode === "autopilot" || (approvalPolicy && isBypassApprovalPolicy(approvalPolicy))) {
+    for (const [normalizedId, modeId] of available) {
+      if (isBypassApprovalPolicy(normalizedId)) return modeId;
+    }
   }
 
-  if (config.approvalPolicy === "autopilot") {
-    if (available.has("autopilot")) return available.get("autopilot");
-  }
-  if (config.approvalPolicy === "never") {
-    if (available.has("yolo")) return available.get("yolo");
-    if (available.has("autopilot")) return available.get("autopilot");
-  }
   if (config.approvalPolicy === "auto_edit") {
     if (available.has("autoedit")) return available.get("autoedit");
+    // Devin spells its auto-edit mode `accept-edits`.
+    if (available.has("accept-edits")) return available.get("accept-edits");
   }
 
   if (available.has("agent")) return available.get("agent");
@@ -425,6 +426,20 @@ export function applyAcpModeUpdateToConfig(
 
   if (normalized === "yolo") {
     return { ...currentConfig, mode: "agent", approvalPolicy: "never" };
+  }
+
+  // Other per-harness bypass ids (Devin `bypass`/`dangerous`, Factory
+  // `auto-high`, …): an agent echoing its own full-access spelling must not
+  // overwrite the user's bypass pick with a raw mode id the composer chip
+  // cannot match — and must not downgrade auto-approval either.
+  if (isBypassApprovalPolicy(normalized)) {
+    return {
+      ...currentConfig,
+      mode: "agent",
+      approvalPolicy: isBypassApprovalPolicy(currentConfig.approvalPolicy)
+        ? currentConfig.approvalPolicy
+        : normalizeAcpModeId(modeId),
+    };
   }
 
   if (normalized !== "agent" && normalized !== "default" && normalized !== "code") {

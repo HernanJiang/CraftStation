@@ -404,8 +404,34 @@ export function resolveCompatibleEffort(
   return reasoning.default;
 }
 
-const BYPASS_APPROVAL_IDS = new Set(["bypassPermissions", "never", "yolo", "dontAsk"]);
+const BYPASS_APPROVAL_IDS = new Set([
+  "bypassPermissions",
+  "never",
+  "yolo",
+  "dontAsk",
+  // Per-harness full-access vocabulary observed in the wild: Devin
+  // `bypass`/`dangerous`, Factory Droid `auto-high`, Gemini-family `autopilot`,
+  // and the `full-access` id the composer already treats as unrestricted.
+  "bypass",
+  "dangerous",
+  "auto-high",
+  "autopilot",
+  "full-access",
+  "fullaccess",
+]);
+const BYPASS_APPROVAL_IDS_LOWERCASE = new Set(
+  [...BYPASS_APPROVAL_IDS].map((id) => id.toLowerCase()),
+);
 const BYPASS_SANDBOX_IDS = new Set(["danger-full-access", "yolo"]);
+
+/**
+ * Whether an approval-policy id means "full access / never ask" on any
+ * harness. Policy ids are per-harness vocabulary and `current_mode_update`
+ * echoes may arrive in arbitrary case, so compare case-insensitively.
+ */
+export function isBypassApprovalPolicy(policy: string | undefined): boolean {
+  return !!policy && BYPASS_APPROVAL_IDS_LOWERCASE.has(policy.toLowerCase());
+}
 
 function advertisedIds(options: readonly { id: string }[] | undefined): Set<string> {
   return new Set((options ?? []).map((option) => option.id));

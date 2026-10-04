@@ -4,6 +4,7 @@ import type {
   ThreadStatus as CanonicalThreadStatus,
 } from "@/shared/contracts";
 import type { ThreadStatus as CodexProtocolThreadStatus } from "./protocol";
+import { isBypassApprovalPolicy } from "@/shared/agentSelection";
 
 export type CodexThreadStatus = CodexProtocolThreadStatus;
 
@@ -43,7 +44,7 @@ const CODEX_APPROVAL_POLICY_SET = new Set<string>(CODEX_APPROVAL_POLICIES);
 export function toCodexApprovalPolicy(policy: string | undefined): CodexApprovalPolicy | undefined {
   if (!policy) return undefined;
   if (CODEX_APPROVAL_POLICY_SET.has(policy)) return policy as CodexApprovalPolicy;
-  if (policy === "bypassPermissions" || policy === "yolo" || policy === "dontAsk") {
+  if (isBypassApprovalPolicy(policy)) {
     return "never";
   }
   if (policy === "default") return "on-request";

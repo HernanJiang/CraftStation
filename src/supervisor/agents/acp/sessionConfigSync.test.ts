@@ -652,6 +652,45 @@ describe("AcpSessionConfigSync", () => {
     ).toEqual({ ...currentConfig, approvalPolicy: "auto-high" });
   });
 
+  it("keeps the user's bypass pick when the agent echoes its own full-access spelling", () => {
+    // Devin advertises `bypass` but can report the `dangerous` alias mid-run:
+    // the echo must not downgrade the thread out of full access.
+    const { sync } = makeConfigSync();
+    const currentConfig = { ...previousConfig, approvalPolicy: "bypass" };
+
+    expect(
+      sync.reduceSessionUpdate(currentConfig, {
+        sessionUpdate: "current_mode_update",
+        currentModeId: "dangerous",
+      } as SessionUpdate),
+    ).toBeUndefined();
+    expect(
+      sync.reduceSessionUpdate(currentConfig, {
+        sessionUpdate: "current_mode_update",
+        currentModeId: "bypass",
+      } as SessionUpdate),
+    ).toBeUndefined();
+  });
+
+  it("pushes the agent's own bypass mode id for a generic never pick", async () => {
+    // Devin's ACP vocabulary is accept-edits/ask/bypass — a `never` pick must
+    // still resolve to the advertised bypass mode instead of no mode at all.
+    const { connection, sync } = makeConfigSync({
+      availableModeIds: ["accept-edits", "ask", "bypass", "plan"],
+    });
+
+    await sync.applyTurnConfig(
+      "session-1",
+      { ...previousConfig, approvalPolicy: "never" },
+      previousConfig,
+    );
+
+    expect(connection.setSessionMode).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      modeId: "bypass",
+    });
+  });
+
   it("skips the mode push when the agent already reported that mode", async () => {
     // `SessionModeState.currentModeId` from session/new|load|resume is the
     // agent's own statement of its mode. Re-asserting it is not a no-op for

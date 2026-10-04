@@ -433,7 +433,7 @@ describe("AcpSessionRequests permissions", () => {
     expect(emitRuntimeEvents).not.toHaveBeenCalled();
   });
 
-  it.each(["never", "yolo", "bypassPermissions"])(
+  it.each(["never", "yolo", "bypassPermissions", "bypass", "dangerous", "auto-high"])(
     "auto-approves %s when the agent has no matching native mode",
     async (approvalPolicy) => {
       const { emitRuntimeEvents, requests, setRequestAttention } = makeRequests({

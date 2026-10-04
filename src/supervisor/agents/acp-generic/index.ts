@@ -44,6 +44,7 @@ import {
 import { getAgentProbeCwd, resolveProbeSpawnCwd } from "../probeCwd";
 import { applyAcpRegistryNpxArgsOverride } from "../acpRegistryNpx";
 import { normalizeFactoryModels } from "../factory/detection";
+import { isBypassApprovalPolicy } from "@/shared/agentSelection";
 
 /** First-time `npx` installs can exceed the default probe budget. */
 export const REGISTRY_INSTALL_PROBE_TIMEOUT_MS = 90_000;
@@ -263,7 +264,9 @@ function mergeAcpProbeCapabilities(
     ...(probeResult.approvalPolicies ? { approvalPolicies: probeResult.approvalPolicies } : {}),
     ...(probeResult.slashCommands ? { slashCommands: probeResult.slashCommands } : {}),
   };
-  const hasBypassApprovalPolicy = merged.approvalPolicies.some((policy) => policy.id === "never");
+  const hasBypassApprovalPolicy = merged.approvalPolicies.some((policy) =>
+    isBypassApprovalPolicy(policy.id),
+  );
   const hasOnlyDefaultApprovalPolicy =
     merged.approvalPolicies.length === 1 && merged.approvalPolicies[0]?.id === "default";
 
