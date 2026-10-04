@@ -14,7 +14,7 @@ export function DraftHomeHero() {
       {/* CraftStation mascot: rotating logo + blinking `>_` face. */}
       <CraftStationMascot />
 
-      <h1 className="mt-4 text-center text-[24px] font-semibold tracking-tight text-white">
+      <h1 className="mt-4 text-center text-[24px] font-semibold tracking-tight text-foreground">
         <Trans>What shall we build in CraftStation?</Trans>
       </h1>
     </div>
