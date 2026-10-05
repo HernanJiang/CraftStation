@@ -535,10 +535,40 @@ function repairMathBody(body: string): string {
   }
   let out = body;
   if (depth > 0) out += "}".repeat(depth);
-  const lefts = (out.match(/\\left/g) ?? []).length;
-  const rights = (out.match(/\\right/g) ?? []).length;
+  out = dropUnmatchedRightDelimiters(out);
+  // (?![A-Za-z]) keeps \leftarrow/\leftrightarrow/\rightarrow out of the
+  // delimiter count — otherwise a stray \right. next to an arrow looks
+  // balanced and the real parse error reaches KaTeX.
+  const lefts = (out.match(/\\left(?![A-Za-z])/g) ?? []).length;
+  const rights = (out.match(/\\right(?![A-Za-z])/g) ?? []).length;
   if (lefts > rights) out += " \\right.".repeat(lefts - rights);
   return out;
+}
+
+/**
+ * Models sometimes emit a stray `\right.` (or `\right)` …) with no matching
+ * `\left` — KaTeX treats that as a hard parse error and the whole span falls
+ * back to raw source. A `\right` only makes sense while a `\left` is open, so
+ * when the counter is zero keep just the delimiter (`\right.` renders nothing
+ * anyway; `\right)` degrades to a bare `)`). `(?![A-Za-z])` keeps
+ * `\rightarrow`-style commands from matching.
+ */
+const LEFTRIGHT_TOKEN_RE = /\\(left|right)(?![A-Za-z])(\\[A-Za-z]+|.)(\s?)/g;
+
+function dropUnmatchedRightDelimiters(body: string): string {
+  if (!body.includes("\\right")) return body;
+  let openLefts = 0;
+  return body.replace(LEFTRIGHT_TOKEN_RE, (match, kind: string, delim: string, tail: string) => {
+    if (kind === "left") {
+      openLefts += 1;
+      return match;
+    }
+    if (openLefts > 0) {
+      openLefts -= 1;
+      return match;
+    }
+    return delim === "." || delim === "\\." ? "" : delim + tail;
+  });
 }
 
 export function normalizeShortCodeFenceClosers(text: string): string {

@@ -262,6 +262,17 @@ describe("repairMathSyntax", () => {
     expect(repairMathSyntax("costs $5 then $10")).toBe("costs $5 then $10");
     expect(repairMathSyntax("```\n$$x_{1$$\n```")).toBe("```\n$$x_{1$$\n```");
   });
+
+  it("drops stray \\right delimiters that have no matching \\left", () => {
+    // A lone `\right.` is a hard KaTeX parse error — the whole span used to
+    // fall back to raw backslash soup mid-answer.
+    expect(repairMathSyntax("$a \\leftrightarrow \\right. b$")).toBe("$a \\leftrightarrow b$");
+    expect(repairMathSyntax("$a \\leftrightarrow \\right) b$")).toBe("$a \\leftrightarrow ) b$");
+    expect(repairMathSyntax("$x \\leftarrow \\right.$")).toBe("$x \\leftarrow $");
+    // Balanced pairs and legitimately-missing closers are untouched.
+    expect(repairMathSyntax("$\\left( x \\right)$")).toBe("$\\left( x \\right)$");
+    expect(repairMathSyntax("$\\left( x$")).toBe("$\\left( x \\right.$");
+  });
 });
 
 describe("protectMathSpans", () => {

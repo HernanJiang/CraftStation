@@ -84,6 +84,10 @@ const MERMAID_THEME_CSS = [
   ".node rect, .node .basic.label-container, .note, .cluster rect { rx: 12px; ry: 12px; }",
   ".edgeLabel rect, .labelBox { rx: 8px; ry: 8px; }",
   ".edgeLabel { background: var(--surface-secondary) !important; }",
+  // Keep app typography (prose p margins, leading-snug) out of label
+  // internals: mermaid sizes node rects from the label boxes it measures at
+  // layout time, so inflated margins/line-height clip the rendered text.
+  ".nodeLabel div, .nodeLabel p, .edgeLabel p, .clusterLabel div, .clusterLabel p, foreignObject p { margin: 0 !important; line-height: 1.35 !important; white-space: normal !important; }",
   // htmlLabel edge labels put a translucent theme-tinted div.labelBkg behind
   // the pill span — clear it, and give the span the pill chrome instead.
   ".labelBkg { background: transparent !important; }",
@@ -111,8 +115,9 @@ const markdownMermaidPlugin = createMermaidPlugin({
     fontFamily:
       '"Geist", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Segoe UI Variable", "Segoe UI", "Inter", system-ui, sans-serif',
     fontSize: 12,
-    // Tighter than the 50px defaults so diagrams stay card-sized.
-    flowchart: { nodeSpacing: 30, rankSpacing: 34, padding: 4 },
+    // Tighter than the 50px defaults so diagrams stay card-sized; padding
+    // keeps multi-line labels from kissing the node edge.
+    flowchart: { nodeSpacing: 30, rankSpacing: 34, padding: 8 },
     themeVariables: {
       background: "transparent",
     },
@@ -509,12 +514,18 @@ function MdMermaidDiagram({ code }: { code: string }) {
     // always fails to parse, and re-rendering on every chunk is wasted work.
     const timer = setTimeout(() => {
       const id = `lc-mermaid-${mermaidRenderSeq++}`;
-      markdownMermaidPlugin
-        .getMermaid()
-        .render(id, code)
-        .then(({ svg: rendered }) => {
-          if (cancelled) return;
-          setSvg(normalizeMermaidSvgSize(rendered));
+      // Fonts still loading skew mermaid's label measurement (fallback metrics
+      // are shorter/taller than the final font), leaving text clipped inside
+      // undersized nodes — wait for fonts before laying out the diagram.
+      const fontsReady = document.fonts?.ready ?? Promise.resolve();
+      void fontsReady
+        .catch(() => undefined)
+        .then(() =>
+          cancelled ? Promise.reject() : markdownMermaidPlugin.getMermaid().render(id, code),
+        )
+        .then((result) => {
+          if (cancelled || !result) return;
+          setSvg(normalizeMermaidSvgSize(result.svg));
           setFailed(false);
         })
         .catch(() => {
