@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.7.17",
+      "date": "2026-10-05",
+      "title": "No more doubled answers or stray terminals on Antigravity",
+      "summary": "An Antigravity stability release: a turn that already delivered its answer no longer reports failure and replays itself — post-answer network noise shows as a warning instead of regenerating the same reply — and the CLI's update check stays silenced for the session's whole life, so no stray terminal window pops up mid-task.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Antigravity",
+          "text": "A turn that already delivered its answer no longer fails and replays itself — post-answer errors like `write tcp`/`API error (attempt N)` show as a warning instead of regenerating the identical reply a second time."
+        },
+        {
+          "kind": "fixed",
+          "label": "Antigravity",
+          "text": "The stray terminal window is gone for good — the update-check timestamp now stays fresh for the session's entire lifetime instead of only the first ~15 minutes after spawn."
+        }
+      ]
+    },
+    {
       "version": "1.7.16",
       "date": "2026-10-05",
       "title": "Codex-style chat rendering, reliable Mermaid & friendlier paste",
