@@ -1,6 +1,49 @@
 {
   "releases": [
     {
+      "version": "1.7.16",
+      "date": "2026-10-05",
+      "title": "Codex-style chat rendering, reliable Mermaid & friendlier paste",
+      "summary": "A polish release for chat rendering: Mermaid diagrams follow your theme with rounded nodes and stop ballooning past the message or falling back to raw source mid-stream, code blocks get a Codex-style card with an expand button, and pasting formatted text into the composer keeps its markdown shape instead of flattening to characters.",
+      "changes": [
+        {
+          "kind": "improved",
+          "label": "Chat",
+          "text": "Mermaid diagrams and code blocks get a Codex-style look — rounded themed nodes, pill edge labels, and a card header with an expand button that opens a large viewer."
+        },
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "Mermaid diagrams no longer blow up to fill the pane, tower over the message, or get stuck as raw source after a mid-stream parse hiccup — and multi-line node labels no longer clip."
+        },
+        {
+          "kind": "fixed",
+          "label": "Composer",
+          "text": "Pasting copied chat output or other rich text converts it to markdown-ish text — headings, lists, tables, code blocks and formulas survive instead of flattening into one character per line."
+        },
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "Formulas no longer dump raw LaTeX when a model leaves a stray \\right. in the expression."
+        },
+        {
+          "kind": "fixed",
+          "label": "Agents",
+          "text": "Threads set to full access keep auto-approving — Devin's bypass, Factory's auto-high and other harness vocabularies are now recognized instead of silently reverting to approval prompts mid-run."
+        },
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "The draft-home greeting follows the theme in light mode instead of rendering invisible white-on-white."
+        },
+        {
+          "kind": "fixed",
+          "label": "SSH",
+          "text": "Building the remote runtime bundle no longer flashes a console window."
+        }
+      ]
+    },
+    {
       "version": "1.7.15",
       "date": "2026-10-03",
       "title": "Silent Antigravity updater, real Mermaid diagrams & smarter schedules",
