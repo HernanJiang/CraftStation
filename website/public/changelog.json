@@ -40,6 +40,16 @@
           "kind": "fixed",
           "label": "SSH",
           "text": "Building the remote runtime bundle no longer flashes a console window."
+        },
+        {
+          "kind": "fixed",
+          "label": "Agents",
+          "text": "A thread that hit a network error no longer keeps failing on the same wedged session — retries now rebuild the session and a recovered turn clears the pinned error badge."
+        },
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "The context-quota popover stays anchored to its trigger under whole-app zoom, and standalone formula lines center like display math."
         }
       ]
     },
