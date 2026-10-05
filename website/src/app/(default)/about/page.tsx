@@ -28,7 +28,7 @@ const OFFICIAL_LINKS = [
   },
   {
     label: "Source repository",
-    value: "SDSLeon/craftstation",
+    value: "HernanJiang/CraftStation",
     href: GITHUB_URL,
     icon: GitBranch,
   },
@@ -130,7 +130,7 @@ export default function AboutPage() {
               <p>
                 CraftStation, Pora.code, and craftstation.com refer to this AI coding agent software
                 project. The canonical website is craftstation.com, and the canonical source
-                repository is SDSLeon/craftstation on GitHub.
+                repository is HernanJiang/CraftStation on GitHub.
               </p>
             </section>
           </div>

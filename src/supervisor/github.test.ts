@@ -1626,7 +1626,7 @@ on:
   describe("Actions account scoping", () => {
     const AUTH_STATUS = [
       "github.com",
-      "  ✓ Logged in to github.com account SDSLeon (keyring)",
+      "  ✓ Logged in to github.com account HernanJiang (keyring)",
       "  - Active account: true",
       "",
       "  ✓ Logged in to github.com account ym-svecherenko (keyring)",
@@ -1637,8 +1637,8 @@ on:
       { id: 11, name: "CI", path: ".github/workflows/ci.yml", state: "active" },
     ]);
     const REMOTES =
-      "origin\thttps://github.com/SDSLeon/craftstation.git (fetch)\n" +
-      "origin\thttps://github.com/SDSLeon/craftstation.git (push)\n";
+      "origin\thttps://github.com/HernanJiang/CraftStation.git (fetch)\n" +
+      "origin\thttps://github.com/HernanJiang/CraftStation.git (push)\n";
     const ym = { host: "github.com", login: "ym-svecherenko" };
     const argsOf = (call: unknown[]): string[] => call[1] as string[];
     const envOf = (call: unknown[]): NodeJS.ProcessEnv | undefined =>
@@ -1662,7 +1662,7 @@ on:
         isGh(argsOf(call), "workflow", "list"),
       );
       expect(envOf(listCall!)?.GH_TOKEN).toBe("gho_override");
-      expect(envOf(listCall!)?.GH_REPO).toBe("github.com/SDSLeon/craftstation");
+      expect(envOf(listCall!)?.GH_REPO).toBe("github.com/HernanJiang/CraftStation");
     });
 
     it("throws when the override account token is unavailable, without detecting", async () => {
@@ -1789,7 +1789,7 @@ on:
       ymHasAccess = false;
       const result = await service.listWorkflows(location);
 
-      expect(result.account).toEqual({ host: "github.com", login: "SDSLeon" });
+      expect(result.account).toEqual({ host: "github.com", login: "HernanJiang" });
       const listCalls = execFileAsyncMock.mock.calls.filter((call) =>
         isGh(argsOf(call), "workflow", "list"),
       );
@@ -1867,7 +1867,7 @@ on:
       );
       expect(dispatchCall?.[0]).toBe("gh");
       expect(envOf(dispatchCall!)?.GH_TOKEN).toBe("gho_override");
-      expect(envOf(dispatchCall!)?.GH_REPO).toBe("github.com/SDSLeon/craftstation");
+      expect(envOf(dispatchCall!)?.GH_REPO).toBe("github.com/HernanJiang/CraftStation");
     });
 
     it("surfaces the 404 without probing when a single account is signed in", async () => {
@@ -1880,7 +1880,7 @@ on:
           return {
             stdout: [
               "github.com",
-              "  ✓ Logged in to github.com account SDSLeon (keyring)",
+              "  ✓ Logged in to github.com account HernanJiang (keyring)",
               "  - Active account: true",
               "",
             ].join("\n"),
@@ -1938,7 +1938,7 @@ on:
   describe("listAccounts", () => {
     const AUTH_STATUS = [
       "github.com",
-      "  ✓ Logged in to github.com account SDSLeon (keyring)",
+      "  ✓ Logged in to github.com account HernanJiang (keyring)",
       "  - Active account: true",
       "",
       "  ✓ Logged in to github.com account ym-svecherenko (keyring)",
@@ -1952,7 +1952,7 @@ on:
       const result = await new GitHubService().listAccounts(location);
 
       expect(result.accounts).toEqual([
-        { host: "github.com", login: "SDSLeon", active: true },
+        { host: "github.com", login: "HernanJiang", active: true },
         { host: "github.com", login: "ym-svecherenko", active: false },
       ]);
     });
@@ -2063,7 +2063,7 @@ on:
 
       const result = await new GitHubService().cloneRepo(location, "myrepo", "owner/myrepo", {
         host: "github.com",
-        login: "SDSLeon",
+        login: "HernanJiang",
       });
 
       expect(result).toEqual({ path: "C:\\Users\\demo\\repo\\myrepo" });

@@ -13,22 +13,22 @@ function project(id: string, overrides: Partial<Project> = {}): Project {
 }
 
 const httpsRemote: GitRemoteInfo = {
-  url: "https://github.com/SDSLeon/craftstation.git",
+  url: "https://github.com/HernanJiang/CraftStation.git",
   platform: "github",
-  owner: "SDSLeon",
+  owner: "HernanJiang",
   repo: "craftstation",
 };
 
 const sshAliasRemote: GitRemoteInfo = {
-  url: "gh-personal:sdsleon/CraftStation.git",
+  url: "gh-personal:HernanJiang/CraftStation.git",
   platform: "unknown",
-  owner: "sdsleon",
+  owner: "HernanJiang",
   repo: "CraftStation",
 };
 
 describe("repoIdentityKey", () => {
   it("matches the same repo across https and SSH-alias remotes", () => {
-    expect(repoIdentityKey(httpsRemote)).toBe("sdsleon/craftstation");
+    expect(repoIdentityKey(httpsRemote)).toBe("hernanjiang/craftstation");
     expect(repoIdentityKey(sshAliasRemote)).toBe(repoIdentityKey(httpsRemote));
   });
 
@@ -44,7 +44,7 @@ describe("dedupePrProjects", () => {
   const mirrored = project("mirrored", { remoteServerId: "mac", remoteId: "remote-1" });
 
   it("keeps the local checkout when a mirrored project shares its origin", () => {
-    const keys = { local: "sdsleon/craftstation", mirrored: "sdsleon/craftstation" };
+    const keys = { local: "HernanJiang/CraftStation", mirrored: "HernanJiang/CraftStation" };
     expect(dedupePrProjects([local, mirrored], (p) => keys[p.id as keyof typeof keys])).toEqual([
       local,
     ]);
@@ -55,8 +55,10 @@ describe("dedupePrProjects", () => {
 
   it("keeps the first project when neither or both are mirrored", () => {
     const second = project("second", { remoteServerId: "mac", remoteId: "remote-2" });
-    expect(dedupePrProjects([mirrored, second], () => "sdsleon/craftstation")).toEqual([mirrored]);
-    expect(dedupePrProjects([local, project("other")], () => "sdsleon/craftstation")).toEqual([
+    expect(dedupePrProjects([mirrored, second], () => "HernanJiang/CraftStation")).toEqual([
+      mirrored,
+    ]);
+    expect(dedupePrProjects([local, project("other")], () => "HernanJiang/CraftStation")).toEqual([
       local,
     ]);
   });
@@ -66,8 +68,8 @@ describe("dedupePrProjects", () => {
     const unknownA = project("unknown-a");
     const unknownB = project("unknown-b");
     const keys: Record<string, string | null> = {
-      local: "sdsleon/craftstation",
-      other: "sdsleon/other",
+      local: "HernanJiang/CraftStation",
+      other: "HernanJiang/other",
       "unknown-a": null,
       "unknown-b": null,
     };

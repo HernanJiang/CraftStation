@@ -749,7 +749,7 @@ linux:
         - x64
   icon: build/icon${iconSuffix}.png
   category: Development
-  maintainer: SDSLeon <${supportEmail}>
+  maintainer: HernanJiang <${supportEmail}>
   artifactName: ${prefix}-\${version}-\${arch}.\${ext}
 
 mac:

@@ -11,7 +11,7 @@ export const metadata: Metadata = createPageMetadata({
   path: "/support",
 });
 
-const ISSUES_URL = "https://github.com/SDSLeon/craftstation/issues";
+const ISSUES_URL = "https://github.com/HernanJiang/CraftStation/issues";
 
 export default function SupportPage() {
   return (
@@ -127,7 +127,7 @@ export default function SupportPage() {
                 Privacy policy
               </Link>
               <a
-                href="https://github.com/SDSLeon/craftstation"
+                href="https://github.com/HernanJiang/CraftStation"
                 target="_blank"
                 rel="noreferrer"
                 className="text-white underline underline-offset-4"

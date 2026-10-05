@@ -27,7 +27,7 @@ const OG_LOCALE: Record<Locale, string> = {
 
 export const SITE_NAME = "CraftStation";
 export const SITE_URL = "https://craftstation.com";
-export const GITHUB_URL = "https://github.com/SDSLeon/craftstation";
+export const GITHUB_URL = "https://github.com/HernanJiang/CraftStation";
 export const SOCIAL_IMAGE_PATH = "/hero-screenshot.png";
 export const SOCIAL_IMAGE_ALT = "CraftStation AI coding agent orchestrator social card";
 const SOCIAL_IMAGE_WIDTH = 1200;

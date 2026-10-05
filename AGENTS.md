@@ -34,7 +34,7 @@ D:\Work\CraftStation\              # Product Git Root；main 源码、测试、�
 
 ## Runtime and Toolchain
 
-- Working Copy 基于 CraftStation 上游 `SDSLeon/craftstation` 渐进重构，采用 Strangler Refactor。
+- Working Copy 基于 PoraCode 上游 `SDSLeon/lightcode` 渐进重构，采用 Strangler Refactor。
 - 主语言与桌面应用：TypeScript、React、Electron、Node.js `>=24.10.0`。
 - 包管理器：`pnpm@11.19.0`；精确版本与依赖以 Product Git Root 的 `package.json` 和 lockfile 为准。
 - CLIProxyAPI 保持独立 Go implementation；TypeScript 层只通过公开 seam 使用它。
@@ -48,7 +48,7 @@ D:\Work\CraftStation\              # Product Git Root；main 源码、测试、�
 - DeepSeek Harness：`reference/deepseek-harness/`，上游 `deepseek-ai/deepseek-harness`；只读研究 plugin-first Runtime、Cordis composition 与 Agent/Session/Tool 链路。
 - Codex Harness：`reference/codex/`，固定指官方 `openai/codex`；研究 Codex CLI、app-server、JSON-RPC、工具、会话和执行协议。
 - Harnss：`reference/harnss/`，上游 `OpenSource03/harnss`；研究多 CLI Agent 桌面执行、ACP、MCP、权限和工作区体验。
-- CraftStation：`reference/craftstation/`，上游仓库实际为 `SDSLeon/craftstation`；是 CraftStation Product Git Root 的代码基线与主要实现参考。
+- CraftStation：`reference/poracode/`，上游仓库实际为 `SDSLeon/lightcode`；是 CraftStation Product Git Root 的代码基线与主要实现参考。
 - AionUI：`reference/aionui/`，上游 `iOfficeAI/AionUi`；研究 Cowork、多 Agent GUI、Team Mode、远程访问与自动化。
 - CLIProxyAPI：`reference/CLIProxyAPI/`，上游固定为官方 `router-for-me/CLIProxyAPI`；研究 Subscription/OAuth 到 OpenAI-compatible API 的 provider concern。当前为官方 GitHub zipball 建立的本地 Git 快照，不具备完整上游历史。
 - Token Monitor：`reference/token-monitor/`，上游 `Javis603/token-monitor`；研究认证登录、token / Coding Plan 监控与各家额度探测路径。只读对照，不进入 CraftStation 可执行路径。

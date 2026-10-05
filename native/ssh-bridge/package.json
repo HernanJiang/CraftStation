@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "Capacitor bridge exposing authenticated SSH commands, uploads, and loopback forwarding to CraftStation mobile.",
   "license": "Apache-2.0",
-  "author": "SDSLeon",
+  "author": "HernanJiang",
   "files": [
     "src",
     "android",
