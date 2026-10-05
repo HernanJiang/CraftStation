@@ -4083,7 +4083,9 @@ export class SupervisorRuntime {
       ...(providerSessionId
         ? { sessionRef: { providerSessionId, discoveredAt: new Date().toISOString() } }
         : {}),
-      ...(event?.type === "error" ? { errorMessage: event.message } : {}),
+      // Always authoritative — an omitted field would leave a stale error
+      // pinned downstream after recovery.
+      errorMessage: event?.type === "error" ? event.message : "",
     });
   }
 

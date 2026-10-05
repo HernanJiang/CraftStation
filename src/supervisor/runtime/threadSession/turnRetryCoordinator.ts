@@ -104,8 +104,16 @@ export class TurnRetryCoordinator {
       session.structuredTurnGeneration !== generation
     )
       return false;
+    // A provider-side network failure can leave the session's transport
+    // poisoned (dead h2 conn, wedged turn state) — the Gemini/Antigravity
+    // `write tcp`/`request failed` shape. Re-sending on it reproduces the
+    // identical error forever, so from the second retry on we rebuild the
+    // session the same way transport failures do. Sessions without a
+    // resumable ref can't rebuild; they keep the same-handle retry.
+    const rebuild =
+      failureClass === "transport" || (attempt >= 2 && session.sessionRef !== undefined);
     try {
-      if (failureClass === "transport") {
+      if (rebuild) {
         // Dead connection/process: re-sending on the same handle would fail
         // again — rebuild the session and replay, carrying the transcript
         // preface for the fresh-session case.
@@ -113,7 +121,7 @@ export class TurnRetryCoordinator {
       }
       // 只发给模型；与可被 native resume 丢弃的历史前缀分开，且每次尝试只注入一次。
       turn.retryContext = RETRY_CONTINUATION_NOTE;
-      if (failureClass === "transport") {
+      if (rebuild) {
         await this.ctx.restartTurn(session, turn);
       } else {
         this.ctx.startTurn(session, turn);

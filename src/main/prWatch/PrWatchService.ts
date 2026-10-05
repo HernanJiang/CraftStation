@@ -166,7 +166,7 @@ export class PrWatchService {
         activeThreadId: null,
         lastError:
           event.type === "thread-state" && event.status === "error"
-            ? (event.errorMessage ?? null)
+            ? event.errorMessage || null
             : null,
       };
       this.options.store.upsert(settled);

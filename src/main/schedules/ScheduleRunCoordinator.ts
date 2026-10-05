@@ -164,7 +164,7 @@ export class ScheduleRunCoordinator {
     this.pending.delete(event.threadId);
     const completedAt = this.nowIso();
     if (event.status === "error") {
-      const error = event.errorMessage ?? "Scheduled run failed.";
+      const error = event.errorMessage || "Scheduled run failed.";
       this.deps.updateRun(run.runId, { completedAt, status: "failed", error });
       run.reject(new Error(error));
       return;

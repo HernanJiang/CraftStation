@@ -274,6 +274,12 @@ const MD_COMPONENTS: StreamdownComponents = {
     if (isStructuredArchitectureProse(flattenMdChildren(children))) {
       return <div className={markdownCodeBlockClass}>{children}</div>;
     }
+    // A paragraph consisting solely of math (one or several inline formulas
+    // separated by line breaks) is display math typographically — center it
+    // like `katex-display` blocks instead of leaving it left-aligned.
+    if (isMathOnlyParagraph(children)) {
+      return <p className="text-center">{children}</p>;
+    }
     return <p>{children}</p>;
   },
   code({ className, children, ...rest }) {
@@ -605,6 +611,38 @@ function isStructuredArchitectureProse(text: string): boolean {
   const stages = text.split(/\s*(?:->|→)\s*/u).filter(Boolean);
   if (stages.length < 3) return false;
   return /(?:model|modality|router|lora|clip|linear|encoder|decoder|pipeline)/iu.test(text);
+}
+
+/**
+ * True when every meaningful child of a paragraph is math: KaTeX spans
+ * (`.katex`, `.katex-display`, `math-inline`/`math-display` wrappers), line
+ * breaks, or whitespace-only text. Such a paragraph is display math — the
+ * caller centers it.
+ */
+function isMathOnlyParagraph(children: ReactNode): boolean {
+  const nodes = Children.toArray(children);
+  let sawMath = false;
+  for (const node of nodes) {
+    if (typeof node === "string") {
+      if (!/^\s*$/.test(node)) return false;
+      continue;
+    }
+    if (!isValidElement(node)) return false;
+    if (node.type === "br" || node.type === "wbr") continue;
+    const props = node.props as { className?: unknown; children?: ReactNode };
+    const className = typeof props.className === "string" ? props.className : "";
+    if (/katex|math-(?:inline|display)/.test(className)) {
+      sawMath = true;
+      continue;
+    }
+    // One level of wrapper (e.g. a plain <span> around .katex) still counts.
+    if (isMathOnlyParagraph(props.children)) {
+      sawMath = true;
+      continue;
+    }
+    return false;
+  }
+  return sawMath;
 }
 
 function findCodeChild(children: ReactNode): ReactElement | null {

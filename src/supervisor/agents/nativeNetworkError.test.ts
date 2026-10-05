@@ -29,6 +29,12 @@ describe("native network errors", () => {
       "TLS certificate verify failed",
       "socket hang up",
       "operation timed out",
+      // The Gemini/Antigravity failure shape: Go http client wrapper text.
+      'API error (attempt 1) request failed: Post "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent": write tcp 192.168.1.4:53312->142.250.72.74:443: use of closed network connection',
+      "read tcp 10.0.0.2:443: wsarecv: An existing connection was forcibly closed",
+      "http2: server sent GOAWAY and closed the connection",
+      "stream error: stream ID 3; RST_STREAM",
+      "unexpected EOF",
     ]) {
       expect(isNativeNetworkErrorMessage(raw)).toBe(true);
     }

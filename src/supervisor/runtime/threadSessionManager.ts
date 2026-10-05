@@ -1145,10 +1145,14 @@ export class ThreadSessionManager {
     }
     if (
       usesStructuredFlow &&
-      !session.structuredSession &&
-      (session.status === "error" || session.status === "idle") &&
-      session.sessionRef
+      session.sessionRef &&
+      (session.status === "error" || (!session.structuredSession && session.status === "idle"))
     ) {
+      // A failed turn leaves the structured session object alive, but its
+      // transport can be poisoned underneath (dead h2 conn, wedged provider
+      // turn state). Re-sending on it reproduces the identical failure
+      // forever — rebuild and resume from sessionRef instead, so Continue /
+      // a new message after an error actually recovers.
       this.attachHistoryPreface(session, turn);
       await this.spawnPipeline.restartThread(session, turn);
       return;
@@ -1243,6 +1247,7 @@ export class ThreadSessionManager {
           status: "idle",
           attention: "none",
           canResumeWithConfig: false,
+          errorMessage: "",
           forceCloseActiveTurn: true,
         });
         return;
@@ -1257,6 +1262,7 @@ export class ThreadSessionManager {
         status: "inactive",
         attention: "none",
         canResumeWithConfig: false,
+        errorMessage: "",
         forceCloseActiveTurn: true,
       });
       return;

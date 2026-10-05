@@ -154,6 +154,36 @@ $$`}
     expect(container.textContent).not.toContain("$$");
   });
 
+  it("centers a paragraph that contains only standalone math lines", async () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={
+            "$v_{\\text{self}} = h_v + \\mathrm{SelfAttn}_v(\\mathrm{LN}(h_v))$\n$a_{\\text{self}} = h_a + \\mathrm{SelfAttn}_a(\\mathrm{LN}(h_a))$"
+          }
+        />
+      </AppProvider>,
+    );
+
+    await waitFor(() =>
+      expect(container.querySelectorAll(".katex").length).toBeGreaterThanOrEqual(2),
+    );
+    const paragraph = container.querySelector("p.text-center");
+    expect(paragraph).not.toBeNull();
+    expect(paragraph?.querySelectorAll(".katex").length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("does not center a paragraph that mixes math with prose", async () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={"其中门控权重 $\\alpha$ 自适应生成。"} />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelectorAll(".katex")).toHaveLength(1));
+    expect(container.querySelector("p.text-center")).toBeNull();
+  });
+
   it("renders a display-math block whose $$ closer is glued to the last content line", async () => {
     // Real-world regression: Antigravity/Gemini emit `…\end{bmatrix}$$` with
     // the closer sharing the content line. micromark math flow only sees `$$`

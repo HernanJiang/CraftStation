@@ -80,6 +80,10 @@ function makeHarness(): Harness {
 const NETWORK_ERROR = new Error(
   "reqwest: error sending request for url (https://example.com/v1): ECONNRESET",
 );
+// The Gemini/Antigravity shape: Go net.OpError text inside an API wrapper.
+const GEMINI_TCP_ERROR = new Error(
+  'API error (attempt 1) request failed: Post "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent": write tcp 192.168.1.4:53312->142.250.72.74:443: use of closed network connection',
+);
 const TRANSPORT_ERROR = new Error("ACP connection closed unexpectedly.");
 
 describe("TurnRetryCoordinator", () => {
@@ -105,6 +109,46 @@ describe("TurnRetryCoordinator", () => {
       maxAttempts: 2,
       delaySeconds: 5,
     });
+  });
+
+  it("retries the Gemini write-tcp network failure shape", async () => {
+    const h = makeHarness();
+    const session = guiSession();
+    const turn = makeTurn();
+
+    const tookOver = await h.coordinator.tryTurnRetry(session, turn, GEMINI_TCP_ERROR);
+
+    expect(tookOver).toBe(true);
+    expect(h.startTurn).toHaveBeenCalledTimes(1);
+  });
+
+  it("escalates a repeated network failure to a session rebuild when resumable", async () => {
+    const h = makeHarness();
+    const session = {
+      ...guiSession(),
+      sessionRef: { providerSessionId: "agy-1", discoveredAt: "now" },
+    } as unknown as SessionRuntime;
+    const turn = { ...makeTurn(), turnRetryAttempt: 1 };
+
+    const tookOver = await h.coordinator.tryTurnRetry(session, turn, GEMINI_TCP_ERROR);
+
+    expect(tookOver).toBe(true);
+    expect(turn.turnRetryAttempt).toBe(2);
+    expect(h.attachHistoryPreface).toHaveBeenCalledTimes(1);
+    expect(h.restartTurn).toHaveBeenCalledTimes(1);
+    expect(h.startTurn).not.toHaveBeenCalled();
+  });
+
+  it("keeps same-session retry on the second attempt when no sessionRef exists", async () => {
+    const h = makeHarness();
+    const session = guiSession();
+    const turn = { ...makeTurn(), turnRetryAttempt: 1 };
+
+    const tookOver = await h.coordinator.tryTurnRetry(session, turn, NETWORK_ERROR);
+
+    expect(tookOver).toBe(true);
+    expect(h.startTurn).toHaveBeenCalledTimes(1);
+    expect(h.restartTurn).not.toHaveBeenCalled();
   });
 
   it("rebuilds the session for a transport-class failure, preface attached before the note", async () => {

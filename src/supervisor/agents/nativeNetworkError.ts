@@ -16,6 +16,15 @@
 const NETWORK_PATTERNS: RegExp[] = [
   /reqwest/i,
   /error sending request/i,
+  // Go net/http retry wrappers: `request failed: Post "https://…"`.
+  /\brequest failed:\s*(?:get|post|put|patch|delete|head|options)\b/i,
+  // Go net.OpError transport text: `read tcp …` / `write tcp …: use of closed
+  // connection` — the shape Gemini/Antigravity surfaces on a dead socket.
+  /\b(?:read|write)\s+tcp\b/i,
+  /\bwsa(?:recv|send|connect)\b/i,
+  // HTTP/2 connection churn against googleapis and friends.
+  /\bhttp2\b|\bGOAWAY\b|\bRST_STREAM\b/i,
+  /unexpected\s+EOF\b/i,
   /\bECONNREFUSED\b/i,
   /\bECONNRESET\b/i,
   /\bETIMEDOUT\b/i,

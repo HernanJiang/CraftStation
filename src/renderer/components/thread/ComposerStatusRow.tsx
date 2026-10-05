@@ -1,6 +1,8 @@
 import { useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { openUsageStatsPage } from "@/renderer/actions/panelActions";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
+import { overlayZoomClasses, withOverlayClass } from "../common/overlayZoom";
 import { useProviderUsageStore } from "@/renderer/state/providerUsageStore";
 import { useTokenUsageStore } from "@/renderer/state/tokenUsageStore";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
@@ -307,6 +309,7 @@ export function ContextQuotaRing(props: {
 }) {
   const { contextSummary, quotaProviderId, quotaAccountId } = props;
   const { triggerRef, pos, show, hide } = useHoverPopover();
+  const overlayZoom = overlayZoomClasses(useSharedSettings((state) => state.zoomFactor));
   const todaySummary = useTokenUsageStore((state) =>
     state.response?.summaries.find((summary) => summary.period === "today"),
   );
@@ -408,108 +411,114 @@ export function ContextQuotaRing(props: {
         ? createPortal(
             <div
               style={{ position: "fixed", right: pos.right, bottom: pos.bottom }}
-              className={POPOVER_CLASS}
-              data-testid="context-quota-popover"
+              className={`z-[100] ${overlayZoom.root}`.trim()}
             >
-              <div className="flex items-center justify-between text-[11px]">
-                <span className="font-semibold text-foreground">上下文容量</span>
-                <span className="tabular-nums text-neutral-400">
-                  {used !== undefined && max !== undefined
-                    ? `${formatTokenCount(used)} / ${formatTokenCount(max)}`
-                    : max !== undefined
-                      ? `-- / ${formatTokenCount(max)}`
-                      : used !== undefined
-                        ? formatTokenCount(used)
-                        : "--"}
-                  {percent !== undefined ? ` (${percent}%)` : ""}
-                </span>
-              </div>
-              <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-foreground/10">
-                <div
-                  className="flex h-full min-w-0 overflow-hidden rounded-full transition-[width]"
-                  style={{ width: `${contextPercent}%` }}
-                >
-                  {occupancy.length > 0 && occupancyTotal > 0
-                    ? occupancy.map((entry, index) => (
-                        <div
-                          key={entry.id}
-                          className={`h-full ${SEGMENT_COLORS[index % SEGMENT_COLORS.length]}`}
-                          style={{ width: `${(entry.tokens / occupancyTotal) * 100}%` }}
-                        />
-                      ))
-                    : null}
+              <div
+                className={withOverlayClass(POPOVER_CLASS, overlayZoom.content)}
+                data-testid="context-quota-popover"
+              >
+                <div className="flex items-center justify-between text-[11px]">
+                  <span className="font-semibold text-foreground">上下文容量</span>
+                  <span className="tabular-nums text-neutral-400">
+                    {used !== undefined && max !== undefined
+                      ? `${formatTokenCount(used)} / ${formatTokenCount(max)}`
+                      : max !== undefined
+                        ? `-- / ${formatTokenCount(max)}`
+                        : used !== undefined
+                          ? formatTokenCount(used)
+                          : "--"}
+                    {percent !== undefined ? ` (${percent}%)` : ""}
+                  </span>
                 </div>
-              </div>
-              {occupancy.length > 0 && occupancyTotal > 0 ? (
-                <div className="mt-2 border-t border-white/5 pt-1.5">
-                  {occupancy.map((entry, index) => (
-                    <DetailRow
-                      key={entry.id}
-                      label={entry.label}
-                      dot={SEGMENT_COLORS[index % SEGMENT_COLORS.length]}
-                    >
-                      {formatOccupancyShare(entry.tokens, contextTotal)}
+                <div className="mt-1.5 flex h-1.5 overflow-hidden rounded-full bg-foreground/10">
+                  <div
+                    className="flex h-full min-w-0 overflow-hidden rounded-full transition-[width]"
+                    style={{ width: `${contextPercent}%` }}
+                  >
+                    {occupancy.length > 0 && occupancyTotal > 0
+                      ? occupancy.map((entry, index) => (
+                          <div
+                            key={entry.id}
+                            className={`h-full ${SEGMENT_COLORS[index % SEGMENT_COLORS.length]}`}
+                            style={{ width: `${(entry.tokens / occupancyTotal) * 100}%` }}
+                          />
+                        ))
+                      : null}
+                  </div>
+                </div>
+                {occupancy.length > 0 && occupancyTotal > 0 ? (
+                  <div className="mt-2 border-t border-white/5 pt-1.5">
+                    {occupancy.map((entry, index) => (
+                      <DetailRow
+                        key={entry.id}
+                        label={entry.label}
+                        dot={SEGMENT_COLORS[index % SEGMENT_COLORS.length]}
+                      >
+                        {formatOccupancyShare(entry.tokens, contextTotal)}
+                      </DetailRow>
+                    ))}
+                  </div>
+                ) : null}
+                {hasSessionTokenData ? (
+                  <div className="mt-1.5 border-t border-white/5 pt-1.5">
+                    <div className="pb-0.5 text-[10px] font-semibold text-foreground-muted">
+                      当前会话 Token
+                    </div>
+                    {inputContextTokens !== undefined ? (
+                      <DetailRow label="输入">
+                        {`${formatTokenCount(inputContextTokens)} · ${formatOccupancyShare(inputContextTokens, contextTotal)}`}
+                      </DetailRow>
+                    ) : null}
+                    {outputContextTokens !== undefined ? (
+                      <DetailRow label="输出">
+                        {`${formatTokenCount(outputContextTokens)} · ${formatOccupancyShare(outputContextTokens, contextTotal)}`}
+                      </DetailRow>
+                    ) : null}
+                    {cacheReadContextTokens !== undefined ? (
+                      <DetailRow label="缓存读取">
+                        {`${formatTokenCount(cacheReadContextTokens)} · ${formatOccupancyShare(cacheReadContextTokens, contextTotal)}`}
+                      </DetailRow>
+                    ) : null}
+                    {reasoningContextTokens !== undefined ? (
+                      <DetailRow label="推理">
+                        {`${formatTokenCount(reasoningContextTokens)} · ${formatOccupancyShare(reasoningContextTokens, contextTotal)}`}
+                      </DetailRow>
+                    ) : null}
+                  </div>
+                ) : null}
+                <div className="mt-1.5 border-t border-white/5 pt-1.5">
+                  <DetailRow label="平均缓存命中率">
+                    {hitRate === undefined ? "未提供" : `${hitRate}%`}
+                  </DetailRow>
+                  {account ? (
+                    <DetailRow label="当前账号">
+                      {account.maskedIdentity ?? account.label}
+                    </DetailRow>
+                  ) : null}
+                  {accountQuota.map((window) => (
+                    <DetailRow key={window.id} label={`${window.label || window.id} 额度`}>
+                      {formatRemainingQuota(window.usedPercent)}
                     </DetailRow>
                   ))}
-                </div>
-              ) : null}
-              {hasSessionTokenData ? (
-                <div className="mt-1.5 border-t border-white/5 pt-1.5">
-                  <div className="pb-0.5 text-[10px] font-semibold text-foreground-muted">
-                    当前会话 Token
-                  </div>
-                  {inputContextTokens !== undefined ? (
-                    <DetailRow label="输入">
-                      {`${formatTokenCount(inputContextTokens)} · ${formatOccupancyShare(inputContextTokens, contextTotal)}`}
+                  {account && accountQuota.length === 0 ? (
+                    <DetailRow label="当前账号额度">未提供</DetailRow>
+                  ) : null}
+                  {providerSnapshot?.credits?.balance !== undefined ? (
+                    <DetailRow label={account ? "账号余额" : "渠道余额"}>
+                      {`${providerSnapshot.credits.balance}${providerSnapshot.credits.currency ? ` ${providerSnapshot.credits.currency}` : ""}`}
                     </DetailRow>
                   ) : null}
-                  {outputContextTokens !== undefined ? (
-                    <DetailRow label="输出">
-                      {`${formatTokenCount(outputContextTokens)} · ${formatOccupancyShare(outputContextTokens, contextTotal)}`}
-                    </DetailRow>
+                  {fiveHour !== null ? <DetailRow label="5h 已用">{fiveHour}%</DetailRow> : null}
+                  {weekly !== null ? <DetailRow label="周已用">{weekly}%</DetailRow> : null}
+                  {used !== undefined ? (
+                    <DetailRow label="当前会话占用">{formatTokenCount(used)}</DetailRow>
                   ) : null}
-                  {cacheReadContextTokens !== undefined ? (
-                    <DetailRow label="缓存读取">
-                      {`${formatTokenCount(cacheReadContextTokens)} · ${formatOccupancyShare(cacheReadContextTokens, contextTotal)}`}
-                    </DetailRow>
-                  ) : null}
-                  {reasoningContextTokens !== undefined ? (
-                    <DetailRow label="推理">
-                      {`${formatTokenCount(reasoningContextTokens)} · ${formatOccupancyShare(reasoningContextTokens, contextTotal)}`}
+                  {hasTokenData ? (
+                    <DetailRow label="今日 输入 / 输出 / 缓存">
+                      {`${formatTokenCount(inputTokens)} / ${formatTokenCount(outputTokens)} / ${formatTokenCount(cacheRead)}`}
                     </DetailRow>
                   ) : null}
                 </div>
-              ) : null}
-              <div className="mt-1.5 border-t border-white/5 pt-1.5">
-                <DetailRow label="平均缓存命中率">
-                  {hitRate === undefined ? "未提供" : `${hitRate}%`}
-                </DetailRow>
-                {account ? (
-                  <DetailRow label="当前账号">{account.maskedIdentity ?? account.label}</DetailRow>
-                ) : null}
-                {accountQuota.map((window) => (
-                  <DetailRow key={window.id} label={`${window.label || window.id} 额度`}>
-                    {formatRemainingQuota(window.usedPercent)}
-                  </DetailRow>
-                ))}
-                {account && accountQuota.length === 0 ? (
-                  <DetailRow label="当前账号额度">未提供</DetailRow>
-                ) : null}
-                {providerSnapshot?.credits?.balance !== undefined ? (
-                  <DetailRow label={account ? "账号余额" : "渠道余额"}>
-                    {`${providerSnapshot.credits.balance}${providerSnapshot.credits.currency ? ` ${providerSnapshot.credits.currency}` : ""}`}
-                  </DetailRow>
-                ) : null}
-                {fiveHour !== null ? <DetailRow label="5h 已用">{fiveHour}%</DetailRow> : null}
-                {weekly !== null ? <DetailRow label="周已用">{weekly}%</DetailRow> : null}
-                {used !== undefined ? (
-                  <DetailRow label="当前会话占用">{formatTokenCount(used)}</DetailRow>
-                ) : null}
-                {hasTokenData ? (
-                  <DetailRow label="今日 输入 / 输出 / 缓存">
-                    {`${formatTokenCount(inputTokens)} / ${formatTokenCount(outputTokens)} / ${formatTokenCount(cacheRead)}`}
-                  </DetailRow>
-                ) : null}
               </div>
             </div>,
             document.body,

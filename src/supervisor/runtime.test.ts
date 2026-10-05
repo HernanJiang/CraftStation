@@ -850,6 +850,76 @@ describe("SupervisorRuntime thread input", () => {
     );
   });
 
+  it("rebuilds an errored resumable session instead of re-sending on the dead handle", async () => {
+    const emitted: Array<Record<string, unknown>> = [];
+    const runtime = makeRuntime((event) => emitted.push(event as Record<string, unknown>));
+    const startTurn = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const restartThread = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+
+    (
+      runtime as unknown as {
+        spawnThread: (input: Record<string, unknown>) => { status: string };
+      }
+    ).spawnThread({
+      threadId: "thread-gui-poisoned",
+      agentKind: "antigravity",
+      adapter: {
+        kind: "antigravity",
+        label: "Antigravity",
+        capabilities: {
+          models: [{ id: "gemini-3", label: "Gemini 3" }],
+          efforts: [],
+          modelEfforts: {},
+          modes: ["agent"],
+          approvalPolicies: [{ id: "on-request", label: "On Request" }],
+          sandboxModes: [{ id: "read-only", label: "Read Only" }],
+          supportsResume: true,
+          supportsDirectInput: true,
+          liveInputMode: "server",
+          presentationMode: "gui",
+        },
+      },
+      projectLocation: { kind: "windows", path: "C:\\repo" },
+      config: { model: "gemini-3" },
+      initialSize: { cols: 120, rows: 30 },
+      launchPrompt: "",
+      structuredSession: {
+        launchOptions: {},
+        setListener: vi.fn<(listener: unknown) => void>(),
+        dispose: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+        startTurn,
+      },
+      presentationMode: "gui",
+      mcpLaunchSnapshot: {
+        mcpServers: [],
+        disabledBuiltInMcpServerIds: [],
+      },
+    });
+
+    const session = (
+      runtime as unknown as {
+        sessions: Map<string, { status: string; sessionRef?: { providerSessionId: string } }>;
+      }
+    ).sessions.get("thread-gui-poisoned")!;
+    session.status = "error";
+    session.sessionRef = { providerSessionId: "agy-1" };
+    (
+      runtime.threadSessionManager as unknown as {
+        spawnPipeline: { restartThread: typeof restartThread };
+      }
+    ).spawnPipeline.restartThread = restartThread;
+
+    await runtime.threadSessionManager.sendThreadInput({
+      threadId: "thread-gui-poisoned",
+      prompt: "try again",
+      config: { model: "gemini-3" },
+      userMessageItemId: "user-again",
+    });
+
+    expect(restartThread).toHaveBeenCalledTimes(1);
+    expect(startTurn).not.toHaveBeenCalled();
+  });
+
   it("does not emit runtime status updates for raw terminal writes", async () => {
     const emitted: unknown[] = [];
     const runtime = makeRuntime((event) => {

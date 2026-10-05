@@ -175,7 +175,10 @@ export class ThreadOutputPipeline {
         this.options.readDisableCliHookPlugin(),
       ),
       ...(session.presentationMode ? { presentationMode: session.presentationMode } : {}),
-      ...(errorMessage ? { errorMessage } : {}),
+      // Always authoritative: consumers merge `errorMessage` only when the
+      // field is present, so omitting it on recovery would leave a stale
+      // error pinned in the status bar forever. "" means "cleared".
+      errorMessage: errorMessage ?? "",
       ...(options.forceCloseActiveTurn ? { forceCloseActiveTurn: true } : {}),
     });
   }

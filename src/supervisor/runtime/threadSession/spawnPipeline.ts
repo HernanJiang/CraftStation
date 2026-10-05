@@ -2458,6 +2458,7 @@ export class SpawnPipeline {
       config,
       launchConfig,
       canResumeWithConfig: false,
+      errorMessage: "",
       threadStatusSource: "server",
       presentationMode,
     });
