@@ -74,7 +74,7 @@ export class CodexSubAgentRouter {
       if (child) {
         const status = readThreadStatusType(startedThread?.status);
         child.active = status !== "notLoaded" && status !== "systemError";
-        return child.active ? [this.updateParent(child, { status: "running" })] : [];
+        return child.active ? [this.reviveParent(child)] : [];
       }
       this.bufferChildNotification(startedThreadId, method, params);
       return [];
@@ -107,17 +107,22 @@ export class CodexSubAgentRouter {
     if (method === "turn/started") {
       child.active = true;
       child.failed = false;
-      return [this.updateParent(child, { status: "running" })];
+      return [this.reviveParent(child)];
     }
 
     if (method === "turn/completed" || method === "turn/aborted") {
       child.active = false;
       const status = readTurnStatus(params);
+      // A cleanly completed turn clears a mid-turn error latch: the app-server
+      // can emit `thread/error`/`error` inside a turn it then still finishes
+      // successfully, and that recovered error must not retro-fail the result.
       child.failed =
-        child.failed ||
-        method === "turn/aborted" ||
-        status === "failed" ||
-        status === "interrupted";
+        method === "turn/completed" && status === "completed"
+          ? false
+          : child.failed ||
+            method === "turn/aborted" ||
+            status === "failed" ||
+            status === "interrupted";
       const childCompletionEvents = mapCodexNotification(
         method,
         params,
@@ -138,6 +143,14 @@ export class CodexSubAgentRouter {
     }
 
     if (method === "thread/error" || method === "error") {
+      // `error` with willRetry is transient — the app-server retries the stream
+      // internally and the child keeps running (same rule as the main dispatch
+      // in canonicalMapping/dispatch.ts). Completing the parent here would
+      // latch a bogus "failed" tile that can never recover while the child is
+      // still producing work.
+      if (method === "error" && params?.willRetry === true) {
+        return [];
+      }
       child.active = false;
       child.failed = true;
       if (this.hasActiveSibling(child)) return [];
@@ -416,6 +429,18 @@ export class CodexSubAgentRouter {
       .filter(Boolean)
       .join("\n\n");
     return result || undefined;
+  }
+
+  /**
+   * `turn/started` / `thread/started` on a child whose parent tile already
+   * completed: the child is doing new work, so lift the completion latch and
+   * flip the tile back to running. Late activity notifications alone do NOT
+   * revive — a stray final report arriving after `turn/completed` must not
+   * flap the tile open.
+   */
+  private reviveParent(child: CodexChildThread): Extract<RuntimeEvent, { type: "item.updated" }> {
+    this.completedParentItemIds.delete(child.parentItemId);
+    return this.updateParent(child, { status: "running" });
   }
 
   private updateParent(

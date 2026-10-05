@@ -764,6 +764,97 @@ describe("CodexSubAgentRouter", () => {
     ]);
   });
 
+  it("keeps the subagent parent running through a willRetry stream error", () => {
+    const router = createRouterWithChild();
+
+    expect(
+      router.routeChildNotification(
+        "error",
+        {
+          threadId: "child-thread",
+          error: { message: "stream disconnected" },
+          willRetry: true,
+        },
+        "provider-thread",
+      ),
+    ).toEqual([]);
+
+    // The child keeps working and finally completes cleanly — the tile must
+    // end on success, not on the transient error.
+    expect(
+      router.routeChildNotification(
+        "turn/completed",
+        { turn: { id: "child-turn", threadId: "child-thread", status: "completed" } },
+        "provider-thread",
+      ),
+    ).toContainEqual({
+      type: "item.completed",
+      threadId: "local-thread",
+      itemId: "parent-item",
+      payload: { status: "success" },
+    });
+  });
+
+  it("does not fail the subagent parent when a mid-turn error is followed by a clean completion", () => {
+    const router = createRouterWithChild();
+
+    router.routeChildNotification(
+      "thread/error",
+      { threadId: "child-thread", error: { message: "hiccup" } },
+      "provider-thread",
+    );
+
+    expect(
+      router.routeChildNotification(
+        "turn/completed",
+        { turn: { id: "child-turn", threadId: "child-thread", status: "completed" } },
+        "provider-thread",
+      ),
+    ).toContainEqual({
+      type: "item.completed",
+      threadId: "local-thread",
+      itemId: "parent-item",
+      payload: { status: "success" },
+    });
+  });
+
+  it("revives the subagent parent when a failed child starts a new turn", () => {
+    const router = createRouterWithChild();
+
+    router.routeChildNotification(
+      "thread/error",
+      { threadId: "child-thread", error: { message: "Child failed" } },
+      "provider-thread",
+    );
+
+    expect(
+      router.routeChildNotification(
+        "turn/started",
+        { turn: { id: "child-turn-2", threadId: "child-thread" } },
+        "provider-thread",
+      ),
+    ).toEqual([
+      expect.objectContaining({
+        type: "item.updated",
+        itemId: "parent-item",
+        payload: expect.objectContaining({ status: "running" }),
+      }),
+    ]);
+
+    expect(
+      router.routeChildNotification(
+        "turn/completed",
+        { turn: { id: "child-turn-2", threadId: "child-thread", status: "completed" } },
+        "provider-thread",
+      ),
+    ).toContainEqual({
+      type: "item.completed",
+      threadId: "local-thread",
+      itemId: "parent-item",
+      payload: { status: "success" },
+    });
+  });
+
   it("replays child output that completed before the parent spawn item arrived", () => {
     const router = new CodexSubAgentRouter("local-thread");
 
