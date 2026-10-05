@@ -301,6 +301,13 @@ flowchart TD
     expect(mermaidPluginConfig.value).toMatchObject({ securityLevel: "antiscript" });
   });
 
+  it("themes mermaid through CSS variables so diagrams follow light/dark themes", () => {
+    const config = mermaidPluginConfig.value as { theme?: string; themeCSS?: string };
+    expect(config.theme).toBe("base");
+    expect(config.themeCSS).toContain("var(--foreground)");
+    expect(config.themeCSS).toContain("var(--surface-secondary)");
+  });
+
   it("styles tensor pipeline prose like a code block", () => {
     const { container } = render(
       <AppProvider>

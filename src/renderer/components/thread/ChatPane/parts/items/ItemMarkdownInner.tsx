@@ -66,6 +66,27 @@ type RemarkPlugins = NonNullable<ComponentProps<typeof Streamdown>["remarkPlugin
 type RehypePlugins = NonNullable<ComponentProps<typeof Streamdown>["rehypePlugins"]>;
 
 const markdownMathPlugin = createMathPlugin({ singleDollarTextMath: true });
+
+/**
+ * Mermaid paints into an inline `<svg>` inside our DOM, so a `themeCSS`
+ * override can reference the app's CSS variables directly — the diagram
+ * follows light/dark and custom theme presets live, with no re-render.
+ */
+const MERMAID_THEME_CSS = [
+  // Text: htmlLabels render real <div>/<span>/<p> inside foreignObject
+  // (color); the non-html path uses <text>/<tspan> (fill). `fill` must stay
+  // off container classes — it inherits into label background rects.
+  "text, tspan, .nodeLabel, .edgeLabel .label, .edgeLabel span, .edgeLabel p, .clusterLabel, .cluster-label, .messageText, .noteText, .labelText, .loopText, .titleText { fill: var(--foreground) !important; }",
+  ".label, .label div, .label span, .label p, .nodeLabel, .edgeLabel, .edgeLabel div, .edgeLabel span, .edgeLabel p, .clusterLabel, .cluster-label, .cluster-label div, .messageText, .noteText, .labelText, .loopText, .legend, .titleText { color: var(--foreground) !important; }",
+  ".edgeLabel rect, .labelBox { fill: var(--surface) !important; }",
+  ".edgeLabel { background: var(--surface) !important; }",
+  ".node rect, .node circle, .node ellipse, .node polygon, .node > path, .basic label-container, .actor rect, .note, .messageBox, .labelBox { fill: var(--surface-secondary) !important; stroke: var(--border) !important; color: var(--foreground) !important; }",
+  ".cluster rect { fill: color-mix(in oklab, var(--foreground) 5%, transparent) !important; stroke: var(--border) !important; }",
+  ".edgePath path, .edgePaths path, .flowchart-link, .transition, .messageLine0, .messageLine1, .actor-line, .loopLine { stroke: var(--muted) !important; }",
+  "marker path, marker circle, .arrowheadPath { fill: var(--muted) !important; stroke: var(--muted) !important; }",
+  ".activation0, .activation1, .activation2 { fill: var(--surface-tertiary) !important; }",
+].join("\n");
+
 const markdownMermaidPlugin = createMermaidPlugin({
   config: {
     startOnLoad: false,
@@ -74,11 +95,21 @@ const markdownMermaidPlugin = createMermaidPlugin({
     // Script tags are still stripped, unlike "loose".
     securityLevel: "antiscript",
     suppressErrorRendering: true,
+    theme: "base",
+    fontFamily:
+      '"Geist", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Segoe UI Variable", "Segoe UI", "Inter", system-ui, sans-serif',
+    fontSize: 12,
+    // Tighter than the 50px defaults so diagrams stay card-sized.
+    flowchart: { nodeSpacing: 30, rankSpacing: 34, padding: 4 },
     themeVariables: {
       background: "transparent",
     },
+    themeCSS: MERMAID_THEME_CSS,
   },
 });
+
+// Eagerly initialize mermaid so the first diagram doesn't pay init cost.
+markdownMermaidPlugin.getMermaid({});
 
 // Streamdown bundles `rehype-harden`, which rewrites links whose href fails its
 // allowlist into `<span>…[blocked]</span>`. During streaming, partial hrefs
@@ -426,7 +457,7 @@ function MdMermaidDiagram({ code }: { code: string }) {
   if (!svg) return <div aria-hidden className="px-[0.75em] py-[0.5em]" />;
   return (
     <div
-      className="lc-md-mermaid overflow-x-auto px-[0.75em] py-[0.5em] [&_svg]:mx-auto [&_svg]:max-w-full"
+      className="lc-md-mermaid max-h-[min(60vh,32rem)] overflow-auto px-[0.75em] py-[0.5em] [&_svg]:mx-auto [&_svg]:max-w-full [&_svg]:h-auto"
       dangerouslySetInnerHTML={{ __html: svg }}
     />
   );
