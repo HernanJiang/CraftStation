@@ -53,6 +53,14 @@ interface AntigravityStructuredSessionOptions {
   spawnProcess?: typeof spawn;
 }
 
+/**
+ * `agy` labels its own in-flight API retries `API error (attempt N)`. When it
+ * surfaces one mid-turn it is retry chatter, not a turn outcome — agy usually
+ * recovers inside the same turn — so it is shown as a warning instead of an
+ * error item that reads like the turn already failed.
+ */
+const AGY_INTERNAL_RETRY_NOTICE = /\bAPI error \(attempt \d+\)/;
+
 function resultPayload(event: NativeWireEvent): Record<string, unknown> {
   const nested = event.payload.result;
   return nested && typeof nested === "object" && !Array.isArray(nested)
@@ -125,6 +133,23 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
   private openReasoningItemIds = new Set<string>();
   private pendingError: string | undefined;
   private pendingClose = false;
+  /**
+   * Set when the turn's `agent_response` step reaches a DONE-family state —
+   * the provider finished generating the answer. A `result` frame that still
+   * reports ERROR after that point failed *after* delivering the answer (e.g.
+   * a trailing `streamGenerateContent` write hit a dead h2 connection), so the
+   * turn is completed with a warning instead of failed-and-retried into a
+   * duplicated answer.
+   */
+  private responseStepCompleted = false;
+  /**
+   * Keeps `last_check.timestamp` fresh for the session's whole lifetime. The
+   * ~15-minute gate is primed once per spawn, but a long-lived session's
+   * `language_server` grandchild can still fire `agy --bg-updater` once it
+   * expires — and that detached updater allocates its own VISIBLE console
+   * window. Refreshing well under the gate window keeps it closed.
+   */
+  private updateGateRefresh: ReturnType<typeof setInterval> | undefined;
   /**
    * Tool step indexes currently ACTIVE on the wire. `agy` closes every tool
    * step (DONE/ERROR) before a natural end of turn — including background
@@ -264,11 +289,23 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       this.transport = new NdjsonProcessTransport(transportOptions);
       this.transport.setEventHandler((event) => this.handleWireEvent(event));
       this.transport.start();
+      if (this.updateGateRefresh) clearInterval(this.updateGateRefresh);
+      this.updateGateRefresh = setInterval(
+        () => primeAntigravityUpdateCheckTimestamp(),
+        5 * 60 * 1000,
+      );
+      this.updateGateRefresh.unref?.();
     } catch (error) {
       this.projection?.dispose();
       this.projection = undefined;
       throw error;
     }
+  }
+
+  private clearUpdateGateRefresh(): void {
+    if (!this.updateGateRefresh) return;
+    clearInterval(this.updateGateRefresh);
+    this.updateGateRefresh = undefined;
   }
 
   async startTurn(
@@ -306,7 +343,12 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       this.rejectTurn = reject;
     });
     const turnPromise = this.turnPromise;
+    // Every send re-arms the ~15-minute updater gate: `language_server`'s
+    // filtered env drops AGY_CLI_DISABLE_AUTO_UPDATE, so a stale timestamp at
+    // turn start is exactly when the detached --bg-updater pops its console.
+    primeAntigravityUpdateCheckTimestamp();
     this.streamedAssistantText = "";
+    this.responseStepCompleted = false;
     this.streamedReasoningByItem.clear();
     this.openReasoningItemIds.clear();
     this.activeToolSteps.clear();
@@ -342,6 +384,7 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     this.currentTurnId = undefined;
     if (this.transport === dying) {
       this.transport = undefined;
+      this.clearUpdateGateRefresh();
       this.projection?.dispose();
       this.projection = undefined;
     }
@@ -367,6 +410,7 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       });
       this.finishTurn();
     }
+    this.clearUpdateGateRefresh();
     this.transport?.dispose();
     this.transport = undefined;
     this.projection?.dispose();
@@ -413,17 +457,44 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       event,
       thoughtRunState: this.thoughtRunState,
     });
+    // `result` decides the turn — compute its failure and the delivered-answer
+    // downgrade BEFORE emitting its canonical events, so the error /
+    // turn.completed events can be rewritten rather than emitted then undone.
+    const resultFailure = event.type === "result" ? resultFailureMessage(event) : undefined;
+    const downgradeResult = Boolean(resultFailure) && this.resultAnswerDelivered(event);
     for (const runtimeEvent of canonicalEvents) {
-      if (runtimeEvent.type === "error" && !this.currentTurnId) {
-        // Trailing stderr/error frames after the turn finished: keep them
-        // visible as warnings instead of error events that flip the thread
-        // into error status and pop a toast for an already-completed turn.
+      if (downgradeResult && runtimeEvent.type === "error") {
         this.emitRuntime({
           type: "warning",
           threadId: this.input.threadId,
           message: runtimeEvent.message,
         });
         continue;
+      }
+      if (downgradeResult && runtimeEvent.type === "turn.completed") {
+        this.emitRuntime({ ...runtimeEvent, state: "completed" });
+        continue;
+      }
+      if (runtimeEvent.type === "error") {
+        if (!this.currentTurnId) {
+          // Trailing stderr/error frames after the turn finished: keep them
+          // visible as warnings instead of error events that flip the thread
+          // into error status and pop a toast for an already-completed turn.
+          this.emitRuntime({
+            type: "warning",
+            threadId: this.input.threadId,
+            message: runtimeEvent.message,
+          });
+          continue;
+        }
+        if (AGY_INTERNAL_RETRY_NOTICE.test(runtimeEvent.message)) {
+          this.emitRuntime({
+            type: "warning",
+            threadId: this.input.threadId,
+            message: runtimeEvent.message,
+          });
+          continue;
+        }
       }
       if (runtimeEvent.type === "item.started" && runtimeEvent.itemType === "reasoning") {
         this.openReasoningItemIds.add(runtimeEvent.itemId);
@@ -475,8 +546,7 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
         this.emitRuntime({ type: "item.completed", threadId: this.input.threadId, itemId });
       }
       this.openReasoningItemIds.clear();
-      const failure = resultFailureMessage(event);
-      if (!failure && this.activeToolSteps.size > 0) {
+      if (!resultFailure && this.activeToolSteps.size > 0) {
         this.emitRuntime({
           type: "warning",
           threadId: this.input.threadId,
@@ -488,8 +558,33 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
         });
       }
       this.activeToolSteps.clear();
-      this.finishTurn(failure ? new Error(failure) : undefined, failure === undefined);
+      if (resultFailure && downgradeResult) {
+        // The provider already delivered the answer and then reported a
+        // post-answer failure — completing keeps the delivered text and, more
+        // importantly, stops Craft-Harness from replaying the turn and
+        // generating the identical answer a second time. The error itself was
+        // already surfaced as a warning inside the canonical loop.
+        this.finishTurn();
+      } else {
+        this.finishTurn(
+          resultFailure ? new Error(resultFailure) : undefined,
+          resultFailure === undefined,
+        );
+      }
     }
+  }
+
+  /**
+   * Whether the `result` frame's reported failure arrived AFTER the provider
+   * already delivered a complete answer: the `agent_response` step reached a
+   * DONE-family state, or the frame carries its authoritative `response`
+   * snapshot. Either way the answer is in the chat — failing + retrying would
+   * only regenerate a duplicate.
+   */
+  private resultAnswerDelivered(event: NativeWireEvent): boolean {
+    if (this.responseStepCompleted) return true;
+    const payload = resultPayload(event);
+    return typeof payload.response === "string" && payload.response.trim().length > 0;
   }
 
   private trackToolStep(event: NativeWireEvent): void {
@@ -497,10 +592,17 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     const step = event.payload.step_update;
     if (!step || typeof step !== "object" || Array.isArray(step)) return;
     const record = step as Record<string, unknown>;
+    const state = String(record.state ?? "").toUpperCase();
+    if (record.step_type === "agent_response") {
+      if (state === "DONE" || state === "COMPLETED" || state === "SUCCESS") {
+        this.responseStepCompleted = true;
+      }
+      return;
+    }
     if (record.step_type !== "tool" || typeof record.step_index !== "number") return;
-    if (record.state === "ACTIVE") {
+    if (state === "ACTIVE") {
       this.activeToolSteps.add(record.step_index);
-    } else if (record.state === "DONE" || record.state === "ERROR") {
+    } else if (state === "DONE" || state === "ERROR") {
       this.activeToolSteps.delete(record.step_index);
     }
   }
@@ -509,6 +611,18 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     if (diagnostic.code === "NATIVE_STDERR") return;
     if (this.ignoringProcessExit && diagnostic.code === "NATIVE_PROCESS_CRASHED") return;
     if (this.currentTurnId) {
+      // Crash landing after a DONE response step is a post-answer failure —
+      // same delivered-answer downgrade as the `result` and process-exit
+      // paths.
+      if (this.responseStepCompleted) {
+        this.emitRuntime({
+          type: "warning",
+          threadId: this.input.threadId,
+          message: diagnostic.message,
+        });
+        this.finishTurn();
+        return;
+      }
       this.finishTurn(new Error(diagnostic.message));
       return;
     }
@@ -539,13 +653,28 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       return;
     }
     if (this.currentTurnId) {
-      this.finishTurn(
-        new Error(
-          `Antigravity process exited during a turn (${event.code ?? "null"}, ${event.signal ?? "none"}).`,
-        ),
-      );
+      // Same delivered-answer rule as the `result` downgrade: agy exits 1
+      // right after its closing frame (probe-verified), so a crash landing
+      // between the finished answer and the result is a post-answer failure —
+      // complete the turn instead of rejecting it into a duplicate-generating
+      // retry.
+      if (this.responseStepCompleted) {
+        this.emitRuntime({
+          type: "warning",
+          threadId: this.input.threadId,
+          message: `Antigravity process exited during a turn after the answer was delivered (${event.code ?? "null"}, ${event.signal ?? "none"}).`,
+        });
+        this.finishTurn();
+      } else {
+        this.finishTurn(
+          new Error(
+            `Antigravity process exited during a turn (${event.code ?? "null"}, ${event.signal ?? "none"}).`,
+          ),
+        );
+      }
     }
     this.transport = undefined;
+    this.clearUpdateGateRefresh();
     this.projection?.dispose();
     this.projection = undefined;
     if (this.listener) this.listener.onClose();

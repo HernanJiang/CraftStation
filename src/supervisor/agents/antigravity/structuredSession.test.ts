@@ -608,6 +608,97 @@ describe("AntigravityStructuredSession", () => {
     expect(updates.at(-1)).toMatchObject({ status: "error", attention: "none" });
   });
 
+  it("completes with a warning when the result reports an error after the answer was delivered", async () => {
+    const fixture = new AntigravityFixture((emit) => {
+      emit({ event: "init", conversation_id: "agy-conversation-1" });
+      emit({
+        event: "step_update",
+        step_update: {
+          conversation_id: "agy-conversation-1",
+          step_index: 1,
+          step_type: "agent_response",
+          state: "DONE",
+          text_delta: "hello from Antigravity",
+        },
+      });
+      emit({
+        event: "result",
+        result: {
+          status: "ERROR",
+          error:
+            'API error (attempt 1) request failed: Post "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse": write tcp 192.168.1.4:53312->142.250.72.74:443: use of closed network connection',
+        },
+      });
+    });
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    const updates: Parameters<StructuredSessionListener["onUpdate"]>[0][] = [];
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: (update) => updates.push(update),
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+    // The turn resolves — the answer reached the chat; rejecting would feed
+    // Craft-Harness a retryable error and regenerate the same reply.
+    await expect(session.startTurn("hi", { model: "Gemini 3.5 Flash" })).resolves.toBeUndefined();
+
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "warning",
+          message: expect.stringContaining("API error (attempt 1)"),
+        }),
+        expect.objectContaining({ type: "turn.completed", state: "completed" }),
+      ]),
+    );
+    expect(events.some((event) => event.type === "error")).toBe(false);
+    expect(
+      events.some((event) => event.type === "turn.completed" && event.state === "failed"),
+    ).toBe(false);
+    expect(finalAssistantText(events)).toBe("hello from Antigravity");
+    expect(updates.at(-1)).toMatchObject({ status: "idle", attention: "none" });
+  });
+
+  it("completes with a warning when the process exits after the answer was delivered", async () => {
+    const fixture = new AntigravityFixture((emit) => {
+      emit({ event: "init", conversation_id: "agy-conversation-1" });
+      emit({
+        event: "step_update",
+        step_update: {
+          step_type: "agent_response",
+          state: "DONE",
+          text_delta: "full answer text",
+        },
+      });
+      // `agy` exits right after its closing frames (probe-verified) — the
+      // result frame may never arrive.
+    });
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    const onClose = vi.fn<() => void>();
+    session.setListener({
+      onClose,
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: (event) => events.push(event),
+    });
+
+    await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+    const turn = session.startTurn("hi", { model: "Gemini 3.5 Flash" });
+    fixture.emit("exit", 1, null);
+
+    await expect(turn).resolves.toBeUndefined();
+    expect(events).toEqual(expect.arrayContaining([expect.objectContaining({ type: "warning" })]));
+    expect(
+      events.some((event) => event.type === "turn.completed" && event.state === "failed"),
+    ).toBe(false);
+    expect(finalAssistantText(events)).toBe("full answer text");
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
   it("starts a replacement turn after interrupt without reporting a crash", async () => {
     const fixture = new AntigravityFixture(() => undefined);
     const { session } = createFixtureSession(fixture);
