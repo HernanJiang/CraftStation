@@ -2770,6 +2770,7 @@ msgstr "Đã sao chép mã."
 msgid "Codex"
 msgstr "Codex"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Collapse"
@@ -4587,6 +4588,10 @@ msgstr "Chỉnh sửa mục tiêu"
 msgid "Edit MCP server"
 msgstr "Chỉnh sửa máy chủ MCP"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Edit message"
+msgstr "Chỉnh sửa tin nhắn"
+
 #: src/renderer/views/ProfileOverlay/parts/EditProfileDialog.tsx
 msgid "Edit profile"
 msgstr "Chỉnh sửa hồ sơ"
@@ -4780,6 +4785,10 @@ msgstr "Nhập tên dự án hợp lệ."
 msgid "Enter a valid SSH target and port."
 msgstr "Nhập đích SSH và cổng hợp lệ."
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Enter inserts a newline · Ctrl+Enter sends"
+msgstr "Enter chèn dòng mới · Ctrl+Enter gửi"
+
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Enter one MCP server configuration."
 msgstr "Nhập một cấu hình máy chủ MCP."
@@ -4920,6 +4929,7 @@ msgstr "đã thoát ({0})"
 msgid "Exited with code {0}. Close to retry."
 msgstr "Đã thoát với mã {0}. Đóng để thử lại."
 
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Expand"
@@ -4932,6 +4942,10 @@ msgstr "Mở rộng {label}"
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsagePanelHeaderActions.tsx
 msgid "Expand all"
 msgstr "Mở rộng tất cả"
+
+#: src/renderer/components/thread/ThreadComposerSection.tsx
+msgid "Expand editor"
+msgstr "Mở rộng trình chỉnh sửa"
 
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 msgid "Expand error"
@@ -10987,6 +11001,10 @@ msgstr "Chọn dự án"
 #: src/renderer/components/common/Select.tsx
 msgid "Select…"
 msgstr "Chọn…"
+
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Send"
+msgstr "Gửi"
 
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx

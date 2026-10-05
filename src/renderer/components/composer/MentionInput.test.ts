@@ -525,3 +525,79 @@ describe("structured segment insertion", () => {
     outside.remove();
   });
 });
+
+describe("math chips", () => {
+  const baseProps = {
+    placeholder: "Send a message...",
+    projectLocation: undefined,
+    onTextChange: vi.fn<(hasText: boolean) => void>(),
+    onSubmit: vi.fn<(segments: PromptSegment[]) => void>(),
+  };
+
+  it("renders a typed $...$ formula as a chip and serializes back to TeX", () => {
+    const ref = createRef<MentionInputHandle>();
+    render(createElement(MentionInput, { ref, ...baseProps }));
+
+    const editor = screen.getByRole("textbox");
+    const text = document.createTextNode("check $x^2$ done");
+    editor.appendChild(text);
+    fireEvent.input(editor);
+
+    const chip = editor.querySelector<HTMLElement>("[data-math-tex]");
+    expect(chip).not.toBeNull();
+    expect(chip?.dataset.mathTex).toBe("x^2");
+    expect(ref.current?.serialize()).toBe("check $x^2$ done");
+  });
+
+  it("renders $$...$$ display spans as chips on restore", () => {
+    const ref = createRef<MentionInputHandle>();
+    render(createElement(MentionInput, { ref, ...baseProps }));
+
+    act(() => {
+      ref.current?.restoreFromSegments([{ kind: "text", content: "area: $$\\pi r^2$$" }]);
+    });
+
+    const editor = screen.getByRole("textbox");
+    const chip = editor.querySelector<HTMLElement>("[data-math-tex]");
+    expect(chip?.dataset.mathTex).toBe("\\pi r^2");
+    expect(chip?.dataset.mathDisplay).toBe("true");
+    expect(ref.current?.serialize()).toBe("area: $$\\pi r^2$$");
+  });
+
+  it("keeps currency pairs like $5 and $10 as plain text", () => {
+    const ref = createRef<MentionInputHandle>();
+    render(createElement(MentionInput, { ref, ...baseProps }));
+
+    const editor = screen.getByRole("textbox");
+    editor.appendChild(document.createTextNode("costs $5 and $10"));
+    fireEvent.input(editor);
+
+    expect(editor.querySelector("[data-math-tex]")).toBeNull();
+    expect(ref.current?.serialize()).toBe("costs $5 and $10");
+  });
+
+  it("deletes a math chip with Backspace", () => {
+    const ref = createRef<MentionInputHandle>();
+    render(createElement(MentionInput, { ref, ...baseProps }));
+
+    const editor = screen.getByRole("textbox");
+    editor.appendChild(document.createTextNode("a $x$"));
+    fireEvent.input(editor);
+    const chip = editor.querySelector<HTMLElement>("[data-math-tex]");
+    expect(chip).not.toBeNull();
+
+    // Caret right after the chip (start of a trailing text node).
+    const tail = document.createTextNode("");
+    chip!.after(tail);
+    const range = document.createRange();
+    range.setStart(tail, 0);
+    range.collapse(true);
+    const sel = window.getSelection();
+    sel?.removeAllRanges();
+    sel?.addRange(range);
+    fireEvent.keyDown(editor, { key: "Backspace" });
+
+    expect(editor.querySelector("[data-math-tex]")).toBeNull();
+    expect(ref.current?.serialize()).toBe("a");
+  });
+});

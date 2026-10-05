@@ -2770,6 +2770,7 @@ msgstr "Code kopiert."
 msgid "Codex"
 msgstr "Codex"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Collapse"
@@ -4587,6 +4588,10 @@ msgstr "Ziel bearbeiten"
 msgid "Edit MCP server"
 msgstr "MCP-Server bearbeiten"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Edit message"
+msgstr "Nachricht bearbeiten"
+
 #: src/renderer/views/ProfileOverlay/parts/EditProfileDialog.tsx
 msgid "Edit profile"
 msgstr "Profil bearbeiten"
@@ -4780,6 +4785,10 @@ msgstr "Geben Sie einen gültigen Projektnamen ein."
 msgid "Enter a valid SSH target and port."
 msgstr "Geben Sie ein gültiges SSH-Ziel und einen gültigen Port ein."
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Enter inserts a newline · Ctrl+Enter sends"
+msgstr "Enter fügt einen Zeilenumbruch ein · Strg+Enter sendet"
+
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Enter one MCP server configuration."
 msgstr "Geben Sie eine MCP-Server-Konfiguration ein."
@@ -4920,6 +4929,7 @@ msgstr "beendet ({0})"
 msgid "Exited with code {0}. Close to retry."
 msgstr "Beendet mit Code {0}. Schließen, um erneut zu versuchen."
 
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Expand"
@@ -4932,6 +4942,10 @@ msgstr "Erweitern Sie {label}"
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsagePanelHeaderActions.tsx
 msgid "Expand all"
 msgstr "Alles erweitern"
+
+#: src/renderer/components/thread/ThreadComposerSection.tsx
+msgid "Expand editor"
+msgstr "Editor erweitern"
 
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 msgid "Expand error"
@@ -10987,6 +11001,10 @@ msgstr "Projekt auswählen"
 #: src/renderer/components/common/Select.tsx
 msgid "Select…"
 msgstr "Auswählen…"
+
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Send"
+msgstr "Senden"
 
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx

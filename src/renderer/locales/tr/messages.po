@@ -2770,6 +2770,7 @@ msgstr "Kod kopyalandı."
 msgid "Codex"
 msgstr "Codex"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Collapse"
@@ -4587,6 +4588,10 @@ msgstr "Hedefi düzenle"
 msgid "Edit MCP server"
 msgstr "MCP sunucusunu düzenle"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Edit message"
+msgstr "Mesajı düzenle"
+
 #: src/renderer/views/ProfileOverlay/parts/EditProfileDialog.tsx
 msgid "Edit profile"
 msgstr "Profili düzenle"
@@ -4780,6 +4785,10 @@ msgstr "Geçerli bir proje adı girin."
 msgid "Enter a valid SSH target and port."
 msgstr "Geçerli bir SSH hedefi ve bağlantı noktası girin."
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Enter inserts a newline · Ctrl+Enter sends"
+msgstr "Enter yeni satır ekler · Ctrl+Enter gönderir"
+
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Enter one MCP server configuration."
 msgstr "Bir MCP sunucusu yapılandırması girin."
@@ -4920,6 +4929,7 @@ msgstr "çıktı ({0})"
 msgid "Exited with code {0}. Close to retry."
 msgstr "{0} koduyla çıkıldı. Yeniden denemek için kapatın."
 
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Expand"
@@ -4932,6 +4942,10 @@ msgstr "{label} genişlet"
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsagePanelHeaderActions.tsx
 msgid "Expand all"
 msgstr "Tümünü genişlet"
+
+#: src/renderer/components/thread/ThreadComposerSection.tsx
+msgid "Expand editor"
+msgstr "Düzenleyiciyi genişlet"
 
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 msgid "Expand error"
@@ -10987,6 +11001,10 @@ msgstr "Proje seçin"
 #: src/renderer/components/common/Select.tsx
 msgid "Select…"
 msgstr "Seç…"
+
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Send"
+msgstr "Gönder"
 
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx

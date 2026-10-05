@@ -2890,6 +2890,63 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
   pointer-events: none;
 }
 
+/* Room for the top-right expand button so it doesn't overlay typed text. */
+.craftstation-mention-input--expandable {
+  padding-right: 2rem;
+}
+
+/* Top-right button that opens the expanded Markdown editor. */
+.craftstation-mention-expand {
+  position: absolute;
+  top: 0.45rem;
+  right: 0.45rem;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border-radius: 0.35rem;
+  color: var(--muted);
+  opacity: 0.55;
+  transition:
+    opacity 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.craftstation-mention-expand:hover {
+  opacity: 1;
+  color: var(--foreground);
+  background: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+/* Rendered TeX chip inside the contentEditable composer. */
+.craftstation-math-chip {
+  display: inline-block;
+  vertical-align: baseline;
+  padding: 0 0.2em;
+  margin: 0 0.04em;
+  border-radius: 0.3em;
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+}
+
+.craftstation-math-chip:hover {
+  background: color-mix(in oklab, var(--accent) 16%, transparent);
+}
+
+.craftstation-math-chip .katex {
+  font-size: 1.02em;
+}
+
+/* Expanded composer editor inside the modal. */
+.craftstation-composer-expanded .craftstation-mention-input {
+  min-height: 40vh;
+  max-height: 55vh;
+  overflow-y: auto;
+  padding: 0.9rem 1rem;
+}
+
 /* ── Mention Chip (inline in contentEditable) ────────────── */
 
 .craftstation-mention-chip {

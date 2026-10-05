@@ -2769,6 +2769,7 @@ msgstr "コードがコピーされました。"
 msgid "Codex"
 msgstr "Codex"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Collapse"
@@ -4586,6 +4587,10 @@ msgstr "目標を編集"
 msgid "Edit MCP server"
 msgstr "MCPサーバーを編集"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Edit message"
+msgstr "メッセージを編集"
+
 #: src/renderer/views/ProfileOverlay/parts/EditProfileDialog.tsx
 msgid "Edit profile"
 msgstr "プロフィールを編集"
@@ -4779,6 +4784,10 @@ msgstr "有効なプロジェクト名を入力してください。"
 msgid "Enter a valid SSH target and port."
 msgstr "有効な SSH 接続先とポートを入力してください。"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Enter inserts a newline · Ctrl+Enter sends"
+msgstr "Enter で改行 · Ctrl+Enter で送信"
+
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Enter one MCP server configuration."
 msgstr "MCPサーバー設定を1つ入力してください。"
@@ -4919,6 +4928,7 @@ msgstr "終了しました ({0})"
 msgid "Exited with code {0}. Close to retry."
 msgstr "コード{0}で終了しました。閉じて再試行してください。"
 
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Expand"
@@ -4931,6 +4941,10 @@ msgstr "{label}を展開する"
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsagePanelHeaderActions.tsx
 msgid "Expand all"
 msgstr "すべて展開"
+
+#: src/renderer/components/thread/ThreadComposerSection.tsx
+msgid "Expand editor"
+msgstr "エディターを拡大"
 
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 msgid "Expand error"
@@ -10985,6 +10999,10 @@ msgstr "プロジェクトの選択"
 #: src/renderer/components/common/Select.tsx
 msgid "Select…"
 msgstr "選択…"
+
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Send"
+msgstr "送信"
 
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx

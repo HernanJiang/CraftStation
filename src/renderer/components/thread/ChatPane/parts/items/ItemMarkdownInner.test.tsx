@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "@heroui/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AppProvider } from "@/renderer/components/ui/provider";
@@ -202,6 +202,52 @@ $$`}
     expect(container.querySelector(".katex-error")).toBeNull();
     expect(container.textContent).not.toContain("$$");
     expect(container).toHaveTextContent("继续分析结果。");
+  });
+
+  it("copies a selection containing math as clean TeX text", async () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={"The answer is $x^2$ indeed."} />
+      </AppProvider>,
+    );
+    await waitFor(() => expect(container.querySelectorAll(".katex")).toHaveLength(1));
+
+    const paragraph = container.querySelector("p")!;
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    const setData = vi.fn<(type: string, data: string) => void>();
+    const copyEvent = createEvent.copy(paragraph);
+    Object.defineProperty(copyEvent, "clipboardData", { value: { setData } });
+    fireEvent(paragraph, copyEvent);
+
+    expect(setData).toHaveBeenCalledWith("text/plain", expect.stringContaining("$x^2$"));
+    selection?.removeAllRanges();
+  });
+
+  it("leaves the default copy untouched when the selection has no math", async () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={"just some plain prose"} />
+      </AppProvider>,
+    );
+    const paragraph = container.querySelector("p")!;
+    const range = document.createRange();
+    range.selectNodeContents(paragraph);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+
+    const setData = vi.fn<(type: string, data: string) => void>();
+    const copyEvent = createEvent.copy(paragraph);
+    Object.defineProperty(copyEvent, "clipboardData", { value: { setData } });
+    fireEvent(paragraph, copyEvent);
+
+    expect(setData).not.toHaveBeenCalled();
+    selection?.removeAllRanges();
   });
 
   it("renders a <br> inside a GFM table cell as a real line break", () => {

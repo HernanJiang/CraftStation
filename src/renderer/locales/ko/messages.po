@@ -2770,6 +2770,7 @@ msgstr "코드가 복사되었습니다."
 msgid "Codex"
 msgstr "Codex"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Collapse"
@@ -4587,6 +4588,10 @@ msgstr "목표 편집"
 msgid "Edit MCP server"
 msgstr "MCP 서버 편집"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Edit message"
+msgstr "메시지 편집"
+
 #: src/renderer/views/ProfileOverlay/parts/EditProfileDialog.tsx
 msgid "Edit profile"
 msgstr "프로필 편집"
@@ -4780,6 +4785,10 @@ msgstr "유효한 프로젝트 이름을 입력하세요."
 msgid "Enter a valid SSH target and port."
 msgstr "올바른 SSH 대상과 포트를 입력하세요."
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Enter inserts a newline · Ctrl+Enter sends"
+msgstr "Enter 키는 줄 바꿈 · Ctrl+Enter 전송"
+
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Enter one MCP server configuration."
 msgstr "MCP 서버 구성 하나를 입력하세요."
@@ -4920,6 +4929,7 @@ msgstr "종료됨 ({0})"
 msgid "Exited with code {0}. Close to retry."
 msgstr "코드 {0}(으)로 종료되었습니다. 다시 시도하려면 닫으세요."
 
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Expand"
@@ -4932,6 +4942,10 @@ msgstr "{label} 펼치기"
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsagePanelHeaderActions.tsx
 msgid "Expand all"
 msgstr "모두 펼치기"
+
+#: src/renderer/components/thread/ThreadComposerSection.tsx
+msgid "Expand editor"
+msgstr "편집기 확장"
 
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 msgid "Expand error"
@@ -10987,6 +11001,10 @@ msgstr "프로젝트 선택"
 #: src/renderer/components/common/Select.tsx
 msgid "Select…"
 msgstr "선택…"
+
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Send"
+msgstr "보내기"
 
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx

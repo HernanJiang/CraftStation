@@ -2770,6 +2770,7 @@ msgstr "Код скопійовано. "
 msgid "Codex"
 msgstr "Codex"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Collapse"
@@ -4587,6 +4588,10 @@ msgstr "Редагувати мету"
 msgid "Edit MCP server"
 msgstr "Редагувати сервер MCP"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Edit message"
+msgstr "Редагувати повідомлення"
+
 #: src/renderer/views/ProfileOverlay/parts/EditProfileDialog.tsx
 msgid "Edit profile"
 msgstr "Редагувати профіль"
@@ -4780,6 +4785,10 @@ msgstr "Введіть припустиму назву проєкту."
 msgid "Enter a valid SSH target and port."
 msgstr "Введіть дійсну SSH-адресу та порт."
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Enter inserts a newline · Ctrl+Enter sends"
+msgstr "Enter додає новий рядок · Ctrl+Enter надсилає"
+
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Enter one MCP server configuration."
 msgstr "Введіть конфігурацію одного сервера MCP."
@@ -4920,6 +4929,7 @@ msgstr "завершено ({0})"
 msgid "Exited with code {0}. Close to retry."
 msgstr "Завершився з кодом {0}. Закрийте, щоб повторити."
 
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Expand"
@@ -4932,6 +4942,10 @@ msgstr "Розгорнути {label}"
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsagePanelHeaderActions.tsx
 msgid "Expand all"
 msgstr "Розгорнути все"
+
+#: src/renderer/components/thread/ThreadComposerSection.tsx
+msgid "Expand editor"
+msgstr "Розгорнути редактор"
 
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 msgid "Expand error"
@@ -10987,6 +11001,10 @@ msgstr "Вибрати проєкт"
 #: src/renderer/components/common/Select.tsx
 msgid "Select…"
 msgstr "Вибрати…"
+
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Send"
+msgstr "Надіслати"
 
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx

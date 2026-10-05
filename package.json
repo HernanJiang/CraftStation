@@ -133,6 +133,7 @@
     "electron-updater": "^6.8.9",
     "json5": "^2.2.3",
     "jsqr": "^1.4.0",
+    "katex": "0.16.47",
     "lucide-react": "^1.23.0",
     "material-icon-theme": "^5.36.1",
     "micromatch": "^4.0.8",

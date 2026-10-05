@@ -24,6 +24,7 @@ import { createMathPlugin } from "@streamdown/math";
 import { createMermaidPlugin } from "@streamdown/mermaid";
 import "katex/dist/katex.min.css";
 import { openExternalWithFeedback } from "@/renderer/utils/openExternal";
+import { htmlClipboardToText } from "@/renderer/components/composer/htmlClipboardText";
 import {
   resolveMarkdownImageUrl,
   rewriteMarkdownLocalImageUrls,
@@ -214,7 +215,10 @@ export default function ItemMarkdownInner({ text }: ItemMarkdownInnerProps) {
     },
   );
   return (
-    <div className="lc-chat-markdown prose max-w-none text-[length:var(--lc-chat-font-size)] leading-snug text-foreground prose-headings:text-[length:var(--lc-chat-font-size)] prose-p:text-[length:var(--lc-chat-font-size)] prose-p:whitespace-pre-wrap prose-li:text-[length:var(--lc-chat-font-size)] prose-pre:my-2 prose-pre:rounded prose-pre:border-0 prose-pre:bg-foreground/10 prose-pre:px-[0.5em] prose-pre:py-[0.25em] prose-pre:font-mono prose-pre:text-[0.875em] prose-pre:leading-snug prose-pre:whitespace-pre-wrap prose-pre:break-words prose-pre:overflow-x-hidden prose-code:before:content-none prose-code:after:content-none prose-a:text-foreground prose-a:no-underline prose-a:text-[length:inherit] hover:prose-a:underline hover:prose-a:decoration-1 prose-a:underline-offset-2">
+    <div
+      className="lc-chat-markdown prose max-w-none text-[length:var(--lc-chat-font-size)] leading-snug text-foreground prose-headings:text-[length:var(--lc-chat-font-size)] prose-p:text-[length:var(--lc-chat-font-size)] prose-p:whitespace-pre-wrap prose-li:text-[length:var(--lc-chat-font-size)] prose-pre:my-2 prose-pre:rounded prose-pre:border-0 prose-pre:bg-foreground/10 prose-pre:px-[0.5em] prose-pre:py-[0.25em] prose-pre:font-mono prose-pre:text-[0.875em] prose-pre:leading-snug prose-pre:whitespace-pre-wrap prose-pre:break-words prose-pre:overflow-x-hidden prose-code:before:content-none prose-code:after:content-none prose-a:text-foreground prose-a:no-underline prose-a:text-[length:inherit] hover:prose-a:underline hover:prose-a:decoration-1 prose-a:underline-offset-2"
+      onCopy={handleMarkdownCopy}
+    >
       <Streamdown
         remarkPlugins={remarkPlugins}
         rehypePlugins={rehypePlugins}
@@ -228,6 +232,28 @@ export default function ItemMarkdownInner({ text }: ItemMarkdownInnerProps) {
       </Streamdown>
     </div>
   );
+}
+
+/**
+ * Native copy flattens the rendered DOM, which turns KaTeX markup into
+ * duplicated/garbled glyphs. When the selection contains a `.katex` node,
+ * rebuild the text/plain flavor from the clipboard HTML converter (which
+ * restores TeX from MathML annotations); the HTML flavor passes through so
+ * rich paste still works elsewhere.
+ */
+function handleMarkdownCopy(event: React.ClipboardEvent<HTMLDivElement>) {
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+  const holder = document.createElement("div");
+  for (let i = 0; i < selection.rangeCount; i++) {
+    holder.appendChild(selection.getRangeAt(i).cloneContents());
+  }
+  if (!holder.querySelector(".katex")) return;
+  const text = htmlClipboardToText(holder.innerHTML);
+  if (!text.trim()) return;
+  event.preventDefault();
+  event.clipboardData.setData("text/plain", text);
+  event.clipboardData.setData("text/html", holder.innerHTML);
 }
 
 const MD_COMPONENTS: StreamdownComponents = {

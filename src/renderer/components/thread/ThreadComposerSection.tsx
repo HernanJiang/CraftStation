@@ -32,6 +32,7 @@ import {
 import { modelVisibilityKey } from "@/renderer/components/common/ProviderModelMenu/parts/providerIdentity";
 import { AttachmentBar } from "../composer/AttachmentBar";
 import { ComposerAddMenu } from "../composer/ComposerAddMenu";
+import { ComposerExpandDialog } from "../composer/ComposerExpandDialog";
 import { ComposerVoiceInput } from "../composer/ComposerVoiceInput";
 import {
   composerMcpServers,
@@ -224,6 +225,11 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   const mentionRef = useRef<MentionInputHandle>(null);
   const voiceInputRef = useRef<VoiceInputHandle>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // Expanded Markdown editor modal state. `expandedSeedRef` snapshots the
+  // composer segments at the moment the dialog opens; edits write back via
+  // the dialog's onClose/onSubmit.
+  const [composerExpanded, setComposerExpanded] = useState(false);
+  const expandedSeedRef = useRef<PromptSegment[]>([]);
   const [craftMode, setCraftMode] = useState<CraftMode>("auto");
   const [isInterrupting, setIsInterrupting] = useState(false);
   const attachments = useAttachments({
@@ -1466,6 +1472,11 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                           return false;
                         }}
                         onSlashCommandChange={setSlashQuery}
+                        onExpandRequest={() => {
+                          expandedSeedRef.current = mentionRef.current?.serializeSegments() ?? [];
+                          setComposerExpanded(true);
+                        }}
+                        expandLabel={t`Expand editor`}
                       />
                     }
                     controls={controlsWithOpenSignal}
@@ -1572,6 +1583,30 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
           ) : null}
         </div>
       ) : null}
+      <ComposerExpandDialog
+        isOpen={composerExpanded}
+        placeholder={props.composerPlaceholder ?? t`Send a message...`}
+        projectLocation={projectLocation}
+        {...(thread.projectId ? { projectId: thread.projectId } : {})}
+        mcpMentions={mcpMentions}
+        pluginMentions={pluginMentions}
+        onPasteImage={(file: File) => {
+          void attachments
+            .addClipboardImage(file, thread.id)
+            .catch((error: unknown) => toast.danger(friendlyError(error)));
+        }}
+        submitDisabled={!canSubmit}
+        initialSegments={expandedSeedRef.current}
+        onClose={(segments) => {
+          setComposerExpanded(false);
+          mentionRef.current?.restoreFromSegments(segments);
+          mentionRef.current?.focus();
+        }}
+        onSubmit={(segments) => {
+          setComposerExpanded(false);
+          void submitPrompt(segments).catch((error: unknown) => toast.danger(friendlyError(error)));
+        }}
+      />
     </>
   );
 }

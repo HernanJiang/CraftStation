@@ -142,6 +142,14 @@ export function serializeToSegments(container: HTMLDivElement): PromptSegment[] 
       return;
     }
 
+    // Rendered math chips carry their TeX source; the prompt text keeps the
+    // original `$…$`/`$$…$$` delimiters.
+    if (el.dataset.mathTex !== undefined) {
+      const tex = el.dataset.mathTex;
+      textBuffer += el.dataset.mathDisplay === "true" ? `$$${tex}$$` : `$${tex}$`;
+      return;
+    }
+
     if (el.tagName === "BR") {
       textBuffer += "\n";
       return;

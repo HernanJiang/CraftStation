@@ -2770,6 +2770,7 @@ msgstr "Kod skopiowany."
 msgid "Codex"
 msgstr "Codex"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Collapse"
@@ -4587,6 +4588,10 @@ msgstr "Edytuj cel"
 msgid "Edit MCP server"
 msgstr "Edytuj serwer MCP"
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Edit message"
+msgstr "Edytuj wiadomość"
+
 #: src/renderer/views/ProfileOverlay/parts/EditProfileDialog.tsx
 msgid "Edit profile"
 msgstr "Edytuj profil"
@@ -4780,6 +4785,10 @@ msgstr "Wprowadź prawidłową nazwę projektu."
 msgid "Enter a valid SSH target and port."
 msgstr "Wprowadź prawidłowy cel SSH i port."
 
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Enter inserts a newline · Ctrl+Enter sends"
+msgstr "Enter wstawia nowy wiersz · Ctrl+Enter wysyła"
+
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Enter one MCP server configuration."
 msgstr "Wprowadź jedną konfigurację serwera MCP."
@@ -4920,6 +4929,7 @@ msgstr "zakończono ({0})"
 msgid "Exited with code {0}. Close to retry."
 msgstr "Zakończono z kodem {0}. Zamknij, aby spróbować ponownie."
 
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Expand"
@@ -4932,6 +4942,10 @@ msgstr "Rozwiń {label}"
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsagePanelHeaderActions.tsx
 msgid "Expand all"
 msgstr "Rozwiń wszystko"
+
+#: src/renderer/components/thread/ThreadComposerSection.tsx
+msgid "Expand editor"
+msgstr "Rozwiń edytor"
 
 #: src/renderer/components/thread/ThreadErrorDock.tsx
 msgid "Expand error"
@@ -10987,6 +11001,10 @@ msgstr "Wybierz projekt"
 #: src/renderer/components/common/Select.tsx
 msgid "Select…"
 msgstr "Wybierz…"
+
+#: src/renderer/components/composer/ComposerExpandDialog.tsx
+msgid "Send"
+msgstr "Wyślij"
 
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx

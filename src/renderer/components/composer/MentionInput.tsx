@@ -1,5 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import type { LucideIcon } from "lucide-react";
+import { Maximize2, type LucideIcon } from "lucide-react";
 import type {
   AgentSlashCommand,
   FileEntry,
@@ -13,6 +13,7 @@ import { createMcpMentionChipElement } from "./McpMentionChip";
 import { createSlashCommandChipElement } from "./SlashCommandChip";
 import { MentionPopover, type MentionEntry } from "./MentionPopover";
 import { htmlClipboardToText } from "./htmlClipboardText";
+import { expandMathChipToText, transformMathChips } from "./mathChips";
 import { useDebouncedFileSearch } from "./useDebouncedFileSearch";
 import { serializeToSegments, flattenSegments } from "./serializeMentions";
 
@@ -180,7 +181,7 @@ function detectTriggerRange(triggerChar: string): Range | null {
 function hasEditorContent(editor: HTMLDivElement): boolean {
   if (
     editor.querySelector(
-      "[data-mention-path], [data-slash-command], [data-diff-comment-path], [data-mcp-id]",
+      "[data-mention-path], [data-slash-command], [data-diff-comment-path], [data-mcp-id], [data-math-tex]",
     )
   ) {
     return true;
@@ -283,6 +284,14 @@ export const MentionInput = forwardRef<
      * and stop further processing.
      */
     onInterceptKey?: (e: React.KeyboardEvent<HTMLDivElement>) => boolean;
+    /**
+     * When provided, a small expand button is rendered at the input's
+     * top-right corner; clicking it calls this callback (used to open the
+     * expanded composer editor). The label is caller-supplied because this
+     * component renders without an I18nProvider in tests.
+     */
+    onExpandRequest?: () => void;
+    expandLabel?: string;
   }
 >(function MentionInput(props, ref) {
   const {
@@ -301,6 +310,8 @@ export const MentionInput = forwardRef<
     commandActiveDescendant,
     submitOnEnter = true,
     onInterceptKey,
+    onExpandRequest,
+    expandLabel = "Expand editor",
   } = props;
   const mcpMentions = props.mcpMentions ?? EMPTY_MCP_MENTIONS;
   const pluginMentions = props.pluginMentions ?? EMPTY_PLUGIN_MENTIONS;
@@ -355,6 +366,7 @@ export const MentionInput = forwardRef<
     range.collapse(true);
     sel?.removeAllRanges();
     sel?.addRange(range);
+    transformMathChips(editor);
     checkMentionState();
     notifyTextChange();
   }
@@ -383,6 +395,7 @@ export const MentionInput = forwardRef<
       voicePreviewRef.current = null;
       editor.innerHTML = "";
       appendPromptSegments(editor, segments);
+      transformMathChips(editor);
       onTextChange(hasEditorContent(editor));
     },
     focus() {
@@ -441,6 +454,7 @@ export const MentionInput = forwardRef<
         selection?.removeAllRanges();
         selection?.addRange(range);
       }
+      transformMathChips(editor);
       checkMentionState();
       notifyTextChange();
     },
@@ -508,6 +522,7 @@ export const MentionInput = forwardRef<
       range.collapse(true);
       sel?.removeAllRanges();
       sel?.addRange(range);
+      if (editorRef.current) transformMathChips(editorRef.current);
       checkMentionState();
       notifyTextChange();
     },
@@ -692,6 +707,12 @@ export const MentionInput = forwardRef<
 
   function handleInput() {
     checkMentionState();
+    const editor = editorRef.current;
+    // Skip math conversion while a mention/slash trigger query is live —
+    // turning query text into a chip would break the trigger scan.
+    if (editor && detectTriggerQuery("@") === null && detectTriggerQuery("/") === null) {
+      transformMathChips(editor);
+    }
     notifyTextChange();
   }
 
@@ -747,7 +768,8 @@ export const MentionInput = forwardRef<
             prev?.dataset?.mentionPath ||
             prev?.dataset?.slashCommand ||
             prev?.dataset?.diffCommentPath ||
-            prev?.dataset?.mcpId
+            prev?.dataset?.mcpId ||
+            prev?.dataset?.mathTex !== undefined
           ) {
             e.preventDefault();
             prev.remove();
@@ -762,7 +784,8 @@ export const MentionInput = forwardRef<
             child?.dataset?.mentionPath ||
             child?.dataset?.slashCommand ||
             child?.dataset?.diffCommentPath ||
-            child?.dataset?.mcpId
+            child?.dataset?.mcpId ||
+            child?.dataset?.mathTex !== undefined
           ) {
             e.preventDefault();
             child.remove();
@@ -806,12 +829,24 @@ export const MentionInput = forwardRef<
     range.collapse(false);
     sel.removeAllRanges();
     sel.addRange(range);
+    if (editorRef.current) transformMathChips(editorRef.current);
     notifyTextChange();
   }
 
-  const editorClassName = compact
-    ? "craftstation-mention-input craftstation-mention-input--compact"
-    : "craftstation-mention-input";
+  function handleDoubleClick(e: React.MouseEvent<HTMLDivElement>) {
+    const chip = (e.target as HTMLElement).closest?.("[data-math-tex]");
+    if (chip instanceof HTMLElement && editorRef.current?.contains(chip)) {
+      e.preventDefault();
+      expandMathChipToText(chip);
+      notifyTextChange();
+    }
+  }
+
+  const editorClassName = `${
+    compact
+      ? "craftstation-mention-input craftstation-mention-input--compact"
+      : "craftstation-mention-input"
+  }${onExpandRequest ? " craftstation-mention-input--expandable" : ""}`;
 
   const liveRange = mention ? detectTriggerRange("@") : null;
 
@@ -833,9 +868,22 @@ export const MentionInput = forwardRef<
         onInput={handleInput}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
+        onDoubleClick={handleDoubleClick}
         onClick={checkMentionState}
         {...({ placeholder } as React.HTMLAttributes<HTMLDivElement>)}
       />
+      {onExpandRequest && !disabled ? (
+        <button
+          type="button"
+          aria-label={expandLabel}
+          title={expandLabel}
+          className="craftstation-mention-expand"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={onExpandRequest}
+        >
+          <Maximize2 className="size-3.5" />
+        </button>
+      ) : null}
       {mention && liveRange && results.length > 0 && (
         <MentionPopover
           results={results}
