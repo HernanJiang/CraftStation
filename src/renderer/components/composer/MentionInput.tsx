@@ -12,6 +12,7 @@ import { createChipElement, type FileMentionData } from "./FileMentionChip";
 import { createMcpMentionChipElement } from "./McpMentionChip";
 import { createSlashCommandChipElement } from "./SlashCommandChip";
 import { MentionPopover, type MentionEntry } from "./MentionPopover";
+import { htmlClipboardToText } from "./htmlClipboardText";
 import { useDebouncedFileSearch } from "./useDebouncedFileSearch";
 import { serializeToSegments, flattenSegments } from "./serializeMentions";
 
@@ -792,7 +793,11 @@ export const MentionInput = forwardRef<
     }
 
     e.preventDefault();
-    const text = e.clipboardData.getData("text/plain");
+    // Rendered content copied as text/html flattens poorly via text/plain
+    // (KaTeX formulas become one-symbol-per-line noise); rebuild it as
+    // Markdown-ish text from the HTML when available.
+    const html = e.clipboardData.getData("text/html");
+    const text = (html ? htmlClipboardToText(html) : "") || e.clipboardData.getData("text/plain");
     const sel = window.getSelection();
     if (!sel || sel.rangeCount === 0) return;
     const range = sel.getRangeAt(0);
