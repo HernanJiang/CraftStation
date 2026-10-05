@@ -1,6 +1,6 @@
-import { Link, toast } from "@heroui/react";
+import { Link, Modal, Tooltip, toast } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
-import { ExternalLink } from "lucide-react";
+import { CodeXml, ExternalLink, Maximize2 } from "lucide-react";
 import {
   Children,
   cloneElement,
@@ -78,9 +78,21 @@ const MERMAID_THEME_CSS = [
   // off container classes — it inherits into label background rects.
   "text, tspan, .nodeLabel, .edgeLabel .label, .edgeLabel span, .edgeLabel p, .clusterLabel, .cluster-label, .messageText, .noteText, .labelText, .loopText, .titleText { fill: var(--foreground) !important; }",
   ".label, .label div, .label span, .label p, .nodeLabel, .edgeLabel, .edgeLabel div, .edgeLabel span, .edgeLabel p, .clusterLabel, .cluster-label, .cluster-label div, .messageText, .noteText, .labelText, .loopText, .legend, .titleText { color: var(--foreground) !important; }",
-  ".edgeLabel rect, .labelBox { fill: var(--surface) !important; }",
-  ".edgeLabel { background: var(--surface) !important; }",
-  ".node rect, .node circle, .node ellipse, .node polygon, .node > path, .basic label-container, .actor rect, .note, .messageBox, .labelBox { fill: var(--surface-secondary) !important; stroke: var(--border) !important; color: var(--foreground) !important; }",
+  // Codex-style chrome: generously rounded elevated nodes, pill edge
+  // labels, accent-filled sequence actors, muted thin connectors.
+  ".node rect, .node circle, .node ellipse, .node polygon, .node > path, .basic label-container, .note, .messageBox, .labelBox { fill: var(--surface-secondary) !important; stroke: var(--border) !important; color: var(--foreground) !important; }",
+  ".node rect, .node .basic.label-container, .note, .cluster rect { rx: 12px; ry: 12px; }",
+  ".edgeLabel rect, .labelBox { rx: 8px; ry: 8px; }",
+  ".edgeLabel { background: var(--surface-secondary) !important; }",
+  // htmlLabel edge labels put a translucent theme-tinted div.labelBkg behind
+  // the pill span — clear it, and give the span the pill chrome instead.
+  ".labelBkg { background: transparent !important; }",
+  "span.edgeLabel { background: var(--surface-secondary) !important; border: 1px solid var(--border) !important; border-radius: 6px !important; padding: 1px 8px !important; }",
+  "span.edgeLabel *, .labelBkg * { background: transparent !important; }",
+  "span.edgeLabel:empty { display: none !important; }",
+  ".actor rect, rect.actor, rect.actor-top, rect.actor-bottom { fill: var(--accent) !important; stroke: none !important; rx: 8px; ry: 8px; }",
+  ".actor text, .actor tspan, text.actor { fill: var(--accent-foreground) !important; }",
+  ".actor, .actor div, .actor span { color: var(--accent-foreground) !important; }",
   ".cluster rect { fill: color-mix(in oklab, var(--foreground) 5%, transparent) !important; stroke: var(--border) !important; }",
   ".edgePath path, .edgePaths path, .flowchart-link, .transition, .messageLine0, .messageLine1, .actor-line, .loopLine { stroke: var(--muted) !important; }",
   "marker path, marker circle, .arrowheadPath { fill: var(--muted) !important; stroke: var(--muted) !important; }",
@@ -405,17 +417,62 @@ function MdCodeBlockFrame({
   children?: ReactNode;
 }) {
   const { t } = useLingui();
+  const [expanded, setExpanded] = useState(false);
   if (text.length === 0) return <>{children}</>;
+
+  const headerLabel = (
+    <span className="flex select-none items-center gap-1.5 text-muted">
+      <CodeXml className="size-3.5" />
+      <span className="font-mono text-[11px] leading-none">{lang ?? "text"}</span>
+    </span>
+  );
   return (
-    <div className="not-prose my-2 min-w-0 overflow-hidden rounded border border-foreground/10">
-      <div className="lc-md-code-header flex items-center justify-between gap-2 border-b border-foreground/10 bg-foreground/5 px-[0.75em] py-1">
-        <span className="select-none font-mono text-[10px] leading-none tracking-wide text-muted">
-          {lang ?? "text"}
-        </span>
-        <CopyTextButton text={text} label={t`Copy code`} />
+    <>
+      {/* Codex-style floating card: rounded, elevated surface, icon header. */}
+      <div className="not-prose my-2 min-w-0 overflow-hidden rounded-xl bg-[var(--surface-secondary)] ring-1 ring-foreground/5">
+        <div className="lc-md-code-header flex items-center justify-between gap-2 px-3 py-1.5">
+          {headerLabel}
+          <div className="flex items-center gap-0.5">
+            <Tooltip delay={300}>
+              <Tooltip.Trigger>
+                <button
+                  type="button"
+                  aria-label={t`Expand`}
+                  className="flex size-5 items-center justify-center rounded text-muted/70 transition-colors hover:bg-foreground/5 hover:text-foreground"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setExpanded(true);
+                  }}
+                >
+                  <Maximize2 className="size-3" />
+                </button>
+              </Tooltip.Trigger>
+              <Tooltip.Content placement="top">{t`Expand`}</Tooltip.Content>
+            </Tooltip>
+            <CopyTextButton text={text} label={t`Copy code`} />
+          </div>
+        </div>
+        {children}
       </div>
-      {children}
-    </div>
+      <Modal.Backdrop
+        isOpen={expanded}
+        onOpenChange={(open) => {
+          if (!open) setExpanded(false);
+        }}
+      >
+        <Modal.Container placement="center" size="lg" scroll="inside">
+          <Modal.Dialog className="overflow-hidden">
+            <Modal.Body className="p-0">
+              <div className="flex items-center justify-between gap-2 px-3 py-2">
+                {headerLabel}
+                <CopyTextButton text={text} label={t`Copy code`} />
+              </div>
+              <div className="max-h-[75vh] overflow-auto">{children}</div>
+            </Modal.Body>
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
+    </>
   );
 }
 
