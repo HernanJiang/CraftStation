@@ -31,13 +31,17 @@ const toastDangerSpy = vi.spyOn(toast, "danger").mockImplementation(() => undefi
 // factory so the diagram output is deterministic, and capture the config
 // so the htmlLabels-compatible security level is asserted.
 const mermaidPluginConfig = vi.hoisted(() => ({ value: undefined as unknown }));
+const mermaidRenderImpl = vi.hoisted(() => ({
+  value: (_id: string, _code: string): Promise<{ svg: string }> =>
+    Promise.resolve({ svg: '<svg data-mermaid-mock="true"></svg>' }),
+}));
 vi.mock("@streamdown/mermaid", () => ({
   createMermaidPlugin: (options: { config?: unknown }) => {
     mermaidPluginConfig.value = options?.config;
     return {
       getMermaid: () => ({
         initialize: () => {},
-        render: async () => ({ svg: '<svg data-mermaid-mock="true"></svg>' }),
+        render: (id: string, code: string) => mermaidRenderImpl.value(id, code),
       }),
     };
   },
@@ -48,6 +52,8 @@ describe("ItemMarkdownInner", () => {
     codeBlockSpy.mockClear();
     toastDangerSpy.mockClear();
     Reflect.deleteProperty(window, "craftstation");
+    mermaidRenderImpl.value = () =>
+      Promise.resolve({ svg: '<svg data-mermaid-mock="true"></svg>' });
   });
 
   it("routes supported fenced code blocks through CodeBlock", () => {
@@ -293,6 +299,59 @@ flowchart TD
     const header = container.querySelector(".lc-md-code-header");
     expect(header).toHaveTextContent("mermaid");
     expect(header?.nextElementSibling).toHaveClass("lc-md-mermaid");
+  });
+
+  it("recovers when a mid-stream mermaid parse failure is followed by valid code", async () => {
+    // Regression: while a fence streams in, `render()` throws on the partial
+    // code — a sticky `failed` flag then kept showing raw source forever even
+    // after the completed code rendered fine.
+    mermaidRenderImpl.value = (_id, code) =>
+      code.includes("End")
+        ? Promise.resolve({ svg: '<svg data-mermaid-mock="true"></svg>' })
+        : Promise.reject(new Error("incomplete diagram"));
+
+    const text = "```mermaid\nflowchart TD\n  A[Start]\n```";
+    const finalText = "```mermaid\nflowchart TD\n  A[Start] --> B[End]\n```";
+    const { container, rerender } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={text} />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelector("pre")).not.toBeNull());
+    rerender(
+      <AppProvider>
+        <ItemMarkdownInner text={finalText} />
+      </AppProvider>,
+    );
+    await waitFor(() =>
+      expect(
+        container.querySelector('.lc-md-mermaid svg[data-mermaid-mock="true"]'),
+      ).not.toBeNull(),
+    );
+    expect(container.querySelector("pre > code.language-mermaid")).toBeNull();
+  });
+
+  it("pins mermaid svg width to its natural size instead of stretching to 100%", async () => {
+    mermaidRenderImpl.value = () =>
+      Promise.resolve({
+        svg: '<svg data-mermaid-mock="true" width="100%" height="430" viewBox="0 0 270 430" style="max-width: 270px;"></svg>',
+      });
+
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={"```mermaid\nflowchart TD\n  A --> B\n```"} />
+      </AppProvider>,
+    );
+
+    await waitFor(() =>
+      expect(
+        container.querySelector('.lc-md-mermaid svg[data-mermaid-mock="true"]'),
+      ).not.toBeNull(),
+    );
+    const svg = container.querySelector(".lc-md-mermaid svg");
+    expect(svg).toHaveAttribute("width", "270");
+    expect(svg).not.toHaveAttribute("height");
   });
 
   it("configures mermaid with htmlLabels so <br> in labels breaks lines", () => {

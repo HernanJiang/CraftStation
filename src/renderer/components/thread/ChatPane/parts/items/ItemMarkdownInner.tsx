@@ -479,6 +479,22 @@ function MdCodeBlockFrame({
 let mermaidRenderSeq = 0;
 
 /**
+ * Mermaid emits `<svg width="100%" height="N" style="max-width:Wpx">` when
+ * useMaxWidth is on. If the inline style is ever lost the svg upscales to fill
+ * the pane, so pin the viewBox's natural width on the `width` attribute and
+ * drop the fixed `height` — CSS (`max-w-full h-auto`) then handles shrink only.
+ */
+function normalizeMermaidSvgSize(svg: string): string {
+  const viewBox = /viewBox="[\d. -]+?\s([\d.]+)\s[\d.]+"/.exec(svg);
+  if (!viewBox) return svg;
+  const naturalWidth = Number.parseFloat(viewBox[1] ?? "");
+  if (!Number.isFinite(naturalWidth) || naturalWidth <= 0) return svg;
+  return svg
+    .replace(/<svg([^>]*?)\swidth="100%"/, `<svg$1 width="${naturalWidth}"`)
+    .replace(/<svg([^>]*?)\sheight="[\d.]+"/, "<svg$1");
+}
+
+/**
  * Renders a ````mermaid` fence as an actual diagram. Streamdown dispatches
  * diagram plugins inside its default `code` component, which our overrides
  * replace — so mermaid fences would otherwise fall back to raw source. On
@@ -489,21 +505,36 @@ function MdMermaidDiagram({ code }: { code: string }) {
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let cancelled = false;
-    const id = `lc-mermaid-${mermaidRenderSeq++}`;
-    markdownMermaidPlugin
-      .getMermaid()
-      .render(id, code)
-      .then(({ svg: rendered }) => {
-        if (!cancelled) setSvg(rendered);
-      })
-      .catch(() => {
-        if (!cancelled) setFailed(true);
-      });
+    // Debounce while the fenced block is still streaming: partial code almost
+    // always fails to parse, and re-rendering on every chunk is wasted work.
+    const timer = setTimeout(() => {
+      const id = `lc-mermaid-${mermaidRenderSeq++}`;
+      markdownMermaidPlugin
+        .getMermaid()
+        .render(id, code)
+        .then(({ svg: rendered }) => {
+          if (cancelled) return;
+          setSvg(normalizeMermaidSvgSize(rendered));
+          setFailed(false);
+        })
+        .catch(() => {
+          if (!cancelled) setFailed(true);
+        });
+    }, 120);
     return () => {
       cancelled = true;
+      clearTimeout(timer);
     };
   }, [code]);
 
+  if (svg) {
+    return (
+      <div
+        className="lc-md-mermaid max-h-[min(60vh,32rem)] overflow-auto px-[0.75em] py-[0.5em] [&_svg]:mx-auto [&_svg]:max-w-full [&_svg]:h-auto"
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
+    );
+  }
   if (failed) {
     return (
       <pre className={markdownCodeBlockInnerClass}>
@@ -511,13 +542,7 @@ function MdMermaidDiagram({ code }: { code: string }) {
       </pre>
     );
   }
-  if (!svg) return <div aria-hidden className="px-[0.75em] py-[0.5em]" />;
-  return (
-    <div
-      className="lc-md-mermaid max-h-[min(60vh,32rem)] overflow-auto px-[0.75em] py-[0.5em] [&_svg]:mx-auto [&_svg]:max-w-full [&_svg]:h-auto"
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
-  );
+  return <div aria-hidden className="px-[0.75em] py-[0.5em]" />;
 }
 
 function MdCode(props: { className: string; isBlock?: boolean; children?: ReactNode }) {
