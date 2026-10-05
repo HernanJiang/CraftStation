@@ -28,6 +28,7 @@ import {
 } from "@/shared/contracts";
 import { isOpenCodePrivateRuntimeEnvironmentKey } from "./privateRuntimeEnvironment";
 import { blockingWindow } from "@craftstation/agents-usage";
+import { classifyCodexPoolQuotaError } from "../agents/codex/sessionErrors";
 
 interface AccountFile {
   version: 2;
@@ -389,7 +390,13 @@ export class AccountStore {
     accountStatusSchema.parse(status);
     return this.update(accountId, (account) => {
       account.status = status;
-      if (details?.lastError !== undefined) account.lastError = details.lastError;
+      if (details?.lastError !== undefined) {
+        account.lastError = details.lastError;
+        // A fresh flat error write is not axis evidence — stale axis
+        // provenance must not describe a mark it did not produce.
+        delete account.lastQuotaAxis;
+        delete account.lastQuotaResetsAt;
+      }
       if (details?.lastQuotaAt !== undefined) account.lastQuotaAt = details.lastQuotaAt;
       // Only a healthy transition clears the last observed error. A
       // degraded-state write that omits it (e.g. the quota poller refreshing
@@ -400,14 +407,36 @@ export class AccountStore {
       // which then re-elects the dead account and burns the failover chain.
       if (details?.lastError === undefined && (status === "available" || status === "quota-low")) {
         delete account.lastError;
+        delete account.lastQuotaAxis;
+        delete account.lastQuotaResetsAt;
       }
     });
   }
 
   updateQuota(accountId: string, quotaWindows: AccountQuotaWindow[]): AccountView {
     return this.update(accountId, (account) => {
+      this.clearSpentQuotaMark(account, quotaWindows);
       account.quotaWindows = quotaWindows.map((window) => ({ ...window }));
     });
+  }
+
+  /**
+   * An inferred axis block owns its mark's evidence lifecycle: once the last
+   * inferred window leaves the row — superseded by fresh axis data or elapsed
+   * past its advertised reset — the mark is spent. Without this clear, a bare
+   * `lastError`+`lastQuotaAt` pair stretches the dead mark back out to the
+   * 6h TTL even though fresh axis data already proved recovery.
+   */
+  private clearSpentQuotaMark(
+    account: AccountRecord,
+    nextWindows: readonly AccountQuotaWindow[],
+  ): void {
+    const hadInferred = (account.quotaWindows ?? []).some((window) => window.inferred === true);
+    if (!hadInferred) return;
+    if (nextWindows.some((window) => window.inferred === true)) return;
+    delete account.lastError;
+    delete account.lastQuotaAxis;
+    delete account.lastQuotaResetsAt;
   }
 
   /**
@@ -443,6 +472,11 @@ export class AccountStore {
         resetsAt,
         inferred: true,
       });
+      // Axis provenance rides with the mark so recovery can release it as
+      // soon as the marked axis itself proves a rollover or refill — instead
+      // of stretching a spent mark out to the flat 6h TTL.
+      account.lastQuotaAxis = input.axisId;
+      account.lastQuotaResetsAt = resetsAt;
       // Only quota-family and healthy statuses flip to exhausted — an
       // `auth-expired`/`error`/`disabled` row keeps its stronger state;
       // those already block scheduling and mean something different.
@@ -474,7 +508,9 @@ export class AccountStore {
   ): AccountView {
     return this.update(accountId, (account) => {
       const now = Date.now();
-      account.quotaWindows = mergeQuotaWindows(windows, account.quotaWindows, now);
+      const merged = mergeQuotaWindows(windows, account.quotaWindows, now);
+      this.clearSpentQuotaMark(account, merged);
+      account.quotaWindows = merged;
       if (
         account.status === "available" ||
         account.status === "quota-low" ||
@@ -523,6 +559,7 @@ export class AccountStore {
           continue;
         }
         if (windowsChanged) {
+          this.clearSpentQuotaMark(account, liveWindows);
           account.quotaWindows = liveWindows;
         }
         if (nextStatus !== account.status) {
@@ -530,6 +567,8 @@ export class AccountStore {
         }
         if (nextStatus === "available" || nextStatus === "quota-low") {
           delete account.lastError;
+          delete account.lastQuotaAxis;
+          delete account.lastQuotaResetsAt;
         }
         changed.push(account.accountId);
       }
@@ -1094,14 +1133,115 @@ export function shouldPreserveInferenceExhaustion(
  * `lastError` must NOT stretch it back out to the 6h TTL.
  */
 export function shouldPreserveQuotaMark(
-  record: Pick<AccountRecord, "status" | "lastError" | "lastQuotaAt" | "quotaWindows"> | undefined,
+  record:
+    | Pick<
+        AccountRecord,
+        | "provider"
+        | "status"
+        | "lastError"
+        | "lastQuotaAt"
+        | "lastQuotaAxis"
+        | "lastQuotaResetsAt"
+        | "quotaWindows"
+      >
+    | undefined,
   now: number,
 ): boolean {
   if (!record) return false;
   if ((record.quotaWindows ?? []).some((window) => window.inferred === true)) {
     return false;
   }
-  return shouldPreserveInferenceExhaustion(record, now);
+  return inferenceMarkBlocks(record, now);
+}
+
+/**
+ * How far apart two `resetsAt` readings must be to describe different
+ * periods. The window's own resets and the error's retry timestamp come from
+ * different clocks inside the provider and routinely disagree by seconds or
+ * a few minutes for the SAME period — treat sub-quarter-hour deltas as
+ * jitter, not rollover.
+ */
+const QUOTA_PERIOD_JITTER_MS = 15 * 60_000;
+
+/** The observed window usage must stay at least this high to corroborate a still-live block. */
+const QUOTA_MARK_SATURATION_PERCENT = 95;
+
+/**
+ * The axis a stored mark was scoped to, plus the reset time it advertised.
+ * Persisted provenance (`lastQuotaAxis`/`lastQuotaResetsAt`) is preferred;
+ * records marked before those fields existed recover the axis by re-running
+ * the provider classifier on the stored `lastError` — Codex retry text
+ * carries the axis's own reset timestamp. Flat marks (Grok 402s, manual
+ * writes) yield no axis and keep legacy TTL semantics.
+ */
+function quotaMarkAxis(
+  record: Pick<
+    AccountRecord,
+    | "provider"
+    | "lastError"
+    | "lastQuotaAt"
+    | "lastQuotaAxis"
+    | "lastQuotaResetsAt"
+    | "quotaWindows"
+  >,
+  now: number,
+): { axisId: QuotaAxisId; resetsAt?: number | undefined } | undefined {
+  if (record.lastQuotaAxis !== undefined) {
+    return { axisId: record.lastQuotaAxis, resetsAt: record.lastQuotaResetsAt };
+  }
+  if (record.provider === "codex" && record.lastError) {
+    const classification = classifyCodexPoolQuotaError(record.lastError, record.quotaWindows, now);
+    if (classification) {
+      return { axisId: classification.axisId, resetsAt: classification.recoversAt };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Whether a turn-level quota mark still outranks healthy-looking windows.
+ *
+ * Flat marks (no axis provenance) keep the legacy TTL semantics: % windows
+ * cannot disprove a real inference failure. Axis-scoped marks release early
+ * on affirmative recovery of the MARKED axis alone:
+ *
+ * - the advertised/estimated reset has elapsed; or
+ * - the axis's primary lane reports a `resetsAt` past the mark's period —
+ *   a rolled-over new period; or
+ * - the primary lane reads below the saturation threshold the mark needed —
+ *   a within-period refill (reset card). Usage is monotonic inside a period,
+ *   so a stale lagged reading can only corroborate, never drop below it.
+ */
+export function inferenceMarkBlocks(
+  record: Pick<
+    AccountRecord,
+    | "provider"
+    | "status"
+    | "lastError"
+    | "lastQuotaAt"
+    | "lastQuotaAxis"
+    | "lastQuotaResetsAt"
+    | "quotaWindows"
+  >,
+  now: number,
+): boolean {
+  if (!shouldPreserveInferenceExhaustion(record, now)) return false;
+  const marked = quotaMarkAxis(record, now);
+  if (marked === undefined) return true;
+  const markEnd =
+    marked.resetsAt ?? (record.lastQuotaAt ?? now) + QUOTA_AXIS_FALLBACK_MS[marked.axisId];
+  if (now >= markEnd) return false;
+  for (const window of record.quotaWindows ?? []) {
+    if (window.inferred === true) continue;
+    if (window.id !== marked.axisId) continue;
+    if (window.resetsAt !== undefined && window.resetsAt > markEnd + QUOTA_PERIOD_JITTER_MS) {
+      return false;
+    }
+    if (window.usedPercent < QUOTA_MARK_SATURATION_PERCENT) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /**
@@ -1235,7 +1375,16 @@ export function mergeQuotaWindows(
  * the pre-axis semantics for providers without window data (Grok 402s).
  */
 export function effectiveQuotaStatus(
-  record: Pick<AccountRecord, "provider" | "status" | "quotaWindows" | "lastError" | "lastQuotaAt">,
+  record: Pick<
+    AccountRecord,
+    | "provider"
+    | "status"
+    | "quotaWindows"
+    | "lastError"
+    | "lastQuotaAt"
+    | "lastQuotaAxis"
+    | "lastQuotaResetsAt"
+  >,
   now: number,
 ): AccountStatus {
   if (record.status !== "quota-exhausted" && record.status !== "quota-low") {
@@ -1270,12 +1419,13 @@ export function effectiveQuotaStatus(
     record.status === "quota-exhausted" &&
     derived !== "quota-exhausted" &&
     !stored.some((window) => window.inferred === true) &&
-    shouldPreserveInferenceExhaustion(record, now)
+    inferenceMarkBlocks(record, now)
   ) {
     // Pure observed windows that read healthy cannot disprove a fresh
     // turn-level inference mark — the % probe lags the rate-limit engine.
     // Once the mark's TTL lapses (or inferred axis evidence takes over the
-    // lifecycle), the derived status wins and the row heals normally.
+    // lifecycle, or the marked axis itself proves recovery), the derived
+    // status wins and the row heals normally.
     return "quota-exhausted";
   }
   return derived;

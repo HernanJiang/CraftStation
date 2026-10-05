@@ -766,6 +766,135 @@ describe("dual-axis quota", () => {
     expect(record.quotaWindows?.find((w) => w.id === "weekly")?.usedPercent).toBe(15);
   });
 
+  it("markQuotaAxisBlocked records axis provenance for recovery", () => {
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "Plus" });
+    const recoversAt = Date.now() + 2 * HOUR;
+    store.markQuotaAxisBlocked(account.accountId, {
+      axisId: "session-5h",
+      recoversAt,
+      lastError: "usage limit",
+    });
+    const record = store.getRecord(account.accountId)!;
+    expect(record.lastQuotaAxis).toBe("session-5h");
+    expect(record.lastQuotaResetsAt).toBe(recoversAt);
+  });
+
+  it("a pushed window that supersedes the last inferred block clears the spent mark", () => {
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "Plus" });
+    store.updateStatus(account.accountId, "available");
+    const now = Date.now();
+    store.markQuotaAxisBlocked(account.accountId, {
+      axisId: "session-5h",
+      recoversAt: now + 2 * HOUR,
+      lastError: "usage limit",
+    });
+    // A rateLimits push reports the 5h lane rolled into a new period at 0%:
+    // merge supersedes the inferred block, and the mark must die with it
+    // instead of stretching the row out to the flat 6h TTL.
+    store.applyObservedQuotaWindows(account.accountId, [
+      { id: "session-5h", label: "Session (5h)", usedPercent: 0, resetsAt: now + 7 * HOUR },
+      { id: "weekly", label: "Weekly", usedPercent: 68, resetsAt: now + 5 * 24 * HOUR },
+    ]);
+    const record = store.getRecord(account.accountId)!;
+    expect(record.status).toBe("available");
+    expect(record.lastError).toBeUndefined();
+  });
+
+  it("releases a legacy session mark once the marked axis shows a rolled-over window", () => {
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "Plus" });
+    const now = Date.now();
+    // Legacy shape (pre-provenance rows): mark evidence but no axis fields.
+    store.updateStatus(account.accountId, "quota-exhausted", {
+      lastError: "You've hit your usage limit. Upgrade to Pro",
+      lastQuotaAt: now - 4 * HOUR,
+    });
+    store.updateQuota(account.accountId, [
+      { id: "session-5h", label: "Session (5h)", usedPercent: 0, resetsAt: now + 3 * HOUR },
+      { id: "weekly", label: "Weekly", usedPercent: 68, resetsAt: now + 5 * 24 * HOUR },
+    ]);
+    const healed = store.reconcileQuotaExpiry("codex");
+    expect(healed).toContain(account.accountId);
+    expect(store.getRecord(account.accountId)!.status).toBe("available");
+  });
+
+  it("releases a legacy weekly mark when the weekly lane dropped below saturation (reset card)", () => {
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "Pro" });
+    const now = Date.now();
+    store.updateStatus(account.accountId, "quota-exhausted", {
+      lastError:
+        "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits.",
+      lastQuotaAt: now - 2 * HOUR,
+    });
+    store.updateQuota(account.accountId, [
+      { id: "weekly", label: "Weekly", usedPercent: 0, resetsAt: now + 5 * 24 * HOUR },
+      { id: "codex:reset-credits", label: "重置卡", usedPercent: 0, unit: "credits" },
+    ]);
+    const healed = store.reconcileQuotaExpiry("codex");
+    expect(healed).toContain(account.accountId);
+    expect(store.getRecord(account.accountId)!.status).toBe("available");
+  });
+
+  it("keeps a fresh weekly mark while the weekly lane still reads saturated", () => {
+    // A lagged same-period reading ≥95% corroborates the live block and must
+    // not release the row just because the inferred window is gone.
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "Pro" });
+    const now = Date.now();
+    store.updateStatus(account.accountId, "quota-exhausted", {
+      lastError:
+        "You've hit your usage limit. Visit https://chatgpt.com/codex/settings/usage to purchase more credits.",
+      lastQuotaAt: now - 2 * HOUR,
+    });
+    store.updateQuota(account.accountId, [
+      { id: "weekly", label: "Weekly", usedPercent: 99, resetsAt: now + 5 * 24 * HOUR },
+    ]);
+    store.reconcileQuotaExpiry("codex");
+    expect(store.getRecord(account.accountId)!.status).toBe("quota-exhausted");
+  });
+
+  it("flat marks without axis provenance keep TTL semantics against sub-95 windows", () => {
+    const now = Date.now();
+    expect(
+      effectiveQuotaStatus(
+        {
+          provider: "grok",
+          status: "quota-exhausted",
+          quotaWindows: [
+            { id: "weekly", label: "Weekly", usedPercent: 10, resetsAt: now + 5 * 24 * HOUR },
+          ],
+          lastError: "usage balance exhausted",
+          lastQuotaAt: now,
+        },
+        now,
+      ),
+    ).toBe("quota-exhausted");
+  });
+
+  it("resolve re-elects a recovered account whose mark a push superseded", () => {
+    const store = createStore();
+    const plus = store.add({ provider: "codex", label: "Plus" });
+    const pro = store.add({ provider: "codex", label: "Pro" });
+    store.updateStatus(plus.accountId, "available");
+    store.updateStatus(pro.accountId, "available");
+    const resolver = new AccountResolver(store);
+    const now = Date.now();
+    store.markQuotaAxisBlocked(plus.accountId, {
+      axisId: "session-5h",
+      recoversAt: now + 2 * HOUR,
+      lastError: "usage limit",
+    });
+    store.applyObservedQuotaWindows(plus.accountId, [
+      { id: "session-5h", label: "Session (5h)", usedPercent: 0, resetsAt: now + 7 * HOUR },
+      { id: "weekly", label: "Weekly", usedPercent: 68, resetsAt: now + 5 * 24 * HOUR },
+    ]);
+    const pick = resolver.resolve({ provider: "codex", mode: "auto" });
+    expect(pick.account.accountId).toBe(plus.accountId);
+  });
+
   it("applyObservedQuotaWindows never resurrects auth-expired rows", () => {
     const store = createStore();
     const account = store.add({ provider: "codex", label: "Codex" });

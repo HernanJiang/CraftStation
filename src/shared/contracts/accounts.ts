@@ -84,6 +84,13 @@ export const accountViewSchema = z.object({
   status: accountStatusSchema,
   lastError: z.string().max(1000).optional(),
   lastQuotaAt: z.number().int().nonnegative().optional(),
+  /**
+   * Budget axis the last turn-level quota mark was scoped to (`session-5h` or
+   * `weekly`), and the reset time it advertised. Only axis-scoped marks
+   * (markQuotaAxisBlocked) carry these; flat marks leave them undefined.
+   */
+  lastQuotaAxis: z.enum(["session-5h", "weekly"]).optional(),
+  lastQuotaResetsAt: z.number().int().nonnegative().optional(),
   credentialScopeRef: z.string().min(1).max(240),
   /** Provider-visible identity may be updated after a quota/identity probe. */
   providerAccountId: z.string().max(160).optional(),
