@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.7.19",
+      "date": "2026-10-06",
+      "title": "Popup-free startup & a steadier composer caret",
+      "summary": "The Antigravity update-check gate now stays fresh for the app's whole lifetime — no stray terminal window at launch — and pasting a formula into the composer leaves the caret at the end where you expect it.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Antigravity",
+          "text": "The stray terminal window no longer appears at app launch or on the first message — the updater timestamp now stays fresh for the whole app lifetime, not just inside an active session."
+        },
+        {
+          "kind": "fixed",
+          "label": "Composer",
+          "text": "Pasting a formula no longer leaves the caret stuck in front of it — after paste, segment inserts, and voice transcripts the caret lands at the end of what was inserted."
+        }
+      ]
+    },
+    {
       "version": "1.7.18",
       "date": "2026-10-06",
       "title": "Live math in the composer & smarter quota recovery",
