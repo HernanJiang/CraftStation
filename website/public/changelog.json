@@ -1,6 +1,38 @@
 {
   "releases": [
     {
+      "version": "1.7.18",
+      "date": "2026-10-06",
+      "title": "Live math in the composer & smarter quota recovery",
+      "summary": "The composer now renders formulas as you type and opens into a full editor, copied formulas paste back as clean TeX, and pool accounts rejoin rotation once their quota actually recovers instead of staying locked out.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Composer",
+          "text": "Type $...$ or $$...$$ and the formula renders inline the moment you close it — plain prices like $5 and $10 stay untouched — and double-clicking a formula restores its source for editing."
+        },
+        {
+          "kind": "added",
+          "label": "Composer",
+          "text": "A new expand button opens a full editor where Enter inserts a newline and Ctrl+Enter (or the Send button) sends — mentions, slash commands, and formula rendering all work inside."
+        },
+        {
+          "kind": "fixed",
+          "label": "Accounts",
+          "text": "Codex pool accounts no longer stay locked out after quota actually recovers — a spent session or weekly mark now releases on a new reset period, a fresh reading below 95%, or its own reset time passing, so a reset card or a refilled 5-hour window puts the account straight back in rotation."
+        },
+        {
+          "kind": "fixed",
+          "label": "Codex",
+          "text": "Sub-agent tiles no longer stick on a red failure badge while the agent is still running — internal willRetry errors are ignored, a clean finish clears mid-turn noise, and a late retry revives the tile."
+        },
+        {
+          "kind": "fixed",
+          "text": "Copying a rendered formula from a message now yields clean TeX instead of one-symbol-per-line noise, and formulas pasted into the composer render on the spot."
+        }
+      ]
+    },
+    {
       "version": "1.7.17",
       "date": "2026-10-05",
       "title": "No more doubled answers or stray terminals on Antigravity",
