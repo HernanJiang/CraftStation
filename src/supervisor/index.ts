@@ -1,4 +1,5 @@
 import type { SupervisorReply, SupervisorRequest } from "@/shared/ipc";
+import { startAntigravityUpdateGateKeeper } from "./agents/antigravity/updateGate";
 import {
   captureSupervisorException,
   flushSupervisorSentry,
@@ -30,6 +31,13 @@ configureSecretStorageFallbackKeys(
   parseSecretStorageFallbackKeys(process.env[SECRET_STORAGE_KEY_FALLBACKS_ENV]),
 );
 delete process.env[SECRET_STORAGE_KEY_FALLBACKS_ENV];
+
+// Keep the `agy` self-update gate closed for the whole process lifetime —
+// per-session priming alone leaves it stale at app start, so the first
+// agy/language_server launch (probes, one-shots, terminal lanes) could still
+// pop a detached --bg-updater console. Started before the runtime so no spawn
+// lane can fire first; the interval is unref'd and needs no shutdown hook.
+startAntigravityUpdateGateKeeper();
 
 const runtime = new SupervisorRuntime((event) => {
   process.send?.(event);
