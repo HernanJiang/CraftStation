@@ -92,6 +92,30 @@ describe("transformMathChips", () => {
     transformMathChips(editor);
     expect(editor.querySelectorAll("[data-math-tex]")).toHaveLength(2);
   });
+
+  it("moves a sibling-boundary caret to the end of the expansion", () => {
+    const editor = makeEditor("note ");
+    const inserted = document.createTextNode("see $x^2$ end");
+    editor.appendChild(inserted);
+    // Paste-style caret: (editor, indexOf(inserted)+1) — a sibling boundary.
+    collapseCaret(editor, 2);
+    transformMathChips(editor);
+    const sel = window.getSelection();
+    // Expansion: "note ", "see ", chip, " end" — caret must sit after " end".
+    expect(sel?.anchorNode).toBe(editor);
+    expect(sel?.anchorOffset).toBe(editor.childNodes.length);
+  });
+
+  it("moves a sibling-boundary caret past a trailing formula", () => {
+    const editor = makeEditor("note ");
+    const inserted = document.createTextNode("see $x^2$");
+    editor.appendChild(inserted);
+    collapseCaret(editor, 2);
+    transformMathChips(editor);
+    const sel = window.getSelection();
+    expect(sel?.anchorNode).toBe(editor);
+    expect(sel?.anchorOffset).toBe(editor.childNodes.length);
+  });
 });
 
 describe("math chip serialization", () => {

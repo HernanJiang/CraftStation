@@ -115,24 +115,39 @@ function transformPass(root: HTMLElement, display: boolean): void {
   const sel = window.getSelection();
   const caretNode = sel?.isCollapsed === true ? sel.anchorNode : null;
   const caretOffset = sel?.anchorOffset ?? -1;
+  // Paste/insert paths park the caret as a sibling boundary right after the
+  // inserted text node — (parent, index+1) — not inside it. When that node is
+  // replaced the stored offset ends up pointing at the front of the expansion
+  // (before the chip), so track the node and push the caret to its tail.
+  const caretAfterNode =
+    caretNode !== null && caretOffset > 0 ? (caretNode.childNodes[caretOffset - 1] ?? null) : null;
 
   for (const node of editableTextNodes(root)) {
     const matches = collectMatches(node.nodeValue ?? "", display).filter(
       (match) => !(node === caretNode && caretOffset > match.start && caretOffset < match.end),
     );
+    const caretFollowsNode = caretAfterNode === node;
     // Right-to-left so earlier offsets stay valid after each split.
     for (let i = matches.length - 1; i >= 0; i--) {
       const { start, end, tex } = matches[i]!;
       // A caret exactly at the closing delimiter means it was just typed —
       // convert and leave the caret after the chip.
       const caretAtMatchEnd = node === caretNode && caretOffset === end;
-      node.splitText(end);
+      const tail = node.splitText(end);
       const mid = node.splitText(start);
       const chip = createMathChipElement(tex, display);
       mid.replaceWith(chip);
       if (caretAtMatchEnd && sel) {
         const range = document.createRange();
         range.setStartAfter(chip);
+        range.collapse(true);
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } else if (caretFollowsNode && i === matches.length - 1 && sel) {
+        // The rightmost match's tail is the last node of this node's
+        // expansion; parking the caret after it restores "end of insert".
+        const range = document.createRange();
+        range.setStartAfter(tail);
         range.collapse(true);
         sel.removeAllRanges();
         sel.addRange(range);
