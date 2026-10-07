@@ -83,7 +83,7 @@ const usageProvidersMock = vi.hoisted(() => ({
     { id: "kimi", label: "Kimi Code" },
     { id: "antigravity", label: "Antigravity" },
     { id: "commandcode", label: "Command Code" },
-    { id: "openai-compatible", label: "OpenAI 兼容 API" },
+    { id: "openai-compatible", label: "OpenAI-compatible API" },
     { id: "volcengine", label: "Volcengine Ark Token Plan" },
     { id: "opencode", label: "OpenCode" },
   ],
@@ -180,8 +180,8 @@ describe("SidebarProviderAccounts", () => {
     render(<SidebarProviderAccounts />);
 
     const accountButton = screen.getByRole("button", { name: "Provider accounts" });
-    expect(accountButton).toHaveTextContent("模型与管理");
-    expect(accountButton).toHaveTextContent("打开设置页面");
+    expect(accountButton).toHaveTextContent("Models & management");
+    expect(accountButton).toHaveTextContent("Open settings page");
     expect(within(accountButton).getByTitle("ChatGPT")).toBeInTheDocument();
     expect(within(accountButton).getByTitle("Claude")).toBeInTheDocument();
     expect(within(accountButton).getByTitle("Gemini")).toBeInTheDocument();
@@ -218,9 +218,9 @@ describe("SidebarProviderAccounts", () => {
 
     const workspace = await screen.findByTestId("model-usage-workspace");
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-    expect(workspace).toHaveTextContent("渠道与额度");
-    expect(workspace).toHaveTextContent("管理模型");
-    expect(workspace).toHaveTextContent("用量统计");
+    expect(workspace).toHaveTextContent("Channels & quotas");
+    expect(workspace).toHaveTextContent("Manage models");
+    expect(workspace).toHaveTextContent("Usage stats");
     expect(workspace).toHaveTextContent("ChatGPT");
     expect(workspace).toHaveTextContent("Claude");
     expect(workspace).toHaveTextContent("Gemini");
@@ -230,8 +230,12 @@ describe("SidebarProviderAccounts", () => {
     expect(within(workspace).getByTestId("unauthorized-provider-grid")).toBeInTheDocument();
     // Unauthorised codex card stays single column (F26/F30); authorised pool is separate full-width section
     expect(within(workspace).getByTestId("provider-card-codex")).toBeInTheDocument();
-    expect(within(workspace).queryByRole("button", { name: "导入账号" })).not.toBeInTheDocument();
-    expect(within(workspace).queryByRole("button", { name: "新增账号" })).not.toBeInTheDocument();
+    expect(
+      within(workspace).queryByRole("button", { name: "Import account" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(workspace).queryByRole("button", { name: "New account" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     expect(usePanelStore.getState().settingsOpen).toBe(true);
@@ -255,12 +259,16 @@ describe("SidebarProviderAccounts", () => {
       .closest('[data-testid="provider-card-codex"]');
     expect(chatGptCard).toBeInstanceOf(HTMLElement);
 
-    fireEvent.click(within(chatGptCard as HTMLElement).getByRole("button", { name: "登录/授权" }));
+    fireEvent.click(
+      within(chatGptCard as HTMLElement).getByRole("button", { name: "Sign in / Authorize" }),
+    );
     await waitFor(() =>
       expect(actions.createAndRunCodexProfileLogin).toHaveBeenCalledWith({ label: "New Codex" }),
     );
     expect(actions.runAgentLoginCommand).not.toHaveBeenCalled();
-    expect(within(workspace).queryByRole("button", { name: "新增账号" })).not.toBeInTheDocument();
+    expect(
+      within(workspace).queryByRole("button", { name: "New account" }),
+    ).not.toBeInTheDocument();
   });
 
   it("uses isolated profile creation for Add account on an authorised ChatGPT card", async () => {
@@ -284,7 +292,7 @@ describe("SidebarProviderAccounts", () => {
     const workspace2 = await screen.findByTestId("model-usage-workspace");
     const accountPoolCard = within(workspace2).getByTestId("provider-card-codex");
     expect(accountPoolCard).toBeInTheDocument();
-    fireEvent.click(within(accountPoolCard).getByRole("button", { name: "添加 ChatGPT 账号" }));
+    fireEvent.click(within(accountPoolCard).getByRole("button", { name: "Add ChatGPT account" }));
 
     await waitFor(() =>
       expect(actions.createAndRunCodexProfileLogin).toHaveBeenCalledWith({ label: "New Codex" }),
@@ -406,7 +414,9 @@ describe("SidebarProviderAccounts", () => {
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     await screen.findByTestId("model-usage-workspace");
-    fireEvent.click(await screen.findByRole("button", { name: "Work profile 登录授权" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Work profile sign-in authorization" }),
+    );
 
     await waitFor(() =>
       expect(actions.runCodexProfileLogin).toHaveBeenCalledWith({
@@ -427,7 +437,9 @@ describe("SidebarProviderAccounts", () => {
       .closest('[data-testid="provider-card-grok"]');
     expect(grokCard).toBeInstanceOf(HTMLElement);
 
-    fireEvent.click(within(grokCard as HTMLElement).getByRole("button", { name: "登录/授权" }));
+    fireEvent.click(
+      within(grokCard as HTMLElement).getByRole("button", { name: "Sign in / Authorize" }),
+    );
 
     await waitFor(() =>
       expect(actions.createAndRunGrokProfileLogin).toHaveBeenCalledWith({ label: "New Grok" }),
@@ -501,9 +513,9 @@ describe("SidebarProviderAccounts", () => {
         .closest("[data-account-id]")!,
     );
 
-    const dialog = await screen.findByRole("dialog", { name: "重命名账号" });
+    const dialog = await screen.findByRole("dialog", { name: "Rename account" });
     fireEvent.change(within(dialog).getByRole("textbox"), { target: { value: "Work" } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
       expect(bridge.renameAccount).toHaveBeenCalledWith({
@@ -550,7 +562,7 @@ describe("SidebarProviderAccounts", () => {
       .closest('[data-account-id="grok:existing"]');
     expect(accountRow).not.toBeNull();
     expect(accountRow).toHaveClass("self-start", "h-fit");
-    expect(within(dialog).queryByText("Grok 账号池")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Grok account pool")).not.toBeInTheDocument();
     expect(within(dialog).queryByTestId("account-grid-grok")).not.toBeInTheDocument();
     expect(within(dialog).getByText("person***@example.com")).toBeInTheDocument();
     expect(within(dialog).queryByTestId("account-status-grok:existing")).not.toBeInTheDocument();
@@ -653,9 +665,9 @@ describe("SidebarProviderAccounts", () => {
       within(dialog).getByTestId("account-quota-card-grok:rename").closest("[data-account-id]")!,
     );
 
-    const renameDialog = await screen.findByRole("dialog", { name: "重命名账号" });
+    const renameDialog = await screen.findByRole("dialog", { name: "Rename account" });
     fireEvent.change(within(renameDialog).getByRole("textbox"), { target: { value: "Renamed" } });
-    fireEvent.click(within(renameDialog).getByRole("button", { name: "保存" }));
+    fireEvent.click(within(renameDialog).getByRole("button", { name: "Save" }));
 
     await waitFor(() =>
       expect(bridge.renameAccount).toHaveBeenCalledWith({
@@ -690,7 +702,7 @@ describe("SidebarProviderAccounts", () => {
     const staleRow = await within(workspace).findByTestId(
       "compact-account-row-stale-opencode:stale",
     );
-    expect(within(staleRow).getByText("账号身份未知（已失效）")).toBeInTheDocument();
+    expect(within(staleRow).getByText("Account identity unknown (expired)")).toBeInTheDocument();
 
     fireEvent.click(staleRow);
     expect(bridge.setAccountEnabled).not.toHaveBeenCalled();
@@ -698,7 +710,9 @@ describe("SidebarProviderAccounts", () => {
 
     // Main-process removal succeeds: the next listing no longer returns it.
     bridge.listAccounts.mockResolvedValue([]);
-    fireEvent.click(within(staleRow).getByRole("button", { name: "删除失效的 OpenCode 缓存" }));
+    fireEvent.click(
+      within(staleRow).getByRole("button", { name: "Delete expired OpenCode cache" }),
+    );
     await waitFor(() =>
       expect(bridge.removeAccount).toHaveBeenCalledWith({ accountId: stale.accountId }),
     );
@@ -806,9 +820,11 @@ describe("SidebarProviderAccounts", () => {
       .getByTestId("account-identity-grok:header-actions")
       .closest("[data-account-id]");
     expect(row).not.toBeNull();
-    expect(row).toContainElement(within(row as HTMLElement).getByLabelText("刷新账号配额"));
-    expect(row).toContainElement(within(row as HTMLElement).getByLabelText("禁用账号"));
-    expect(row).toContainElement(within(row as HTMLElement).getByLabelText("移除账号"));
+    expect(row).toContainElement(
+      within(row as HTMLElement).getByLabelText("Refresh account quotas"),
+    );
+    expect(row).toContainElement(within(row as HTMLElement).getByLabelText("Disable account"));
+    expect(row).toContainElement(within(row as HTMLElement).getByLabelText("Remove account"));
     expect(
       within(row as HTMLElement).queryByTestId("account-status-grok:header-actions"),
     ).not.toBeInTheDocument();
@@ -847,7 +863,7 @@ describe("SidebarProviderAccounts", () => {
       .closest("[data-account-id]");
     expect(row).not.toBeNull();
 
-    fireEvent.click(within(row as HTMLElement).getByLabelText("First AG 设为本机登录"));
+    fireEvent.click(within(row as HTMLElement).getByLabelText("Set First AG as local sign-in"));
 
     await waitFor(() =>
       expect(bridge.applyAntigravityHostLogin).toHaveBeenCalledWith({
@@ -913,7 +929,7 @@ describe("SidebarProviderAccounts", () => {
     expect(deletedRow).not.toBeNull();
 
     bridge.listAccounts.mockResolvedValue([retained]);
-    fireEvent.click(within(deletedRow as HTMLElement).getByLabelText("移除账号"));
+    fireEvent.click(within(deletedRow as HTMLElement).getByLabelText("Remove account"));
 
     await waitFor(() =>
       expect(bridge.removeAccount).toHaveBeenCalledWith({ accountId: deleted.accountId }),
@@ -925,7 +941,7 @@ describe("SidebarProviderAccounts", () => {
     ]);
     expect(usageLogin.handleSignOut).not.toHaveBeenCalled();
 
-    fireEvent.click(within(workspace).getByRole("tab", { name: "管理模型" }));
+    fireEvent.click(within(workspace).getByRole("tab", { name: "Manage models" }));
     await waitFor(() =>
       expect(within(workspace).getAllByText("Retained-API").length).toBeGreaterThan(0),
     );
@@ -970,8 +986,8 @@ describe("SidebarProviderAccounts", () => {
     const card = within(workspace).getByTestId("account-quota-card-grok:grid");
     // F31: long quota bars, not a 2x2 cache grid; an account with no quota
     // data says so honestly instead of rendering two meaningless "--" bars.
-    expect(card).toHaveTextContent("暂无可用额度数据。");
-    expect(card).not.toHaveTextContent("5h 限额");
+    expect(card).toHaveTextContent("No quota data available.");
+    expect(card).not.toHaveTextContent("5h limit");
     expect(within(workspace).queryByTestId("account-usage-grid-grok:grid")).not.toBeInTheDocument();
     // Provider-wide usage must not be copied to every account row.
     expect(card).not.toHaveTextContent("42%");
@@ -1037,28 +1053,28 @@ describe("SidebarProviderAccounts", () => {
     expect(within(workspace).getByTestId("provider-card-kimi")).toHaveClass("self-start", "h-fit");
 
     // Windows render with the collector's own labels (Session / Weekly), not a
-    // forced "5h 限额 / 周/月限额" pair.
+    // forced "5h limit / 周/月限额" pair.
     expect(card).toHaveTextContent("Session");
     expect(card).toHaveTextContent("Weekly");
     expect(card).toHaveTextContent("18%");
     expect(card).toHaveTextContent("36%");
-    expect(card).toHaveTextContent("已用额度 18%");
-    expect(card).toHaveTextContent("已用额度 36%");
+    expect(card).toHaveTextContent("Quota used 18%");
+    expect(card).toHaveTextContent("Quota used 36%");
     const bars = within(card).getAllByRole("progressbar");
     expect(bars).toHaveLength(2);
-    expect(within(bars[0]!).getByText("已用额度 18%")).toBeInTheDocument();
-    expect(within(bars[1]!).getByText("已用额度 36%")).toBeInTheDocument();
-    expect(within(card).getByTestId("provider-meta-kimi")).not.toHaveTextContent("已用额度");
+    expect(within(bars[0]!).getByText("Quota used 18%")).toBeInTheDocument();
+    expect(within(bars[1]!).getByText("Quota used 36%")).toBeInTheDocument();
+    expect(within(card).getByTestId("provider-meta-kimi")).not.toHaveTextContent("Quota used");
     // Token usage is no longer rendered on the quota page at all.
-    expect(card).not.toHaveTextContent("输入");
-    expect(card).not.toHaveTextContent("输出");
+    expect(card).not.toHaveTextContent("Input");
+    expect(card).not.toHaveTextContent("Output");
     const kimiProviderCard = within(workspace).getByTestId("provider-card-kimi");
     expect(within(kimiProviderCard).queryByTestId("provider-status-kimi")).not.toBeInTheDocument();
-    expect(within(kimiProviderCard).getByText("已用额度 36%")).toBeInTheDocument();
+    expect(within(kimiProviderCard).getByText("Quota used 36%")).toBeInTheDocument();
     expect(
-      within(kimiProviderCard).queryByText("已用额度 36%", { selector: "span" }),
+      within(kimiProviderCard).queryByText("Quota used 36%", { selector: "span" }),
     ).not.toBeNull();
-    expect(within(card).getByTestId("provider-meta-kimi")).not.toHaveTextContent("可用");
+    expect(within(card).getByTestId("provider-meta-kimi")).not.toHaveTextContent("available");
     expect(within(card).getByTestId("provider-meta-kimi")).not.toHaveTextContent("ok");
   });
 
@@ -1195,7 +1211,7 @@ describe("SidebarProviderAccounts", () => {
 
     await waitFor(() => {
       expect(card).toHaveTextContent("quota network unavailable");
-      expect(card).not.toHaveTextContent("暂无精确 Token 用量");
+      expect(card).not.toHaveTextContent("No precise token usage yet");
       expect(card).not.toHaveTextContent("token ledger unavailable");
     });
   });
@@ -1293,8 +1309,8 @@ describe("SidebarProviderAccounts", () => {
     const meta3 = await within(dialog).findByTestId("account-meta-grok:no-exact-token");
 
     await waitFor(() => {
-      expect(meta3).not.toHaveTextContent("暂无精确 Token 用量");
-      expect(meta3).not.toHaveTextContent("输入");
+      expect(meta3).not.toHaveTextContent("No precise token usage yet");
+      expect(meta3).not.toHaveTextContent("Input");
       expect(meta3).not.toHaveTextContent("Runtime ledger");
       expect(meta3).not.toHaveTextContent("—");
     });
@@ -1358,9 +1374,9 @@ describe("SidebarProviderAccounts", () => {
     const meta = await within(dialog).findByTestId("account-meta-grok:unattributed");
 
     await waitFor(() => {
-      expect(meta).not.toHaveTextContent("无法精确归因");
-      expect(meta).not.toHaveTextContent("暂无精确 Token 用量");
-      expect(meta).not.toHaveTextContent("输入");
+      expect(meta).not.toHaveTextContent("Cannot attribute precisely");
+      expect(meta).not.toHaveTextContent("No precise token usage yet");
+      expect(meta).not.toHaveTextContent("Input");
     });
   });
 
@@ -1368,19 +1384,19 @@ describe("SidebarProviderAccounts", () => {
     usePanelStore.getState().openModelUsageWorkspace({ tab: "models" });
     render(<SidebarProviderAccounts />);
     const workspace = await screen.findByTestId("model-usage-workspace");
-    expect(within(workspace).getByRole("tab", { name: "管理模型" })).toHaveAttribute(
+    expect(within(workspace).getByRole("tab", { name: "Manage models" })).toHaveAttribute(
       "aria-selected",
       "true",
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
-    // The plain sidebar open deep-links into the 管理模型 settings section —
-    // last tab restored instead of forcing 渠道与额度.
+    // The plain sidebar open deep-links into the Manage models settings section —
+    // last tab restored instead of forcing Channels & quotas.
     expect(usePanelStore.getState().settingsOpen).toBe(true);
     expect(usePanelStore.getState().settingsSection).toBe("modelModels");
   });
 
-  it("renders the reused usage-stats page on the 用量统计 tab", async () => {
+  it("renders the reused usage-stats page on the Usage stats tab", async () => {
     const device = { id: "d1", label: "PC", platform: "win32", isCurrent: true };
     bridge.getProfileDevices.mockResolvedValue({ devices: [device], currentDeviceId: "d1" });
     bridge.getProfileCoreStats.mockResolvedValue({
@@ -1437,7 +1453,7 @@ describe("SidebarProviderAccounts", () => {
     render(<SidebarProviderAccounts />);
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const workspace = await screen.findByTestId("model-usage-workspace");
-    fireEvent.click(within(workspace).getByRole("tab", { name: "用量统计" }));
+    fireEvent.click(within(workspace).getByRole("tab", { name: "Usage stats" }));
 
     const page = await within(workspace).findByTestId("usage-stats-page");
     expect(page).toHaveTextContent("Lifetime tokens");
@@ -1454,11 +1470,11 @@ describe("SidebarProviderAccounts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const workspace = await screen.findByTestId("model-usage-workspace");
     const card = within(workspace).getByTestId("provider-card-openai-compatible");
-    fireEvent.click(within(card).getByRole("button", { name: "添加账号" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Add account" }));
 
     expect(await screen.findByTestId("openai-compatible-form")).toBeInTheDocument();
-    expect(screen.getByText("添加 OpenAI 兼容提供商")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    expect(screen.getByText("Add OpenAI-compatible provider")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() =>
       expect(screen.queryByTestId("openai-compatible-form")).not.toBeInTheDocument(),
     );
@@ -1469,11 +1485,11 @@ describe("SidebarProviderAccounts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const workspace = await screen.findByTestId("model-usage-workspace");
     const card = within(workspace).getByTestId("provider-card-kimi");
-    fireEvent.click(within(card).getByRole("button", { name: "使用 Kimi API Key 授权" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Authorize with Kimi API Key" }));
 
     const dialog = await screen.findByTestId("api-key-credential-form");
     expect(dialog).toBeInTheDocument();
-    expect(within(dialog).getByPlaceholderText("粘贴 Kimi Code API Key")).toBeInTheDocument();
+    expect(within(dialog).getByPlaceholderText("Paste Kimi Code API Key")).toBeInTheDocument();
   });
 
   it("uses API Key as the only Kimi add-account path", async () => {
@@ -1499,11 +1515,13 @@ describe("SidebarProviderAccounts", () => {
     const workspace = await screen.findByTestId("model-usage-workspace");
     const card = within(workspace).getByTestId("provider-card-kimi");
 
-    fireEvent.click(within(card).getByRole("button", { name: "添加 Kimi Code 账号" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Add Kimi Code account" }));
 
     expect(await screen.findByTestId("kimi-api-key-form")).toBeInTheDocument();
     expect(actions.createAndRunKimiProfileLogin).not.toHaveBeenCalled();
-    expect(within(card).queryByRole("button", { name: "导入本机 Kimi Code 登录" })).toBeNull();
+    expect(
+      within(card).queryByRole("button", { name: "Import local Kimi Code sign-in" }),
+    ).toBeNull();
   });
 
   it("opens the Volcengine credential dialog when unauthorized", async () => {
@@ -1511,7 +1529,7 @@ describe("SidebarProviderAccounts", () => {
     fireEvent.click(screen.getByRole("button", { name: "Provider accounts" }));
     const workspace = await screen.findByTestId("model-usage-workspace");
     const card = within(workspace).getByTestId("provider-card-volcengine");
-    fireEvent.click(within(card).getByRole("button", { name: "登录/授权" }));
+    fireEvent.click(within(card).getByRole("button", { name: "Sign in / Authorize" }));
 
     expect(await screen.findByTestId("volcengine-credential-form")).toBeInTheDocument();
     expect(screen.getByLabelText("Volcengine Ark API Key")).toBeInTheDocument();

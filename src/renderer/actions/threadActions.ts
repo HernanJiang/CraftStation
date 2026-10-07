@@ -600,7 +600,7 @@ export function setThreadGoalPrompt(
 ): { ok: true } | { ok: false; error: string } {
   const store = useAppStore.getState();
   const thread = store.threads.find((t) => t.id === threadId);
-  if (!thread) return { ok: false, error: "线程不存在" };
+  if (!thread) return { ok: false, error: i18n._(linguiMsg`线程不存在`) };
   const validated = validateGoalPrompt(prompt);
   if (!validated.ok) return validated;
   const now = new Date().toISOString();

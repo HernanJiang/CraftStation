@@ -21,6 +21,9 @@ import {
   getDefaultCrafter,
   getDefaultRegistry,
 } from "@/shared/crafting";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
+import type { I18n, MessageDescriptor } from "@lingui/core";
 
 export interface CraftingGridProps {
   workspace?: string | undefined;
@@ -32,28 +35,36 @@ export interface CraftingGridProps {
 type InventoryFilter = "all" | "model" | "harness" | "component" | "recipe";
 type IngredientSlot = "model" | "harness";
 
-const FILTERS: Array<{ id: InventoryFilter; label: string; icon: typeof Box }> = [
-  { id: "all", label: "全部", icon: PackageOpen },
-  { id: "model", label: "模型", icon: Cpu },
-  { id: "harness", label: "Harness", icon: Layers },
-  { id: "component", label: "组件", icon: Puzzle },
-  { id: "recipe", label: "配方", icon: ScrollText },
+const FILTERS: Array<{ id: InventoryFilter; label: MessageDescriptor; icon: typeof Box }> = [
+  { id: "all", label: linguiMsg`全部`, icon: PackageOpen },
+  { id: "model", label: linguiMsg`模型`, icon: Cpu },
+  { id: "harness", label: linguiMsg`Harness`, icon: Layers },
+  { id: "component", label: linguiMsg`组件`, icon: Puzzle },
+  { id: "recipe", label: linguiMsg`配方`, icon: ScrollText },
 ];
 
-function componentLines(item: Item): string[] {
+function componentLines(i18n: I18n, item: Item): string[] {
   return item.components.flatMap((component) => {
     const record = component as Record<string, unknown>;
     if (component.kind === "model_capability") {
       return [
-        `上下文 ${typeof record.contextWindow === "number" ? `${Math.round(record.contextWindow / 1000)}k` : "-"}`,
-        `流式输出 ${record.supportsStreaming === false ? "关闭" : "开启"}`,
-        `工具调用 ${record.supportsToolCalling === false ? "关闭" : "开启"}`,
+        i18n._(
+          linguiMsg`上下文 ${typeof record.contextWindow === "number" ? `${Math.round(record.contextWindow / 1000)}k` : "-"}`,
+        ),
+        i18n._(
+          linguiMsg`流式输出 ${record.supportsStreaming === false ? i18n._(linguiMsg`关闭`) : i18n._(linguiMsg`开启`)}`,
+        ),
+        i18n._(
+          linguiMsg`工具调用 ${record.supportsToolCalling === false ? i18n._(linguiMsg`关闭`) : i18n._(linguiMsg`开启`)}`,
+        ),
       ];
     }
     if (component.kind === "harness_runtime") {
       return [
         `Runtime ${String(record.executionMode ?? "-")}`,
-        `支持厂商 ${Array.isArray(record.supportedVendors) ? record.supportedVendors.join(", ") : "-"}`,
+        i18n._(
+          linguiMsg`支持厂商 ${Array.isArray(record.supportedVendors) ? record.supportedVendors.join(", ") : "-"}`,
+        ),
       ];
     }
     return [component.kind];
@@ -61,12 +72,13 @@ function componentLines(item: Item): string[] {
 }
 
 function InventoryItem(props: { item: Item; selected: boolean; onSelect: () => void }) {
+  const { t, i18n } = useLingui();
   const Icon = props.item.kind === "model" ? Cpu : Layers;
   const tooltip = [
     props.item.metadata.name,
-    `厂商：${props.item.metadata.vendor}`,
-    `版本：${props.item.metadata.version}`,
-    ...componentLines(props.item),
+    t`厂商：${props.item.metadata.vendor}`,
+    t`版本：${props.item.metadata.version}`,
+    ...componentLines(i18n, props.item),
   ].join("\n");
   return (
     <button
@@ -103,14 +115,17 @@ function IngredientSlotView(props: {
   item: Item | undefined;
   onDropItem: (id: string) => void;
 }) {
+  const { t, i18n } = useLingui();
   const Icon = props.kind === "model" ? Cpu : Layers;
-  const label = props.kind === "model" ? "模型槽" : "Harness 槽";
+  const label = props.kind === "model" ? t`模型槽` : t`Harness 槽`;
   return (
     <div
       data-testid={`${props.kind}-slot`}
       data-crafting-slot=""
       title={
-        props.item ? [props.item.metadata.name, ...componentLines(props.item)].join("\n") : label
+        props.item
+          ? [props.item.metadata.name, ...componentLines(i18n, props.item)].join("\n")
+          : label
       }
       onDragOver={(event) => {
         event.preventDefault();
@@ -150,6 +165,7 @@ export const CraftingGrid: React.FC<CraftingGridProps> = ({
   onCraft,
   disabled = false,
 }) => {
+  const { t, i18n } = useLingui();
   const registry = getDefaultRegistry();
   const crafter = getDefaultCrafter();
   const availableModels = models ?? registry.listItems("model");
@@ -239,8 +255,8 @@ export const CraftingGrid: React.FC<CraftingGridProps> = ({
             <Hammer className="size-5" />
           </span>
           <div className="min-w-0">
-            <h2 className="truncate text-sm font-semibold">Agent 合成台</h2>
-            <p className="truncate text-[10px] text-muted">原料 → Recipe → 产物 Item → Entity</p>
+            <h2 className="truncate text-sm font-semibold">{t`Agent 合成台`}</h2>
+            <p className="truncate text-[10px] text-muted">{t`原料 → Recipe → 产物 Item → Entity`}</p>
           </div>
         </div>
         <span className="rounded-full bg-[var(--surface-secondary)] px-2 py-1 font-mono text-[9px] text-muted">
@@ -310,7 +326,7 @@ export const CraftingGrid: React.FC<CraftingGridProps> = ({
                 type="button"
                 disabled={disabled || isCrafting}
                 onClick={() => void handleCraft()}
-                title="点击装配并 Spawn Agent Entity"
+                title={t`点击装配并 Spawn Agent Entity`}
                 className="craftstation-result-slot flex size-[68px] items-center justify-center rounded-xl border border-amber-400/45 bg-amber-400/7 text-amber-300 transition-transform hover:scale-[1.03] disabled:cursor-not-allowed"
               >
                 <Box className="size-7" />
@@ -334,7 +350,7 @@ export const CraftingGrid: React.FC<CraftingGridProps> = ({
               <span className="craftstation-result-slot flex size-[68px] items-center justify-center rounded-xl border border-[var(--hairline)] bg-[var(--surface-secondary)]">
                 <AlertTriangle className="size-6 text-muted/40" />
               </span>
-              <span className="mt-2 text-[10px] text-muted">组合无效</span>
+              <span className="mt-2 text-[10px] text-muted">{t`组合无效`}</span>
             </>
           )}
         </div>
@@ -352,7 +368,7 @@ export const CraftingGrid: React.FC<CraftingGridProps> = ({
                 className={`flex h-7 shrink-0 items-center gap-1.5 rounded-lg px-2 text-[10px] transition-colors ${filter === entry.id ? "bg-[var(--row-active)] text-foreground" : "text-muted hover:bg-[var(--row-hover)]"}`}
               >
                 <Icon className="size-3.5" />
-                {entry.label}
+                {i18n._(entry.label)}
               </button>
             );
           })}
@@ -378,7 +394,7 @@ export const CraftingGrid: React.FC<CraftingGridProps> = ({
                 <ScrollText className="size-4 text-amber-300" />
                 <span className="mt-2 block text-xs font-semibold">{recipe.name}</span>
                 <span className="text-[9px] text-muted">
-                  一键填充 Ingredients · {recipe.compatibilityStatus}
+                  {t`一键填充 Ingredients · ${recipe.compatibilityStatus}`}
                 </span>
               </button>
             ))}
@@ -439,7 +455,7 @@ export const CraftingGrid: React.FC<CraftingGridProps> = ({
         value={harnessSelection}
         onChange={(event) => setHarnessSelection(event.target.value)}
       >
-        <option value="auto">auto（确定性 Codex）</option>
+        <option value="auto">{t`auto（确定性 Codex）`}</option>
         {availableHarnesses.map((item) => (
           <option key={item.id} value={item.id}>
             {item.metadata.name} ({item.metadata.vendor})
@@ -453,7 +469,7 @@ export const CraftingGrid: React.FC<CraftingGridProps> = ({
           data-testid="craft-prompt-input"
           value={prompt}
           onChange={(event) => setPrompt(event.target.value)}
-          placeholder="初始任务描述（可选）"
+          placeholder={t`初始任务描述（可选）`}
           className="min-w-0 flex-1 rounded-xl border border-[var(--hairline)] bg-[var(--content-background)] px-3 py-2 text-xs outline-none focus:border-amber-400/50"
         />
         <button
@@ -464,7 +480,7 @@ export const CraftingGrid: React.FC<CraftingGridProps> = ({
           className="flex h-9 items-center justify-center gap-2 rounded-xl bg-amber-500 px-4 text-xs font-semibold text-neutral-950 transition-all hover:bg-amber-400 disabled:cursor-not-allowed disabled:bg-[var(--surface-secondary)] disabled:text-muted"
         >
           <Sparkles className="size-4" />
-          {isCrafting ? "正在合成 Agent..." : "合成并启动 Agent"}
+          {isCrafting ? t`正在合成 Agent...` : t`合成并启动 Agent`}
         </button>
       </div>
       {errorMessage ? (

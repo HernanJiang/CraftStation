@@ -28,9 +28,10 @@ import { EfficientWorkbench } from "./workbench/EfficientWorkbench";
 import { RecipesRail } from "./workbench/RecipesRail";
 import { RecipeSaveDialog } from "./workbench/RecipeSaveDialog";
 import { RecipeLoadConfirmDialog } from "./workbench/RecipeLoadConfirmDialog";
+import { useLingui } from "@lingui/react/macro";
 
 /**
- * Crafting Workbench page: the "合成台与配方" first-level tab of the
+ * Crafting Workbench page: the 合成台与配方 first-level tab of the
  * model-usage workspace. The workbench is a single 3×3 Minecraft-style grid
  * (model / harness / component ingredients plus reserved slots), the
  * three-column inventory and a right rail of saved-recipe cards.
@@ -44,6 +45,7 @@ export function CraftingWorkbenchPage(props: {
   configuredProviderIds: readonly string[];
   providerOrder: readonly string[];
 }) {
+  const { t } = useLingui();
   const { accounts, customModels, configuredProviderIds, providerOrder } = props;
 
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
@@ -154,7 +156,7 @@ export function CraftingWorkbenchPage(props: {
         code: "RUNTIME_UNAVAILABLE",
         phase: "readiness",
         message: msg,
-        remediation: "请安装/配置所选 Harness，或更换可用的模型/Harness 组合",
+        remediation: t`请安装/配置所选 Harness，或更换可用的模型/Harness 组合`,
       },
     ],
   });
@@ -166,7 +168,7 @@ export function CraftingWorkbenchPage(props: {
         "efficient",
         emptyResolution(
           `none:${efficientDraft.modelEntryRef ?? ""}:${efficientDraft.harnessRef ?? ""}`,
-          "缺少模型或 Harness 组件",
+          t`缺少模型或 Harness 组件`,
         ),
       );
       return;
@@ -192,7 +194,7 @@ export function CraftingWorkbenchPage(props: {
             "efficient",
             emptyResolution(
               `error:${efficientDraft.modelEntryRef}:${efficientDraft.harnessRef}`,
-              "兼容性解析失败",
+              t`兼容性解析失败`,
             ),
           );
       });
@@ -284,7 +286,7 @@ export function CraftingWorkbenchPage(props: {
         });
         attachResolution("efficient", next);
         if (next.status !== "NATIVE" && next.status !== "CRAFTABLE") {
-          toast.danger(next.diagnostics[0]?.message ?? "CLIProxyAPI 启动后仍无法合成");
+          toast.danger(next.diagnostics[0]?.message ?? t`CLIProxyAPI 启动后仍无法合成`);
           return;
         }
         persistCraftedRecipe(next);
@@ -359,10 +361,10 @@ export function CraftingWorkbenchPage(props: {
               <div
                 className="min-w-0 shrink-0 rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5"
                 data-testid="crafting-result-detail"
-                aria-label="合成结果详情"
+                aria-label={t`合成结果详情`}
               >
                 <div className="flex items-center gap-1.5">
-                  <p className="text-[10px] font-medium text-neutral-500">合成结果</p>
+                  <p className="text-[10px] font-medium text-neutral-500">{t`合成结果`}</p>
                   {resolution ? (
                     <span
                       className={`rounded-full px-1.5 py-px text-[10px] font-semibold ${
@@ -374,15 +376,15 @@ export function CraftingWorkbenchPage(props: {
                       }`}
                     >
                       {resolution.status === "NATIVE"
-                        ? "原生可合成"
+                        ? t`原生可合成`
                         : resolution.status === "CRAFTABLE"
-                          ? "兼容桥可合成"
-                          : "不可合成"}
+                          ? t`兼容桥可合成`
+                          : t`不可合成`}
                     </span>
                   ) : null}
                 </div>
                 <p className="mt-0.5 truncate text-xs font-semibold text-foreground">
-                  {resultName || "尚未放入模型与 Harness"}
+                  {resultName || t`尚未放入模型与 Harness`}
                 </p>
                 {resolutionReason ? (
                   <p className="mt-0.5 line-clamp-2 text-[10px] leading-4 text-neutral-400">
@@ -391,7 +393,7 @@ export function CraftingWorkbenchPage(props: {
                 ) : null}
                 {selectedModel ? (
                   <p className="mt-1 truncate text-[10px] text-neutral-500">
-                    模型 · {selectedModel.displayName}（{selectedModel.modelId}）
+                    {t`模型 · ${selectedModel.displayName}（${selectedModel.modelId}）`}
                   </p>
                 ) : null}
                 {selectedHarness ? (
@@ -432,7 +434,7 @@ export function CraftingWorkbenchPage(props: {
                     className="rounded-lg border border-dashed border-white/10 px-2 py-1.5 text-[10px] text-neutral-600"
                     data-testid="models-selection-summary"
                   >
-                    未选择模型
+                    {t`未选择模型`}
                   </div>
                 )
               }
@@ -460,7 +462,7 @@ export function CraftingWorkbenchPage(props: {
                     className="rounded-lg border border-dashed border-white/10 px-2 py-1.5 text-[10px] text-neutral-600"
                     data-testid="harness-selection-summary"
                   >
-                    未选择 Harness
+                    {t`未选择 Harness`}
                   </div>
                 )
               }
@@ -471,7 +473,7 @@ export function CraftingWorkbenchPage(props: {
         {/* Right ingredients rail */}
         <aside
           className="flex min-h-0 min-w-[22rem] flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-3"
-          aria-label="原料栏"
+          aria-label={t`原料栏`}
         >
           <ComponentsRail />
         </aside>

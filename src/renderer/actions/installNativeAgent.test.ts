@@ -93,7 +93,7 @@ describe("runNativeAgentInstall", () => {
     expect(toast.danger).toHaveBeenCalledWith(
       expect.stringContaining("3"),
       expect.objectContaining({
-        actionProps: expect.objectContaining({ children: "重试" }),
+        actionProps: expect.objectContaining({ children: "Retry" }),
       }),
     );
     expect(bridgeMock.refreshAgentStatuses).not.toHaveBeenCalled();
@@ -141,7 +141,7 @@ describe("runNativeAgentInstall", () => {
       expect(toast.danger).toHaveBeenCalledWith(
         "supervisor gone",
         expect.objectContaining({
-          actionProps: expect.objectContaining({ children: "重试" }),
+          actionProps: expect.objectContaining({ children: "Retry" }),
         }),
       );
       expect(onComplete).toHaveBeenCalledWith(false);

@@ -45,8 +45,8 @@ describe("thread collaboration UI labels", () => {
       harnessId: "harness-1",
       agentMcpSupported: false,
     });
-    expect(displayDialogueTitle(provenance("nQV8lQ"))).toBe("跨线程对话");
-    expect(displayDialogueTitle(provenance(""))).toBe("跨线程对话");
+    expect(displayDialogueTitle(provenance("nQV8lQ"))).toBe("Cross-thread conversation");
+    expect(displayDialogueTitle(provenance(""))).toBe("Cross-thread conversation");
     expect(displayDialogueTitle(provenance("Assistant"))).toBe("Assistant");
     expect(displayDialogueTitle(provenance("E0.2-Oracle动作上屏"))).toBe("E0.2-Oracle动作上屏");
     expect(displayDialogueTitle(provenance("D.0-MER20250V-GRPO"))).toBe("D.0-MER20250V-GRPO");

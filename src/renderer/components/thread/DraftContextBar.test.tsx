@@ -135,7 +135,7 @@ describe("DraftContextBar subagent entry", () => {
         "thread-runtime": {
           usedTokens: 218_000,
           maxTokens: 262_000,
-          breakdown: [{ id: "messages", label: "消息", tokens: 218_000 }],
+          breakdown: [{ id: "messages", label: "Messages", tokens: 218_000 }],
         },
       },
     } as never);
@@ -153,7 +153,7 @@ describe("DraftContextBar subagent entry", () => {
     expect(chip).toHaveTextContent("Working");
     expect(chip).not.toHaveTextContent("FOC_t1");
     expect(chip).not.toHaveTextContent("84%");
-    expect(chip).not.toHaveTextContent("消息");
+    expect(chip).not.toHaveTextContent("Messages");
   });
 });
 
@@ -260,7 +260,7 @@ describe("DraftContextBar composer plan chip", () => {
     expect(screen.getByTestId("composer-plan-chip")).toHaveTextContent("1/3 Fix runtime switch");
     fireEvent.mouseEnter(screen.getByTestId("composer-plan-chip"));
     expect(screen.getByTestId("composer-plan-card")).toBeInTheDocument();
-    expect(screen.getByText("计划进度")).toBeInTheDocument();
+    expect(screen.getByText("Plan progress")).toBeInTheDocument();
     expect(screen.getByText("Trace CrossAgents")).toBeInTheDocument();
     expect(screen.getByText("Add tests")).toBeInTheDocument();
   });

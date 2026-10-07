@@ -3,6 +3,8 @@ import { readBridge } from "@/renderer/bridge";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { useUpdateStore } from "@/renderer/state/updateStore";
 import { currentWslDistros } from "@/renderer/utils/acpRegistryAuth";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 /**
  * Run one CLI binary update end to end. Shared by the titlebar "Check all
@@ -32,10 +34,10 @@ export async function runCliUpdateBinary(input: {
       ...(envKind === "wsl" && distro ? { wslDistro: distro } : {}),
     });
     if (!result.ok) {
-      toast.danger(result.output?.trim() || `无法更新 ${input.label}。`);
+      toast.danger(result.output?.trim() || i18n._(linguiMsg`无法更新 ${input.label}。`));
       return false;
     }
-    toast.success(`${input.label} 已更新到 v${input.latest}。`);
+    toast.success(i18n._(linguiMsg`${input.label} 已更新到 v${input.latest}。`));
     const refreshed = await readBridge().refreshAgentStatuses(currentWslDistros(), {
       agentKinds: [input.agentKind],
       envs: [envKind === "wsl" && distro ? { kind: "wsl", distro } : { kind: "native" }],
@@ -57,7 +59,9 @@ export async function runCliUpdateBinary(input: {
     );
     return true;
   } catch (error) {
-    toast.danger(error instanceof Error ? error.message : `无法更新 ${input.label}。`);
+    toast.danger(
+      error instanceof Error ? error.message : i18n._(linguiMsg`无法更新 ${input.label}。`),
+    );
     return false;
   } finally {
     store.finishAgentUpdate(input.key);

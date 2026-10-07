@@ -36,6 +36,8 @@ import {
   bindLeadingSkillUnlessLocalAction,
   resolveLocalActionUnlessSkill,
 } from "./threadSlashCommands";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 /**
  * Everything the composer submit path reads from the section component,
@@ -151,7 +153,7 @@ export function submitComposerPrompt(segments: PromptSegment[], ctx: ComposerSub
   const goalCommand = parseGoalSlashCommand(flat);
   if (goalCommand.kind !== "not-goal") {
     if (goalCommand.kind === "empty") {
-      toast.danger("用法：/goal + Prompt（Prompt 不能为空）");
+      toast.danger(i18n._(linguiMsg`用法：/goal + Prompt（Prompt 不能为空）`));
     } else {
       const result = setThreadGoalPrompt(thread.id, goalCommand.prompt);
       if (!result.ok) {

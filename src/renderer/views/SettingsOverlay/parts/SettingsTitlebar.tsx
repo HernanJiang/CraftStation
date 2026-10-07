@@ -45,8 +45,8 @@ export function SettingsTitlebar(props: { onClose: () => void }) {
           )}
           <span>
             {phase === "downloaded"
-              ? `可用更新${version ? ` v${version}` : ""}`
-              : `正在下载 ${Math.round(percent)}%`}
+              ? t`可用更新${version ? ` v${version}` : ""}`
+              : t`正在下载 ${Math.round(percent)}%`}
           </span>
         </button>
       ) : null}

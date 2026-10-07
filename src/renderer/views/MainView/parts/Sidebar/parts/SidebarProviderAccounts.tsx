@@ -48,6 +48,7 @@ function sortProviders(providers: ReadonlyArray<UsageProvider>): UsageProvider[]
 const SORTED_USAGE_PROVIDERS = sortProviders(USAGE_PROVIDERS);
 
 function AuthorizedModelsAvatarGroup() {
+  const { t } = useLingui();
   const authorizedProviderIds = useProviderUsageStore(
     useShallow((state) =>
       SORTED_USAGE_PROVIDERS.flatMap((provider) =>
@@ -77,7 +78,7 @@ function AuthorizedModelsAvatarGroup() {
       {overflowCount > 0 ? (
         <span
           className="-ml-1.5 flex size-[18px] items-center justify-center rounded-full border-[1.5px] border-[#121214] bg-[#292A30] text-[8px] font-semibold text-neutral-300"
-          title={`另有 ${overflowCount} 个已授权模型`}
+          title={t`另有 ${overflowCount} 个已授权模型`}
           style={{ zIndex: 6 }}
         >
           +{overflowCount}
@@ -102,11 +103,11 @@ export function SidebarProviderAccounts() {
           <AuthorizedModelsAvatarGroup />
           <span className="min-w-0 flex-1">
             <span className="flex items-center gap-1.5 text-xs font-medium text-foreground transition-colors group-hover:text-foreground">
-              <span className="truncate">模型与管理</span>
+              <span className="truncate">{t`模型与管理`}</span>
               <Settings2 className="ml-auto size-3.5 shrink-0 text-muted transition-colors group-hover:text-foreground" />
             </span>
             <span className="mt-0.5 block truncate text-[11px] text-muted transition-colors group-hover:text-foreground">
-              打开设置页面
+              {t`打开设置页面`}
             </span>
           </span>
         </button>

@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import { toast } from "@heroui/react";
 import { describe, expect, it, vi } from "vitest";
 import { InlineFilePathChip } from "./InlineFilePathChip";
@@ -24,7 +25,9 @@ describe("InlineFilePathChip", () => {
     const button = screen.getByRole("button", { name: /missing\.md/u });
     fireEvent.click(button);
     await waitFor(() =>
-      expect(toastDanger).toHaveBeenCalledWith("无法打开 missing.md：File not found: missing.md"),
+      expect(toastDanger).toHaveBeenCalledWith(
+        "Cannot open missing.md: File not found: missing.md",
+      ),
     );
     expect(button).toBeDisabled();
     toastDanger.mockRestore();

@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { MessageDescriptor } from "@lingui/core";
+import { i18n } from "@/renderer/i18n/i18n";
 import type { AgentCapability } from "@/shared/contracts";
 import {
   collectCustomModelEfforts,
@@ -44,7 +46,9 @@ describe("parseContextSizeTokens", () => {
   });
 
   it("exposes the default-max preset first with an empty value", () => {
-    expect(CONTEXT_SIZE_PRESETS[0]).toEqual({ value: "", label: "默认最高" });
+    expect(CONTEXT_SIZE_PRESETS[0]?.value).toBe("");
+    const label = CONTEXT_SIZE_PRESETS[0]?.label;
+    expect(i18n._(label as MessageDescriptor)).toBe("Highest by default");
   });
 });
 

@@ -3,6 +3,8 @@ import { readBridge } from "@/renderer/bridge";
 import { runAgentInstallCommand } from "@/renderer/actions/agentLoginActions";
 import { currentWslDistros } from "@/renderer/utils/acpRegistryAuth";
 import { NATIVE_AGENT_REGISTRY_ENTRIES } from "@/renderer/views/SettingsOverlay/parts/agentRegistryNative";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 /**
  * One-click install for a Native Agent CLI, shared by the agent settings page
@@ -35,7 +37,9 @@ export function runNativeAgentInstall(input: {
   const entry = NATIVE_AGENT_REGISTRY_ENTRIES.find((candidate) => candidate.id === input.agentKind);
   if (!entry) {
     toast.danger(
-      `${input.label} 不支持在应用内直接安装，请在设置的 Agents 或 ACP 注册表中手动安装。`,
+      i18n._(
+        linguiMsg`${input.label} 不支持在应用内直接安装，请在设置的 Agents 或 ACP 注册表中手动安装。`,
+      ),
     );
     input.onComplete?.(false);
     return false;
@@ -48,10 +52,12 @@ export function runNativeAgentInstall(input: {
     onCommandComplete: (exitCode) => {
       if (exitCode !== 0) {
         toast.danger(
-          `${input.label} 安装失败（退出码 ${exitCode}）。常见原因是缺少 curl、PowerShell 或 WSL。请查看安装终端输出后重试。`,
+          i18n._(
+            linguiMsg`${input.label} 安装失败（退出码 ${exitCode}）。常见原因是缺少 curl、PowerShell 或 WSL。请查看安装终端输出后重试。`,
+          ),
           {
             actionProps: {
-              children: "重试",
+              children: i18n._(linguiMsg`重试`),
               onPress: retryInstall,
               variant: "secondary",
             },
@@ -66,10 +72,12 @@ export function runNativeAgentInstall(input: {
         .then(() => input.onComplete?.(true))
         .catch((error) => {
           toast.danger(
-            error instanceof Error ? error.message : `${input.label} 安装后状态刷新失败。`,
+            error instanceof Error
+              ? error.message
+              : i18n._(linguiMsg`${input.label} 安装后状态刷新失败。`),
             {
               actionProps: {
-                children: "重试",
+                children: i18n._(linguiMsg`重试`),
                 onPress: retryInstall,
                 variant: "secondary",
               },

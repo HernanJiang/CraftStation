@@ -12,16 +12,19 @@ import {
   recipeLaunchModelId,
 } from "@/renderer/crafting/recipePickerTarget";
 import { isThirdPartyAccountId } from "@/shared/thirdPartyRouting";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 function statusLabel(recipe: StoredRecipe): { label: string; class: string } {
   const ui = recipe.compatibility.uiStatus;
-  if (ui === "NATIVE") return { label: "原生兼容", class: "text-emerald-400" };
-  if (ui === "CRAFTABLE") return { label: "可合成", class: "text-amber-300" };
-  return { label: "当前不可运行", class: "text-red-400" };
+  if (ui === "NATIVE") return { label: i18n._(linguiMsg`原生兼容`), class: "text-emerald-400" };
+  if (ui === "CRAFTABLE") return { label: i18n._(linguiMsg`可合成`), class: "text-amber-300" };
+  return { label: i18n._(linguiMsg`当前不可运行`), class: "text-red-400" };
 }
 
 /**
- * Recipe cards rail: the right column of the "合成台与配方" tab. Loads a recipe
+ * Recipe cards rail: the right column of the 合成台与配方 tab. Loads a recipe
  * back into the draft (through the confirm dialog), fires it into chat, edits
  * the alias and deletes — deleting a recipe never deletes the underlying
  * Model/Harness materials or accounts.
@@ -33,6 +36,7 @@ export function RecipesRail(props: {
   onLoad: (recipe: StoredRecipe) => void;
   variant?: "rail" | "panel";
 }) {
+  const { t } = useLingui();
   const variant = props.variant ?? "rail";
   const recipes = useCraftingWorkbenchStore((state) => state.recipes);
   const updateRecipeAlias = useCraftingWorkbenchStore((state) => state.updateRecipeAlias);
@@ -84,10 +88,10 @@ export function RecipesRail(props: {
           : "flex min-h-0 w-72 shrink-0 flex-col border-l border-white/5"
       }
       data-testid="recipes-rail"
-      aria-label="配方列表"
+      aria-label={t`配方列表`}
     >
       <header className="flex h-10 shrink-0 items-center justify-between border-b border-white/5 px-3">
-        <h3 className="text-xs font-semibold text-neutral-300">配方 · {recipes.length}</h3>
+        <h3 className="text-xs font-semibold text-neutral-300">{t`配方 · ${recipes.length}`}</h3>
       </header>
       <div
         className={
@@ -97,7 +101,7 @@ export function RecipesRail(props: {
         }
       >
         {recipes.length === 0 ? (
-          <p className="p-2 text-[11px] text-neutral-500">还没有保存的配方</p>
+          <p className="p-2 text-[11px] text-neutral-500">{t`还没有保存的配方`}</p>
         ) : null}
         {recipes.map((recipe) => {
           const status = statusLabel(recipe);
@@ -111,7 +115,7 @@ export function RecipesRail(props: {
               {editing ? (
                 <div className="mt-1 flex items-center gap-1">
                   <input
-                    aria-label="配方别名"
+                    aria-label={t`配方别名`}
                     value={aliasDraft}
                     onChange={(event) => setAliasDraft(event.target.value)}
                     className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/30 px-1.5 py-0.5 text-[10px] text-foreground outline-none focus:border-white/25"
@@ -121,14 +125,14 @@ export function RecipesRail(props: {
                     onClick={() => commitAlias(recipe)}
                     className="shrink-0 rounded px-1.5 py-0.5 text-[10px] text-emerald-300 hover:bg-white/10"
                   >
-                    保存
+                    {t`保存`}
                   </button>
                   <button
                     type="button"
                     onClick={() => setEditingId(undefined)}
                     className="shrink-0 rounded px-1 py-0.5 text-[10px] text-neutral-400 hover:bg-white/10"
                   >
-                    取消
+                    {t`取消`}
                   </button>
                 </div>
               ) : (
@@ -146,12 +150,12 @@ export function RecipesRail(props: {
                   onClick={() => props.onLoad(recipe)}
                   className="rounded-md px-1.5 py-0.5 text-[10px] font-medium text-foreground hover:bg-white/10"
                 >
-                  加载
+                  {t`加载`}
                 </button>
                 <button
                   type="button"
-                  aria-label="在聊天中使用"
-                  title="在聊天中使用该配方"
+                  aria-label={t`在聊天中使用`}
+                  title={t`在聊天中使用该配方`}
                   onClick={() => handleUseInChat(recipe)}
                   className="rounded-md p-1 text-neutral-400 hover:bg-white/10 hover:text-emerald-300"
                 >
@@ -159,7 +163,7 @@ export function RecipesRail(props: {
                 </button>
                 <button
                   type="button"
-                  aria-label="编辑别名"
+                  aria-label={t`编辑别名`}
                   onClick={() => beginEditAlias(recipe)}
                   className="rounded-md p-1 text-neutral-400 hover:bg-white/10 hover:text-white"
                 >
@@ -167,7 +171,7 @@ export function RecipesRail(props: {
                 </button>
                 <button
                   type="button"
-                  aria-label="删除配方"
+                  aria-label={t`删除配方`}
                   onClick={() => deleteRecipe(recipe.id)}
                   className="rounded-md p-1 text-neutral-400 hover:bg-white/10 hover:text-red-400"
                 >
@@ -179,7 +183,7 @@ export function RecipesRail(props: {
           return (
             <ContextMenu
               key={recipe.id}
-              items={[{ id: "delete", label: "删除配方", variant: "danger" }]}
+              items={[{ id: "delete", label: t`删除配方`, variant: "danger" }]}
               onAction={(key) => {
                 if (key === "delete") deleteRecipe(recipe.id);
               }}

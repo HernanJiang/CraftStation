@@ -117,6 +117,7 @@ export function SettingsSidebar(props: {
   isRefreshingAgents: boolean;
   onRefreshAgents: () => void;
 }) {
+  const { t } = useLingui();
   const {
     activeSection,
     onSectionChange,
@@ -126,7 +127,6 @@ export function SettingsSidebar(props: {
     isRefreshingAgents,
     onRefreshAgents,
   } = props;
-  const { t } = useLingui();
   const { isCollapsed } = useSidebar();
   const disabledAgents = useSharedSettings((s) => s.disabledAgents);
   // Instance-scoped kinds (e.g. Claude profiles "claude:<id>") nest under
@@ -618,7 +618,7 @@ export function SettingsSidebar(props: {
               <Dropdown.Menu aria-label={t`Notifications`}>
                 <Dropdown.Item id="settings-ready" textValue={t`Settings`}>
                   <Bell className="size-4 text-muted" />
-                  <Label>设置已同步</Label>
+                  <Label>{t`设置已同步`}</Label>
                 </Dropdown.Item>
               </Dropdown.Menu>
             </Dropdown.Popover>

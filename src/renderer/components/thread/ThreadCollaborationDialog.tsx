@@ -19,6 +19,8 @@ import {
   displayDialogueTitle,
   threadTargetStatusLabel,
 } from "./threadCollaborationUi";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 function requestIdempotencyKey(sourceThreadId: string): string {
   const random =
@@ -45,7 +47,7 @@ function exchangeUnsupported(exchange: ThreadExchangeView): boolean {
 }
 
 function unsupportedNotice(label: string): string {
-  return `${label} 暂不支持：该 Provider 的运行时不提供此能力，未产生失败。`;
+  return i18n._(linguiMsg`${label} 暂不支持：该 Provider 的运行时不提供此能力，未产生失败。`);
 }
 
 export function ThreadCollaborationDialog(props: {
@@ -490,7 +492,7 @@ export function ThreadCollaborationDialog(props: {
                         {exchange.error ? (
                           exchangeUnsupported(exchange) ? (
                             <p className="break-words text-xs text-amber-300/90">
-                              {unsupportedNotice("该 Provider 跨线程消息")}
+                              {unsupportedNotice(t`该 Provider 跨线程消息`)}
                             </p>
                           ) : (
                             <p className="break-words text-xs text-danger">

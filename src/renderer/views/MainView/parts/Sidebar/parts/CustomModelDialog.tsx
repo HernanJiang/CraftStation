@@ -7,15 +7,22 @@ import {
   parseEffortTiers,
   type CustomModel,
 } from "@/renderer/components/thread/customModelCatalog";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import type { MessageDescriptor } from "@lingui/core";
+import { useLingui } from "@lingui/react/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 export const DEFAULT_MODEL_CONTEXT_WINDOW = "1000000";
 export const DEFAULT_MODEL_MAX_OUTPUT_TOKENS = "128000";
-export const MODEL_MODALITY_OPTIONS = [
-  { id: "text", label: "文本" },
-  { id: "image", label: "图片" },
-  { id: "video", label: "视频" },
-  { id: "pdf", label: "PDF" },
-] as const;
+export const MODEL_MODALITY_OPTIONS: ReadonlyArray<{
+  id: "text" | "image" | "video" | "pdf";
+  label: MessageDescriptor;
+}> = [
+  { id: "text", label: linguiMsg`文本` },
+  { id: "image", label: linguiMsg`图片` },
+  { id: "video", label: linguiMsg`视频` },
+  { id: "pdf", label: linguiMsg`PDF` },
+];
 
 export interface CustomModelDialogValues {
   modelId: string;
@@ -37,6 +44,7 @@ export function ModalityGroup(props: {
   locked?: readonly string[];
   onChange: (values: string[]) => void;
 }) {
+  const { t } = useLingui();
   return (
     <fieldset>
       <legend className="mb-1.5 text-xs text-neutral-400">{props.legend}</legend>
@@ -73,9 +81,9 @@ export function ModalityGroup(props: {
               >
                 {checked ? <Check className="size-2.5" /> : null}
               </span>
-              {option.label}
+              {i18n._(option.label)}
               {locked ? (
-                <Lock className="size-3 text-neutral-500" aria-label="文本输入恒选" />
+                <Lock className="size-3 text-neutral-500" aria-label={t`文本输入恒选`} />
               ) : null}
             </label>
           );
@@ -105,6 +113,7 @@ export function CustomModelDialog(props: {
   onCancel: () => void;
   onSave: (values: CustomModelDialogValues) => void;
 }) {
+  const { t } = useLingui();
   const editing = props.editingModel;
   const preset = effortPresetForProvider(props.providerKind);
   const [modelId, setModelId] = useState(props.initialModelId);
@@ -149,7 +158,7 @@ export function CustomModelDialog(props: {
       setUpstream({
         loading: false,
         models: [],
-        error: error instanceof Error ? error.message : "拉取失败",
+        error: error instanceof Error ? error.message : t`拉取失败`,
       });
     }
   };
@@ -159,28 +168,28 @@ export function CustomModelDialog(props: {
         <Modal.Dialog>
           <Modal.CloseTrigger />
           <Modal.Header>
-            <Modal.Heading>{editing ? "编辑模型" : "添加模型"}</Modal.Heading>
+            <Modal.Heading>{editing ? t`编辑模型` : t`添加模型`}</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="flex flex-col gap-3 p-4">
             <TextField>
-              <Label>模型 ID</Label>
+              <Label>{t`模型 ID`}</Label>
               <Input
                 value={modelId}
                 onChange={(event) => setModelId(event.target.value)}
-                placeholder="模型 ID"
+                placeholder={t`模型 ID`}
                 disabled={editing !== undefined}
               />
             </TextField>
             <TextField>
-              <Label>展示名称（可选）</Label>
+              <Label>{t`展示名称（可选）`}</Label>
               <Input
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
-                placeholder="展示名称（可选）"
+                placeholder={t`展示名称（可选）`}
               />
             </TextField>
             <TextField>
-              <Label>上下文窗口</Label>
+              <Label>{t`上下文窗口`}</Label>
               <Input
                 value={contextSize}
                 onChange={(event) => setContextSize(event.target.value)}
@@ -188,7 +197,7 @@ export function CustomModelDialog(props: {
               />
             </TextField>
             <TextField>
-              <Label>最大输出 Token</Label>
+              <Label>{t`最大输出 Token`}</Label>
               <Input
                 value={maxOutputTokens}
                 onChange={(event) => setMaxOutputTokens(event.target.value)}
@@ -196,19 +205,19 @@ export function CustomModelDialog(props: {
               />
             </TextField>
             <ModalityGroup
-              legend="输入类型"
+              legend={t`输入类型`}
               values={inputModalities}
               locked={["text"]}
               onChange={setInputModalities}
             />
             <ModalityGroup
-              legend="输出类型"
+              legend={t`输出类型`}
               values={outputModalities}
               onChange={setOutputModalities}
             />
             <div>
               <div className="mb-1.5 flex items-center justify-between gap-2">
-                <span className="text-xs text-neutral-400">思考强度档位（逗号分隔，手写）</span>
+                <span className="text-xs text-neutral-400">{t`思考强度档位（逗号分隔，手写）`}</span>
                 <button
                   type="button"
                   onClick={() => {
@@ -217,11 +226,11 @@ export function CustomModelDialog(props: {
                   }}
                   className="shrink-0 rounded-md border border-white/10 px-1.5 py-0.5 text-[10px] text-neutral-300 hover:bg-white/10 hover:text-white"
                 >
-                  用{props.providerKind || "通用"}预设
+                  {t`用 ${props.providerKind || t`通用`} 预设`}
                 </button>
               </div>
               <TextField>
-                <Label className="sr-only">思考强度档位</Label>
+                <Label className="sr-only">{t`思考强度档位`}</Label>
                 <Input
                   value={effortTiers}
                   onChange={(event) => {
@@ -233,15 +242,15 @@ export function CustomModelDialog(props: {
                 />
               </TextField>
               <p className="mt-1 text-[10px] text-neutral-500">
-                留空则跟随渠道默认；各厂商档位以其文档为准。
+                {t`留空则跟随渠道默认；各厂商档位以其文档为准。`}
               </p>
               {parsedTiers.length > 0 ? (
                 <div className="mt-1.5">
                   <Select
-                    aria-label="默认思考强度"
+                    aria-label={t`默认思考强度`}
                     className="w-full text-xs"
                     options={[
-                      { id: "", label: "跟随渠道默认" },
+                      { id: "", label: t`跟随渠道默认` },
                       ...parsedTiers.map((tier) => ({ id: tier, label: tier })),
                     ]}
                     value={defaultEffort}
@@ -254,7 +263,7 @@ export function CustomModelDialog(props: {
               <div>
                 <div className="mb-1.5 flex items-center justify-between gap-2">
                   <span className="text-xs text-neutral-400">
-                    上游模型（精确 id，避免手写错位）
+                    {t`上游模型（精确 id，避免手写错位）`}
                   </span>
                   <button
                     type="button"
@@ -267,7 +276,7 @@ export function CustomModelDialog(props: {
                     ) : (
                       <Download className="size-3" />
                     )}
-                    从上游拉取
+                    {t`从上游拉取`}
                   </button>
                 </div>
                 {upstream.error ? (
@@ -303,7 +312,7 @@ export function CustomModelDialog(props: {
               className="text-muted"
               onPress={props.onCancel}
             >
-              取消
+              {t`取消`}
             </Button>
             <Button
               variant="tertiary"
@@ -324,7 +333,7 @@ export function CustomModelDialog(props: {
                 })
               }
             >
-              保存
+              {t`保存`}
             </Button>
           </Modal.Footer>
         </Modal.Dialog>

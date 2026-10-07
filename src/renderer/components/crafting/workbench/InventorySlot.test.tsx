@@ -26,7 +26,7 @@ describe("InventorySlot", () => {
   });
 
   it("renders a div when no onClick is supplied", () => {
-    render(<InventorySlot name="暂未开放" visual={<span>V</span>} testId="slot" />);
+    render(<InventorySlot name="Not open yet" visual={<span>V</span>} testId="slot" />);
 
     const slot = screen.getByTestId("slot");
     expect(slot.tagName).toBe("DIV");

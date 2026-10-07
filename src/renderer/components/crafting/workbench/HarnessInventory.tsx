@@ -7,6 +7,7 @@ import {
 } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 import { isHarnessSelectable, shortHarnessName } from "@/renderer/crafting/harnessInventory";
 import { INVENTORY_GRID_CLASS, InventorySlot } from "./InventorySlot";
+import { useLingui } from "@lingui/react/macro";
 
 /**
  * Harness Inventory: square slots for installed harnesses. Ready harnesses are
@@ -25,6 +26,7 @@ export function HarnessInventory(props: {
   /** Pinned current-selection summary row (first row of the column). */
   summary?: ReactNode | undefined;
 }) {
+  const { t } = useLingui();
   const { entries, selectedRef, onSelect, onAdd, summary } = props;
   const selectable = entries.filter(isHarnessSelectable);
   const abnormal = entries.filter((ref) => !isHarnessSelectable(ref));
@@ -32,7 +34,7 @@ export function HarnessInventory(props: {
     <section
       className="flex min-h-0 flex-1 flex-col gap-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3"
       data-testid="harness-inventory"
-      aria-label="Harness 背包"
+      aria-label={t`Harness 背包`}
     >
       <header className="flex shrink-0 items-center justify-between px-1">
         <h3 className="text-xs font-semibold text-neutral-300">Harness</h3>
@@ -74,14 +76,14 @@ export function HarnessInventory(props: {
             }
             tone="warning"
             muted={true}
-            title={`${ref.displayName} · 状态：${ref.status}\n点击配置`}
+            title={t`${ref.displayName} · 状态：${ref.status}\n点击配置`}
             onClick={() => onSelect(ref)}
           />
         ))}
         <InventorySlot
           tone="dashed"
-          name="添加"
-          title="前往 Harness/CLI 面板"
+          name={t`添加`}
+          title={t`前往 Harness/CLI 面板`}
           visual={<Plus className="size-4" />}
           onClick={onAdd}
         />

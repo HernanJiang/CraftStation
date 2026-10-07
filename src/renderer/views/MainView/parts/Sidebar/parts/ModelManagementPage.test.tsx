@@ -78,7 +78,7 @@ describe("ModelManagementPage bulk model visibility", () => {
   it("selects or clears every model in the current channel", () => {
     renderPage();
 
-    fireEvent.click(screen.getByRole("button", { name: "取消 Codex 渠道全部模型" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deselect all models of channel Codex" }));
 
     expect(useSharedSettings.getState().hiddenModels.codex).toEqual(["gpt-5", "gpt-5-mini"]);
     for (const checkbox of within(screen.getByTestId("agent-model-rows")).getAllByRole(
@@ -87,7 +87,7 @@ describe("ModelManagementPage bulk model visibility", () => {
       expect(checkbox).toHaveAttribute("aria-checked", "false");
     }
 
-    fireEvent.click(screen.getByRole("button", { name: "全选 Codex 渠道全部模型" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select all models of channel Codex" }));
 
     expect(useSharedSettings.getState().hiddenModels.codex).toEqual([]);
     for (const checkbox of within(screen.getByTestId("agent-model-rows")).getAllByRole(
@@ -128,7 +128,7 @@ describe("ModelManagementPage bulk model visibility", () => {
       ],
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "取消全部渠道模型" }));
+    fireEvent.click(screen.getByRole("button", { name: "Deselect models of all channels" }));
 
     expect(useSharedSettings.getState().hiddenModels).toMatchObject({
       codex: ["gpt-5", "gpt-5-mini"],
@@ -137,7 +137,7 @@ describe("ModelManagementPage bulk model visibility", () => {
     expect(onUpdateCustomModels).not.toHaveBeenCalled();
     expect(screen.getByText("Custom Model")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "全选全部渠道模型" }));
+    fireEvent.click(screen.getByRole("button", { name: "Select all models across channels" }));
 
     expect(useSharedSettings.getState().hiddenModels).toMatchObject({ codex: [], claude: [] });
     expect(onUpdateCustomModels).not.toHaveBeenCalled();
@@ -174,7 +174,9 @@ describe("ModelManagementPage bulk model visibility", () => {
       ],
     });
 
-    fireEvent.click(screen.getByRole("button", { name: "从名单取消全部渠道模型" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Deselect all channel models from the list" }),
+    );
 
     const roster = within(screen.getByTestId("model-roster-panel"));
     expect(roster.queryByText("GPT-5")).not.toBeInTheDocument();
@@ -215,8 +217,8 @@ describe("ModelManagementPage bulk model visibility", () => {
         accountId: "openai-compatible:chiral",
       }),
     );
-    expect(screen.queryByText("OpenAI 兼容 API")).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("上下文大小")).not.toBeInTheDocument();
+    expect(screen.queryByText("OpenAI-compatible API")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Context window")).not.toBeInTheDocument();
   });
 
   it("manages saved recipes through the 我的配方 channel", () => {
@@ -248,7 +250,9 @@ describe("ModelManagementPage bulk model visibility", () => {
 
       renderPage();
       fireEvent.click(
-        within(screen.getByTestId("model-channel-rail")).getByRole("button", { name: /我的配方/u }),
+        within(screen.getByTestId("model-channel-rail")).getByRole("button", {
+          name: /My recipes/u,
+        }),
       );
 
       const rows = within(screen.getByTestId("recipe-rows"));
@@ -348,15 +352,17 @@ describe("ModelManagementPage bulk model visibility", () => {
       await act(async () => {
         await vi.advanceTimersByTimeAsync(0);
       });
-      expect(screen.getByText(/正在获取模型列表/u)).toBeInTheDocument();
+      expect(screen.getByText(/Fetching model list/u)).toBeInTheDocument();
 
       // The upstream never answers: after the client timeout the spinner must
       // give way to an error plus a reachable retry action.
       await act(async () => {
         await vi.advanceTimersByTimeAsync(30_001);
       });
-      expect(screen.getByText(/获取模型列表超时/u)).toBeInTheDocument();
-      const retry = screen.getByRole("button", { name: /获取 StepFun 上游可用模型列表/u });
+      expect(screen.getByText(/Fetching the model list timed out/u)).toBeInTheDocument();
+      const retry = screen.getByRole("button", {
+        name: /Fetch available model list for StepFun from upstream/u,
+      });
       listChannelModels.mockResolvedValueOnce({ models: ["step-5-preview"] });
       fireEvent.click(retry);
       await act(async () => {
@@ -413,10 +419,10 @@ describe("ModelManagementPage bulk model visibility", () => {
 
       fireEvent.click(screen.getByRole("button", { name: /Volcengine Ark/u }));
       const row = await screen.findByTestId("custom-model-openai-compatible:kimi-k2.8-preview");
-      fireEvent.click(within(row).getByRole("button", { name: "编辑 Kimi K2.8 Preview" }));
+      fireEvent.click(within(row).getByRole("button", { name: "Edit Kimi K2.8 Preview" }));
 
       const dialog = await screen.findByRole("dialog");
-      expect(within(dialog).getByText("编辑模型")).toBeInTheDocument();
+      expect(within(dialog).getByText("Edit model")).toBeInTheDocument();
       // 模型 ID 在编辑模式锁定不可改。
       expect(within(dialog).getByDisplayValue("kimi-k2.8-preview")).toBeDisabled();
       expect(within(dialog).getByDisplayValue("Kimi K2.8 Preview")).toBeInTheDocument();
@@ -429,7 +435,7 @@ describe("ModelManagementPage bulk model visibility", () => {
       fireEvent.change(within(dialog).getByDisplayValue("low, high, max"), {
         target: { value: "low, high, max, ultra" },
       });
-      fireEvent.click(within(dialog).getByRole("button", { name: "保存" }));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
 
       expect(onUpdateCustomModels).toHaveBeenLastCalledWith([
         expect.objectContaining({
@@ -442,12 +448,12 @@ describe("ModelManagementPage bulk model visibility", () => {
       ]);
 
       // 清空档位后保存：浅合并语义下 efforts: [] 必须正确覆盖旧值。
-      fireEvent.click(within(row).getByRole("button", { name: "编辑 Kimi K2.8 Preview" }));
+      fireEvent.click(within(row).getByRole("button", { name: "Edit Kimi K2.8 Preview" }));
       const dialogAgain = await screen.findByRole("dialog");
       fireEvent.change(within(dialogAgain).getByDisplayValue("low, high, max"), {
         target: { value: "" },
       });
-      fireEvent.click(within(dialogAgain).getByRole("button", { name: "保存" }));
+      fireEvent.click(within(dialogAgain).getByRole("button", { name: "Save" }));
       expect(onUpdateCustomModels).toHaveBeenLastCalledWith([
         expect.objectContaining({
           id: "openai-compatible:kimi-k2.8-preview",

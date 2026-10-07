@@ -19,6 +19,9 @@ import {
 import { deriveToolDisplay, isCrossagentTool } from "./ChatPane/parts/items/toolDisplay";
 import { formatTokenCount } from "./formatTokenCount";
 import type { ThreadContextUsageSummary } from "./threadContextUsage";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 const SEGMENT_COLORS = [
   "bg-slate-400",
@@ -269,7 +272,7 @@ function formatOccupancyShare(tokens: number, total: number): string {
 }
 
 function formatRemainingQuota(usedPercent: number): string {
-  return `${Math.max(0, Math.min(100, Math.round(100 - usedPercent)))}% 剩余`;
+  return i18n._(linguiMsg`${Math.max(0, Math.min(100, Math.round(100 - usedPercent)))}% 剩余`);
 }
 
 function resolveBreakdownTokens(
@@ -307,6 +310,7 @@ export function ContextQuotaRing(props: {
   quotaProviderId?: string;
   quotaAccountId?: string;
 }) {
+  const { t } = useLingui();
   const { contextSummary, quotaProviderId, quotaAccountId } = props;
   const { triggerRef, pos, show, hide } = useHoverPopover();
   const overlayZoom = overlayZoomClasses(useSharedSettings((state) => state.zoomFactor));
@@ -377,7 +381,7 @@ export function ContextQuotaRing(props: {
     >
       <button
         type="button"
-        aria-label="上下文与额度详情"
+        aria-label={t`上下文与额度详情`}
         className="flex size-6 items-center justify-center rounded-md hover:bg-white/5"
         onClick={(event) => {
           event.stopPropagation();
@@ -418,7 +422,7 @@ export function ContextQuotaRing(props: {
                 data-testid="context-quota-popover"
               >
                 <div className="flex items-center justify-between text-[11px]">
-                  <span className="font-semibold text-foreground">上下文容量</span>
+                  <span className="font-semibold text-foreground">{t`上下文容量`}</span>
                   <span className="tabular-nums text-neutral-400">
                     {used !== undefined && max !== undefined
                       ? `${formatTokenCount(used)} / ${formatTokenCount(max)}`
@@ -462,59 +466,59 @@ export function ContextQuotaRing(props: {
                 {hasSessionTokenData ? (
                   <div className="mt-1.5 border-t border-white/5 pt-1.5">
                     <div className="pb-0.5 text-[10px] font-semibold text-foreground-muted">
-                      当前会话 Token
+                      {t`当前会话 Token`}
                     </div>
                     {inputContextTokens !== undefined ? (
-                      <DetailRow label="输入">
+                      <DetailRow label={t`输入`}>
                         {`${formatTokenCount(inputContextTokens)} · ${formatOccupancyShare(inputContextTokens, contextTotal)}`}
                       </DetailRow>
                     ) : null}
                     {outputContextTokens !== undefined ? (
-                      <DetailRow label="输出">
+                      <DetailRow label={t`输出`}>
                         {`${formatTokenCount(outputContextTokens)} · ${formatOccupancyShare(outputContextTokens, contextTotal)}`}
                       </DetailRow>
                     ) : null}
                     {cacheReadContextTokens !== undefined ? (
-                      <DetailRow label="缓存读取">
+                      <DetailRow label={t`缓存读取`}>
                         {`${formatTokenCount(cacheReadContextTokens)} · ${formatOccupancyShare(cacheReadContextTokens, contextTotal)}`}
                       </DetailRow>
                     ) : null}
                     {reasoningContextTokens !== undefined ? (
-                      <DetailRow label="推理">
+                      <DetailRow label={t`推理`}>
                         {`${formatTokenCount(reasoningContextTokens)} · ${formatOccupancyShare(reasoningContextTokens, contextTotal)}`}
                       </DetailRow>
                     ) : null}
                   </div>
                 ) : null}
                 <div className="mt-1.5 border-t border-white/5 pt-1.5">
-                  <DetailRow label="平均缓存命中率">
-                    {hitRate === undefined ? "未提供" : `${hitRate}%`}
+                  <DetailRow label={t`平均缓存命中率`}>
+                    {hitRate === undefined ? t`未提供` : `${hitRate}%`}
                   </DetailRow>
                   {account ? (
-                    <DetailRow label="当前账号">
+                    <DetailRow label={t`当前账号`}>
                       {account.maskedIdentity ?? account.label}
                     </DetailRow>
                   ) : null}
                   {accountQuota.map((window) => (
-                    <DetailRow key={window.id} label={`${window.label || window.id} 额度`}>
+                    <DetailRow key={window.id} label={t`${window.label || window.id} 额度`}>
                       {formatRemainingQuota(window.usedPercent)}
                     </DetailRow>
                   ))}
                   {account && accountQuota.length === 0 ? (
-                    <DetailRow label="当前账号额度">未提供</DetailRow>
+                    <DetailRow label={t`当前账号额度`}>{t`未提供`}</DetailRow>
                   ) : null}
                   {providerSnapshot?.credits?.balance !== undefined ? (
-                    <DetailRow label={account ? "账号余额" : "渠道余额"}>
+                    <DetailRow label={account ? t`账号余额` : t`渠道余额`}>
                       {`${providerSnapshot.credits.balance}${providerSnapshot.credits.currency ? ` ${providerSnapshot.credits.currency}` : ""}`}
                     </DetailRow>
                   ) : null}
-                  {fiveHour !== null ? <DetailRow label="5h 已用">{fiveHour}%</DetailRow> : null}
-                  {weekly !== null ? <DetailRow label="周已用">{weekly}%</DetailRow> : null}
+                  {fiveHour !== null ? <DetailRow label={t`5h 已用`}>{fiveHour}%</DetailRow> : null}
+                  {weekly !== null ? <DetailRow label={t`周已用`}>{weekly}%</DetailRow> : null}
                   {used !== undefined ? (
-                    <DetailRow label="当前会话占用">{formatTokenCount(used)}</DetailRow>
+                    <DetailRow label={t`当前会话占用`}>{formatTokenCount(used)}</DetailRow>
                   ) : null}
                   {hasTokenData ? (
-                    <DetailRow label="今日 输入 / 输出 / 缓存">
+                    <DetailRow label={t`今日 输入 / 输出 / 缓存`}>
                       {`${formatTokenCount(inputTokens)} / ${formatTokenCount(outputTokens)} / ${formatTokenCount(cacheRead)}`}
                     </DetailRow>
                   ) : null}

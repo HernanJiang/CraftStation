@@ -241,7 +241,14 @@ describe("SettingsOverlay", () => {
     const { container } = render(<SettingsOverlay onClose={() => undefined} />);
 
     const headers = [...container.querySelectorAll("aside p")].map((el) => el.textContent);
-    expect(headers).toEqual(["模型与管理", "Personal", "Workspace", "Agents", "Remote", "About"]);
+    expect(headers).toEqual([
+      "Models & management",
+      "Personal",
+      "Workspace",
+      "Agents",
+      "Remote",
+      "About",
+    ]);
 
     const labels = screen.getAllByRole("button").map((button) => button.textContent);
     expect(labels.indexOf("Notifications")).toBeLessThan(labels.indexOf("Terminal"));

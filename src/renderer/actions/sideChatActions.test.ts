@@ -8,7 +8,7 @@ import { useSideChatStore } from "@/renderer/state/sideChatStore";
 import type { RuntimeChatItem } from "@/renderer/state/slices/runtimeEventSlice";
 import { setThreadRuntimeReopenEnabled } from "@/renderer/actions/threadActions";
 import {
-  SIDE_CHAT_BRANCH_TITLE_SUFFIX,
+  sideChatBranchTitleSuffix,
   closeSideChat,
   openSideChatBranch,
   openSideChatExisting,
@@ -121,7 +121,7 @@ describe("side chat actions", () => {
     const branch = state.threads.find((thread) => thread.id !== sourceId)!;
     expect(isEphemeralSideChatThread(branch)).toBe(true);
     expect(branch.parentThreadId).toBe(sourceId);
-    expect(branch.title.endsWith(SIDE_CHAT_BRANCH_TITLE_SUFFIX)).toBe(true);
+    expect(branch.title.endsWith(sideChatBranchTitleSuffix())).toBe(true);
     expect(branch.status).toBe("idle");
     // Full transcript copied with stable ids; the main view is untouched.
     expect(state.runtimeItemIdsByThread[branch.id]).toEqual(["user-1", "asst-1"]);
@@ -223,7 +223,7 @@ describe("side chat actions", () => {
     const state = useAppStore.getState();
     const saved = state.threads.find((thread) => thread.id === branchId)!;
     expect(isEphemeralSideChatThread(saved)).toBe(false);
-    expect(saved.title.endsWith(SIDE_CHAT_BRANCH_TITLE_SUFFIX)).toBe(false);
+    expect(saved.title.endsWith(sideChatBranchTitleSuffix())).toBe(false);
     expect(saved.groupId).toBeDefined();
     const parent = state.threads.find((thread) => thread.id === sourceId)!;
     expect(parent.groupId).toBe(saved.groupId);

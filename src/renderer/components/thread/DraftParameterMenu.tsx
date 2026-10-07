@@ -26,8 +26,10 @@ import { getLaunchableAgentStatuses } from "@/shared/agentStatus";
 import { channelInfoFromCustomModels, resolveAutoModelBinding } from "@/shared/thirdPartyRouting";
 import type { ComposerControl } from "./ThreadComposer";
 import { CONTEXT_WINDOW_PRESETS, resolveContextPresetValue } from "./threadDraftViewHelpers";
+import { useLingui } from "@lingui/react/macro";
 
 export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
+  const { t } = useLingui();
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
   const currentProjectId = useCurrentProjectId();
@@ -190,7 +192,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
     selectedModel?.label ||
     modelFromAnyProvider?.label ||
     currentModelLabel ||
-    "自定义";
+    t`自定义`;
   const modelIconKind = currentModelLabel
     ? modelFamilyIconKind(
         (identityRecipe ? recipeLaunchModelId(identityRecipe) : undefined) ?? currentModelLabel,
@@ -267,14 +269,14 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
           )}
         >
           <Dropdown.Menu
-            aria-label="模型与运行参数"
+            aria-label={t`模型与运行参数`}
             {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
           >
             {effortControl && effortControl.contextSizes.length > 0 ? (
               <Dropdown.SubmenuTrigger>
-                <Dropdown.Item id="context" textValue="上下文窗口大小">
+                <Dropdown.Item id="context" textValue={t`上下文窗口大小`}>
                   <Gauge className="size-4 text-muted" />
-                  <Label>上下文窗口大小</Label>
+                  <Label>{t`上下文窗口大小`}</Label>
                   <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
                     {contextLabel}
                   </span>
@@ -289,7 +291,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                 >
                   <div className={withOverlayClass("flex flex-col", overlayZoom.content)}>
                     <Dropdown.Menu
-                      aria-label="上下文窗口大小"
+                      aria-label={t`上下文窗口大小`}
                       onAction={(key) => handleContextAction(String(key))}
                     >
                       {CONTEXT_WINDOW_PRESETS.map((preset) => (
@@ -300,14 +302,14 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                         >
                           <Label>{preset}</Label>
                           {preset === "256K" ? (
-                            <span className="ml-auto text-[10px] text-neutral-500">默认</span>
+                            <span className="ml-auto text-[10px] text-neutral-500">{t`默认`}</span>
                           ) : null}
                         </Dropdown.Item>
                       ))}
                     </Dropdown.Menu>
                     <div className="border-t border-white/10 p-2">
                       <input
-                        aria-label="自定义上下文窗口大小"
+                        aria-label={t`自定义上下文窗口大小`}
                         value={customContextDraft}
                         onChange={(event) => setCustomContextDraft(event.target.value)}
                         onKeyDown={(event) => {
@@ -316,7 +318,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                             applyCustomContext();
                           }
                         }}
-                        placeholder="自定义，如 200K / 500000，回车应用"
+                        placeholder={t`自定义，如 200K / 500000，回车应用`}
                         className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-foreground outline-none placeholder:text-neutral-500 focus:border-white/25"
                       />
                     </div>
@@ -327,9 +329,9 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
 
             {modelControl ? (
               <Dropdown.SubmenuTrigger delay={0}>
-                <Dropdown.Item id="models" textValue="模型列表">
+                <Dropdown.Item id="models" textValue={t`模型列表`}>
                   <Cpu className="size-4 text-muted" />
-                  <Label>模型列表</Label>
+                  <Label>{t`模型列表`}</Label>
                   <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
                     {selectedModel?.label}
                   </span>
@@ -343,7 +345,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   )}
                 >
                   <Dropdown.Menu
-                    aria-label="模型列表"
+                    aria-label={t`模型列表`}
                     {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
                   >
                     {recipeTargets.map(({ recipe, target }) => {
@@ -359,7 +361,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                         <Dropdown.Item
                           key={`recipe:${recipe.id}`}
                           id={`recipe:${recipe.id}`}
-                          textValue={`${name} 我的配方`}
+                          textValue={t`${name} 我的配方`}
                           onPress={() => {
                             setPendingRecipeIntent({ recipeId: recipe.id });
                             modelControl.onChange({
@@ -382,7 +384,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                           />
                           <Label className="whitespace-nowrap">{name}</Label>
                           <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] text-muted">
-                            我的配方
+                            {t`我的配方`}
                           </span>
                           {isCurrent ? <Check className="size-3.5 text-emerald-400" /> : null}
                         </Dropdown.Item>
@@ -444,9 +446,9 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
 
             {effortControl ? (
               <Dropdown.SubmenuTrigger>
-                <Dropdown.Item id="effort" textValue="推理强度">
+                <Dropdown.Item id="effort" textValue={t`推理强度`}>
                   <Sparkles className="size-4 text-muted" />
-                  <Label>推理强度</Label>
+                  <Label>{t`推理强度`}</Label>
                   <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
                     {effortLabel}
                   </span>
@@ -460,7 +462,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   )}
                 >
                   <Dropdown.Menu
-                    aria-label="推理强度"
+                    aria-label={t`推理强度`}
                     onAction={(key) => {
                       if (key === "__custom_effort__") {
                         setCustomEffortDraft(effortControl.effortValue ?? "");
@@ -479,11 +481,11 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                     <Dropdown.Item
                       key="__custom_effort__"
                       id="__custom_effort__"
-                      textValue="自定义思考强度"
+                      textValue={t`自定义思考强度`}
                     >
-                      <Label>自定义…</Label>
+                      <Label>{t`自定义…`}</Label>
                       <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
-                        手写档位
+                        {t`手写档位`}
                       </span>
                     </Dropdown.Item>
                   </Dropdown.Menu>
@@ -500,8 +502,8 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                     id="fast"
                     textValue={
                       fastControl.disabledReason
-                        ? `快速模式 ${fastControl.disabledReason}`
-                        : "快速模式"
+                        ? t`快速模式 ${fastControl.disabledReason}`
+                        : t`快速模式`
                     }
                     isDisabled={
                       fastControl.isDisabled === true || Boolean(fastControl.disabledReason)
@@ -512,7 +514,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                         fastControl.isSelected ? "text-amber-300" : "text-muted"
                       }`}
                     />
-                    <Label>快速模式</Label>
+                    <Label>{t`快速模式`}</Label>
                     {fastControl.disabledReason ? (
                       <span
                         className="ml-auto max-w-44 truncate whitespace-nowrap text-[10px] text-muted"
@@ -522,7 +524,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                       </span>
                     ) : (
                       <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
-                        {fastControl.isSelected ? (fastTierLabel ?? "Fast") : "关闭"}
+                        {fastControl.isSelected ? (fastTierLabel ?? "Fast") : t`关闭`}
                       </span>
                     )}
                     <Dropdown.SubmenuIndicator />
@@ -535,7 +537,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                     )}
                   >
                     <Dropdown.Menu
-                      aria-label="快速模式"
+                      aria-label={t`快速模式`}
                       onAction={(key) =>
                         fastControl.onSpeedTierChange?.(
                           String(key) === "__off__" ? undefined : String(key),
@@ -543,8 +545,8 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                       }
                       {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
                     >
-                      <Dropdown.Item id="__off__" textValue="标准">
-                        <Label>标准</Label>
+                      <Dropdown.Item id="__off__" textValue={t`标准`}>
+                        <Label>{t`标准`}</Label>
                         {!fastControl.isSelected ? (
                           <Check className="ml-auto size-3.5 text-emerald-400" />
                         ) : null}
@@ -565,8 +567,8 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   id="fast"
                   textValue={
                     fastControl.disabledReason
-                      ? `快速模式 ${fastControl.disabledReason}`
-                      : "快速模式"
+                      ? t`快速模式 ${fastControl.disabledReason}`
+                      : t`快速模式`
                   }
                   isDisabled={
                     fastControl.isDisabled === true || Boolean(fastControl.disabledReason)
@@ -576,7 +578,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   <Zap
                     className={`size-4 ${fastControl.isSelected ? "text-amber-300" : "text-muted"}`}
                   />
-                  <Label>快速模式</Label>
+                  <Label>{t`快速模式`}</Label>
                   {fastControl.disabledReason ? (
                     <span
                       className="ml-auto max-w-44 truncate whitespace-nowrap text-[10px] text-muted"
@@ -602,18 +604,18 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
             <Modal.Dialog>
               <Modal.CloseTrigger />
               <Modal.Header>
-                <Modal.Heading>自定义思考强度</Modal.Heading>
+                <Modal.Heading>{t`自定义思考强度`}</Modal.Heading>
               </Modal.Header>
               <Modal.Body className="flex flex-col gap-2 p-4">
                 <p className="text-[11px] text-neutral-400">
-                  手写档位直接透传给模型（如 low / high / xhigh，以各厂商文档为准）。
+                  {t`手写档位直接透传给模型（如 low / high / xhigh，以各厂商文档为准）。`}
                 </p>
                 <TextField>
-                  <Label className="sr-only">思考强度</Label>
+                  <Label className="sr-only">{t`思考强度`}</Label>
                   <Input
                     value={customEffortDraft}
                     onChange={(event) => setCustomEffortDraft(event.target.value)}
-                    placeholder="如 high"
+                    placeholder={t`如 high`}
                   />
                 </TextField>
               </Modal.Body>
@@ -625,7 +627,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   className="text-muted"
                   onPress={() => setCustomEffortOpen(false)}
                 >
-                  取消
+                  {t`取消`}
                 </Button>
                 <Button
                   variant="tertiary"
@@ -637,7 +639,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                     setCustomEffortOpen(false);
                   }}
                 >
-                  应用
+                  {t`应用`}
                 </Button>
               </Modal.Footer>
             </Modal.Dialog>

@@ -26,6 +26,8 @@ import {
 import type { SessionSwitchMode, SessionSwitchState } from "@/shared/sessionHandoff";
 import { isUnknownThreadSessionError } from "@/shared/threadRelaunch";
 import { getProjectPosixPath } from "@/shared/wsl";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 const TARGET_ITEMS: Readonly<
   Record<string, { harnessItemId: string; modelItemId: (model: string) => string }>
@@ -381,7 +383,7 @@ export async function switchLiveThreadProvider(input: {
   }
   // The supervisor already painted a persisted model_switch divider at the
   // switch point; the toast only confirms + warns about cross-model drift.
-  showTopStatusToast(`已切换至 ${targetConfig.model}`, {
-    description: "同一线程跨模型切换可能导致一定程度的性能下降",
+  showTopStatusToast(i18n._(linguiMsg`已切换至 ${targetConfig.model}`), {
+    description: i18n._(linguiMsg`同一线程跨模型切换可能导致一定程度的性能下降`),
   });
 }

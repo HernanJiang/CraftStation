@@ -33,8 +33,8 @@ describe("HarnessCliPanel update progress", () => {
     });
     renderPanel();
 
-    expect(screen.getByText("更新中")).toBeInTheDocument();
-    expect(screen.getAllByText("就绪")).toHaveLength(2);
+    expect(screen.getByText("Updating")).toBeInTheDocument();
+    expect(screen.getAllByText("Ready")).toHaveLength(2);
     useUpdateStore.setState({ agentUpdates: {} });
   });
 
@@ -42,7 +42,7 @@ describe("HarnessCliPanel update progress", () => {
     useUpdateStore.setState({ agentUpdates: {} });
     renderPanel();
 
-    expect(screen.queryByText("更新中")).not.toBeInTheDocument();
+    expect(screen.queryByText("Updating")).not.toBeInTheDocument();
   });
 
   it("ignores in-flight keys from other harnesses", () => {
@@ -51,7 +51,7 @@ describe("HarnessCliPanel update progress", () => {
     });
     renderPanel();
 
-    expect(screen.queryByText("更新中")).not.toBeInTheDocument();
+    expect(screen.queryByText("Updating")).not.toBeInTheDocument();
     useUpdateStore.setState({ agentUpdates: {} });
   });
 
@@ -123,7 +123,7 @@ describe("HarnessCliPanel update progress", () => {
     renderPanel();
 
     expect(screen.queryByText("Update")).not.toBeInTheDocument();
-    expect(screen.getByText("更新中")).toBeInTheDocument();
+    expect(screen.getByText("Updating")).toBeInTheDocument();
     useUpdateStore.setState({ agentUpdates: {}, availableCliUpdates: [] });
   });
 
@@ -135,7 +135,7 @@ describe("HarnessCliPanel update progress", () => {
     );
 
     const kimiRow = screen.getByTestId("harness-cli-row-kimi");
-    expect(kimiRow).toHaveAttribute("title", "点击配置");
+    expect(kimiRow).toHaveAttribute("title", "Click to configure");
     fireEvent.click(kimiRow);
     expect(onShowDetail).toHaveBeenCalledTimes(1);
     expect(onShowDetail.mock.calls[0]?.[0].descriptor.harnessKind).toBe("kimi");
@@ -158,7 +158,7 @@ describe("HarnessCliPanel one-click install", () => {
     );
 
     const installChip = screen.getByTestId("harness-cli-install-antigravity");
-    expect(installChip).toHaveTextContent("下载并安装");
+    expect(installChip).toHaveTextContent("Download and install");
     fireEvent.click(installChip);
     expect(onInstall).toHaveBeenCalledTimes(1);
     expect(onInstall.mock.calls[0]?.[0].descriptor.harnessKind).toBe("antigravity");

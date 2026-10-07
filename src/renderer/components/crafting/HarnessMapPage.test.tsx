@@ -139,13 +139,13 @@ describe("HarnessMapPage", () => {
     // trunk (OpenCode) — several models, one Harness node.
     const opencodeNode = screen.getByTestId("harness-map-harness-node-opencode");
     expect(opencodeNode.textContent).toContain("OpenCode Harness");
-    expect(opencodeNode.textContent).toContain("1 个模型");
+    expect(opencodeNode.textContent).toContain("1 models");
     const codexModels = screen.getAllByTestId(/^harness-map-model-node-codex-/);
     expect(codexModels).toHaveLength(1);
-    expect(codexModels[0]?.textContent).toContain("原生");
+    expect(codexModels[0]?.textContent).toContain("Native");
     const cursorModels = screen.getAllByTestId(/^harness-map-model-node-cursor-/);
     expect(cursorModels).toHaveLength(1);
-    expect(cursorModels[0]?.textContent).toContain("兼容默认");
+    expect(cursorModels[0]?.textContent).toContain("Compatibility default");
     // Edges: one 渠道→模型 and one 模型→Harness per model; the cursor model's
     // second-layer edge lands on opencode.
     const page = screen.getByTestId("harness-map-page");
@@ -174,7 +174,7 @@ describe("HarnessMapPage", () => {
     renderPage();
     await screen.findByTestId("harness-cli-row-kimi");
 
-    const select = await screen.findByLabelText("兼容默认 Harness");
+    const select = await screen.findByLabelText("Compatibility default Harness");
     expect((select as HTMLSelectElement).value).toBe("opencode");
     fireEvent.change(select, { target: { value: "stepcode" } });
 
@@ -235,7 +235,7 @@ describe("HarnessMapPage", () => {
     await screen.findByTestId("harness-cli-row-kimi");
     await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(1));
 
-    fireEvent.click(screen.getByTitle("刷新状态"));
+    fireEvent.click(screen.getByTitle("Refresh status"));
     await waitFor(() => expect(bridgeMock.refreshAgentStatuses).toHaveBeenCalledTimes(2));
     await waitFor(() =>
       expect(bridgeMock.getNativeHarnessControlPlane.mock.calls.length).toBeGreaterThanOrEqual(2),
@@ -252,7 +252,7 @@ describe("HarnessMapPage", () => {
       new Error('Supervisor request "refreshAgentStatuses" timed out.'),
     );
 
-    fireEvent.click(screen.getByTitle("刷新状态"));
+    fireEvent.click(screen.getByTitle("Refresh status"));
 
     await waitFor(() => expect(warning).toHaveBeenCalled());
     expect(kimiRow).toBeInTheDocument();
@@ -306,8 +306,8 @@ describe("HarnessMapPage", () => {
       expect.objectContaining({ agentKind: "antigravity", label: "Antigravity Harness" }),
     );
     const row = await screen.findByTestId("harness-cli-row-antigravity");
-    await waitFor(() => expect(row.textContent).toContain("未配置"));
-    expect(row.textContent).not.toContain("未安装");
+    await waitFor(() => expect(row.textContent).toContain("Not configured"));
+    expect(row.textContent).not.toContain("Not installed");
   });
 
   it("keeps the honest unavailable state after a failed install", async () => {
@@ -326,7 +326,7 @@ describe("HarnessMapPage", () => {
     // The row stays honestly 未安装 (the shared action surfaces the real error
     // toast); the install action is offered again for a retry.
     const row = await screen.findByTestId("harness-cli-row-antigravity");
-    await waitFor(() => expect(row.textContent).toContain("未安装"));
+    await waitFor(() => expect(row.textContent).toContain("Not installed"));
     await waitFor(() => expect(screen.queryByText("Installing…")).not.toBeInTheDocument());
   });
 });

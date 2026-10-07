@@ -1,8 +1,9 @@
 import type { AppStoreState } from "@/renderer/state/slices/shared";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 /** Prompt sent when the user resumes a turn that was stopped, closed, or errored. */
-export const CONTINUE_INTERRUPTED_TASK_PROMPT =
-  "请从刚才被打断的地方继续任务，不要从头开始。";
+export const CONTINUE_INTERRUPTED_TASK_PROMPT = linguiMsg`请从刚才被打断的地方继续任务，不要从头开始。`;
 
 /**
  * True when the latest turn was interrupted (Stop / close / error) and the
@@ -35,5 +36,5 @@ export function isThreadTaskPaused(state: AppStoreState, threadId: string): bool
 }
 
 export function continueInterruptedTaskSegments(): [{ kind: "text"; content: string }] {
-  return [{ kind: "text", content: CONTINUE_INTERRUPTED_TASK_PROMPT }];
+  return [{ kind: "text", content: i18n._(CONTINUE_INTERRUPTED_TASK_PROMPT) }];
 }

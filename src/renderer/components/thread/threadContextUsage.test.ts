@@ -397,13 +397,13 @@ describe("threadContextUsage", () => {
     );
 
     expect(occupancy.map((row) => [row.id, row.label, row.tokens])).toEqual([
-      ["messages", "消息", 69_400],
-      ["tool-calls", "工具调用", 4_000],
-      ["mcp-tools", "MCP 工具", 13_000],
-      ["system-tools", "系统工具", 12_800],
-      ["skills", "技能", 2_400],
-      ["system-prompt", "系统提示词", 1_300],
-      ["other", "其他", 1_000],
+      ["messages", "Messages", 69_400],
+      ["tool-calls", "Tool call", 4_000],
+      ["mcp-tools", "MCP tools", 13_000],
+      ["system-tools", "System tools", 12_800],
+      ["skills", "Skills", 2_400],
+      ["system-prompt", "System prompt", 1_300],
+      ["other", "Other", 1_000],
     ]);
     expect(classifyContextOccupancy({ id: "input", label: "Input" })).toBe("messages");
     expect(

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import type { AccountView, TokenUsageResponse, UsageSnapshot } from "@/shared/contracts";
 import { useTokenUsageStore } from "@/renderer/state/tokenUsageStore";
 import { AccountQuotaCard, ProviderQuotaCard } from "./AccountQuotaCard";
@@ -68,11 +69,11 @@ describe("AccountQuotaCard openai-compatible", () => {
 
   it("omits quota windows and reset times for third-party compatible accounts", () => {
     render(<AccountQuotaCard account={compatibleAccount()} />);
-    expect(screen.queryByText("暂无可用额度数据。")).not.toBeInTheDocument();
-    expect(screen.queryByText(/恢复时间未知/)).not.toBeInTheDocument();
+    expect(screen.queryByText("No quota data available.")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unknown recovery time/)).not.toBeInTheDocument();
     const meta = screen.getByTestId("account-meta-openai-compatible:chiral");
-    expect(meta).not.toHaveTextContent("总用量");
-    expect(meta).not.toHaveTextContent("输入");
+    expect(meta).not.toHaveTextContent("Total usage");
+    expect(meta).not.toHaveTextContent("Input");
   });
 
   it("does not render token usage even when ledger data exists", () => {
@@ -80,8 +81,8 @@ describe("AccountQuotaCard openai-compatible", () => {
     useTokenUsageStore.getState().setResponse(tokenResponse(account.accountId, 1200, 340));
     render(<AccountQuotaCard account={account} />);
     const meta = screen.getByTestId("account-meta-openai-compatible:chiral");
-    expect(meta).not.toHaveTextContent("总用量");
-    expect(meta).not.toHaveTextContent("输入");
+    expect(meta).not.toHaveTextContent("Total usage");
+    expect(meta).not.toHaveTextContent("Input");
     expect(meta).not.toHaveTextContent("1.5k");
   });
 
@@ -106,18 +107,18 @@ describe("AccountQuotaCard openai-compatible", () => {
       "80",
     );
     const meta = screen.getByTestId("account-meta-openai-compatible:chiral");
-    expect(meta).toHaveTextContent("余额");
+    expect(meta).toHaveTextContent("Balance");
     // No fake reset countdown for a balance window.
-    expect(meta).not.toHaveTextContent("恢复时间未知");
-    expect(meta).not.toHaveTextContent("总用量");
+    expect(meta).not.toHaveTextContent("Unknown recovery time");
+    expect(meta).not.toHaveTextContent("Total usage");
   });
 
   it("renders an empty meta line when the channel reports no quota", () => {
     render(<AccountQuotaCard account={compatibleAccount({ quotaWindows: [] })} />);
     expect(screen.queryByRole("progressbar")).toBeNull();
     const meta = screen.getByTestId("account-meta-openai-compatible:chiral");
-    expect(meta).not.toHaveTextContent("总用量");
-    expect(meta).not.toHaveTextContent("输入");
+    expect(meta).not.toHaveTextContent("Total usage");
+    expect(meta).not.toHaveTextContent("Input");
   });
 });
 
@@ -169,8 +170,8 @@ describe("AccountQuotaCard reset card", () => {
       "100",
     );
     expect(screen.queryByRole("progressbar", { name: "重置卡" })).toBeNull();
-    expect(screen.getByText(/重置卡 3 张未使用/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "使用重置卡" }));
+    expect(screen.getByText(/3 reset card.*unused/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Use reset card" }));
     expect(onRedeem).toHaveBeenCalledWith(account);
   });
 });
@@ -223,7 +224,7 @@ describe("ProviderQuotaCard connect action", () => {
   it("keeps the legacy empty text when no handler is provided", () => {
     render(<ProviderQuotaCard providerId="opencode" snapshot={okEmptySnapshot()} />);
     // Rendered twice: the empty-windows block and the meta line.
-    expect(screen.getAllByText("暂无额度窗口")).toHaveLength(2);
+    expect(screen.getAllByText("No quota windows yet")).toHaveLength(2);
     expect(screen.queryByRole("button")).toBeNull();
   });
 
@@ -239,7 +240,7 @@ describe("ProviderQuotaCard connect action", () => {
         onPasteCookie={onPaste}
       />,
     );
-    const paste = screen.getByRole("button", { name: "改用粘贴 Cookie" });
+    const paste = screen.getByRole("button", { name: "Switch to pasting a cookie" });
     fireEvent.click(paste);
     expect(onPaste).toHaveBeenCalledOnce();
     expect(onConnect).not.toHaveBeenCalled();

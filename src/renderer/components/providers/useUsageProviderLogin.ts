@@ -17,6 +17,8 @@ import {
 } from "./usageProviders";
 import { openExternalWithFeedback } from "@/renderer/utils/openExternal";
 import { currentWslDistros } from "@/renderer/utils/acpRegistryAuth";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 /**
  * Sign-in / sign-out flow for a usage provider, shared by the usage panel card
@@ -126,7 +128,9 @@ export function useUsageProviderLogin(id: string) {
       // caller surfaces the cookie-paste form. No embedded capture tab, and
       // no lingering "signing in" state — completion is the cookie submit.
       openExternalWithFeedback(externalLoginUrl, {
-        successMessage: "已在默认浏览器打开登录页面。登录完成后请返回粘贴 Cookie。",
+        successMessage: i18n._(
+          linguiMsg`已在默认浏览器打开登录页面。登录完成后请返回粘贴 Cookie。`,
+        ),
       });
       return;
     }

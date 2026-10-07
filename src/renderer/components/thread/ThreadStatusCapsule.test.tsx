@@ -227,8 +227,8 @@ describe("ThreadStatusCapsule", () => {
     fireEvent.click(capsule);
     const panel = screen.getByTestId("project-status-panel");
     expect(panel).toBeInTheDocument();
-    expect(panel).toHaveTextContent("更改");
-    expect(panel).toHaveTextContent("提交或推送");
+    expect(panel).toHaveTextContent("Changes");
+    expect(panel).toHaveTextContent("Commit or push");
 
     fireEvent.click(capsule);
     expect(screen.queryByTestId("project-status-panel")).toBeNull();
@@ -244,14 +244,14 @@ describe("ThreadStatusCapsule", () => {
     expect(text.indexOf("+326")).toBeLessThan(text.indexOf("main"));
   });
 
-  it("shows exactly the 更改 / branch / 提交或推送 rows", () => {
+  it("shows exactly the Changes / branch / Commit or push rows", () => {
     renderCapsule();
     fireEvent.click(screen.getByTestId("project-status-capsule"));
     const panel = screen.getByTestId("project-status-panel");
 
-    expect(panel).toHaveTextContent("更改");
+    expect(panel).toHaveTextContent("Changes");
     expect(panel).toHaveTextContent("main");
-    expect(panel).toHaveTextContent("提交或推送");
+    expect(panel).toHaveTextContent("Commit or push");
     expect(panel).toHaveTextContent("+326");
     expect(panel).toHaveTextContent("-27");
     // No detail rows and no ahead/behind in the small panel.
@@ -352,7 +352,7 @@ describe("ThreadStatusCapsule", () => {
     expect(capsule).not.toHaveTextContent("behind");
   });
 
-  it("keeps agent plans out of the 目标 row without a /goal (Step segment stays)", () => {
+  it("keeps agent plans out of the Goal row without a /goal (Step segment stays)", () => {
     useAppStore.setState({
       runtimeItemIdsByThread: { "thread-1": ["plan-1"] },
       runtimeItemsByIdByThread: {
@@ -375,12 +375,12 @@ describe("ThreadStatusCapsule", () => {
     } as never);
 
     renderCapsule();
-    // Step segment still reflects the plan, but no 目标 row without /goal.
+    // Step segment still reflects the plan, but no Goal row without /goal.
     expect(screen.getByTestId("project-status-capsule")).toHaveTextContent("Step 1/3");
 
     fireEvent.click(screen.getByTestId("project-status-capsule"));
     const panel = screen.getByTestId("project-status-panel");
-    expect(panel).not.toHaveTextContent("目标");
+    expect(panel).not.toHaveTextContent("Goal");
   });
 
   function seedPlanSteps(
@@ -417,7 +417,7 @@ describe("ThreadStatusCapsule", () => {
     fireEvent.click(within(capsule).getByRole("button", { name: "Step 1/3. Show task." }));
     // Steps render inline in the Git panel, already expanded.
     const panel = screen.getByTestId("project-status-panel");
-    expect(panel).toHaveTextContent("进程");
+    expect(panel).toHaveTextContent("Process");
     expect(panel).toHaveTextContent("First step");
     expect(panel).toHaveTextContent("Second step");
     expect(panel).toHaveTextContent("Third step");
@@ -491,11 +491,11 @@ describe("ThreadStatusCapsule", () => {
 
     // The 0 → N transition opens the Git panel with steps already expanded.
     expect(screen.getByTestId("project-status-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("project-status-panel")).toHaveTextContent("进程");
+    expect(screen.getByTestId("project-status-panel")).toHaveTextContent("Process");
     expect(screen.getByText("Only step")).toBeInTheDocument();
   });
 
-  it("opens the right sidebar changes page from the 更改 row", async () => {
+  it("opens the right sidebar changes page from the Changes row", async () => {
     renderCapsule();
     fireEvent.click(screen.getByTestId("project-status-capsule"));
     const panel = screen.getByTestId("project-status-panel");
@@ -520,34 +520,34 @@ describe("ThreadStatusCapsule", () => {
 
     fireEvent.click(branchRow);
     expect(branchRow).toHaveAttribute("aria-expanded", "true");
-    expect(screen.getByPlaceholderText("搜索分支")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search branches")).toBeInTheDocument();
     expect(screen.getByText("feature/x")).toBeInTheDocument();
 
     fireEvent.click(branchRow);
     expect(branchRow).toHaveAttribute("aria-expanded", "false");
-    expect(screen.queryByPlaceholderText("搜索分支")).toBeNull();
+    expect(screen.queryByPlaceholderText("Search branches")).toBeNull();
   });
 
-  it("expands the commit card to the left from the 提交或推送 row", () => {
+  it("expands the commit card to the left from the Commit or push row", () => {
     renderCapsule();
     fireEvent.click(screen.getByTestId("project-status-capsule"));
     const panel = screen.getByTestId("project-status-panel");
 
-    fireEvent.click(within(panel).getByRole("button", { name: "提交或推送" }));
+    fireEvent.click(within(panel).getByRole("button", { name: "Commit or push" }));
     // The commit card renders beside the small panel, not inside it.
-    expect(screen.getByRole("textbox", { name: "提交信息" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "提交并推送" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Commit message" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Commit & push" })).toBeInTheDocument();
   });
 
-  it("shows the 目标 row only in /goal mode with the full prompt", () => {
+  it("shows the Goal row only in /goal mode with the full prompt", () => {
     setThreadGoalInStore();
     renderCapsule();
     fireEvent.click(screen.getByTestId("project-status-capsule"));
     const panel = screen.getByTestId("project-status-panel");
-    expect(panel).toHaveTextContent("目标");
+    expect(panel).toHaveTextContent("Goal");
     expect(panel).toHaveTextContent("修复所有 Provider 认证问题");
     // Codex threads register natively.
-    expect(panel).toHaveTextContent("原生");
+    expect(panel).toHaveTextContent("Native");
     expect(screen.queryByRole("button", { name: "Goal. Show task." })).toBeNull();
   });
 
@@ -573,9 +573,9 @@ describe("ThreadStatusCapsule", () => {
     renderCapsule();
     fireEvent.click(screen.getByTestId("project-status-capsule"));
     const panel = screen.getByTestId("project-status-panel");
-    expect(panel).toHaveTextContent("不是 Git 仓库");
+    expect(panel).toHaveTextContent("Not a Git repository");
 
-    const initButton = within(panel).getByRole("button", { name: "初始化 Git 仓库" });
+    const initButton = within(panel).getByRole("button", { name: "Initialize Git repository" });
     expect(initButton).toBeEnabled();
     fireEvent.click(initButton);
     expect(bridgeMock.gitInit).toHaveBeenCalledWith({
@@ -587,18 +587,18 @@ describe("ThreadStatusCapsule", () => {
     renderCapsule();
     fireEvent.click(screen.getByTestId("project-status-capsule"));
     const panel = screen.getByTestId("project-status-panel");
-    expect(panel).toHaveTextContent("更改");
+    expect(panel).toHaveTextContent("Changes");
 
-    fireEvent.click(within(panel).getByRole("button", { name: "收起 Git 面板" }));
-    expect(screen.getByTestId("project-status-panel")).toHaveTextContent("Git 工具");
-    expect(screen.queryByText("更改")).toBeNull();
+    fireEvent.click(within(panel).getByRole("button", { name: "Collapse Git panel" }));
+    expect(screen.getByTestId("project-status-panel")).toHaveTextContent("Git tools");
+    expect(screen.queryByText("Changes")).toBeNull();
 
     fireEvent.click(
       within(screen.getByTestId("project-status-panel")).getByRole("button", {
-        name: "展开 Git 面板",
+        name: "Expand Git panel",
       }),
     );
-    expect(screen.getByText("更改")).toBeInTheDocument();
+    expect(screen.getByText("Changes")).toBeInTheDocument();
   });
 
   it("reopens the full Git panel from the capsule instead of the title row", () => {
@@ -607,21 +607,21 @@ describe("ThreadStatusCapsule", () => {
     fireEvent.click(capsule);
     fireEvent.click(
       within(screen.getByTestId("project-status-panel")).getByRole("button", {
-        name: "收起 Git 面板",
+        name: "Collapse Git panel",
       }),
     );
-    expect(screen.queryByText("更改")).toBeNull();
+    expect(screen.queryByText("Changes")).toBeNull();
 
     fireEvent.click(capsule);
     fireEvent.click(capsule);
-    expect(screen.getByTestId("project-status-panel")).toHaveTextContent("更改");
-    expect(screen.getByTestId("project-status-panel")).toHaveTextContent("提交或推送");
+    expect(screen.getByTestId("project-status-panel")).toHaveTextContent("Changes");
+    expect(screen.getByTestId("project-status-panel")).toHaveTextContent("Commit or push");
   });
 
-  it("hides the 目标 section when there is no plan and nothing to mark", () => {
+  it("hides the Goal section when there is no plan and nothing to mark", () => {
     renderCapsule();
     fireEvent.click(screen.getByTestId("project-status-capsule"));
-    expect(screen.queryByText("目标")).toBeNull();
+    expect(screen.queryByText("Goal")).toBeNull();
   });
 
   it("opens the panel without cards from segments; rows expand explicitly", () => {
@@ -637,8 +637,8 @@ describe("ThreadStatusCapsule", () => {
         name: /main/,
       }),
     );
-    expect(screen.getByTestId("project-status-panel")).toHaveTextContent("提交或推送");
-    expect(screen.queryByPlaceholderText("搜索分支")).toBeNull();
+    expect(screen.getByTestId("project-status-panel")).toHaveTextContent("Commit or push");
+    expect(screen.queryByPlaceholderText("Search branches")).toBeNull();
 
     // The branch row expands the card explicitly.
     fireEvent.click(
@@ -646,7 +646,7 @@ describe("ThreadStatusCapsule", () => {
         name: /main.*branches/,
       }),
     );
-    expect(screen.getByPlaceholderText("搜索分支")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Search branches")).toBeInTheDocument();
     expect(screen.getByText("feature/x")).toBeInTheDocument();
     expect(screen.getByText("Create new branch...")).toBeInTheDocument();
     expect(screen.getByText("Branch graph")).toBeInTheDocument();
@@ -656,14 +656,14 @@ describe("ThreadStatusCapsule", () => {
     renderCapsule();
     fireEvent.click(screen.getByTestId("project-status-capsule"));
     const panel = screen.getByTestId("project-status-panel");
-    fireEvent.click(within(panel).getByRole("button", { name: "提交或推送" }));
+    fireEvent.click(within(panel).getByRole("button", { name: "Commit or push" }));
     // The commit card renders beside the small panel, not inside it.
-    const messageBox = screen.getByRole("textbox", { name: "提交信息" });
+    const messageBox = screen.getByRole("textbox", { name: "Commit message" });
     // Empty message: commit actions stay disabled instead of inventing one.
-    expect(screen.getByRole("button", { name: /^提交Ctrl/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /^CommitCtrl/ })).toBeDisabled();
 
     fireEvent.change(messageBox, { target: { value: "fix capsule order" } });
-    fireEvent.click(screen.getByRole("button", { name: /^提交Ctrl/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^CommitCtrl/ }));
     expect(bridgeMock.gitCommit).toHaveBeenCalledWith({
       projectLocation: { kind: "windows", path: "C:\\repo" },
       message: "fix capsule order",
@@ -678,14 +678,14 @@ describe("ThreadStatusCapsule", () => {
     fireEvent.click(screen.getByTestId("project-status-capsule"));
     const panel = screen.getByTestId("project-status-panel");
 
-    fireEvent.click(within(panel).getByRole("button", { name: "更多操作" }));
-    fireEvent.click(within(panel).getByRole("menuitem", { name: "在 Git 面板中打开" }));
+    fireEvent.click(within(panel).getByRole("button", { name: "More actions" }));
+    fireEvent.click(within(panel).getByRole("menuitem", { name: "Open in Git panel" }));
     expect(usePanelStore.getState().gitReviewContext).toEqual({ projectId: "project-1" });
 
     fireEvent.click(screen.getByTestId("project-status-capsule"));
     const reopened = screen.getByTestId("project-status-panel");
-    fireEvent.click(within(reopened).getByRole("button", { name: "更多操作" }));
-    fireEvent.click(within(reopened).getByRole("menuitem", { name: "刷新状态" }));
+    fireEvent.click(within(reopened).getByRole("button", { name: "More actions" }));
+    fireEvent.click(within(reopened).getByRole("menuitem", { name: "Refresh status" }));
     expect(refreshGitProject).toHaveBeenCalled();
   });
 
@@ -780,7 +780,7 @@ describe("ThreadStatusCapsule", () => {
       );
     });
 
-    it("lists rows as 目标 → Agents → 更改 → 提交或推送 and opens an agent from its card", () => {
+    it("lists rows as Goal → Agents → Changes → Commit or push and opens an agent from its card", () => {
       seedAgents([{ id: "sub-1", state: "started", name: "Explore login" }]);
       setThreadGoalInStore();
       useAppStore.setState({
@@ -807,9 +807,9 @@ describe("ThreadStatusCapsule", () => {
       fireEvent.click(screen.getByTestId("project-status-capsule"));
       const panel = screen.getByTestId("project-status-panel");
       const html = panel.innerHTML;
-      expect(html.indexOf("目标")).toBeLessThan(html.indexOf("Agents"));
-      expect(html.indexOf("Agents")).toBeLessThan(html.indexOf("更改"));
-      expect(html.indexOf("更改")).toBeLessThan(html.indexOf("提交或推送"));
+      expect(html.indexOf("Goal")).toBeLessThan(html.indexOf("Agents"));
+      expect(html.indexOf("Agents")).toBeLessThan(html.indexOf("Changes"));
+      expect(html.indexOf("Changes")).toBeLessThan(html.indexOf("Commit or push"));
 
       // The agent list lives in the left card; opening one closes the panel.
       fireEvent.click(within(panel).getByRole("button", { name: /Agents/ }));

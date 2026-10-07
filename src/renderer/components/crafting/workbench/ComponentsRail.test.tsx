@@ -45,13 +45,13 @@ describe("ComponentsRail", () => {
 
     const section = screen.getByTestId("components-rail-mcp");
     expect(section.textContent).toContain("my-tools");
-    expect(screen.getByLabelText("my-tools · 自定义 MCP")).toBeInTheDocument();
+    expect(screen.getByLabelText("my-tools · custom MCP")).toBeInTheDocument();
     // Built-ins always listed from settings state.
     expect(screen.getAllByTestId("component-mcp-row")).toHaveLength(
       1 + BUILT_IN_MCP_SERVER_IDS.length,
     );
 
-    fireEvent.click(screen.getAllByText("管理")[0]!);
+    fireEvent.click(screen.getAllByText("Manage")[0]!);
     expect(usePanelStore.getState().settingsOpen).toBe(true);
     expect(usePanelStore.getState().settingsSection).toBe("mcpServers");
   });
@@ -62,20 +62,20 @@ describe("ComponentsRail", () => {
 
     const section = screen.getByTestId("components-rail-skills");
     expect(screen.getAllByTestId("component-skill-row").length).toBeGreaterThan(0);
-    expect(section.textContent).not.toContain("读取插件清单中");
+    expect(section.textContent).not.toContain("Reading plugin list");
   });
 
   it("keeps scheduling policies as honest reserved slots", () => {
     render(<ComponentsRail />);
 
-    expect(screen.getByTestId("components-rail-subagent-policy")).toHaveTextContent("暂未开放");
-    expect(screen.getByTestId("components-rail-context-policy")).toHaveTextContent("暂未开放");
+    expect(screen.getByTestId("components-rail-subagent-policy")).toHaveTextContent("Not open yet");
+    expect(screen.getByTestId("components-rail-context-policy")).toHaveTextContent("Not open yet");
   });
 
   it("never surfaces the compatibility bridge", () => {
     render(<ComponentsRail />);
 
     const rail = screen.getByTestId("components-rail");
-    expect(rail.textContent).not.toMatch(/CLIProxyAPI|兼容桥|启动桥|停止桥/);
+    expect(rail.textContent).not.toMatch(/CLIProxyAPI|兼容桥|启动桥|停止桥|bridge/i);
   });
 });

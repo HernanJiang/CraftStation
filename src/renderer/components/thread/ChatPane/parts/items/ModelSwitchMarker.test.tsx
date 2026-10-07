@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import { describe, expect, it } from "vitest";
 import type { RuntimeChatItem } from "@/renderer/state/slices/runtimeEventSlice";
 import { ModelSwitchMarker } from "./ModelSwitchMarker";
@@ -21,8 +22,8 @@ describe("ModelSwitchMarker", () => {
 
     render(<ModelSwitchMarker item={item} />);
 
-    expect(screen.getByLabelText("模型已切换 grok-4.6 → kimi-k2")).toHaveTextContent(
-      "模型已切换 grok-4.6 → kimi-k2",
+    expect(screen.getByLabelText("Model switched grok-4.6 → kimi-k2")).toHaveTextContent(
+      "Model switched grok-4.6 → kimi-k2",
     );
   });
 
@@ -57,7 +58,7 @@ describe("ModelSwitchMarker", () => {
 
     render(<ModelSwitchMarker item={item} />);
 
-    expect(screen.getByLabelText("正在交接上下文 grok-4.6 → kimi-k2")).toBeInTheDocument();
+    expect(screen.getByLabelText("Handing off context grok-4.6 → kimi-k2")).toBeInTheDocument();
   });
 
   it("renders switch failures with the honest reason", () => {
@@ -79,6 +80,8 @@ describe("ModelSwitchMarker", () => {
 
     render(<ModelSwitchMarker item={item} />);
 
-    expect(screen.getByLabelText(/模型切换失败/)).toHaveTextContent("No usable kimi account");
+    expect(screen.getByLabelText(/Model switch failed/)).toHaveTextContent(
+      "No usable kimi account",
+    );
   });
 });

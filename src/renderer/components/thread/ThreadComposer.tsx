@@ -39,7 +39,7 @@ export type ComposerControl =
       /**
        * Explicit full-access option id for this harness (its
        * `capabilities.bypassPermissions.approvalPolicy`), so the execution-mode
-       * menu resolves "完全访问权限" without guessing from labels. Absent for
+       * menu resolves 完全访问权限 without guessing from labels. Absent for
        * controls built before this field existed — those keep the legacy
        * label heuristic.
        */
@@ -267,6 +267,7 @@ function setPermission(control: PermissionComposerControl | undefined, full: boo
 }
 
 function DraftExecutionModeControl(props: { controls: ComposerControl[] }) {
+  const { t } = useLingui();
   const modeControl = props.controls.find(isModeComposerControl);
   const permissionControl = props.controls.find(isPermissionComposerControl);
   // Shared overlay zoom compensation (see overlayZoom.ts): empty at factor 1.
@@ -276,14 +277,14 @@ function DraftExecutionModeControl(props: { controls: ComposerControl[] }) {
 
   const planMode = modeControl?.isSelected === true;
   const fullAccess = !planMode && permissionIsFull(permissionControl);
-  const label = planMode ? "计划模式" : fullAccess ? "完全访问权限" : "请求批准";
+  const label = planMode ? t`计划模式` : fullAccess ? t`完全访问权限` : t`请求批准`;
   const Icon = planMode ? ClipboardList : fullAccess ? Zap : ShieldCheck;
   const tone = planMode ? "text-sky-300" : fullAccess ? "text-amber-300" : "text-emerald-300";
 
   return (
     <Dropdown>
       <Dropdown.Trigger
-        aria-label="切换执行模式与权限"
+        aria-label={t`切换执行模式与权限`}
         isDisabled={modeControl?.isDisabled === true && permissionControl?.isDisabled === true}
         className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium transition-colors hover:bg-[var(--row-active)] ${tone}`}
       >
@@ -296,7 +297,7 @@ function DraftExecutionModeControl(props: { controls: ComposerControl[] }) {
         className={withOverlayClass("min-w-[210px] rounded-[14px]", overlayZoom.root)}
       >
         <Dropdown.Menu
-          aria-label="执行模式与权限"
+          aria-label={t`执行模式与权限`}
           selectionMode="none"
           className={overlayZoom.content}
           onAction={(key) => {
@@ -311,26 +312,26 @@ function DraftExecutionModeControl(props: { controls: ComposerControl[] }) {
           }}
         >
           {modeControl ? (
-            <Dropdown.Item id="plan" textValue="计划模式">
+            <Dropdown.Item id="plan" textValue={t`计划模式`}>
               <ClipboardList className="size-4 text-sky-300" />
               <span className="flex min-w-0 flex-1 flex-col">
-                <Label>计划模式</Label>
-                <span className="text-[10px] text-muted">只生成计划，不执行写入或命令</span>
+                <Label>{t`计划模式`}</Label>
+                <span className="text-[10px] text-muted">{t`只生成计划，不执行写入或命令`}</span>
               </span>
             </Dropdown.Item>
           ) : null}
-          <Dropdown.Item id="approve" textValue="请求批准">
+          <Dropdown.Item id="approve" textValue={t`请求批准`}>
             <ShieldCheck className="size-4 text-emerald-300" />
             <span className="flex min-w-0 flex-1 flex-col">
-              <Label>请求批准</Label>
-              <span className="text-[10px] text-muted">敏感操作、写文件与命令需要确认</span>
+              <Label>{t`请求批准`}</Label>
+              <span className="text-[10px] text-muted">{t`敏感操作、写文件与命令需要确认`}</span>
             </span>
           </Dropdown.Item>
-          <Dropdown.Item id="full" textValue="完全访问权限">
+          <Dropdown.Item id="full" textValue={t`完全访问权限`}>
             <Zap className="size-4 text-amber-300" />
             <span className="flex min-w-0 flex-1 flex-col">
-              <Label>完全访问权限</Label>
-              <span className="text-[10px] text-muted">允许自动读写工作区并执行命令</span>
+              <Label>{t`完全访问权限`}</Label>
+              <span className="text-[10px] text-muted">{t`允许自动读写工作区并执行命令`}</span>
             </span>
           </Dropdown.Item>
         </Dropdown.Menu>
@@ -430,6 +431,7 @@ export function ThreadComposer(props: {
   /** Render only the composer toolbar (no prompt shell). Used by utility settings surfaces. */
   toolbarOnly?: boolean;
 }) {
+  const { t } = useLingui();
   const {
     autoFocus = false,
     compact = false,
@@ -460,7 +462,6 @@ export function ThreadComposer(props: {
     toolbarLayoutKey,
     toolbarOnly = false,
   } = props;
-  const { t } = useLingui();
 
   const [isAttachmentDropActive, setIsAttachmentDropActive] = useState(false);
   const controlsRef = useRef<HTMLDivElement>(null);

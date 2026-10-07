@@ -44,7 +44,7 @@ describe("RecipeSaveDialog", () => {
         onSave={onSave}
       />,
     );
-    fireEvent.keyDown(screen.getByPlaceholderText("例如：日常编码组合"), { key: "Enter" });
+    fireEvent.keyDown(screen.getByPlaceholderText("e.g.: everyday coding combo"), { key: "Enter" });
     expect(onSave).not.toHaveBeenCalled();
   });
 });

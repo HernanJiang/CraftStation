@@ -832,7 +832,7 @@ export function ThreadDraftComposerArea(props: {
     let startSegments = currentSegments;
     let startGoal: string | undefined;
     if (goalCommand.kind === "empty") {
-      toast.danger("用法：/goal + Prompt（Prompt 不能为空）");
+      toast.danger(t`用法：/goal + Prompt（Prompt 不能为空）`);
       return;
     }
     if (goalCommand.kind === "set") {

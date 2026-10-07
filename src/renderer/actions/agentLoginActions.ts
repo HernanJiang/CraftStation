@@ -1,5 +1,5 @@
 import { toast } from "@heroui/react";
-import { msg } from "@lingui/core/macro";
+import { msg, msg as linguiMsg } from "@lingui/core/macro";
 import type { Project, ProjectLocation } from "@/shared/contracts";
 import { stripAnsi } from "@/shared/ansi";
 import { readBridge } from "@/renderer/bridge";
@@ -244,7 +244,7 @@ export async function signInAndImportAntigravityAccount(input?: {
     const outcome = await readBridge().startUsageLogin({ providerId: "antigravity" });
     if (!outcome.ok) {
       if (!outcome.cancelled) {
-        toast.danger(outcome.error ?? "Antigravity 登录失败，请重试。");
+        toast.danger(outcome.error ?? i18n._(linguiMsg`Antigravity 登录失败，请重试。`));
       }
       return false;
     }
@@ -265,15 +265,17 @@ export async function signInAndImportAntigravityAccount(input?: {
     await refreshAndMergeProviderUsage("antigravity");
     toast.success(
       input?.accountId
-        ? `Antigravity 账号 ${account.label} 已更新授权。`
-        : "Antigravity 账号已加入号池。",
+        ? i18n._(linguiMsg`Antigravity 账号 ${account.label} 已更新授权。`)
+        : i18n._(linguiMsg`Antigravity 账号已加入号池。`),
     );
     if (quotaRefreshFailed) {
-      toast.warning("授权已完成，但额度刷新失败；稍后可再次刷新。");
+      toast.warning(i18n._(linguiMsg`授权已完成，但额度刷新失败；稍后可再次刷新。`));
     }
     return true;
   } catch (error) {
-    toast.danger(error instanceof Error ? error.message : "Antigravity 授权失败，请重试。");
+    toast.danger(
+      error instanceof Error ? error.message : i18n._(linguiMsg`Antigravity 授权失败，请重试。`),
+    );
     return false;
   }
 }
@@ -702,7 +704,9 @@ async function runKimiProfileLoginInternal(input: {
       settleLogin(true);
     } catch (error) {
       useLoginTerminalStore.getState().markFailed(shellId, -1);
-      toast.danger(error instanceof Error ? error.message : "Kimi 登录未完成身份验证。");
+      toast.danger(
+        error instanceof Error ? error.message : i18n._(linguiMsg`Kimi 登录未完成身份验证。`),
+      );
       settleLogin(false);
     }
   };

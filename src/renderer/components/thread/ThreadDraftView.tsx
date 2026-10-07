@@ -3,7 +3,7 @@ import { HomeBrowseSections } from "@/renderer/views/HomeView";
 import type { CraftMode } from "@/renderer/components/thread/CraftModeSwitch";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@heroui/react";
-import { Trans } from "@lingui/react/macro";
+import { Trans, useLingui } from "@lingui/react/macro";
 import type {
   AgentStatus,
   BuiltInMcpServerId,
@@ -211,6 +211,7 @@ export function ThreadDraftView(props: {
   onProjectChange?: (projectId: string) => void;
   onStart: (input: DraftStartInput) => void | Promise<void>;
 }) {
+  const { t } = useLingui();
   const {
     project,
     agentStatuses,
@@ -1018,7 +1019,7 @@ export function ThreadDraftView(props: {
                 useSharedSettings.getState().compatDefaultHarness,
               )
             : "opencode"),
-        label: "第三方 API",
+        label: t`第三方 API`,
         presentationMode: "gui" as const,
         modelPickerKey: `openai-compatible:${accountId}`,
         hiddenModelsKey: `openai-compatible:${accountId}`,
@@ -1040,7 +1041,7 @@ export function ThreadDraftView(props: {
       };
       const account = usageAccounts.find((candidate) => candidate.accountId === accountId);
       const label =
-        models[0]?.channelLabel ?? account?.providerAccountId ?? account?.label ?? "第三方 API";
+        models[0]?.channelLabel ?? account?.providerAccountId ?? account?.label ?? t`第三方 API`;
       const customEfforts = collectCustomModelEfforts(models);
       return [
         {
@@ -1080,6 +1081,7 @@ export function ThreadDraftView(props: {
     customModels,
     usageAccounts,
     configuredProviderIds,
+    t,
   ]);
   const latestConfigPatchRef = useRef<(patch: Partial<ThreadConfig>) => void>(() => undefined);
   const latestProviderModelChangeRef = useRef<

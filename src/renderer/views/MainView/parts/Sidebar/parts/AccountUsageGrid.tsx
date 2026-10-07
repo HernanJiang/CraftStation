@@ -1,6 +1,9 @@
 import type { AccountView } from "@/shared/contracts";
 import { useTokenUsageStore } from "@/renderer/state/tokenUsageStore";
 import { resolveAccountTokenAttribution } from "./quotaStatus";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 export type AccountUsageQueryStatus = "idle" | "loading" | "success" | "error";
 
@@ -18,8 +21,8 @@ function formatCompactToken(value: number): string {
 }
 
 function displayError(error: string | undefined): string {
-  if (!error) return "查询失败";
-  return error.replace(/\s+/gu, " ").trim().slice(0, 160) || "查询失败";
+  if (!error) return i18n._(linguiMsg`查询失败`);
+  return error.replace(/\s+/gu, " ").trim().slice(0, 160) || i18n._(linguiMsg`查询失败`);
 }
 
 export function hasAccountQuotaValue(account: AccountView): boolean {
@@ -34,17 +37,17 @@ export function accountQuotaFailureMessage(account: AccountView): string {
   if (account.lastError?.trim()) return account.lastError;
   switch (account.status) {
     case "auth-expired":
-      return "账号授权已过期，需要重新授权。";
+      return i18n._(linguiMsg`账号授权已过期，需要重新授权。`);
     case "unavailable":
-      return "额度暂不可用。";
+      return i18n._(linguiMsg`额度暂不可用。`);
     case "quota-exhausted":
-      return "额度已耗尽。";
+      return i18n._(linguiMsg`额度已耗尽。`);
     case "error":
-      return "额度查询失败。";
+      return i18n._(linguiMsg`额度查询失败。`);
     case "disabled":
-      return "账号已禁用。";
+      return i18n._(linguiMsg`账号已禁用。`);
     default:
-      return "暂无可用额度数据。";
+      return i18n._(linguiMsg`暂无可用额度数据。`);
   }
 }
 
@@ -57,6 +60,7 @@ export function AccountUsageGrid(props: {
   account: AccountView;
   queryState?: AccountUsageQueryState | undefined;
 }) {
+  const { t } = useLingui();
   const { account } = props;
   const { queryState } = props;
   const tokenResponse = useTokenUsageStore((state) => state.response);
@@ -87,11 +91,13 @@ export function AccountUsageGrid(props: {
     tokenResponse?.sources.find((source) => !source.available && source.unavailableReason)
       ?.unavailableReason ??
     tokenResponse?.summaries.find((summary) => summary.unavailableReason)?.unavailableReason ??
-    (tokenResponse?.sources.find((source) => !source.available) ? "精确用量暂不可用。" : undefined);
+    (tokenResponse?.sources.find((source) => !source.available)
+      ? t`精确用量暂不可用。`
+      : undefined);
   const hasQuota = hasAccountQuotaValue(account);
   const quotaValueLabel =
     queryState?.quota === "loading"
-      ? "加载中…"
+      ? t`加载中…`
       : hasQuota
         ? `${Math.round(quotaValue!)}%`
         : queryState?.quota === "error"
@@ -103,7 +109,7 @@ export function AccountUsageGrid(props: {
               : "—";
   const tokenValueLabel =
     queryState?.token === "loading" || (!queryState && tokenLoading)
-      ? "加载中…"
+      ? t`加载中…`
       : queryState?.token === "error"
         ? displayError(queryState.tokenError ?? tokenStoreError ?? tokenUnavailableReason)
         : tokenUnavailableReason && tokenEntry === undefined
@@ -111,8 +117,8 @@ export function AccountUsageGrid(props: {
           : tokenTotal == null
             ? queryState?.token === "success" || tokenResponse !== null
               ? tokenAttribution.kind === "unattributable"
-                ? "无法精确归因"
-                : "暂无精确用量"
+                ? t`无法精确归因`
+                : t`暂无精确用量`
               : "—"
             : formatCompactToken(tokenTotal);
 
@@ -122,7 +128,7 @@ export function AccountUsageGrid(props: {
       className="mt-1.5 grid grid-cols-2 gap-1.5 text-[9px] text-neutral-400"
     >
       <div className="rounded-md bg-white/4 px-1.5 py-1" data-state={queryState?.quota ?? "idle"}>
-        <span className="block text-neutral-500">额度</span>
+        <span className="block text-neutral-500">{t`额度`}</span>
         <span
           className="tabular-nums text-foreground"
           data-testid={`account-quota-value-${account.accountId}`}
@@ -140,13 +146,13 @@ export function AccountUsageGrid(props: {
         </span>
       </div>
       <div className="rounded-md bg-white/4 px-1.5 py-1">
-        <span className="block text-neutral-500">缓存</span>
+        <span className="block text-neutral-500">{t`缓存`}</span>
         <span className="tabular-nums text-foreground">
           {hasReliableCache ? formatCompactToken(cacheRead + cacheWrite) : "—"}
         </span>
       </div>
       <div className="rounded-md bg-white/4 px-1.5 py-1">
-        <span className="block text-neutral-500">状态</span>
+        <span className="block text-neutral-500">{t`状态`}</span>
         <span className="text-foreground">{account.status}</span>
       </div>
     </div>

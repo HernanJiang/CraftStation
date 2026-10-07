@@ -1,6 +1,7 @@
 import React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { screen, fireEvent, waitFor } from "@testing-library/react";
+import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import { CraftingGrid } from "./CraftingGrid";
 import { getDefaultRegistry, OPENAI_CODEX_RECIPE_ID, type CraftResult } from "@/shared/crafting";
 
@@ -98,7 +99,7 @@ describe("CraftingGrid Component", () => {
         <CraftingGrid models={getDefaultRegistry().listItems("model")} onCraft={onCraftMock} />,
       );
 
-      fireEvent.click(screen.getByRole("button", { name: "配方" }));
+      fireEvent.click(screen.getByRole("button", { name: "Recipe" }));
       fireEvent.click(screen.getByRole("button", { name: new RegExp(recipeName, "u") }));
 
       expect((screen.getByTestId("model-select") as HTMLSelectElement).value).toBe(modelId);

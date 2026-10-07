@@ -104,7 +104,7 @@ describe("CraftingWorkbenchPage", () => {
     const save = await screen.findByTestId("confirm-save-recipe");
     expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(0);
     expect(save).not.toBeDisabled();
-    fireEvent.change(screen.getByPlaceholderText("例如：日常编码组合"), {
+    fireEvent.change(screen.getByPlaceholderText("e.g.: everyday coding combo"), {
       target: { value: "我的兼容配方" },
     });
     fireEvent.click(save);
@@ -115,7 +115,7 @@ describe("CraftingWorkbenchPage", () => {
     });
     fireEvent.click(screen.getByTestId("craft-button"));
     await screen.findByTestId("confirm-save-recipe");
-    fireEvent.click(screen.getByRole("button", { name: "取消" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(useCraftingWorkbenchStore.getState().recipes[0]?.alias).toBe("我的兼容配方");
   });
 
@@ -271,7 +271,7 @@ describe("CraftingWorkbenchPage", () => {
     );
 
     expect(await screen.findByText("OpenCode Harness · Gemini 3.8 Flash")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: /删除配方/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Delete recipe/ }));
     expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(0);
     expect(screen.queryByText("OpenCode Harness · Gemini 3.8 Flash")).not.toBeInTheDocument();
   });
@@ -306,7 +306,7 @@ describe("CraftingWorkbenchPage", () => {
 
     const card = await screen.findByText("OpenCode Harness · Gemini 3.8 Flash");
     fireEvent.contextMenu(card);
-    fireEvent.click(screen.getByRole("menuitem", { name: "删除配方" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete recipe" }));
     expect(useCraftingWorkbenchStore.getState().recipes).toHaveLength(0);
   });
 

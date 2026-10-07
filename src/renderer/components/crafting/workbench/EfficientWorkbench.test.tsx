@@ -37,7 +37,7 @@ describe("EfficientWorkbench", () => {
     expect(screen.getByTestId("crafting-slot-component")).toBeInTheDocument();
     expect(screen.getAllByTestId(/^crafting-slot-reserved-/)).toHaveLength(6);
     expect(screen.getByTestId("crafting-result-slot")).toBeInTheDocument();
-    expect(screen.getByTestId("craft-button")).toHaveTextContent("合成");
+    expect(screen.getByTestId("craft-button")).toHaveTextContent("Craft");
   });
 
   it("exposes 合成 as the primary action and keeps it disabled off-native", () => {
@@ -49,7 +49,7 @@ describe("EfficientWorkbench", () => {
       />,
     );
     expect(screen.getByTestId("craft-button")).toBeDisabled();
-    expect(screen.getByTestId("clear-workbench")).toHaveTextContent("清空");
+    expect(screen.getByTestId("clear-workbench")).toHaveTextContent("Clear");
   });
 
   it("shows the real failure reason instead of a bare status", () => {
@@ -60,7 +60,7 @@ describe("EfficientWorkbench", () => {
         onClear={() => undefined}
       />,
     );
-    expect(screen.getByTestId("compatibility-status")).toHaveTextContent("不可合成");
+    expect(screen.getByTestId("compatibility-status")).toHaveTextContent("Not craftable");
     expect(screen.getByTestId("compatibility-reason")).toHaveTextContent("Harness 未就绪或不可用");
   });
 
@@ -83,7 +83,7 @@ describe("EfficientWorkbench", () => {
       />,
     );
     expect(screen.getByTestId("craft-button")).not.toBeDisabled();
-    expect(screen.getByTestId("craft-button")).toHaveTextContent("安装并合成");
+    expect(screen.getByTestId("craft-button")).toHaveTextContent("Install and craft");
   });
 
   it("enables crafting for native resolutions", () => {
@@ -94,7 +94,7 @@ describe("EfficientWorkbench", () => {
         onClear={() => undefined}
       />,
     );
-    expect(screen.getByTestId("compatibility-status")).toHaveTextContent("原生可合成");
+    expect(screen.getByTestId("compatibility-status")).toHaveTextContent("Natively craftable");
     expect(screen.getByTestId("craft-button")).not.toBeDisabled();
     expect(screen.queryByTestId("compatibility-reason")).not.toBeInTheDocument();
   });
@@ -107,7 +107,9 @@ describe("EfficientWorkbench", () => {
         onClear={() => undefined}
       />,
     );
-    expect(screen.getByTestId("compatibility-status")).toHaveTextContent("兼容桥可合成");
+    expect(screen.getByTestId("compatibility-status")).toHaveTextContent(
+      "Craftable via compatibility bridge",
+    );
     expect(screen.getByTestId("craft-button")).not.toBeDisabled();
     expect(screen.queryByTestId("compatibility-reason")).not.toBeInTheDocument();
   });
@@ -115,6 +117,6 @@ describe("EfficientWorkbench", () => {
   it("keeps the component slot empty — the bridge is invisible infrastructure", () => {
     render(<EfficientWorkbench onCraft={() => undefined} onClear={() => undefined} />);
     expect(screen.queryByTestId("cpa-helper-row")).not.toBeInTheDocument();
-    expect(screen.getByTestId("crafting-slot-component")).toHaveTextContent("组件");
+    expect(screen.getByTestId("crafting-slot-component")).toHaveTextContent("Component");
   });
 });

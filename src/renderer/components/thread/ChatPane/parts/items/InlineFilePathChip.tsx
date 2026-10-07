@@ -3,6 +3,7 @@ import { toast } from "@heroui/react";
 import { getEntryIconUrl } from "@/renderer/components/common/fileIcons";
 import { getBasename } from "@/shared/pathUtils";
 import { friendlyError } from "@/shared/messages";
+import { useLingui } from "@lingui/react/macro";
 
 interface InlineFilePathChipProps {
   path: string;
@@ -24,6 +25,7 @@ interface InlineFilePathChipProps {
  * reference doesn't nag on every click.
  */
 export function InlineFilePathChip({ path, line, endLine, onOpen }: InlineFilePathChipProps) {
+  const { t } = useLingui();
   const [inert, setInert] = useState(false);
   const basename = getBasename(path);
   const iconUrl = getEntryIconUrl(basename, false);
@@ -38,7 +40,7 @@ export function InlineFilePathChip({ path, line, endLine, onOpen }: InlineFilePa
     const result = onOpen(path, line);
     if (result && typeof result.catch === "function") {
       result.catch((error: unknown) => {
-        toast.danger(`无法打开 ${basename}：${friendlyError(error)}`);
+        toast.danger(t`无法打开 ${basename}：${friendlyError(error)}`);
         setInert(true);
       });
     }

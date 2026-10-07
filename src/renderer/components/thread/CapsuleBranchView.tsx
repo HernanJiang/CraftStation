@@ -43,6 +43,7 @@ export function CapsuleBranchView(props: {
   isWorktree: boolean;
   onSwitchBranch: (branch: string, createNew: boolean) => void;
 }) {
+  const { t } = useLingui();
   const {
     projectId,
     branch,
@@ -53,7 +54,6 @@ export function CapsuleBranchView(props: {
     isWorktree,
     onSwitchBranch,
   } = props;
-  const { t } = useLingui();
   const [search, setSearch] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [newBranchName, setNewBranchName] = useState("");
@@ -161,10 +161,10 @@ export function CapsuleBranchView(props: {
       <p className="truncate px-1.5 pb-1 text-[11px] leading-5 text-muted">
         {changedFiles > 0 ? (
           <Trans>
-            未提交的更改：{changedFiles} 个文件（{stagedCount} staged · {unstagedCount} unstaged）
+            {t`未提交的更改：${changedFiles} 个文件（${stagedCount} staged · ${unstagedCount} unstaged）`}
           </Trans>
         ) : (
-          <Trans>工作区干净</Trans>
+          <Trans>{t`工作区干净`}</Trans>
         )}
       </p>
       {isWorktree ? null : (

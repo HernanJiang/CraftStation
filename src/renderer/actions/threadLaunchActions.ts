@@ -1,4 +1,4 @@
-import { msg } from "@lingui/core/macro";
+import { msg, msg as linguiMsg } from "@lingui/core/macro";
 import { toast } from "@heroui/react";
 import { getLaunchableAgentStatuses, resolveAgentPresentationMode } from "@/shared/agentStatus";
 import { applyHomeScopePermissions } from "@/shared/agents/unrestrictedPermissions";
@@ -519,7 +519,7 @@ export async function startThreadFromDraft(
       });
       if (decision.routeType === "fail-closed") {
         useCraftingWorkbenchStore.getState().clearPendingRecipeIntent();
-        toast.danger(decision.reason ?? "该配方当前不可执行");
+        toast.danger(decision.reason ?? i18n._(linguiMsg`该配方当前不可执行`));
         return;
       }
       if (decision.routeType === "compatibility") {

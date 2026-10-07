@@ -254,6 +254,7 @@ function refsForPresentation(
 }
 
 export function ProviderModelMenu(props: ProviderModelMenuProps) {
+  const { t } = useLingui();
   const {
     providers,
     currentAgentKind,
@@ -270,7 +271,6 @@ export function ProviderModelMenu(props: ProviderModelMenuProps) {
     onOpenChange,
   } = props;
 
-  const { t } = useLingui();
   const { mobile } = useResponsiveMenu();
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -554,6 +554,7 @@ function WindowedProviderModelList(props: {
   ) => void;
   onSelect: (itemId: string) => void;
 }) {
+  const { t } = useLingui();
   const {
     domIdPrefix,
     items,
@@ -566,7 +567,6 @@ function WindowedProviderModelList(props: {
     toggleFavorite,
     onSelect,
   } = props;
-  const { t } = useLingui();
   const [visibleRow, setVisibleRow] = useState(0);
   const [scrollTop, setScrollTop] = useState(0);
   const [activeRowId, setActiveRowId] = useState<string | null>(() => {
@@ -964,8 +964,8 @@ function HeaderPlain(props: {
   item: Extract<ProviderModelItem, { type: "header-plain" }>;
   className?: string;
 }) {
-  const { item, className = "" } = props;
   const { t } = useLingui();
+  const { item, className = "" } = props;
   return (
     <div
       role="presentation"
@@ -981,6 +981,7 @@ function HeaderProvider(props: {
   subProviderLabel?: string;
   className?: string;
 }) {
+  const { t } = useLingui();
   const { item, subProviderLabel, className = "" } = props;
   return (
     <div
@@ -1004,9 +1005,9 @@ function HeaderProvider(props: {
       {item.unconfigured ? (
         <span
           className="ml-auto shrink-0 rounded bg-amber-400/15 px-1 py-px text-[9px] font-medium tracking-normal normal-case text-amber-300"
-          title="已安装但尚未登录/配置，登录后即可正常使用"
+          title={t`已安装但尚未登录/配置，登录后即可正常使用`}
         >
-          未配置
+          {t`未配置`}
         </span>
       ) : null}
     </div>

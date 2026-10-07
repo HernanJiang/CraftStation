@@ -20,6 +20,8 @@ import devinLogo from "@/renderer/assets/provider-logos/devin.ico";
 import metaLogo from "@/renderer/assets/provider-logos/meta.ico";
 import craftstationLogo from "@/renderer/assets/craftstation-logo.png";
 import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 /**
  * Shared provider brand system: official logo assets (colored where the brand
@@ -51,7 +53,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   zai: "z.ai",
   qwen: "Alibaba Token Plan",
   volcengine: "Volcengine Ark Token Plan",
-  "openai-compatible": "OpenAI 兼容 API",
+  "openai-compatible": i18n._(linguiMsg`OpenAI 兼容 API`),
 };
 
 export function providerLabel(id: string, fallback?: string): string {

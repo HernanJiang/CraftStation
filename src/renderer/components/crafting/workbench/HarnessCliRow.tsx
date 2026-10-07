@@ -7,19 +7,25 @@ import {
 } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 import { findCliUpdateForAgentKind, useUpdateStore } from "@/renderer/state/updateStore";
 import { runCliUpdateBinary } from "@/renderer/actions/runCliUpdate";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import type { MessageDescriptor } from "@lingui/core";
 
 export const harnessStatusMeta: Record<
   NativeHarnessControlPlaneEntry["status"],
-  { label: string; icon: typeof CheckCircle2; class: string }
+  { label: MessageDescriptor; icon: typeof CheckCircle2; class: string }
 > = {
-  ready: { label: "就绪", icon: CheckCircle2, class: "text-emerald-600 dark:text-emerald-400" },
+  ready: {
+    label: linguiMsg`就绪`,
+    icon: CheckCircle2,
+    class: "text-emerald-600 dark:text-emerald-400",
+  },
   "not-configured": {
-    label: "未配置",
+    label: linguiMsg`未配置`,
     icon: Settings2,
     class: "text-amber-600 dark:text-amber-300",
   },
-  unavailable: { label: "未安装", icon: XCircle, class: "text-neutral-500" },
-  error: { label: "异常", icon: AlertTriangle, class: "text-red-600 dark:text-red-400" },
+  unavailable: { label: linguiMsg`未安装`, icon: XCircle, class: "text-neutral-500" },
+  error: { label: linguiMsg`异常`, icon: AlertTriangle, class: "text-red-600 dark:text-red-400" },
 };
 
 /**
@@ -39,8 +45,8 @@ export function HarnessCliRow(props: {
   onInstall?: ((entry: NativeHarnessControlPlaneEntry) => void) | undefined;
   onShowDetail: (entry: NativeHarnessControlPlaneEntry) => void;
 }) {
-  const { entry, highlighted, installing, onInstall, onShowDetail } = props;
   const { t } = useLingui();
+  const { entry, highlighted, installing, onInstall, onShowDetail } = props;
   // In-flight agent binary updates keyed by `${agentKind}:${envKind}:${distro}`.
   // Installer output streams no byte counts, so rows show an honest
   // indeterminate state rather than a fabricated percentage.
@@ -64,13 +70,13 @@ export function HarnessCliRow(props: {
       disabled={installing}
       title={
         installing
-          ? "正在安装…"
+          ? t`正在安装…`
           : entry.status === "not-configured"
-            ? "点击配置"
+            ? t`点击配置`
             : entry.status === "unavailable"
-              ? "点击下载并安装"
+              ? t`点击下载并安装`
               : entry.status === "error"
-                ? "点击查看并修复"
+                ? t`点击查看并修复`
                 : entry.descriptor.label
       }
       onClick={() => {
@@ -103,7 +109,7 @@ export function HarnessCliRow(props: {
       </span>
       <span className={`flex shrink-0 items-center gap-1 text-[10px] ${meta.class}`}>
         <Icon className="size-3" />
-        {meta.label}
+        {t(meta.label)}
       </span>
       {availableUpdate ? (
         // Span, not button: the row itself is a <button>, and nested
@@ -165,7 +171,7 @@ export function HarnessCliRow(props: {
           title={t`Download and install ${entry.descriptor.label || entry.descriptor.harnessKind} now`}
         >
           <Download className="size-3" />
-          下载并安装
+          {t`下载并安装`}
         </span>
       ) : null}
       {installing ? (
@@ -177,7 +183,7 @@ export function HarnessCliRow(props: {
       {updating ? (
         <span className="flex shrink-0 items-center gap-1 text-[10px] text-sky-700 dark:text-sky-300">
           <RefreshCw className="size-3 animate-spin" />
-          更新中
+          {t`更新中`}
         </span>
       ) : null}
     </button>

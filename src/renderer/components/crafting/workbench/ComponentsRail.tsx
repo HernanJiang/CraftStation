@@ -21,6 +21,7 @@ import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { usePlugins } from "@/renderer/state/pluginsStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { INVENTORY_GRID_CLASS, IngredientGlyph, InventorySlot } from "./InventorySlot";
+import { useLingui } from "@lingui/react/macro";
 
 const BUILT_IN_MCP_ICONS: Record<BuiltInMcpServerId, LucideIcon> = {
   browser: Globe,
@@ -33,8 +34,8 @@ const BUILT_IN_MCP_ICONS: Record<BuiltInMcpServerId, LucideIcon> = {
 };
 
 /**
- * Components rail: the right column of the "合成台与配方" tab, presented as a
- * uniform "原料" inventory of square slots.
+ * Components rail: the right column of the 合成台与配方 tab, presented as a
+ * uniform 原料 inventory of square slots.
  *
  * Read-only inventory — mutation lives in the MCP / Skills / Plugins settings
  * pages (each section links there). The compatibility bridge (CLIProxyAPI) is
@@ -43,6 +44,7 @@ const BUILT_IN_MCP_ICONS: Record<BuiltInMcpServerId, LucideIcon> = {
  * model yet, so they render as honest reserved slots instead of fake toggles.
  */
 export function ComponentsRail() {
+  const { t } = useLingui();
   const customServers = useSharedSettings((s) => s.mcpServers) ?? [];
   const disabledBuiltIns = useSharedSettings((s) => s.disabledBuiltInMcpServers);
   const installedPlugins = useSharedSettings((s) => s.installedPlugins);
@@ -70,17 +72,17 @@ export function ComponentsRail() {
     <section
       className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto"
       data-testid="components-rail"
-      aria-label="原料清单"
+      aria-label={t`原料清单`}
     >
       <header className="px-1">
-        <h2 className="text-sm font-semibold text-neutral-200">原料</h2>
-        <p className="mt-0.5 text-[10px] text-neutral-500">MCP 服务器 · Skills · 策略</p>
+        <h2 className="text-sm font-semibold text-neutral-200">{t`原料`}</h2>
+        <p className="mt-0.5 text-[10px] text-neutral-500">{t`MCP 服务器 · Skills · 策略`}</p>
       </header>
 
       <div data-testid="components-rail-mcp">
         <header className="flex items-center justify-between px-1 pb-1.5">
           <h3 className="flex items-center gap-1.5 text-xs font-semibold text-neutral-300">
-            MCP 服务器
+            {t`MCP 服务器`}
             <span className="rounded-full bg-white/5 px-1.5 py-px text-[10px] font-normal text-neutral-400">
               {customServers.length + BUILT_IN_MCP_SERVER_IDS.length}
             </span>
@@ -90,7 +92,7 @@ export function ComponentsRail() {
             onClick={() => openSettingsSection("mcpServers")}
             className="rounded px-1 py-0.5 text-[10px] text-neutral-500 transition-colors hover:bg-white/10 hover:text-white"
           >
-            管理
+            {t`管理`}
           </button>
         </header>
         <div className={INVENTORY_GRID_CLASS}>
@@ -100,14 +102,14 @@ export function ComponentsRail() {
               name={server.name}
               visual={<IngredientGlyph icon={Server} tone="custom" />}
               statusDot={server.enabled !== false ? "on" : "off"}
-              title={`${server.name} · 自定义 MCP`}
-              ariaLabel={`${server.name} · 自定义 MCP`}
+              title={t`${server.name} · 自定义 MCP`}
+              ariaLabel={t`${server.name} · 自定义 MCP`}
               testId="component-mcp-row"
             />
           ))}
           {BUILT_IN_MCP_SERVER_IDS.map((id) => {
             const disabled = disabledBuiltIns?.[id] === true;
-            const label = `${BUILT_IN_MCP_SERVER_NAMES[id]} · 内置服务`;
+            const label = t`${BUILT_IN_MCP_SERVER_NAMES[id]} · 内置服务`;
             return (
               <InventorySlot
                 key={id}
@@ -137,15 +139,15 @@ export function ComponentsRail() {
             onClick={() => openSettingsSection("skills")}
             className="rounded px-1 py-0.5 text-[10px] text-neutral-500 transition-colors hover:bg-white/10 hover:text-white"
           >
-            管理
+            {t`管理`}
           </button>
         </header>
         {!pluginsLoaded || pluginsLoading ? (
-          <p className="px-1 text-[10px] text-neutral-500">读取插件清单中…</p>
+          <p className="px-1 text-[10px] text-neutral-500">{t`读取插件清单中…`}</p>
         ) : pluginsError ? (
-          <p className="px-1 text-[10px] text-neutral-500">插件清单读取失败，去插件页重试</p>
+          <p className="px-1 text-[10px] text-neutral-500">{t`插件清单读取失败，去插件页重试`}</p>
         ) : skills.length === 0 ? (
-          <p className="px-1 text-[10px] text-neutral-500">暂无已安装插件 Skills</p>
+          <p className="px-1 text-[10px] text-neutral-500">{t`暂无已安装插件 Skills`}</p>
         ) : (
           <div className={INVENTORY_GRID_CLASS}>
             {skills.map((skill) => {
@@ -170,12 +172,12 @@ export function ComponentsRail() {
 
       <div data-testid="components-rail-subagent-policy">
         <header className="px-1 pb-1.5">
-          <h3 className="text-xs font-semibold text-neutral-300">子Agent调度策略</h3>
+          <h3 className="text-xs font-semibold text-neutral-300">{t`子Agent调度策略`}</h3>
         </header>
         <div className={INVENTORY_GRID_CLASS}>
           <InventorySlot
             tone="dashed"
-            name="暂未开放"
+            name={t`暂未开放`}
             visual={<IngredientGlyph icon={Lock} tone="reserved" />}
           />
         </div>
@@ -183,12 +185,12 @@ export function ComponentsRail() {
 
       <div data-testid="components-rail-context-policy">
         <header className="px-1 pb-1.5">
-          <h3 className="text-xs font-semibold text-neutral-300">上下文管理策略</h3>
+          <h3 className="text-xs font-semibold text-neutral-300">{t`上下文管理策略`}</h3>
         </header>
         <div className={INVENTORY_GRID_CLASS}>
           <InventorySlot
             tone="dashed"
-            name="暂未开放"
+            name={t`暂未开放`}
             visual={<IngredientGlyph icon={Lock} tone="reserved" />}
           />
         </div>

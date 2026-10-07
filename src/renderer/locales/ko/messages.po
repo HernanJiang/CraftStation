@@ -13,6 +13,11 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#. placeholder {0}: formatMoney(balanceWindow.limit, balanceWindow.currency)
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid " / 共 {0}"
+msgstr " / 총 {0}"
+
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "-y @modelcontextprotocol/server-memory"
 msgstr "-y @modelcontextprotocol/server-memory"
@@ -33,6 +38,18 @@ msgstr "(브랜치 없음)"
 #: src/renderer/views/PrReviewOverlay/parts/PrCommitsTab.tsx
 msgid "(no message)"
 msgstr "(메시지 없음)"
+
+#: src/renderer/actions/sideChatActions.ts
+msgid "（临时分支）"
+msgstr "(임시 브랜치)"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "（估算）"
+msgstr "(추정)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "（编辑时留空表示保持不变）"
+msgstr "(편집 시 비워 두면 변경 없음)"
 
 #. placeholder {0}: candidates.length
 #. placeholder {0}: props.candidates.length
@@ -136,6 +153,11 @@ msgstr "{0, plural, one {목표} other {목표}}"
 msgid "{0, plural, other {# other chats use this same tree. File restore could overwrite their changes.}}"
 msgstr "{0, plural, other {다른 채팅 #개에서도 이 동일한 트리를 사용합니다. 파일 복원 시 해당 채팅의 변경 사항을 덮어쓸 수 있습니다.}}"
 
+#. placeholder {0}: import { useEffect, useRef, useState } from "react"; import { Plural, Trans, useLingui } from "@lingui/react/macro"; import { GitBranch, Search } from "lucide-react"; import { toast } from "@heroui/react"; import type { GitBranchInfo, GitStatusResult } from "@/shared/contracts"; import { friendlyError } from "@/shared/messages"; import { readBridge } from "@/renderer/bridge"; import { useGitStore } from "@/renderer/state/gitStore"; import { buildBranchNamePrKey } from "@/renderer/state/gitSelectors"; import { usePanelStore } from "@/renderer/state/panelStore"; import { deleteWorktreeGroup } from "@/renderer/actions/worktreeActions"; import { useBranchList } from "@/renderer/components/common/BranchSelector/parts/useBranchList"; import { BranchListBox, type OpenPrReviewArgs, } from "@/renderer/components/common/BranchSelector/parts/BranchListBox"; import { BranchFooterActions } from "@/renderer/components/common/BranchSelector/parts/BranchFooterActions"; import { ConfirmDialog } from "@/renderer/components/common/ConfirmDialog"; import { BranchSyncGraph } from "@/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/BranchSyncGraph"; interface PendingDelete { branch: GitBranchInfo; worktreePath?: string; threadIds: string[]; threadCount: number; } /** * In-place branch management for the top-right status capsule. * Reuses the BranchSelector parts (search + list + create footer + delete * confirm) and the review sidebar's sync graph; only the switching callback * comes from the capsule so store patching stays in one place. * Worktree threads get a read-only view — switching the main checkout from * here would target the wrong tree. */ export function CapsuleBranchView(props: { projectId: string; branch: string; changedFiles: number; stagedCount: number; unstagedCount: number; gitStatus: GitStatusResult; isWorktree: boolean; onSwitchBranch: (branch: string, createNew: boolean) => void; }) { const { t } = useLingui(); const { projectId, branch, changedFiles, stagedCount, unstagedCount, gitStatus, isWorktree, onSwitchBranch, } = props; const [search, setSearch] = useState(""); const [isCreating, setIsCreating] = useState(false); const [newBranchName, setNewBranchName] = useState(""); const [deletingBranch, setDeletingBranch] = useState<string | null>(null); const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null); const searchRef = useRef<HTMLInputElement>(null); const createRef = useRef<HTMLInputElement>(null); // Focus the search like the BranchSelector popover does on open. useEffect(() => { const id = window.setTimeout(() => searchRef.current?.focus(), 50); return () => window.clearTimeout(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps -- focus once on view open const { items, hasLocal, hasRemote, worktreeBranches, branchWorktreePath, threadsByBranch, projectLocation, } = useBranchList({ projectId, search }); function handleSelectBranch(next: string) { if (next === branch) return; onSwitchBranch(next, false); } function handleCreateBranch() { const name = newBranchName.trim(); if (!name) return; onSwitchBranch(name, true); setIsCreating(false); setNewBranchName(""); } function handleRequestDelete(target: GitBranchInfo) { const worktreePath = target.isRemote ? undefined : branchWorktreePath.get(target.name); const threads = threadsByBranch.get(target.name) ?? []; setPendingDelete({ branch: target, ...(worktreePath ? { worktreePath } : {}), threadIds: threads.map((thread) => thread.id), threadCount: threads.length, }); } function handleOpenPrReview(args: OpenPrReviewArgs) { usePanelStore.getState().setPrReviewContext({ projectId, prNumber: args.prNumber, ...(args.worktreePath ? { worktreePath: args.worktreePath } : { prKey: buildBranchNamePrKey(projectId, args.branch) }), }); } async function confirmDelete() { const target = pendingDelete; setPendingDelete(null); if (!target || !projectLocation) return; const { branch: doomed, worktreePath, threadIds } = target; // Worktree branches reuse the sidebar's removal path (closes linked threads, // runs the cleanup script, removes the worktree, then deletes the branch). if (worktreePath) { deleteWorktreeGroup(projectId, worktreePath, threadIds); return; } // Plain local or remote branch with no worktree — delete the ref directly. setDeletingBranch(doomed.name); try { await readBridge().gitDeleteBranch({ projectLocation, branch: doomed.name, force: true, ...(doomed.remote ? { remote: doomed.remote } : {}), }); } catch (error) { toast.danger(friendlyError(error)); } try { const [branches, wts] = await Promise.all([ readBridge().gitListBranches({ projectLocation, includeRemote: true }), readBridge().gitListWorktrees({ projectLocation }), ]); const store = useGitStore.getState(); store.setBranches(projectId, branches); store.setWorktrees(projectId, wts.worktrees); } catch { // ignore refresh errors } finally { setDeletingBranch(null); } } return ( <div> <div className="flex items-center gap-1.5 px-1.5 py-1"> <GitBranch className="size-3.5 shrink-0 text-muted" aria-hidden="true" /> <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground"> {branch || "—"} </span> </div> <p className="truncate px-1.5 pb-1 text-[11px] leading-5 text-muted"> {changedFiles > 0 ? ( <Trans> {t`未提交的更改：${changedFiles} 个文件（${stagedCount} staged · ${unstagedCount} unstaged）`} </Trans> ) : ( <Trans>{t`工作区干净`}</Trans> )} </p> {isWorktree ? null : ( <> <div className="flex items-center gap-1.5 border-y border-[var(--hairline)] px-1.5 py-1.5"> <Search className="size-3.5 shrink-0 text-muted" aria-hidden="true" /> <input ref={searchRef} className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted" placeholder={t`搜索分支`} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Escape") { if (isCreating) { setIsCreating(false); setNewBranchName(""); } else { setSearch(""); } } }} /> </div> <div className="py-0.5"> <BranchListBox projectId={projectId} items={items} hasLocal={hasLocal} hasRemote={hasRemote} currentBranch={branch} value={branch} baseBranch={undefined} isWorktree={false} worktreeMode={false} deletingBranch={deletingBranch} worktreeBranches={worktreeBranches} branchWorktreePath={branchWorktreePath} threadsByBranch={threadsByBranch} onSelect={handleSelectBranch} onDelete={(b) => handleRequestDelete(b as GitBranchInfo)} onOpenPrReview={handleOpenPrReview} /> </div> <BranchFooterActions isCreating={isCreating} setIsCreating={setIsCreating} newBranchName={newBranchName} setNewBranchName={setNewBranchName} createRef={createRef} searchRef={searchRef} handleCreateBranch={handleCreateBranch} hideWorktreeToggle worktreeMode={false} onWorktreeModeChange={undefined} baseBranch={undefined} value={branch} isWorktree={false} branchWorktreePath={branchWorktreePath} onSelect={undefined} showMoveBranch={false} isMovingBranch={false} onMoveBranchToWorktree={() => undefined} /> </> )} <BranchSyncGraph gitStatus={gitStatus} /> <ConfirmDialog isOpen={pendingDelete !== null} title={pendingDelete?.worktreePath ? t`Remove worktree?` : t`Delete branch?`} body={ pendingDelete?.worktreePath ? ( pendingDelete.threadCount > 0 ? ( <Trans> This removes the worktree on "{pendingDelete.branch.name}" and closes{" "} <Plural value={pendingDelete.threadCount} one="# linked thread" other="# linked threads" /> , then deletes the branch. </Trans> ) : ( <Trans> This removes the worktree on "{pendingDelete.branch.name}", then deletes the branch. </Trans> ) ) : pendingDelete?.branch.isRemote ? ( <Trans> This permanently deletes the branch "{pendingDelete.branch.name}" from its remote. </Trans> ) : ( <Trans>This permanently deletes the branch "{pendingDelete?.branch.name ?? ""}".</Trans> ) } confirmLabel={pendingDelete?.worktreePath ? t`Remove` : t`Delete`} onConfirm={() => void confirmDelete()} onClose={() => setPendingDelete(null)} /> </div> ); } 
+#: src/renderer/components/thread/CapsuleBranchView.tsx
+msgid "{0}"
+msgstr "{0}"
+
 #. placeholder {0}: target.title
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "{0} — Composer"
@@ -145,6 +167,24 @@ msgstr "{0} — 작성기"
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "{0} — Terminal"
 msgstr "{0} — 터미널"
+
+#. placeholder {0}: BUILT_IN_MCP_SERVER_NAMES[id]
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "{0} · 内置服务"
+msgstr "{0} · 내장 서비스"
+
+#. placeholder {0}: ref.displayName
+#. placeholder {1}: ref.status
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+msgid "{0} · 状态：{1}\n"
+"点击配置"
+msgstr "{0} · 상태: {1}\n"
+""
+
+#. placeholder {0}: server.name
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "{0} · 自定义 MCP"
+msgstr "{0} · 사용자 지정 MCP"
 
 #. placeholder {0}: agent.label
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
@@ -160,6 +200,11 @@ msgstr "{0}({envName})이 v{newVersion}로 업데이트되었습니다."
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
 msgid "{0} ({envName}) updated."
 msgstr "{0}({envName})이 업데이트되었습니다."
+
+#. placeholder {0}: account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{0} {label} 账号"
+msgstr "{0} {label} 계정"
 
 #. placeholder {0}: agentCounts.total
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
@@ -369,6 +414,70 @@ msgstr "{0} 업데이트되었습니다."
 msgid "{0} used"
 msgstr "{0} 사용됨"
 
+#. placeholder {0}: input.label
+#: src/renderer/actions/installNativeAgent.ts
+msgid "{0} 不支持在应用内直接安装，请在设置的 Agents 或 ACP 注册表中手动安装。"
+msgstr "{0}은(는) 앱内에서 바로 설치할 수 없습니다. 설정의 Agents 또는 ACP 레지스트리에서 수동으로 설치하세요."
+
+#. placeholder {0}: channels.length
+#. placeholder {0}: harnessNodes.length
+#. placeholder {0}: modelRows.length
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "{0} 个"
+msgstr "{0}개"
+
+#. placeholder {0}: serverNames.length
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "{0} 个 MCP 服务器未能注入会话"
+msgstr "MCP 서버 {0}개를 세션에 주입하지 못했습니다"
+
+#. placeholder {0}: node.rows.length
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "{0} 个模型"
+msgstr "모델 {0}개"
+
+#. placeholder {0}: input.label
+#: src/renderer/actions/installNativeAgent.ts
+msgid "{0} 安装后状态刷新失败。"
+msgstr "{0} 설치 후 상태 새로고침에 실패했습니다."
+
+#. placeholder {0}: input.label
+#: src/renderer/actions/installNativeAgent.ts
+msgid "{0} 安装失败（退出码 {exitCode}）。常见原因是缺少 curl、PowerShell 或 WSL。请查看安装终端输出后重试。"
+msgstr "{0} 설치 실패(종료 코드 {exitCode}). curl, PowerShell 또는 WSL 누락이 흔한 원인입니다. 설치 터미널 출력을 확인 후 다시 시도하세요."
+
+#. placeholder {0}: input.label
+#. placeholder {1}: input.latest
+#: src/renderer/actions/runCliUpdate.ts
+msgid "{0} 已更新到 v{1}。"
+msgstr "{0}이(가) v{1}(으)로 업데이트되었습니다."
+
+#. placeholder {0}: serverNames.join("、")
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "{0} 未注入：当前 Agent 不接受对应的 MCP 传输方式。会话已正常启动，但这些服务器在本次对话中不可用。"
+msgstr "{0} 미주입: 현재 Agent가 해당 MCP 전송 방식을 지원하지 않습니다. 세션은 정상 시작되었지만 이 서버들은 이번 대화에서 사용할 수 없습니다."
+
+#. placeholder {0}: account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{0} 登录授权"
+msgstr "{0} 로그인 인증"
+
+#. placeholder {0}: account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{0} 设为本机登录"
+msgstr "{0}을(를) 로컬 로그인으로 설정"
+
+#. placeholder {0}: channel.accountCount
+#. placeholder {1}: channel.rows.length
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "{0} 账号 · {1} 模型"
+msgstr "계정 {0}개 · 모델 {1}개"
+
+#. placeholder {0}: window.label || window.id
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "{0} 额度"
+msgstr "{0} 할당량"
+
 #. placeholder {0}: tab.title
 #: src/renderer/views/MainView/parts/RightPanel/parts/DevTerminalPanel/parts/BottomTerminalLayout.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/DevTerminalPanel/parts/RightTerminalLayout.tsx
@@ -386,6 +495,12 @@ msgstr "{0}, 실행 중"
 msgid "{0}: {stateLabel}"
 msgstr "{0}: {stateLabel}"
 
+#. placeholder {0}: formatTokenRate(tokensPerSecond)
+#. placeholder {1}: rateIsEstimated ? t`（估算）` : ""
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "{0}{1}"
+msgstr "{0}{1}"
+
 #. placeholder {0}: selectedRows.length
 #. placeholder {0}: selectedSkills.length
 #. placeholder {1}: importableRows.length
@@ -394,6 +509,11 @@ msgstr "{0}: {stateLabel}"
 #: src/renderer/components/skills/SkillImportModal.tsx
 msgid "{0}/{1} selected"
 msgstr "{0}/{1}개 선택됨"
+
+#. placeholder {0}: Math.max(0, Math.min(100, Math.round(100 - usedPercent)))
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "{0}% 剩余"
+msgstr "{0}% 남음"
 
 #. placeholder {0}: Math.floor(days / 30)
 #: src/renderer/views/ProfileOverlay/parts/ProfileHeader.tsx
@@ -418,15 +538,15 @@ msgstr "{agentLead}가 계속하려면 입력이 필요합니다."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "{agentsSummary}. Show agents."
-msgstr ""
+msgstr "{agentsSummary}. 에이전트 표시."
 
 #: src/renderer/actions/forkThreadActions.ts
 msgid "{baseTitle}（分叉）"
-msgstr ""
+msgstr "{baseTitle} (포크)"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "{changedFiles} 个文件"
-msgstr ""
+msgstr "파일 {changedFiles}개"
 
 #: src/mobile/views/pr/PrOverviewPage.tsx
 msgid "{commitsCount, plural, one {# commit} other {# commits}}"
@@ -483,6 +603,14 @@ msgstr "{hook} 후크 실패"
 msgid "{hours}h ago"
 msgstr "{hours}시간 전"
 
+#: src/renderer/utils/formatTime.ts
+msgid "{hours}时"
+msgstr "{hours}시간"
+
+#: src/renderer/utils/formatTime.ts
+msgid "{hours}时{remMinutes}分"
+msgstr "{hours}시간 {remMinutes}분"
+
 #: src/renderer/components/thread/AgentDiscoveryScreen.tsx
 msgid "{installedCount, plural, one {# agent ready} other {# agents ready}}"
 msgstr "{installedCount, plural, one {# 에이전트 준비됨} other {# 에이전트 준비됨}}"
@@ -498,7 +626,7 @@ msgstr "{label} 자동 새로고침 간격(분)"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "{label} Cookie"
-msgstr ""
+msgstr "{label} Cookie"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "{label} copied."
@@ -506,7 +634,7 @@ msgstr "{label}이(가) 복사되었습니다."
 
 #: src/renderer/views/SettingsOverlay/parts/UsageProviderRow.tsx
 msgid "{label} session cookie"
-msgstr ""
+msgstr "{label} 세션 쿠키"
 
 #: src/mobile/ThreadUsageIndicator.tsx
 msgid "{label} usage"
@@ -516,9 +644,37 @@ msgstr "{label} 사용량"
 msgid "{label} usage — open usage panel"
 msgstr "{label} 사용량 — 사용량 패널 열기"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 刷新状态"
+msgstr "{label} 상태 새로고침"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 导入本机登录"
+msgstr "{label} 로컬 로그인 가져오기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 当前没有可用的登录方式，请先在设置中配置授权。"
+msgstr "{label}에 사용 가능한 로그인 방식이 없습니다. 먼저 설정에서 인증을 구성하세요."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 授权删除失败。"
+msgstr "{label} 인증 삭제에 실패했습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 授权已删除。"
+msgstr "{label} 인증이 삭제되었습니다."
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "{label} 暂不支持：该 Provider 的运行时不提供此能力，未产生失败。"
+msgstr "{label} 미지원: 해당 Provider 런타임이 이 기능을 제공하지 않습니다(실패 아님)."
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "{label}，点击复制错误详情"
+msgstr "{label}, 클릭하여 오류 상세 복사"
+
 #: src/renderer/components/thread/ComposerPlanChip.tsx
 msgid "{label}. Show plan."
-msgstr ""
+msgstr "{label}. 계획 표시."
 
 #. placeholder {0}: method.name
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
@@ -550,6 +706,15 @@ msgstr "매시 {minute}분"
 msgid "{minutes}m ago"
 msgstr "{minutes}분 전"
 
+#. placeholder {0}: String(remSeconds).padStart(2, "0")
+#: src/renderer/utils/formatTime.ts
+msgid "{minutes}分{0}秒"
+msgstr "{minutes}분 {0}초"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "{minutes}分{remainder}秒"
+msgstr "{minutes}분 {remainder}초"
+
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
 msgid "{missingAuthLabel} needs authentication."
 msgstr "{missingAuthLabel}에는 인증이 필요합니다."
@@ -557,6 +722,10 @@ msgstr "{missingAuthLabel}에는 인증이 필요합니다."
 #: src/renderer/actions/workspaceActions.ts
 msgid "{movedCount, plural, one {Moved # project to {target}.} other {Moved # projects to {target}.}}"
 msgstr "{movedCount, plural, other {프로젝트 #개를 {target}(으)로 옮겼습니다.}}"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "{name} 我的配方"
+msgstr "{name} 내 레시피"
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "{original}\n"
@@ -585,6 +754,14 @@ msgstr "{projectName} 설정"
 msgid "{provider} does not support one-shot generation"
 msgstr "{provider}에서는 원샷 생성을 지원하지 않습니다"
 
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "{provider}账号{fromAccount}额度已耗尽"
+msgstr "{provider} 계정 {fromAccount} 할당량 소진"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "{remainder}秒"
+msgstr "{remainder}초"
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/NotesPanel/TodoList.tsx
 msgid "{remaining, plural, one {# open} other {# open}}"
 msgstr "{remaining, plural, one {# 열림} other {# 열림}}"
@@ -598,6 +775,10 @@ msgstr "{resultCount, plural, one {# 결과} other {# 결과}}"
 msgid "{seconds}s ago"
 msgstr "{seconds}초 전"
 
+#: src/renderer/utils/formatTime.ts
+msgid "{seconds}秒"
+msgstr "{seconds}초"
+
 #: src/renderer/components/plugins/PluginMarketplace.tsx
 msgid "{serverCount, plural, one {# server} other {# servers}}"
 msgstr "{serverCount, plural, one {서버 #개} other {서버 #개}}"
@@ -608,7 +789,7 @@ msgstr "{providerLabel}의 {serverName}: {disabledLabel}"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "{taskFraction}. Show task."
-msgstr ""
+msgstr "{taskFraction}. 작업 표시."
 
 #: src/renderer/components/thread/ThreadGoalDock.tsx
 msgid "{used} tokens"
@@ -635,6 +816,10 @@ msgstr "{totalCount}개 중 {visibleCount}개 사용 가능"
 #: src/renderer/views/SettingsOverlay/parts/SidebarShortcutsSelector.tsx
 msgid "{visibleCount} of {totalCount} visible"
 msgstr "{totalCount}개 중 {visibleCount}개 표시"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "{visibleCount} 个可见"
+msgstr "{visibleCount}개 표시됨"
 
 #: src/renderer/views/SettingsOverlay/parts/CursorSdkRuntimeSetup.tsx
 msgid "@cursor/sdk is not installed."
@@ -671,6 +856,19 @@ msgstr "~{money}{tokens} · {0} · 예상"
 msgid "≈{0}% by reset"
 msgstr "재설정 시 ≈{0}%"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "✓ 已验证 · Chat Completions"
+msgstr "✓ 검증됨 · Chat Completions"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "✓ 已验证 · Responses API"
+msgstr "✓ 검증됨 · Responses API"
+
+#. placeholder {0}: validation.error
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "✕ 验证失败：{0}"
+msgstr "✕ 검증 실패: {0}"
+
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "1 run"
 msgstr "실행 1개"
@@ -686,6 +884,14 @@ msgstr "22"
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "30d"
 msgstr "30일"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "5h 已用"
+msgstr "5h 사용됨"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "5h 限额"
+msgstr "5시간 한도"
 
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "7d"
@@ -706,7 +912,7 @@ msgstr "고정된 작업 트리 소스에는 전체 커밋 해시가 필요합�
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "A login terminal is already active."
-msgstr ""
+msgstr "로그인 터미널이 이미 활성화되어 있습니다."
 
 #: src/renderer/views/SettingsOverlay/parts/AgentProfileList.tsx
 msgid "A profile with this name already exists."
@@ -734,7 +940,7 @@ msgstr "작업 트리 소유자에는 고정된 소스 브랜치가 필요합니
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Abort current turn and switch"
-msgstr ""
+msgstr "현재 턴을 중단하고 전환"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/ConflictResolutionActions.tsx
 msgid "Abort Merge"
@@ -852,7 +1058,7 @@ msgstr "추가"
 #. placeholder {0}: skill.name
 #: src/renderer/components/skills/SkillsManager.tsx
 msgid "Add {0} to Shared"
-msgstr ""
+msgstr "{0}을(를) 공유에 추가"
 
 #: src/renderer/commands/registry.ts
 msgid "Add a local project"
@@ -1001,11 +1207,11 @@ msgstr "홈 화면에 추가"
 
 #: src/renderer/components/thread/ProjectSwitchMenu.tsx
 msgid "Add to project"
-msgstr ""
+msgstr "프로젝트에 추가"
 
 #: src/renderer/components/skills/SkillsManager.tsx
 msgid "Add to Shared"
-msgstr ""
+msgstr "공유에 추가"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/NotesPanel/TodoList.tsx
 msgid "Add to-do"
@@ -1013,7 +1219,7 @@ msgstr "할 일 추가"
 
 #: src/renderer/components/layout/UnifiedRightPanel.tsx
 msgid "Add tool"
-msgstr ""
+msgstr "도구 추가"
 
 #: src/renderer/views/SettingsOverlay/parts/WorkspacesSettings.tsx
 msgid "Add workspace"
@@ -1021,7 +1227,7 @@ msgstr "작업 영역 추가"
 
 #: src/renderer/components/skills/SkillsManager.tsx
 msgid "Added to Shared."
-msgstr ""
+msgstr "공유에 추가했습니다."
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
@@ -1034,23 +1240,23 @@ msgstr "사용자 정의 기본 URL을 게시합니다(예: 리버스 프록시 
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "After 15 days"
-msgstr ""
+msgstr "15일 후"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "After 3 days"
-msgstr ""
+msgstr "3일 후"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "After 30 days"
-msgstr ""
+msgstr "30일 후"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "After 7 days"
-msgstr ""
+msgstr "7일 후"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "After current turn"
-msgstr ""
+msgstr "현재 턴 이후"
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
@@ -1119,7 +1325,20 @@ msgstr "에이전트 사용"
 
 #: src/renderer/views/MainView/parts/MainContentHeaderControls.tsx
 msgid "Agent workspace"
-msgstr ""
+msgstr "에이전트 작업 영역"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "Agent 合成台"
+msgstr "Agent 조합대"
+
+#. placeholder {0}: friendlyError(error)
+#: src/renderer/crafting/useNativeHarnessControlPlane.ts
+msgid "Agent 状态刷新失败，已保留上次结果：{0}"
+msgstr "Agent 상태 새로고침 실패, 마지막 결과 유지: {0}"
+
+#: src/renderer/crafting/useNativeHarnessControlPlane.ts
+msgid "Agent 状态刷新超时，已保留上次结果。请稍后重试。"
+msgstr "Agent 상태 새로고침 시간 초과, 마지막 결과를 유지합니다. 잠시 후 다시 시도하세요."
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Agent: {description}"
@@ -1144,11 +1363,11 @@ msgstr "에이전트 · 일반"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Agents classify delegated work with task tags. Explicit per-call values and manual task routes rank first, followed by this order, then matching learned routes, global usage, normal agent usage and favorites, and built-in order. Drag rows or use the arrows to reorder; the native lane cannot be removed."
-msgstr ""
+msgstr "에이전트는 태스크 태그로 위임된 작업을 분류합니다. 호출별 명시적 값과 수동 태스크 라우트가 가장 우선이고, 그 다음 이 순서, 일치하는 학습된 라우트, 전체 사용량, 자주 쓰는 에이전트와 즐겨찾기, 마지막으로 기본 순서입니다. 행을 드래그하거나 화살표로 순서를 변경하세요. 네이티브 레인은 제거할 수 없습니다."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Agents. Show agents."
-msgstr ""
+msgstr "에이전트. 에이전트 표시."
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "AI agent orchestrator — manage coding agents via Terminal and Native ACP."
@@ -1173,6 +1392,10 @@ msgstr "AI 심사"
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
 msgid "AI providers"
 msgstr "AI 공급자"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "AK 与 SK 必须同时填写。"
+msgstr "AK와 SK는 함께 입력해야 합니다."
 
 #: src/mobile/settingsSections.ts
 msgid "Alerts when threads need you"
@@ -1202,7 +1425,7 @@ msgstr "모든 후보 세션, 작업 트리 및 브랜치가 제거됩니다."
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "All CLIs are up to date"
-msgstr ""
+msgstr "모든 CLI가 최신입니다"
 
 #: src/renderer/views/ProfileOverlay/parts/ProfileHeader.tsx
 msgid "All devices"
@@ -1312,6 +1535,27 @@ msgstr "이 실험에 대한 다른 작업이 아직 실행 중입니다."
 msgid "Antigravity"
 msgstr "Antigravity"
 
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Antigravity 授权失败，请重试。"
+msgstr "Antigravity 인증 실패, 다시 시도하세요."
+
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Antigravity 登录失败，请重试。"
+msgstr "Antigravity 로그인 실패, 다시 시도하세요."
+
+#. placeholder {0}: account.label
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Antigravity 账号 {0} 已更新授权。"
+msgstr "Antigravity 계정 {0} 인증이 업데이트되었습니다."
+
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Antigravity 账号已加入号池。"
+msgstr "Antigravity 계정이 풀에 추가되었습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Antigravity 账号池"
+msgstr "Antigravity 계정 풀"
+
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Anything currently unavailable — a provider, model, reasoning level, or Fast mode — is skipped automatically. Unchecked providers and models are skipped until re-checked."
 msgstr "현재 사용할 수 없는 항목 — 제공자, 모델, 추론 수준 또는 Fast 모드 — 은 자동으로 건너뜁니다. 선택 해제된 제공자와 모델은 다시 선택할 때까지 건너뜁니다."
@@ -1339,7 +1583,7 @@ msgstr "앱 제어"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "App Controls enabled for this thread"
-msgstr ""
+msgstr "이 스레드에 앱 제어가 활성화됨"
 
 #: src/mobile/settingsSections.ts
 #: src/renderer/views/SettingsOverlay/parts/AppearanceSettings.tsx
@@ -1424,11 +1668,11 @@ msgstr "보관된 스레드"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Archived threads are permanently deleted after this long, counted strictly from when each thread was archived."
-msgstr ""
+msgstr "보관된 스레드는 각 스레드가 보관된 시점부터 정확히 이 기간이 지나면 영구 삭제됩니다."
 
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
 msgid "Archived threads are permanently deleted after this long, counted strictly from when each thread was archived. Changing this re-evaluates existing archives immediately."
-msgstr ""
+msgstr "보관된 스레드는 각 스레드가 보관된 시점부터 정확히 이 기간이 지나면 영구 삭제됩니다. 변경하면 기존 보관 항목이 즉시 재평가됩니다."
 
 #. placeholder {0}: file.path
 #: src/renderer/views/GitReviewOverlay/parts/GitStackedDiff.tsx
@@ -1447,6 +1691,18 @@ msgstr "스테이징되지 않은 모든 변경 사항을 되돌리시겠습니�
 msgid "Arguments"
 msgstr "인수"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Ark API Key 已保存，但验证没有返回可用模型，暂未创建模型渠道。请确认该 Key 有 Ark 推理权限，或在「OpenAI 兼容 API」手动添加。"
+msgstr "Ark API Key를 저장했지만 검증에서 사용 가능한 모델이 반환되지 않아 모델 채널이 생성되지 않았습니다. 해당 키에 Ark 추론 권한이 있는지 확인하거나 「OpenAI 호환 API」에서 수동으로 추가하세요."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Ark API Key 用于调用模型（保存后自动创建渠道）；AK + SK 用于显示 Coding Plan / Agent Plan 额度。填写 AK/SK 时，三项凭据必须同时填写。"
+msgstr "Ark API Key는 모델 호출용입니다(저장 후 채널 자동 생성). AK + SK는 Coding Plan / Agent Plan 할당량 표시용입니다. AK/SK 입력 시 세 가지 자격 증명을 모두 함께 입력해야 합니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Ark API Key（模型调用 Key）"
+msgstr "Ark API Key(모델 호출 키)"
+
 #. placeholder {0}: project.name
 #: src/renderer/views/QuickComposerOverlay/QuickComposerOverlay.tsx
 msgid "Ask {0} anything about this workspace"
@@ -1454,11 +1710,11 @@ msgstr "이 작업 공간에 대해 {0}에게 무엇이든 물어보세요"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Ask another thread"
-msgstr ""
+msgstr "다른 스레드에 질문"
 
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Ask anything"
-msgstr ""
+msgstr "무엇이든 물어보세요"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Ask each time"
@@ -1471,7 +1727,7 @@ msgstr "승인 요청"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Ask the target thread a specific question or task…"
-msgstr ""
+msgstr "대상 스레드에 구체적인 질문이나 작업을 보내세요…"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "At"
@@ -1487,7 +1743,7 @@ msgstr "첨부"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Attach an explicit portable context summary"
-msgstr ""
+msgstr "명시적 이식 가능 컨텍스트 요약 첨부"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Attach files"
@@ -1581,7 +1837,11 @@ msgstr "자동 병합"
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Auto mode"
-msgstr ""
+msgstr "Auto 모드"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "Auto 接管（{nativeKind} → {finalKind}）"
+msgstr "Auto 인계({nativeKind} → {finalKind})"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/ThreadSettings.tsx
@@ -1595,7 +1855,7 @@ msgstr "완료된 스레드 자동 보관 기간(일)"
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Auto-delete archived threads"
-msgstr ""
+msgstr "보관된 스레드 자동 삭제"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Auto-generate"
@@ -1622,7 +1882,11 @@ msgstr "터미널 패널 자동 표시"
 #: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Auto-update CLIs"
-msgstr ""
+msgstr "CLI 자동 업데이트"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "auto（确定性 Codex）"
+msgstr "auto(결정적 Codex)"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconPicker.tsx
 msgid "Automatic"
@@ -1663,7 +1927,7 @@ msgstr "사용 가능한 ACP 에이전트"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Available target threads"
-msgstr ""
+msgstr "사용 가능한 대상 스레드"
 
 #: src/renderer/views/ProfileOverlay/parts/EditProfileDialog.tsx
 msgid "Avatar color"
@@ -1736,6 +2000,10 @@ msgstr "에이전트 터미널의 기본 글꼴 크기입니다. 좁거나 짧�
 msgid "Base font size for the terminal panel. Auto-shrinks in narrow or short panes."
 msgstr "터미널 패널의 기본 글꼴 크기입니다. 좁거나 짧은 창에서는 자동으로 축소됩니다."
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Base URL 与 API Key 为必填项。"
+msgstr "Base URL과 API Key는 필수입니다."
+
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Bash output"
 msgstr "Bash 출력"
@@ -1762,7 +2030,7 @@ msgstr "바이너리 파일 — 미리보기를 사용할 수 없습니다."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "Binary file cannot be previewed directly."
-msgstr ""
+msgstr "바이너리 파일은 직접 미리 볼 수 없습니다."
 
 #: src/renderer/components/diff/DiffCardList.tsx
 msgid "Binary file or no diff available"
@@ -1822,7 +2090,7 @@ msgstr "<0>{0}</0> 분기에 병합되지 않은 변경 사항이 있습니다:"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/BranchSyncGraph.tsx
 msgid "Branch graph"
-msgstr ""
+msgstr "브랜치 그래프"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ForceDeleteBranchDialog.tsx
 msgid "Branch not fully merged"
@@ -1935,7 +2203,7 @@ msgstr "예산 한도 도달"
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
 #~ msgid "Build new features, apps, or tools"
-#~ msgstr ""
+#~ msgstr "새 기능, 앱 또는 도구 빌드"
 
 #: src/renderer/components/diff/DiffCardList.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/InlineDiffView.tsx
@@ -2060,11 +2328,11 @@ msgstr "선택기 취소"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Cancel queued request"
-msgstr ""
+msgstr "대기 중인 요청 취소"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Cancel queued switch"
-msgstr ""
+msgstr "대기 중인 전환 취소"
 
 #: src/mobile/views/ManageProjectsView.tsx
 msgid "Cancel removing project"
@@ -2091,11 +2359,11 @@ msgstr "취소됨"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 #~ msgid "Cancelled after {elapsed}"
-#~ msgstr ""
+#~ msgstr "{elapsed} 후 취소됨"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Cancelling"
-msgstr ""
+msgstr "취소 중"
 
 #: src/renderer/views/ExperimentView/parts/ExperimentCandidateCard.tsx
 msgid "Candidate actions"
@@ -2195,6 +2463,10 @@ msgstr "채팅에 별표 추가됨"
 msgid "Chat unstarred"
 msgstr "채팅 별표 해제됨"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "ChatGPT 账号池"
+msgstr "ChatGPT 계정 풀"
+
 #: src/renderer/components/thread/ChatPane/parts/items/commandSummary.ts
 msgid "Check"
 msgstr "확인"
@@ -2209,19 +2481,19 @@ msgstr "다시 확인"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Check all CLIs"
-msgstr ""
+msgstr "모든 CLI 확인"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Check all installed agent CLIs"
-msgstr ""
+msgstr "설치된 모든 에이전트 CLI 확인"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Check for CLI updates"
-msgstr ""
+msgstr "CLI 업데이트 확인"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Check for CraftStation updates"
-msgstr ""
+msgstr "CraftStation 업데이트 확인"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteHostUpdateControl.tsx
 msgid "Check for update"
@@ -2256,11 +2528,11 @@ msgstr "{serverName} 확인 중"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Checking for CraftStation update"
-msgstr ""
+msgstr "CraftStation 업데이트 확인 중"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Checking for CraftStation update…"
-msgstr ""
+msgstr "CraftStation 업데이트 확인 중…"
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "Checking host…"
@@ -2268,7 +2540,7 @@ msgstr "호스트 확인 중…"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Checking installed CLIs…"
-msgstr ""
+msgstr "설치된 CLI 확인 중…"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Checking Tailscale…"
@@ -2329,7 +2601,7 @@ msgstr "프로젝트 아이콘 이미지 선택"
 
 #: src/renderer/views/MainView/parts/SelectProjectForThreadModal.tsx
 msgid "Choose a project to start your conversation."
-msgstr ""
+msgstr "대화를 시작할 프로젝트를 선택하세요."
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconPicker.tsx
 msgid "Choose an image inside the project folder."
@@ -2371,7 +2643,7 @@ msgstr "CraftStation 인터페이스의 표시 언어를 선택하세요."
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Choose the GUI presentation to switch in place."
-msgstr ""
+msgstr "그 자리에서 전환할 GUI 표시 방식을 선택하세요."
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "Choose thread to attach to"
@@ -2443,7 +2715,7 @@ msgstr "Claude 프로필 이름"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "clean"
-msgstr ""
+msgstr "클린"
 
 #: src/mobile/views/threadActionSurfaces.tsx
 #: src/mobile/views/threadContextMenus.tsx
@@ -2453,7 +2725,7 @@ msgstr "클린 작업 트리"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Clean. Show git status."
-msgstr ""
+msgstr "클린. Git 상태 표시."
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ScriptsSection.tsx
 msgid "Cleanup script"
@@ -2461,7 +2733,7 @@ msgstr "정리 스크립트"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
 msgid "Clear all"
-msgstr ""
+msgstr "모두 지우기"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "Clear browsing history"
@@ -2504,7 +2776,7 @@ msgstr "CLI 후크"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "CLI updates"
-msgstr ""
+msgstr "CLI 업데이트"
 
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Click a shortcut to record a new key, or ＋ to add another."
@@ -2512,11 +2784,24 @@ msgstr "단축키를 클릭하여 새 키를 기록하거나 ＋를 눌러 추�
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Click to check for a new CraftStation version"
-msgstr ""
+msgstr "클릭하여 새 CraftStation 버전 확인"
 
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Clipboard rejected the image (unsupported format)"
-msgstr ""
+msgstr "클립보드가 이미지를 거부했습니다(지원하지 않는 형식)"
+
+#. placeholder {0}: running ? t`运行中 ${bridge.endpoint ?? ""}` : installed ? t`已安装 · 未运行` : t`未安装`
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "CLIProxyAPI 兼容桥 · {0}"
+msgstr "CLIProxyAPI 호환 브리지 · {0}"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "CLIProxyAPI 兼容桥 · 状态未知"
+msgstr "CLIProxyAPI 호환 브리지 · 상태 알 수 없음"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "CLIProxyAPI 启动后仍无法合成"
+msgstr "CLIProxyAPI 시작 후에도 조합할 수 없습니다"
 
 #: src/mobile/views/ManageProjectsView.tsx
 #: src/renderer/views/MainView/parts/AppContent/parts/Thread/parts/ContinueInProviderDialog.tsx
@@ -2563,7 +2848,7 @@ msgstr "닫기"
 #. placeholder {0}: tab.label
 #: src/renderer/components/layout/UnifiedRightPanel.tsx
 msgid "Close {0}"
-msgstr ""
+msgstr "{0} 닫기"
 
 #: src/mobile/views/BrowserView.tsx
 msgid "Close {closeTarget}"
@@ -2651,15 +2936,15 @@ msgstr "오버레이 닫기"
 
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
 msgid "Close own subagent"
-msgstr ""
+msgstr "자체 서브에이전트 닫기"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ActiveSubAgentTile.tsx
 msgid "Close Own Subagents"
-msgstr ""
+msgstr "Own Subagents 닫기"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ActiveSubAgentTile.tsx
 msgid "Close Own Subagents panel"
-msgstr ""
+msgstr "Own Subagents 패널 닫기"
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "Close pairing"
@@ -2779,7 +3064,7 @@ msgstr "접기"
 #. placeholder {0}: project.name
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 #~ msgid "Collapse {0}"
-#~ msgstr ""
+#~ msgstr "{0} 접기"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "Collapse {label}"
@@ -2937,7 +3222,7 @@ msgstr "컨텍스트 압축"
 
 #: src/renderer/components/thread/ThreadContextDock.tsx
 msgid "Compaction"
-msgstr ""
+msgstr "압축"
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "Compare this fingerprint with the one shown by your server."
@@ -2945,7 +3230,7 @@ msgstr "이 지문을 서버에 표시된 지문과 비교하세요."
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Compiled CraftPlan spawns an executable Agent Entity."
-msgstr ""
+msgstr "컴파일된 CraftPlan이 실행 가능한 Agent Entity를 생성합니다."
 
 #: src/renderer/components/thread/ThreadGoalDock.tsx
 msgid "Complete"
@@ -2994,11 +3279,11 @@ msgstr "완료됨"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 msgid "Completed in {elapsed}"
-msgstr ""
+msgstr "{elapsed} 만에 완료"
 
 #: src/renderer/views/MainView/parts/AppContent/ConversationErrorBoundary.tsx
 msgid "Component stack"
-msgstr ""
+msgstr "컴포넌트 스택"
 
 #: src/renderer/commands/shortcutCatalog.ts
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
@@ -3043,7 +3328,7 @@ msgstr "구성된 MCP 서버"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Confirm again to interrupt the target's active turn. If stop confirmation fails, the request will not be delivered."
-msgstr ""
+msgstr "대상의 활성 턴을 중단하려면 다시 확인하세요. 중단 확인에 실패하면 요청이 전달되지 않습니다."
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/ThreadSettings.tsx
@@ -3052,11 +3337,11 @@ msgstr "스레드 삭제 전 확인"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Confirm interrupt and send"
-msgstr ""
+msgstr "중단 확인 후 전송"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Confirm the source turn stopped before activating a new Runtime Segment."
-msgstr ""
+msgstr "새 Runtime Segment를 활성화하기 전에 원본 턴이 중지되었는지 확인하세요."
 
 #: src/renderer/views/SettingsOverlay/parts/AISettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -3198,7 +3483,7 @@ msgstr "수동으로 압축된 컨텍스트:{before}→{after}토큰"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Context summary"
-msgstr ""
+msgstr "컨텍스트 요약"
 
 #: src/renderer/views/MainView/parts/AppContent/AppContent.tsx
 msgid "Context transferred to {targetLabel}"
@@ -3232,7 +3517,7 @@ msgstr "데스크톱 주소에서 계속"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 msgid "Continue paused task"
-msgstr ""
+msgstr "일시 중지된 작업 계속"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Continue thread"
@@ -3240,7 +3525,7 @@ msgstr "스레드 이어가기"
 
 #: src/renderer/views/SchedulesView/parts/ScheduleRow.tsx
 msgid "Continues thread"
-msgstr ""
+msgstr "스레드 계속"
 
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
 msgid "Control an external Chrome browser."
@@ -3270,11 +3555,11 @@ msgstr "대화"
 
 #: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
 msgid "Conversation quick navigation"
-msgstr ""
+msgstr "대화 빠른 탐색"
 
 #: src/renderer/views/MainView/parts/AppContent/ConversationErrorBoundary.tsx
 msgid "Conversation view failed to render."
-msgstr ""
+msgstr "대화 보기를 렌더링하지 못했습니다."
 
 #: src/mobile/UserMessageActionsSheet.tsx
 #: src/mobile/views/PortsView.tsx
@@ -3288,19 +3573,19 @@ msgstr "복사됨"
 #. placeholder {0}: paths.length
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 #~ msgid "Copied {0} session paths."
-#~ msgstr ""
+#~ msgstr "세션 경로 {0}개를 복사했습니다."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Copied session address."
-msgstr ""
+msgstr "세션 주소를 복사했습니다."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 #~ msgid "Copied session path."
-#~ msgstr ""
+#~ msgstr "세션 경로를 복사했습니다."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Copied thread path."
-msgstr ""
+msgstr "스레드 경로를 복사했습니다."
 
 #: src/renderer/views/ProfileOverlay/parts/ShareDialog.tsx
 msgid "Copied to clipboard"
@@ -3387,7 +3672,7 @@ msgstr "Tailscale URL 복사"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Copy Thread Address"
-msgstr ""
+msgstr "스레드 주소 복사"
 
 #: src/renderer/components/thread/WorktreeModeSelect.tsx
 msgid "Copy uncommitted changes here (keeps them on this branch)"
@@ -3407,7 +3692,7 @@ msgstr "병합을 완료할 수 없습니다."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Could not copy the thread path."
-msgstr ""
+msgstr "스레드 경로를 복사할 수 없습니다."
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Could not create the project folder."
@@ -3429,7 +3714,7 @@ msgstr "{0}의 풀 리퀘스트를 불러올 수 없습니다."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/NotebookPreview.tsx
 msgid "Could not parse this notebook — open it as text instead."
-msgstr ""
+msgstr "이 노트북을 파싱할 수 없습니다. 텍스트로 여세요."
 
 #: src/renderer/components/thread/ChatPane/parts/items/useReadAbsoluteFile.tsx
 msgid "Could not read file."
@@ -3504,7 +3789,7 @@ msgstr "프로필 통계를 불러오지 못했습니다."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/UsageStatsPage.tsx
 msgid "Couldn't load your usage stats."
-msgstr ""
+msgstr "사용량 통계를 불러올 수 없습니다."
 
 #: src/mobile/useRemoteDesktop.ts
 msgid "Couldn't move the thread to a worktree."
@@ -3536,19 +3821,19 @@ msgstr "스킬을 업데이트하지 못했습니다."
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 msgid "Craft-Harness automatically retries a turn interrupted by network or connection failures, injecting a continuation prompt on retry. Set to 0 to disable."
-msgstr ""
+msgstr "Craft-Harness는 네트워크 또는 연결 오류로 중단된 턴을 자동으로 재시도하고, 재시도 시 이어하기 프롬프트를 주입합니다. 0으로 설정하면 비활성화됩니다."
 
 #: src/renderer/views/MainView/parts/TopShortcuts/topShortcuts.tsx
 msgid "Crafting Table"
-msgstr ""
+msgstr "크래프팅 테이블"
 
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 msgid "Crafting Workbench"
-msgstr ""
+msgstr "크래프팅 워크벤치"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "CraftStation"
-msgstr ""
+msgstr "CraftStation"
 
 #: src/renderer/views/SettingsOverlay/parts/SshConnectionForm.tsx
 msgid "CraftStation and your agents run on the remote machine. SSH is used only to start the remote environment and secure its local tunnel."
@@ -3572,11 +3857,11 @@ msgstr "CraftStation Helper가 잘못된 응답을 반환했습니다."
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "CraftStation is up to date"
-msgstr ""
+msgstr "CraftStation이 최신 상태입니다"
 
 #: src/renderer/components/common/CraftStationMascot.tsx
 msgid "CraftStation mascot"
-msgstr ""
+msgstr "CraftStation 마스코트"
 
 #: src/renderer/components/startup/StartupRecoveryScreen.tsx
 msgid "CraftStation may be waiting on saved data or a background service. You can keep waiting, restart, or install an available update."
@@ -3584,7 +3869,7 @@ msgstr "CraftStation가 저장된 데이터나 백그라운드 서비스를 기�
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "CraftStation mode"
-msgstr ""
+msgstr "CraftStation 모드"
 
 #: src/renderer/components/skills/SkillImportModal.tsx
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
@@ -3598,7 +3883,7 @@ msgstr "CraftStation SSH 런타임 매니페스트가 없거나 유효하지 않
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 #~ msgid "CraftStation version"
-#~ msgstr ""
+#~ msgstr "CraftStation 버전"
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "CraftStation will install or reuse its server on the SSH host and keep credentials in this device's secure storage."
@@ -3692,7 +3977,7 @@ msgstr "에이전트로 만들기"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Created"
-msgstr ""
+msgstr "생성됨"
 
 #: src/renderer/actions/moveThreadToWorktreeActions.ts
 #: src/renderer/components/common/BranchSelector/BranchSelector.tsx
@@ -3710,7 +3995,7 @@ msgstr "작업 트리 생성 중…"
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Creative mode"
-msgstr ""
+msgstr "Creative 모드"
 
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
 msgid "Credentials are configured."
@@ -3734,7 +4019,7 @@ msgstr "스레드 간 대화"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Cross-thread dialogue with {dialogueTitle}. Show details."
-msgstr ""
+msgstr "{dialogueTitle}와(과)의 크로스 스레드 대화. 세부 정보 표시."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Cross-thread dialogue. Show details."
@@ -3765,7 +4050,7 @@ msgstr "최근"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Current harness native subagent"
-msgstr ""
+msgstr "현재 Harness의 네이티브 서브에이전트"
 
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 msgid "Current project"
@@ -3782,14 +4067,14 @@ msgstr "현재 연속 기록"
 #. placeholder {0}: activeStep.text
 #: src/renderer/components/thread/ComposerStatusRow.tsx
 #~ msgid "Current: {0}"
-#~ msgstr ""
+#~ msgstr "현재: {0}"
 
 #. placeholder {0}: activeSegment?.recipeId ?? thread.compositionProvenance?.recipeId
 #. placeholder {1}: activeSegment?.runtimeBinding.modelId ?? thread.config.model
 #. placeholder {2}: activeSegment?.runtimeBinding.harnessKind ?? thread.agentKind
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Current: {0} · {1} · {2}"
-msgstr ""
+msgstr "현재: {0} · {1} · {2}"
 
 #: src/renderer/components/providers/cursor/manifest.ts
 msgid "Cursor"
@@ -3872,15 +4157,15 @@ msgstr "사용자 지정 경로"
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Custom prompt"
-msgstr ""
+msgstr "사용자 지정 프롬프트"
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Customize Model and Harness ingredients"
-msgstr ""
+msgstr "Model 및 Harness 재료 사용자 지정"
 
 #: src/renderer/views/MainView/parts/TopShortcuts/TopShortcutBar.tsx
 msgid "Customize shortcuts"
-msgstr ""
+msgstr "단축키 사용자 지정"
 
 #: src/renderer/commands/composerCommands.ts
 msgid "Cycle permission mode"
@@ -3921,7 +4206,7 @@ msgstr "DeepSeek"
 
 #: src/renderer/components/providers/deepseek/manifest.ts
 msgid "DeepSeek Harness"
-msgstr ""
+msgstr "DeepSeek Harness"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconPicker.tsx
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconSources.tsx
@@ -3941,7 +4226,7 @@ msgstr "기본 PR 생성 작업"
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Default model with its native Harness"
-msgstr ""
+msgstr "기본 모델과 네이티브 Harness"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -4042,7 +4327,7 @@ msgstr "파일 삭제"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Delete immediately"
-msgstr ""
+msgstr "즉시 삭제"
 
 #. Tooltip: permanently delete the archived thread
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
@@ -4051,11 +4336,11 @@ msgstr "영구 삭제"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #~ msgid "Delete queue"
-#~ msgstr ""
+#~ msgstr "대기열 삭제"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 msgid "Delete queued message"
-msgstr ""
+msgstr "대기 중인 메시지 삭제"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "Delete run"
@@ -4131,19 +4416,19 @@ msgstr "삭제 중"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Delivered"
-msgstr ""
+msgstr "전달됨"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Delivering"
-msgstr ""
+msgstr "전달 중"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Delivery"
-msgstr ""
+msgstr "전달"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Delivery waits for the target to confirm it has stopped."
-msgstr ""
+msgstr "대상이 중지되었는지 확인할 때까지 전달이 대기합니다."
 
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/helpers.ts
 msgid "Deny"
@@ -4251,7 +4536,7 @@ msgstr "이 데스크톱에 연결할 수 있는 동안 기기를 페어링할 �
 
 #: src/renderer/components/providers/devin/manifest.ts
 msgid "Devin"
-msgstr ""
+msgstr "Devin"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Dialogue exchanges"
@@ -4282,7 +4567,7 @@ msgstr "{tool} 비활성화"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "Disable App Controls"
-msgstr ""
+msgstr "앱 제어 비활성화"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "Disable Browser MCP"
@@ -4303,7 +4588,7 @@ msgstr "컴퓨터 사용 비활성화"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "Disable Own Subagents"
-msgstr ""
+msgstr "Own Subagents 비활성화"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Disable Project"
@@ -4311,7 +4596,7 @@ msgstr "프로젝트 비활성화"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "Disable Schedule MCP"
-msgstr ""
+msgstr "Schedule MCP 비활성화"
 
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettings.tsx
 msgid "Disable tiers an external provider collapses (e.g. keep only High and Max)."
@@ -4449,12 +4734,12 @@ msgstr "완료 · 귀하의 의견을 기다리는 중"
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "Download and install {0}"
-msgstr ""
+msgstr "{0} 다운로드 및 설치"
 
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "Download and install {0} now"
-msgstr ""
+msgstr "지금 {0} 다운로드 및 설치"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx
 msgid "Download image"
@@ -4462,19 +4747,19 @@ msgstr "이미지 다운로드"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Download in browser instead"
-msgstr ""
+msgstr "대신 브라우저에서 다운로드"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Download package"
-msgstr ""
+msgstr "패키지 다운로드"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "Download v{version}"
-msgstr ""
+msgstr "v{version} 다운로드"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Downloading CraftStation update"
-msgstr ""
+msgstr "CraftStation 업데이트 다운로드 중"
 
 #. placeholder {0}: name || t`the chosen folder`
 #: src/renderer/views/MainView/parts/CreateProject/CloneProjectModal.tsx
@@ -4529,7 +4814,7 @@ msgstr "첨부하려면 여기에 드롭하세요."
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Drop to move to project root"
-msgstr ""
+msgstr "프로젝트 루트로 이동하려면 놓으세요"
 
 #: src/renderer/views/SettingsOverlay/parts/DevSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -4542,7 +4827,7 @@ msgstr "스캔에 중복된 서버 이름이 있습니다"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Durable messaging between long-lived native threads across harnesses."
-msgstr ""
+msgstr "Harness 간 장수 네이티브 스레드 간의 지속적 메시징."
 
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
 msgid "e.g. -NoProfile"
@@ -4554,7 +4839,7 @@ msgstr "예: 512k 또는 1m"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 msgid "e.g. Always reply in Simplified Chinese. Prefer concise answers with code first."
-msgstr ""
+msgstr "예: 항상 중국어 간체로 답변하세요. 코드를 먼저 제시하는 간결한 답변을 우선하세요."
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "e.g. Codex GPT-5.5 fast for quick lookups, OpenCode GLM for bulk refactors, Claude Opus for anything subtle."
@@ -4627,7 +4912,7 @@ msgstr "페어링된 데스크톱을 편집하고 다시 동기화합니다."
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Efficient mode"
-msgstr ""
+msgstr "Efficient 모드"
 
 #: src/renderer/components/common/EffortContextMenu/EffortContextMenu.tsx
 msgid "Effort and context"
@@ -4648,15 +4933,15 @@ msgstr "Electron"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/CsvPreview.tsx
 msgid "Empty CSV file."
-msgstr ""
+msgstr "빈 CSV 파일입니다."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/NotebookPreview.tsx
 msgid "Empty notebook."
-msgstr ""
+msgstr "빈 노트북입니다."
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Empty workspace"
-msgstr ""
+msgstr "빈 작업 영역"
 
 #. placeholder {0}: server.name
 #. placeholder {0}: skill.name
@@ -4743,7 +5028,7 @@ msgstr "고급(후크)"
 
 #: src/renderer/commands/registry.ts
 msgid "Enlarge the whole app UI"
-msgstr ""
+msgstr "앱 UI 전체 확대"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Enter a full origin URL like https://code.example.com, with no path."
@@ -4812,7 +5097,7 @@ msgstr "유효한 JSON을 입력하세요."
 #. placeholder {0}: shortId(payload.entityId)
 #: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
 msgid "Entity {0}"
-msgstr ""
+msgstr "Entity {0}"
 
 #: src/renderer/views/SettingsOverlay/parts/AISettings.tsx
 msgid "Environment"
@@ -4873,12 +5158,12 @@ msgstr "이벤트"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Every"
-msgstr ""
+msgstr "매"
 
 #. placeholder {0}: task.recurrence.everyMinutes
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Every {0} minutes"
-msgstr ""
+msgstr "{0}분마다"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Every day at {time}"
@@ -4899,7 +5184,7 @@ msgstr "매시 {0}분"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Every N minutes"
-msgstr ""
+msgstr "N분마다"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteServerProjectList.tsx
 msgid "Exclude from sync"
@@ -5060,7 +5345,7 @@ msgstr "과거 위임에서 기록된 명시적 선택으로, 위의 라우팅 �
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
 #~ msgid "Explore and understand code"
-#~ msgstr ""
+#~ msgstr "코드를 탐색하고 이해"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Export MCP servers"
@@ -5087,7 +5372,7 @@ msgstr "{0}에서 컨텍스트를 추출하는 중..."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
 msgid "Extracting document text…"
-msgstr ""
+msgstr "문서 텍스트 추출 중…"
 
 #: src/renderer/components/providers/factory/manifest.ts
 msgid "Factory Droid"
@@ -5110,7 +5395,7 @@ msgstr "실패"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 msgid "Failed after {elapsed}"
-msgstr ""
+msgstr "{elapsed} 후 실패"
 
 #: src/renderer/views/GitHubActionsView/useGitHubActionsViewModel.ts
 msgid "Failed jobs queued to run again."
@@ -5210,7 +5495,7 @@ msgstr "파일이 더 이상 디스크에 존재하지 않습니다."
 
 #: src/renderer/views/GitReviewOverlay/parts/GitDiffContent/parts/SingleFileDiff.tsx
 msgid "File too large to display"
-msgstr ""
+msgstr "파일이 너무 커서 표시할 수 없습니다"
 
 #. placeholder {0}: entry.insertions + entry.deletions
 #. placeholder {0}: file.insertions + file.deletions
@@ -5257,7 +5542,7 @@ msgstr "프로젝트별 필터"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Filter files…"
-msgstr ""
+msgstr "파일 필터…"
 
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
 msgid "Filter marketplace by source"
@@ -5282,7 +5567,7 @@ msgstr "찾기"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Find a target thread"
-msgstr ""
+msgstr "대상 스레드 찾기"
 
 #: src/renderer/components/find/ChatFindBar.tsx
 msgid "Find in chat"
@@ -5332,11 +5617,11 @@ msgstr "ACP 또는 공개 SDK 런타임을 사용하는 완전한 Cursor 통합�
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class DeepSeek Harness (dsh) integration using CraftStation's ACP runtime."
-msgstr ""
+msgstr "CraftStation의 ACP 런타임을 사용하는 일급 DeepSeek Harness(dsh) 통합."
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Devin CLI integration using CraftStation's ACP runtime."
-msgstr ""
+msgstr "CraftStation의 ACP 런타임을 사용하는 일급 Devin CLI 통합."
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Factory Droid integration using CraftStation's ACP runtime."
@@ -5360,7 +5645,7 @@ msgstr "CraftStation의 기본 런타임을 사용하는 최고 수준의 Kimi C
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class MiniMax Code integration using its official ACP runtime."
-msgstr ""
+msgstr "공식 ACP 런타임을 사용하는 일급 MiniMax Code 통합."
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Muse Code CLI integration using CraftStation's native terminal runtime."
@@ -5384,15 +5669,15 @@ msgstr "CraftStation의 네이티브 터미널 및 ACP 런타임을 사용하는
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Step Code integration using StepFun's official CLI and structured RPC runtime."
-msgstr ""
+msgstr "StepFun 공식 CLI 및 구조화된 RPC 런타임을 사용하는 일급 Step Code 통합."
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class ZCode terminal integration built from the official open-source CLI."
-msgstr ""
+msgstr "공식 오픈소스 CLI로 구축된 일급 ZCode 터미널 통합."
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
 #~ msgid "Fix bugs and failures"
-#~ msgstr ""
+#~ msgstr "버그와 실패 수정"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/ConflictResolutionActions.tsx
 msgid "Fix in Agent"
@@ -5473,7 +5758,7 @@ msgstr "포크"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ForkTurnButton.tsx
 msgid "Fork from this turn"
-msgstr ""
+msgstr "이 턴에서 포크"
 
 #. placeholder {0}: props.baseBranch
 #: src/renderer/views/ExperimentView/parts/ExperimentPromptSection.tsx
@@ -5526,7 +5811,7 @@ msgstr "금요일 오후 4:00"
 #: src/renderer/components/thread/ThreadCollaborationActivity.tsx
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "From"
-msgstr ""
+msgstr "보낸 사람"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconSources.tsx
 msgid "From this project"
@@ -5641,11 +5926,11 @@ msgstr "Git 작업"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Git branch"
-msgstr ""
+msgstr "Git 브랜치"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Git branch information"
-msgstr ""
+msgstr "Git 브랜치 정보"
 
 #: src/renderer/views/GitReviewOverlay/GitReviewOverlay.tsx
 msgid "Git Review"
@@ -5668,7 +5953,7 @@ msgstr "Git 리뷰 모드"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Git 工具"
-msgstr ""
+msgstr "Git 도구"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "GitHub"
@@ -5762,7 +6047,7 @@ msgstr "목표 내용"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #~ msgid "Goal. Show task."
-#~ msgstr ""
+#~ msgstr "Goal. 작업 표시."
 
 #: src/renderer/views/ProfileOverlay/parts/ActivityInsights.tsx
 msgid "Goals set"
@@ -5784,6 +6069,10 @@ msgstr "초록"
 #: src/renderer/components/providers/grok/manifest.ts
 msgid "Grok Build"
 msgstr "Grok Build"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Grok 账号池"
+msgstr "Grok 계정 풀"
 
 #: src/renderer/views/MainView/parts/AppContent/AppContent.tsx
 msgid "Group"
@@ -5826,17 +6115,34 @@ msgstr "핸들"
 msgid "Hard Reload"
 msgstr "강제 새로고침"
 
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "Harness"
+msgstr "Harness"
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Harness Ingredient"
 msgstr "Harness 재료"
 
 #: src/renderer/components/crafting/CraftingRegistrySections.tsx
 msgid "Harness Library"
-msgstr ""
+msgstr "Harness 라이브러리"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Harness 总览"
-msgstr ""
+msgstr "Harness 개요"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "Harness 槽"
+msgstr "Harness 슬롯"
+
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+msgid "Harness 背包"
+msgstr "Harness 인벤토리"
+
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Harness/CLI 面板"
+msgstr "Harness/CLI 패널"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/DraftIndicator.tsx
 msgid "Has unsent draft"
@@ -5861,7 +6167,7 @@ msgstr "숨겨진 재개 가능 스레드는 5분마다 청소되고 이 유휴 
 
 #: src/renderer/views/MainView/parts/TopShortcuts/TopShortcutBar.tsx
 msgid "Hidden shortcuts"
-msgstr ""
+msgstr "숨겨진 단축키"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewPanel.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/WhatsNewButton.tsx
@@ -5892,7 +6198,7 @@ msgstr "컨텍스트 사용 세부정보 숨기기"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Hide directory"
-msgstr ""
+msgstr "디렉터리 숨기기"
 
 #: src/mobile/views/BrowserView.tsx
 msgid "Hide keyboard"
@@ -5912,7 +6218,7 @@ msgstr "런타임 디버그 패널 숨기기"
 
 #: src/renderer/components/layout/UnifiedRightPanel.tsx
 msgid "Hide side panel"
-msgstr ""
+msgstr "사이드 패널 숨기기"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsSidebar.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/GitReviewSidebar.tsx
@@ -6041,7 +6347,7 @@ msgstr "이미지"
 
 #: src/renderer/components/composer/AttachmentBar.tsx
 msgid "Image format may not be supported by the model"
-msgstr ""
+msgstr "모델이 이 이미지 형식을 지원하지 않을 수 있습니다"
 
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Image preview"
@@ -6094,12 +6400,12 @@ msgstr "전역으로 가져오기"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Imported"
-msgstr ""
+msgstr "가져옴"
 
 #. placeholder {0}: server.sourceProviderLabel
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Imported ({0})"
-msgstr ""
+msgstr "가져옴({0})"
 
 #. placeholder {0}: selectedSkills.length
 #: src/renderer/components/skills/SkillImportModal.tsx
@@ -6156,7 +6462,7 @@ msgstr "전역 설정 상속(현재 {0})"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "Initialize Git and connect GitHub to see Actions workflows."
-msgstr ""
+msgstr "Git을 초기화하고 GitHub를 연결하면 Actions 워크플로를 볼 수 있습니다."
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/GitReviewSidebar.tsx
 msgid "Initialize Repository"
@@ -6196,7 +6502,7 @@ msgstr "설치"
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #~ msgid "Install {0}"
-#~ msgstr ""
+#~ msgstr "{0} 설치"
 
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
@@ -6206,7 +6512,7 @@ msgstr "{env}에 {0}을(를) 설치합니다."
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #~ msgid "Install {0} now"
-#~ msgstr ""
+#~ msgstr "지금 {0} 설치"
 
 #. placeholder {0}: formatAgentList(props.agentStatuses.map((s) => s.label))
 #: src/renderer/components/thread/ThreadDraftView.tsx
@@ -6337,7 +6643,7 @@ msgstr "이 터미널에 설치 중입니다. 완료되면 닫힙니다."
 
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "Installing…"
-msgstr ""
+msgstr "설치 중…"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Instructions"
@@ -6354,7 +6660,7 @@ msgstr "내부 명령 및 에이전트"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Interrupt the target, then send"
-msgstr ""
+msgstr "대상을 중단한 후 전송"
 
 #: src/renderer/views/SchedulesView/parts/PreviousRunsModal.tsx
 msgid "Interrupted"
@@ -6422,6 +6728,10 @@ msgstr "bash 종료"
 msgid "Kimi Code"
 msgstr "Kimi Code"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Kimi Code API Key 已更新"
+msgstr "Kimi Code API Key가 업데이트되었습니다"
+
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Kimi Code could not update its credentials because another process is using the credential file. Close other CraftStation or Kimi Code processes, then retry."
 msgstr "다른 프로세스에서 자격 증명 파일을 사용 중이어서 Kimi Code가 자격 증명을 업데이트하지 못했습니다. 다른 CraftStation 또는 Kimi Code 프로세스를 닫은 후 다시 시도하세요."
@@ -6429,6 +6739,18 @@ msgstr "다른 프로세스에서 자격 증명 파일을 사용 중이어서 Ki
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Kimi Code ended the turn without returning a response. Restart the thread and try again."
 msgstr "Kimi Code가 응답을 반환하지 않고 작업을 종료했습니다. 스레드를 다시 시작한 후 다시 시도하세요."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Kimi Code 账号池"
+msgstr "Kimi Code 계정 풀"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Kimi 官方接口不返回账号邮箱，建议填入该账号的邮箱，方便区分多个账号（也可稍后右键改名）。"
+msgstr "Kimi 공식 API는 계정 이메일을 반환하지 않습니다. 여러 계정 구분을 위해 이 계정의 이메일 입력을 권장합니다(나중에 우클릭으로 이름 변경도 가능)."
+
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Kimi 登录未完成身份验证。"
+msgstr "Kimi 로그인 인증이 완료되지 않았습니다."
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -6617,7 +6939,7 @@ msgstr "스킬 불러오는 중…"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Loading target threads…"
-msgstr ""
+msgstr "대상 스레드 로드 중…"
 
 #: src/mobile/views/ThreadView.tsx
 msgid "Loading thread"
@@ -6637,7 +6959,7 @@ msgstr "워크플로 실행 불러오는 중"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Loading workspace…"
-msgstr ""
+msgstr "작업 영역 로드 중…"
 
 #: src/mobile/routeComponents.tsx
 #: src/mobile/ThreadDetail.tsx
@@ -6664,7 +6986,7 @@ msgstr "로컬"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/BranchSyncGraph.tsx
 msgid "Local branch"
-msgstr ""
+msgstr "로컬 브랜치"
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Local changes need to be stashed before pulling from {branch}"
@@ -6672,7 +6994,7 @@ msgstr "{branch}에서 가져오기 전에 로컬 변경 사항을 숨겨야 합
 
 #: src/renderer/components/thread/threadContextUsage.ts
 msgid "Local estimate"
-msgstr ""
+msgstr "로컬 추정치"
 
 #. placeholder {0}: forward.targetPort
 #: src/mobile/views/PortsView.tsx
@@ -6777,7 +7099,7 @@ msgstr "지원되는 에이전트를 시작할 때 CraftStation에서 추가하�
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Managed"
-msgstr ""
+msgstr "관리됨"
 
 #. placeholder {0}: props.managedByPlugin
 #: src/renderer/components/mcp/McpServersManager.tsx
@@ -6868,7 +7190,7 @@ msgstr "브라우저 최대화"
 
 #: src/renderer/components/layout/UnifiedRightPanel.tsx
 msgid "Maximize side panel"
-msgstr ""
+msgstr "사이드 패널 최대화"
 
 #: src/renderer/components/plugins/PluginDetail.tsx
 msgid "MCP"
@@ -6953,6 +7275,18 @@ msgstr "MCP 도구 호출"
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "MCP transport type"
 msgstr "MCP 전송 유형"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "MCP 工具"
+msgstr "MCP 도구"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "MCP 服务器"
+msgstr "MCP 서버"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "MCP 服务器 · Skills · 策略"
+msgstr "MCP 서버 · Skills · 정책"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "mcp.json could not be read, so this plugin's servers were skipped."
@@ -7104,7 +7438,7 @@ msgstr "분"
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Minimal Harness mode preview"
-msgstr ""
+msgstr "최소 Harness 모드 미리보기"
 
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettingsModel.ts
 msgid "MiniMax"
@@ -7112,7 +7446,7 @@ msgstr "MiniMax"
 
 #: src/renderer/components/providers/minimax/manifest.ts
 msgid "MiniMax Code"
-msgstr ""
+msgstr "MiniMax Code"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 msgid "Minimize browser to right panel"
@@ -7128,7 +7462,7 @@ msgstr "분"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Minutes between runs (1–1440)."
-msgstr ""
+msgstr "실행 간격(분)(1–1440)."
 
 #: src/mobile/views/BrowserView.tsx
 msgid "Mirrored desktop browser tab"
@@ -7199,7 +7533,7 @@ msgstr "많음"
 #. placeholder {0}: props.thread.title
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "More actions for {0}"
-msgstr ""
+msgstr "{0}의 추가 작업"
 
 #. placeholder {0}: props.candidateNumber
 #: src/renderer/views/ExperimentView/parts/ExperimentCandidateCard.tsx
@@ -7224,7 +7558,7 @@ msgstr "더 많은 PR 옵션"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 msgid "More project actions"
-msgstr ""
+msgstr "추가 프로젝트 작업"
 
 #: src/renderer/components/providers/UsageOverflowChip.tsx
 msgid "More providers"
@@ -7240,7 +7574,7 @@ msgstr "추가 일정 옵션"
 
 #: src/renderer/views/MainView/parts/TopShortcuts/TopShortcutBar.tsx
 msgid "More shortcuts"
-msgstr ""
+msgstr "추가 단축키"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/CommitSyncPanel.tsx
 msgid "More sync options"
@@ -7279,12 +7613,12 @@ msgstr "이동"
 #. placeholder {0}: providerLabelFor(slot.id)
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Move {0} down"
-msgstr ""
+msgstr "{0} 아래로 이동"
 
 #. placeholder {0}: providerLabelFor(slot.id)
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Move {0} up"
-msgstr ""
+msgstr "{0} 위로 이동"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 msgid "Move browser back to main window"
@@ -7300,11 +7634,11 @@ msgstr "변경 사항을 새 작업 트리로 이동"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Move native lane down"
-msgstr ""
+msgstr "네이티브 레인 아래로 이동"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Move native lane up"
-msgstr ""
+msgstr "네이티브 레인 위로 이동"
 
 #: src/renderer/components/layout/PanelDock/PanelSectionHeader.tsx
 msgid "Move panel"
@@ -7387,7 +7721,7 @@ msgstr "네이티브"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Native · Default — hands back to this harness's own subagent loop"
-msgstr ""
+msgstr "네이티브 · 기본값——이 Harness 자체 서브에이전트 루프로 돌려줍니다"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Native Harness status"
@@ -7417,7 +7751,7 @@ msgstr "승인 필요"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Needs attention"
-msgstr ""
+msgstr "확인 필요"
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -7444,7 +7778,7 @@ msgstr "중립"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Never"
-msgstr ""
+msgstr "안 함"
 
 #: src/renderer/components/changelog/ChangelogView.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
@@ -7465,20 +7799,20 @@ msgstr "새 브랜치 이름..."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
 msgid "New chat"
-msgstr ""
+msgstr "새 채팅"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
 msgid "New chat / project"
-msgstr ""
+msgstr "새 채팅 / 프로젝트"
 
 #. placeholder {0}: project.name
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 msgid "New chat in {0}"
-msgstr ""
+msgstr "{0}에서 새 채팅"
 
 #: src/renderer/views/MainView/parts/SelectProjectForThreadModal.tsx
 msgid "New chat in project"
-msgstr ""
+msgstr "프로젝트에서 새 채팅"
 
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettings.tsx
 msgid "New Claude profile config directory"
@@ -7610,13 +7944,13 @@ msgstr "실행마다 새 스레드"
 #. placeholder {1}: availableUpdate.latest
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "New version available: v{0} → v{1}. Click to update now."
-msgstr ""
+msgstr "새 버전 사용 가능: v{0} → v{1}. 클릭하여 지금 업데이트하세요."
 
 #. placeholder {0}: availableUpdate.version
 #. placeholder {1}: availableUpdate.latest
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #~ msgid "New version available: v{0} → v{1}. Update from the title bar download menu."
-#~ msgstr ""
+#~ msgstr "새 버전 사용 가능: v{0} → v{1}. 제목 표시줄 다운로드 메뉴에서 업데이트하세요."
 
 #: src/renderer/components/workspace/WorkspaceNameDialog.tsx
 msgid "New workspace"
@@ -7693,7 +8027,7 @@ msgstr "설치된 에이전트가 없습니다."
 
 #: src/renderer/views/ProfileOverlay/parts/AiActions.tsx
 msgid "No AI commits, pushes, PRs, merges, or branch operations tracked yet."
-msgstr ""
+msgstr "아직 추적된 AI 커밋, 푸시, PR, 머지 또는 브랜치 작업이 없습니다."
 
 #: src/mobile/views/SettingsView.tsx
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
@@ -7815,7 +8149,7 @@ msgstr "이 범위에서 외부 스킬을 찾지 못했습니다."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
 msgid "No extractable text in this document."
-msgstr ""
+msgstr "이 문서에서 추출 가능한 텍스트가 없습니다."
 
 #: src/renderer/components/thread/ChatPane/parts/CheckpointRevertControls.tsx
 msgid "No file checkpoint is stored for this message."
@@ -7823,7 +8157,7 @@ msgstr "이 메시지에 대해 저장된 파일 체크포인트가 없습니다
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "No files found."
-msgstr ""
+msgstr "파일을 찾을 수 없습니다."
 
 #. placeholder {0}: query.trim()
 #: src/mobile/views/FilesView.tsx
@@ -7872,7 +8206,7 @@ msgstr "일치하는 풀 리퀘스트가 없습니다."
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "No matching Recipe"
-msgstr ""
+msgstr "일치하는 Recipe가 없습니다"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "No matching schedules."
@@ -7880,7 +8214,7 @@ msgstr "일치하는 일정이 없습니다."
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "No matching target threads."
-msgstr ""
+msgstr "일치하는 대상 스레드가 없습니다."
 
 #: src/mobile/views/ThreadsView.tsx
 #: src/renderer/views/ThreadSearchOverlay/ThreadSearchOverlay.tsx
@@ -7913,7 +8247,7 @@ msgstr "마이크를 찾을 수 없습니다."
 
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "No mode usage yet."
-msgstr ""
+msgstr "아직 모드 사용량이 없습니다."
 
 #: src/renderer/components/common/ProviderModelMenu/ProviderModelMenu.tsx
 #: src/renderer/views/SettingsOverlay/parts/ModelVisibilityPopover.tsx
@@ -7923,7 +8257,7 @@ msgstr "모델을 찾을 수 없습니다."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
 msgid "No notifications"
-msgstr ""
+msgstr "알림 없음"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "No other agents installed"
@@ -7947,27 +8281,27 @@ msgstr "검색과 일치하는 플러그인이 없습니다."
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 msgid "No project"
-msgstr ""
+msgstr "프로젝트 없음"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "No project location available to load audio."
-msgstr ""
+msgstr "오디오를 로드할 프로젝트 위치가 없습니다."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "No project location available to load image."
-msgstr ""
+msgstr "이미지를 로드할 프로젝트 위치가 없습니다."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "No project location available to load PDF."
-msgstr ""
+msgstr "PDF를 로드할 프로젝트 위치가 없습니다."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "No project location available to load video."
-msgstr ""
+msgstr "동영상을 로드할 프로젝트 위치가 없습니다."
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "No project selected to launch crafted Agent."
-msgstr ""
+msgstr "합성된 에이전트를 실행할 프로젝트가 선택되지 않았습니다."
 
 #: src/mobile/views/ManageProjectsView.tsx
 msgid "No projects"
@@ -7975,7 +8309,7 @@ msgstr "프로젝트 없음"
 
 #: src/renderer/views/MainView/parts/SelectProjectForThreadModal.tsx
 msgid "No projects found."
-msgstr ""
+msgstr "프로젝트를 찾을 수 없습니다."
 
 #: src/renderer/views/MainView/parts/Sidebar/Sidebar.tsx
 msgid "No projects in this workspace"
@@ -8056,7 +8390,7 @@ msgstr "아직 사용한 스킬이 없습니다."
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "No spawnable providers right now — the native lane still applies."
-msgstr ""
+msgstr "지금 실행 가능한 프로바이더가 없습니다. 네이티브 레인은 계속 적용됩니다."
 
 #: src/renderer/components/composer/VoiceInputButton.tsx
 msgid "No speech detected."
@@ -8124,7 +8458,7 @@ msgstr "Git 저장소가 아닙니다."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "not a repo"
-msgstr ""
+msgstr "리포지토리 아님"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Not configured"
@@ -8266,7 +8600,7 @@ msgstr "온라인"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Only include context the target is allowed to receive"
-msgstr ""
+msgstr "대상이 수신할 수 있는 컨텍스트만 포함"
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 msgid "Only when unfocused"
@@ -8292,7 +8626,7 @@ msgstr "{0} 열기"
 
 #: src/renderer/components/thread/ThreadCollaborationActivity.tsx
 msgid "Open {displayTitle}"
-msgstr ""
+msgstr "{displayTitle} 열기"
 
 #: src/renderer/views/SettingsOverlay/parts/AgentProfileList.tsx
 msgid "Open {label}"
@@ -8300,7 +8634,7 @@ msgstr "{label} 열기"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "Open a file"
-msgstr ""
+msgstr "파일 열기"
 
 #: src/renderer/commands/registry.ts
 msgid "Open a new browser tab"
@@ -8316,7 +8650,7 @@ msgstr "먼저 스레드를 열어 연결하세요."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Open agent conversation"
-msgstr ""
+msgstr "에이전트 대화 열기"
 
 #: src/renderer/views/ExperimentView/ExperimentView.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/ExperimentGroupHeader.tsx
@@ -8372,7 +8706,7 @@ msgstr "대화상자 열기"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "Open download page"
-msgstr ""
+msgstr "다운로드 페이지 열기"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarThreadGroup.tsx
 msgid "Open experiment"
@@ -8475,7 +8809,7 @@ msgstr "SSH로 열기"
 #. placeholder {0}: display.title
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentToolCall.tsx
 msgid "Open own subagent: {0}"
-msgstr ""
+msgstr "자체 서브에이전트 열기: {0}"
 
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/ThreadRuntimeRequestPanel.tsx
 msgid "Open plan"
@@ -8561,11 +8895,56 @@ msgstr "모델 선택기 열기"
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/parts/TreeEntryRow.tsx
 msgid "Open With System Default"
-msgstr ""
+msgstr "시스템 기본 앱으로 열기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/providerBrands.tsx
+msgid "OpenAI 兼容 API"
+msgstr "OpenAI 호환 API"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容 API Base URL"
+msgstr "OpenAI 호환 API Base URL"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容 API Key"
+msgstr "OpenAI 호환 API Key"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容 API 保存失败。"
+msgstr "OpenAI 호환 API 저장에 실패했습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容 API 账号池"
+msgstr "OpenAI 호환 API 계정 풀"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容提供商名称"
+msgstr "OpenAI 호환 제공업체 이름"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容提供商已更新。"
+msgstr "OpenAI 호환 제공업체가 업데이트되었습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容提供商已添加。"
+msgstr "OpenAI 호환 제공업체가 추가되었습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容模型名称"
+msgstr "OpenAI 호환 모델 이름"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容模型展示名称"
+msgstr "OpenAI 호환 모델 표시 이름"
 
 #: src/renderer/components/providers/opencode/manifest.ts
 msgid "OpenCode"
 msgstr "OpenCode"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "OpenCode 模型选择"
+msgstr "OpenCode 모델 선택"
 
 #. placeholder {0}: request.receivedAt
 #. placeholder {1}: index + 1
@@ -8652,23 +9031,23 @@ msgstr "이 프로젝트의 전역 설정을 재정의합니다."
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Own subagent"
-msgstr ""
+msgstr "자체 서브에이전트"
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Own subagent ({subagent}): {description}"
-msgstr ""
+msgstr "자체 서브에이전트({subagent}): {description}"
 
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentToolCall.tsx
 msgid "Own Subagent Result"
-msgstr ""
+msgstr "Own Subagent 결과"
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Own subagent: {description}"
-msgstr ""
+msgstr "자체 서브에이전트: {description}"
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Own subagent: {subagent}"
-msgstr ""
+msgstr "자체 서브에이전트: {subagent}"
 
 #: src/mobile/ComposerInfoChips.tsx
 #: src/renderer/components/composer/composerMcpServers.ts
@@ -8678,27 +9057,27 @@ msgstr ""
 #: src/renderer/views/SettingsOverlay/parts/McpServersSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
 msgid "Own Subagents"
-msgstr ""
+msgstr "Own Subagents"
 
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsProviderModelFilter.tsx
 msgid "Own Subagents auto-selection"
-msgstr ""
+msgstr "Own Subagents 자동 선택"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "Own Subagents enabled for this thread"
-msgstr ""
+msgstr "이 스레드에 Own Subagents가 활성화됨"
 
 #: src/renderer/views/SettingsOverlay/parts/McpServersSettings.tsx
 msgid "Own Subagents routing and ranking"
-msgstr ""
+msgstr "Own Subagents 라우팅 및 순위"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Own Subagents routing guide"
-msgstr ""
+msgstr "Own Subagents 라우팅 가이드"
 
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsRankedRow.tsx
 msgid "Own Subagents usage"
-msgstr ""
+msgstr "Own Subagents 사용량"
 
 #: src/renderer/views/SettingsOverlay/parts/CursorSdkRuntimeSetup.tsx
 msgid "Package"
@@ -8820,11 +9199,11 @@ msgstr "{label} API 키 붙여넣기"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "Paste {label} Cookie"
-msgstr ""
+msgstr "{label} Cookie 붙여넣기"
 
 #: src/renderer/views/SettingsOverlay/parts/UsageProviderRow.tsx
 msgid "Paste {label} session cookie"
-msgstr ""
+msgstr "{label} 세션 쿠키 붙여넣기"
 
 #. placeholder {0}: activeDeviceCode.code
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
@@ -8866,11 +9245,15 @@ msgstr "일시중지됨"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 msgid "Paused after {elapsed}"
-msgstr ""
+msgstr "{elapsed} 후 일시 중지"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #~ msgid "paused until you send"
-#~ msgstr ""
+#~ msgstr "전송할 때까지 일시 중지"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "PDF"
+msgstr "PDF"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
@@ -8903,7 +9286,7 @@ msgstr "조정 대기 중"
 
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "per prompt"
-msgstr ""
+msgstr "프롬프트당"
 
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/parts/PermissionDetailsLine.tsx
 msgid "permission"
@@ -8915,11 +9298,11 @@ msgstr "개인"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Personal prompt appended to every conversation, like a global AGENTS.md. Leave blank to disable."
-msgstr ""
+msgstr "모든 대화에 추가되는 개인 프롬프트로, 전역 AGENTS.md와 같습니다. 비워 두면 비활성화됩니다."
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 msgid "Personal prompt appended to every conversation, like a global AGENTS.md. Leave blank to disable. Always visible here — nothing is injected implicitly."
-msgstr ""
+msgstr "모든 대화에 추가되는 개인 프롬프트로, 전역 AGENTS.md와 같습니다. 비워 두면 비활성화됩니다. 항상 여기에 표시되며 암묵적으로 주입되는 것은 없습니다."
 
 #: src/renderer/components/providers/pi/manifest.ts
 msgid "Pi"
@@ -8959,7 +9342,7 @@ msgstr "선택 도구가 첨부파일을 반환하지 않았습니다."
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Pin {0}"
-msgstr ""
+msgstr "{0} 고정"
 
 #: src/mobile/ThreadTitleRow.tsx
 #: src/mobile/views/threadActionSurfaces.tsx
@@ -9002,15 +9385,15 @@ msgstr "계획"
 #. placeholder {1}: todoState.steps.length
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #~ msgid "Plan {0}/{1}. Show task."
-#~ msgstr ""
+#~ msgstr "계획 {0}/{1}. 작업 표시."
 
 #: src/renderer/components/thread/ComposerStatusRow.tsx
 #~ msgid "Plan progress"
-#~ msgstr ""
+#~ msgstr "계획 진행률"
 
 #: src/renderer/components/thread/ComposerStatusRow.tsx
 #~ msgid "Plan progress {completed}/{total}"
-#~ msgstr ""
+#~ msgstr "계획 진행률 {completed}/{total}"
 
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Plan, ask, build…"
@@ -9018,7 +9401,7 @@ msgstr "계획하고, 묻고, 만들어 보세요…"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Plans, monitoring, daily routines, and timed tasks. Create a schedule instead of polling while waiting."
-msgstr ""
+msgstr "계획, 모니터링, 일일 루틴, 예약 작업. 대기 중 폴링 대신 스케줄을 생성하세요."
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -9178,19 +9561,19 @@ msgstr "미리보기 {0}"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/NotebookPreview.tsx
 msgid "Preview truncated — open the file for all cells."
-msgstr ""
+msgstr "미리보기가 잘렸습니다. 모든 셀을 보려면 파일을 여세요."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/CsvPreview.tsx
 msgid "Preview truncated — open the file for the full table."
-msgstr ""
+msgstr "미리보기가 잘렸습니다. 전체 표를 보려면 파일을 여세요."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
 msgid "Preview truncated — open the file for the full text."
-msgstr ""
+msgstr "미리보기가 잘렸습니다. 전체 텍스트를 보려면 파일을 여세요."
 
 #: src/renderer/components/composer/AttachmentBar.tsx
 msgid "Previewable here, but models may not accept this image format (use png, jpg, gif or webp)"
-msgstr ""
+msgstr "여기서 미리 볼 수 있지만 모델이 이 이미지 형식을 지원하지 않을 수 있습니다(png, jpg, gif 또는 webp 사용)"
 
 #: src/renderer/commands/registry.ts
 msgid "Previous chat"
@@ -9257,7 +9640,7 @@ msgstr "프로필"
 
 #: src/renderer/components/thread/ComposerStatusRow.tsx
 #~ msgid "Progress"
-#~ msgstr ""
+#~ msgstr "진행률"
 
 #: src/mobile/views/ThreadsView.tsx
 #: src/renderer/commands/registry.ts
@@ -9273,7 +9656,7 @@ msgstr "프로젝트"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 msgid "Project actions"
-msgstr ""
+msgstr "프로젝트 작업"
 
 #. placeholder {0}: props.project.name
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectFilter.tsx
@@ -9282,11 +9665,11 @@ msgstr "{0}의 프로젝트 액션"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Project and task status"
-msgstr ""
+msgstr "프로젝트 및 작업 상태"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Project default branch"
-msgstr ""
+msgstr "프로젝트 기본 브랜치"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/GeneralSection.tsx
 msgid "Project folder"
@@ -9324,7 +9707,7 @@ msgstr "프로젝트 노트"
 
 #: src/renderer/views/MainView/parts/AuxiliaryPanelLauncher.tsx
 msgid "Project scope"
-msgstr ""
+msgstr "프로젝트 범위"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Project Settings"
@@ -9338,11 +9721,11 @@ msgstr "프로젝트 스킬은 에이전트가 이 프로젝트에서 실행될 
 #. placeholder {1}: open ? "Hide" : "Show"
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Project status: {0}. {1} details."
-msgstr ""
+msgstr "프로젝트 상태: {0}. {1} 세부 정보."
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Project worktree"
-msgstr ""
+msgstr "프로젝트 워크트리"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/SearchSection.tsx
 msgid "Project-specific overrides on top of the global search settings."
@@ -9380,7 +9763,7 @@ msgstr "프롬프트"
 #. placeholder {0}: index + 1
 #: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
 msgid "Prompt #{0}"
-msgstr ""
+msgstr "프롬프트 #{0}"
 
 #: src/renderer/components/providers/codex/index.tsx
 #: src/renderer/views/ProfileOverlay/parts/ActivitySection.tsx
@@ -9407,11 +9790,11 @@ msgstr "공급자"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
 msgid "Provider accounts"
-msgstr ""
+msgstr "프로바이더 계정"
 
 #: src/renderer/components/thread/threadContextUsage.ts
 msgid "Provider anchored"
-msgstr ""
+msgstr "프로바이더 고정됨"
 
 #: src/renderer/components/thread/ThreadContextDock.tsx
 #: src/renderer/components/thread/threadContextUsage.ts
@@ -9424,7 +9807,7 @@ msgstr "제공자 프리셋"
 
 #: src/renderer/components/thread/threadContextUsage.ts
 msgid "Provider reported"
-msgstr ""
+msgstr "프로바이더 보고값"
 
 #. Settings section: provider usage and quota dashboard
 #: src/mobile/settingsSections.ts
@@ -9576,11 +9959,11 @@ msgstr "질문"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Queue after the current turn"
-msgstr ""
+msgstr "현재 턴 이후에 대기시키기"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Queue request"
-msgstr ""
+msgstr "요청 대기열에 넣기"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
@@ -9589,7 +9972,7 @@ msgstr "대기열에 있음"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #~ msgid "Queued prompt"
-#~ msgstr ""
+#~ msgstr "대기 중인 프롬프트"
 
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/providers/usageFormat.ts
@@ -9692,11 +10075,11 @@ msgstr "최근 스레드"
 #: src/renderer/views/SchedulesView/parts/ScheduleRow.tsx
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Recipe"
-msgstr ""
+msgstr "Recipe"
 
 #: src/renderer/components/crafting/CraftingRegistrySections.tsx
 msgid "Recipes"
-msgstr ""
+msgstr "Recipes"
 
 #: src/mobile/components.tsx
 msgid "Reconnect"
@@ -9757,7 +10140,7 @@ msgstr "{label} 새로고침"
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 msgid "Refresh component status"
-msgstr ""
+msgstr "컴포넌트 상태 새로 고침"
 
 #: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
 msgid "Refresh detected agents"
@@ -9803,7 +10186,7 @@ msgstr "새로 고치는 중…"
 
 #: src/renderer/components/crafting/CraftingRegistrySections.tsx
 msgid "Registry"
-msgstr ""
+msgstr "Registry"
 
 #: src/mobile/TerminalAccessory.tsx
 #: src/mobile/views/BrowserView.tsx
@@ -9883,7 +10266,7 @@ msgstr "원격 세션이 해지되었습니다."
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/BranchSyncGraph.tsx
 msgid "Remote tracking branch"
-msgstr ""
+msgstr "원격 추적 브랜치"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/GitReviewSidebar.tsx
 msgid "Remote URL"
@@ -10047,7 +10430,7 @@ msgstr "그룹 이름 바꾸기"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 msgid "Rename project"
-msgstr ""
+msgstr "프로젝트 이름 변경"
 
 #: src/renderer/commands/registry.ts
 msgid "Rename the current chat"
@@ -10131,7 +10514,7 @@ msgstr "저장소 URL"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Request"
-msgstr ""
+msgstr "요청"
 
 #: src/renderer/views/PrReviewOverlay/parts/SubmitReviewPopover.tsx
 msgid "Request changes"
@@ -10178,7 +10561,7 @@ msgstr "기본값으로 재설정"
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
 msgid "Reset zoom"
-msgstr ""
+msgstr "확대/축소 재설정"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserHost.tsx
 msgid "Resize browser drawer"
@@ -10190,7 +10573,7 @@ msgstr "열 크기 조정"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectFilesPanel.tsx
 msgid "Resize file list"
-msgstr ""
+msgstr "파일 목록 크기 조정"
 
 #: src/renderer/views/MainView/parts/AppShell/AppShell.tsx
 msgid "Resize git panel"
@@ -10239,7 +10622,7 @@ msgstr "CraftStation 다시 시작"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Restart to install"
-msgstr ""
+msgstr "재시작하여 설치"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 msgid "Restore"
@@ -10259,11 +10642,11 @@ msgstr "복원 또는 삭제"
 
 #: src/renderer/components/layout/UnifiedRightPanel.tsx
 msgid "Restore side panel"
-msgstr ""
+msgstr "사이드 패널 복원"
 
 #: src/renderer/commands/registry.ts
 msgid "Restore the whole app UI to 100%"
-msgstr ""
+msgstr "앱 UI 전체를 100%로 복원"
 
 #: src/mobile/views/SettingsView.tsx
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
@@ -10272,7 +10655,7 @@ msgstr "스레드 복원"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Result Item"
-msgstr ""
+msgstr "Result Item"
 
 #: src/renderer/views/ExperimentView/ExperimentView.tsx
 msgid "Results"
@@ -10374,11 +10757,11 @@ msgstr "이 체크포인트로 되돌리기"
 #: src/renderer/components/layout/PanelDock/panelTabMeta.ts
 #: src/renderer/views/MainView/parts/AuxiliaryPanelLauncher.tsx
 msgid "Review"
-msgstr ""
+msgstr "검토"
 
 #: src/renderer/views/MainView/parts/AuxiliaryPanelLauncher.tsx
 msgid "Review and Files need a project scope."
-msgstr ""
+msgstr "검토 및 파일에는 프로젝트 범위가 필요합니다."
 
 #: src/renderer/views/PullRequestsView/PullRequestsView.tsx
 msgid "Review and track work across your GitHub accounts."
@@ -10401,7 +10784,7 @@ msgstr "변경사항 검토"
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
 #~ msgid "Review code and suggest changes"
-#~ msgstr ""
+#~ msgstr "코드 리뷰 및 변경 제안"
 
 #: src/renderer/views/GitReviewOverlay/parts/DiffAnnotationView.tsx
 #: src/renderer/views/PrReviewOverlay/parts/SubmitReviewPopover.tsx
@@ -10414,7 +10797,7 @@ msgstr "결정 검토"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Review interrupt"
-msgstr ""
+msgstr "중단 검토"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Review my recent work and summarize today's priorities and next steps."
@@ -10585,11 +10968,11 @@ msgstr "런타임 옵션"
 #. placeholder {0}: payload.ordinal + 1
 #: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
 msgid "Runtime segment {0}"
-msgstr ""
+msgstr "런타임 세그먼트 {0}"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Same Model and Harness as this thread — not selectable for cross-thread dialogue."
-msgstr ""
+msgstr "이 스레드와 동일한 Model 및 Harness입니다. 크로스 스레드 대화에는 선택할 수 없습니다."
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconSources.tsx
 msgid "Saturation and brightness"
@@ -10656,7 +11039,7 @@ msgstr "저장된 셸"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "Saving…"
-msgstr ""
+msgstr "저장 중…"
 
 #: src/mobile/QrScanner.tsx
 msgid "Scan pairing QR code"
@@ -10689,11 +11072,11 @@ msgstr "설치된 CLI를 찾기 위해 시스템을 검색합니다. 이 작업�
 #: src/renderer/components/composer/composerMcpServers.ts
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Schedule"
-msgstr ""
+msgstr "스케줄"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "Schedule MCP enabled for this thread"
-msgstr ""
+msgstr "이 스레드에 Schedule MCP가 활성화됨"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Schedule name"
@@ -10711,7 +11094,7 @@ msgstr "일정: {0}. {1}"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Scheduled"
-msgstr ""
+msgstr "예약됨"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Scheduled tasks"
@@ -10892,7 +11275,7 @@ msgstr "스레드 검색"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Search title, Model, Harness, status, or worktree"
-msgstr ""
+msgstr "제목, Model, Harness, 상태 또는 워크트리 검색"
 
 #: src/renderer/views/ThreadSearchOverlay/ThreadSearchOverlay.tsx
 msgid "Search…"
@@ -10908,7 +11291,7 @@ msgstr "검색 중…"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 msgid "Seconds Craft-Harness waits between automatic turn retry attempts."
-msgstr ""
+msgstr "Craft-Harness가 턴 자동 재시도 사이에 대기하는 시간(초)."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarThreadRow.tsx
 msgid "See more"
@@ -10930,7 +11313,7 @@ msgstr "{providerLabel}에서 {serverName} 선택"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitDiffContent/GitDiffContent.tsx
 msgid "Select a changed file to review its diff."
-msgstr ""
+msgstr "변경된 파일을 선택하여 diff를 검토하세요."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorModal.tsx
 msgid "Select a file from the tree"
@@ -10938,7 +11321,7 @@ msgstr "트리에서 파일을 선택하세요"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "Select a file from the workspace tree to preview"
-msgstr ""
+msgstr "작업 영역 트리에서 파일을 선택하여 미리 보기"
 
 #: src/renderer/views/MainView/parts/CreateProject/CloneProjectModal.tsx
 msgid "Select a repository."
@@ -11022,11 +11405,11 @@ msgstr "메시지 보내기"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 msgid "Send now"
-msgstr ""
+msgstr "지금 보내기"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #~ msgid "sends when this turn finishes"
-#~ msgstr ""
+#~ msgstr "이번 턴이 끝나면 전송"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useElementPicker.ts
 msgid "Sent selection to terminal."
@@ -11058,12 +11441,12 @@ msgstr "이 플러그인이 mcp.json에 선언한 서버입니다. CraftStation�
 
 #: src/renderer/components/thread/ThreadContextDock.tsx
 msgid "Session"
-msgstr ""
+msgstr "세션"
 
 #. placeholder {0}: shortId(payload.runtimeSessionId)
 #: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
 msgid "Session {0}"
-msgstr ""
+msgstr "세션 {0}"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserTabGroupMenu.tsx
 msgid "Set group color"
@@ -11079,11 +11462,11 @@ msgstr "단축키 설정"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Set the starting permission level for every supported model and harness."
-msgstr ""
+msgstr "지원되는 모든 모델과 Harness의 시작 권한 수준을 설정합니다."
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 msgid "Set the starting permission level for every supported model and harness. You can still change it in the composer before starting a thread."
-msgstr ""
+msgstr "지원되는 모든 모델과 Harness의 시작 권한 수준을 설정합니다. 스레드 시작 전에 입력창에서 변경할 수 있습니다."
 
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 msgid "Set when this session started — start a new thread to change servers"
@@ -11187,7 +11570,7 @@ msgstr "컨텍스트 사용 세부정보 표시"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectFilesPanel.tsx
 msgid "Show directory"
-msgstr ""
+msgstr "디렉터리 표시"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/UsageSettings.tsx
@@ -11246,7 +11629,7 @@ msgstr "런타임 디버그 패널 표시"
 
 #: src/renderer/views/MainView/parts/MainContentHeaderControls.tsx
 msgid "Show side panel"
-msgstr ""
+msgstr "사이드 패널 표시"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsSidebar.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/GitReviewSidebar.tsx
@@ -11299,12 +11682,12 @@ msgstr "프로젝트 이름 옆에 표시됩니다."
 
 #: src/renderer/commands/registry.ts
 msgid "Shrink the whole app UI"
-msgstr ""
+msgstr "앱 UI 전체 축소"
 
 #: src/renderer/components/layout/PanelDock/panelTabMeta.ts
 #: src/renderer/views/MainView/parts/AuxiliaryPanelLauncher.tsx
 msgid "Side Chat"
-msgstr ""
+msgstr "Side Chat"
 
 #: src/renderer/views/SettingsOverlay/parts/UsageProviderRow.tsx
 msgid "Sidebar circles are turned off globally above"
@@ -11394,7 +11777,7 @@ msgstr "로그아웃합니다. 감지된 에이전트는 완료되면 새로 고
 
 #: src/renderer/views/SettingsOverlay/parts/CodexProviderSettings.tsx
 msgid "Sizes shown in the Codex composer. Compaction starts automatically at 95% of the selected window. New chats default to 272k when that size is in the list."
-msgstr ""
+msgstr "Codex 입력창에 표시되는 크기입니다. 선택한 윈도우의 95%에서 압축이 자동으로 시작됩니다. 272k가 목록에 있으면 새 채팅의 기본값은 272k입니다."
 
 #: src/renderer/components/plugins/PluginDetail.tsx
 msgid "Skill"
@@ -11484,7 +11867,7 @@ msgstr "플러그인 폴더 밖을 가리키는 파일을 건너뛰었습니다.
 #. placeholder {0}: skippedProviderNames.join(", ")
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Skipped by Own Subagents: {0}"
-msgstr ""
+msgstr "Own Subagents가 건너뜀: {0}"
 
 #: src/renderer/components/thread/ThreadCommandPanel.tsx
 msgid "Slash commands"
@@ -11540,7 +11923,7 @@ msgstr "작업 트리가 생성되기 전에 소스 브랜치 {branch}이(가) �
 
 #: src/renderer/components/thread/threadContextUsage.ts
 msgid "Source unknown"
-msgstr ""
+msgstr "출처 알 수 없음"
 
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
 msgid "Sources"
@@ -11630,7 +12013,7 @@ msgstr "스테이지됨 ({0})"
 
 #: src/renderer/components/thread/ThreadContextDock.tsx
 msgid "Stale"
-msgstr ""
+msgstr "오래됨"
 
 #: src/renderer/commands/registry.ts
 msgid "Star or unstar the current chat or model"
@@ -11669,7 +12052,7 @@ msgstr "이 기기에서 에이전트를 작업시키려면 새 스레드를 시
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 msgid "Start bridge"
-msgstr ""
+msgstr "브리지 시작"
 
 #: src/renderer/commands/composerCommands.ts
 msgid "Start dictation"
@@ -11741,7 +12124,7 @@ msgstr "미러 시작 중…"
 
 #: src/renderer/views/WelcomeOverlay.tsx
 msgid "Starting up"
-msgstr ""
+msgstr "시작 중"
 
 #: src/renderer/components/composer/VoiceInputButton.tsx
 msgid "Starting voice input"
@@ -11754,7 +12137,7 @@ msgstr "시작 중…"
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 msgid "Starting…"
-msgstr ""
+msgstr "시작 중…"
 
 #: src/renderer/components/startup/StartupRecoveryScreen.tsx
 msgid "Startup is taking longer than expected"
@@ -11797,11 +12180,11 @@ msgstr "stdio(로컬 명령)"
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
 msgid "Step {done}/{total}"
-msgstr ""
+msgstr "단계 {done}/{total}"
 
 #: src/renderer/components/providers/stepcode/manifest.ts
 msgid "Step Code"
-msgstr ""
+msgstr "Step Code"
 
 #. Button: stop the microphone level test
 #: src/renderer/views/SettingsOverlay/parts/AudioSettings.tsx
@@ -11817,7 +12200,7 @@ msgstr "{0} 중지"
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 msgid "Stop bridge"
-msgstr ""
+msgstr "브리지 중지"
 
 #: src/mobile/views/PortsView.tsx
 msgid "Stop forwarding"
@@ -11846,11 +12229,11 @@ msgstr "음성 입력 중지"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Stop waiting for reply"
-msgstr ""
+msgstr "답장 대기 중지"
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 msgid "Stopping…"
-msgstr ""
+msgstr "중지 중…"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/WorktreeSettings.tsx
@@ -11875,7 +12258,7 @@ msgstr "구조화 런타임"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Sub-agent route order"
-msgstr ""
+msgstr "서브에이전트 라우트 순서"
 
 #: src/mobile/views/DesktopWorkspacePanel.tsx
 #: src/renderer/components/layout/PanelDock/panelTabMeta.ts
@@ -11977,7 +12360,7 @@ msgstr "브랜치 전환"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Switch in this conversation"
-msgstr ""
+msgstr "이 대화에서 전환"
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Switch mode"
@@ -12001,7 +12384,7 @@ msgstr "이 채팅을 계획 모드로 전환하세요"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Switch timing"
-msgstr ""
+msgstr "전환 시점"
 
 #: src/renderer/commands/registry.ts
 msgid "Switch to the next chat"
@@ -12116,12 +12499,12 @@ msgstr "대상 공급자"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Target working"
-msgstr ""
+msgstr "대상 작업 중"
 
 #. placeholder {0}: targetConfig.model
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Target: {0} · {selectedKind}"
-msgstr ""
+msgstr "대상: {0} · {selectedKind}"
 
 #: src/renderer/components/providers/qwen/index.tsx
 msgid "Task"
@@ -12137,7 +12520,7 @@ msgstr "작업 출력"
 
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 msgid "Task paused. Click continue or send a new message."
-msgstr ""
+msgstr "작업이 일시 중지되었습니다. 계속을 클릭하거나 새 메시지를 보내세요."
 
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Task tags"
@@ -12158,7 +12541,7 @@ msgstr "대상 공급자에게 다음에 무엇을 해야 할지 알려주세요
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Temporary subagents. Prefers this harness's own native subagent, or delegates to another harness."
-msgstr ""
+msgstr "임시 서브에이전트. 이 Harness의 네이티브 서브에이전트를 우선 사용하거나 다른 Harness에 위임합니다."
 
 #: src/mobile/settingsSections.ts
 #: src/mobile/views/DesktopWorkspacePanel.tsx
@@ -12228,7 +12611,7 @@ msgstr "마이크 테스트"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
 msgid "Text-only preview — formatting and images are omitted."
-msgstr ""
+msgstr "텍스트 전용 미리보기 — 서식과 이미지는 생략됩니다."
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "That conversation is no longer available."
@@ -12248,7 +12631,7 @@ msgstr "해당 원격 세션은 이미 없어졌습니다."
 
 #: src/renderer/views/MainView/parts/AppContent/ConversationErrorBoundary.tsx
 msgid "The active session is still available. Retry this view or open another session."
-msgstr ""
+msgstr "활성 세션을 계속 사용할 수 있습니다. 이 보기를 다시 시도하거나 다른 세션을 여세요."
 
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/ThreadRuntimeRequestPanel.tsx
 msgid "The agent"
@@ -12398,11 +12781,11 @@ msgstr "SSH 터널이 호환되지 않는 CraftStation 서버에 연결되었습
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "The target is never silently steered or interrupted."
-msgstr ""
+msgstr "대상이 자동으로 조종되거나 중단되는 일은 없습니다."
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "The target keeps its own Model, Harness, native session, and timeline."
-msgstr ""
+msgstr "대상은 자체 Model, Harness, 네이티브 세션 및 타임라인을 유지합니다."
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "the target provider"
@@ -12530,7 +12913,7 @@ msgstr "이 프로젝트"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "This project is not a Git repository."
-msgstr ""
+msgstr "이 프로젝트는 Git 리포지토리가 아닙니다."
 
 #: src/renderer/actions/threadLaunchActions.ts
 #: src/renderer/components/thread/ThreadDraftView.tsx
@@ -12573,15 +12956,15 @@ msgstr "이 시스템 전역 단축키를 사용할 수 없습니다. 다른 키
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "This target uses another worktree. Messages do not synchronize files between worktrees."
-msgstr ""
+msgstr "이 대상은 다른 워크트리를 사용합니다. 메시지는 워크트리 간 파일을 동기화하지 않습니다."
 
 #: src/renderer/actions/threadActions.ts
 msgid "This thread already has a session and cannot be moved to another project."
-msgstr ""
+msgstr "이 스레드에는 이미 세션이 있어 다른 프로젝트로 이동할 수 없습니다."
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "This transfers portable conversation context; it does not resume another provider's native Session. Attachments are not copied into the checkpoint."
-msgstr ""
+msgstr "이것은 이식 가능한 대화 컨텍스트를 전송하며, 다른 프로바이더의 네이티브 Session을 재개하지 않습니다. 첨부 파일은 체크포인트에 복사되지 않습니다."
 
 #. placeholder {0}: props.worktreeBranch
 #: src/renderer/views/MainView/parts/Sidebar/parts/DeleteThreadPopover.tsx
@@ -12619,7 +13002,7 @@ msgstr "스레드 작업"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Thread collaboration is not available on this host."
-msgstr ""
+msgstr "이 호스트에서는 스레드 협업을 사용할 수 없습니다."
 
 #: src/renderer/components/thread/ThreadContextDock.tsx
 msgid "Thread context usage"
@@ -12631,7 +13014,7 @@ msgstr "스레드 기본값 및 홈 범위"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Thread details"
-msgstr ""
+msgstr "스레드 세부 정보"
 
 #: src/renderer/components/thread/ThreadDockUI.tsx
 msgid "Thread dock"
@@ -12652,7 +13035,7 @@ msgstr "스레드 목표 도크"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Thread ID"
-msgstr ""
+msgstr "스레드 ID"
 
 #: src/renderer/views/MainView/parts/SidebarHeaderControls.tsx
 msgid "Thread list options"
@@ -12661,7 +13044,7 @@ msgstr "스레드 목록 옵션"
 #. placeholder {0}: project.name
 #: src/renderer/actions/threadActions.ts
 msgid "Thread moved to project \"{0}\"."
-msgstr ""
+msgstr "스레드를 프로젝트 \"{0}\"(으)로 이동했습니다."
 
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Thread todo dock"
@@ -12715,7 +13098,7 @@ msgstr "제목, 커밋 및 충돌 모델"
 #: src/renderer/components/thread/ThreadCollaborationActivity.tsx
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "To"
-msgstr ""
+msgstr "받는 사람"
 
 #: src/mobile/TodoActionsSheet.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/NotesPanel/TodoList.tsx
@@ -12724,7 +13107,7 @@ msgstr "할 일"
 
 #: src/renderer/commands/registry.ts
 msgid "Toggle auxiliary panel"
-msgstr ""
+msgstr "보조 패널 전환"
 
 #: src/renderer/commands/registry.ts
 msgid "Toggle browser panel"
@@ -12874,7 +13257,7 @@ msgstr "지금 사용해보기"
 
 #: src/renderer/components/thread/ThreadContextDock.tsx
 msgid "Turn"
-msgstr ""
+msgstr "턴"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Turn on remote access to show a pairing code."
@@ -12883,16 +13266,16 @@ msgstr "페어링 코드를 표시하려면 원격 액세스를 켜세요."
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Turn retry attempts"
-msgstr ""
+msgstr "턴 재시도 횟수"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Turn retry interval"
-msgstr ""
+msgstr "턴 재시도 간격"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 msgid "Turn retry interval (seconds)"
-msgstr ""
+msgstr "턴 재시도 간격(초)"
 
 #: src/renderer/views/SettingsOverlay/parts/UsageSettings.tsx
 msgid "Turn tracking on or off per provider. Disabled providers are skipped by the auto-refresh."
@@ -12913,6 +13296,10 @@ msgstr "페이지에 입력"
 #: src/mobile/views/BrowserView.tsx
 msgid "Type into the page (tap a field first)"
 msgstr "페이지에 입력(먼저 필드를 탭하세요)"
+
+#: src/renderer/uiPreview.tsx
+msgid "UI Preview v0.2.0 · 纯界面预览，不含功能"
+msgstr "UI Preview v0.2.0 · 순수 UI 미리보기(기능 없음)"
 
 #. placeholder {0}: agent.label
 #. placeholder {0}: agentStatus.label
@@ -12948,15 +13335,15 @@ msgstr "Tailscale URL을 복사할 수 없습니다."
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "Unable to create a Codex account."
-msgstr ""
+msgstr "Codex 계정을 만들 수 없습니다."
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "Unable to create a Grok account."
-msgstr ""
+msgstr "Grok 계정을 만들 수 없습니다."
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "Unable to create a Kimi account."
-msgstr ""
+msgstr "Kimi 계정을 만들 수 없습니다."
 
 #: src/renderer/actions/experimentActions.ts
 msgid "Unable to create the candidate worktree."
@@ -13023,7 +13410,7 @@ msgstr "{0} 로그인을 열 수 없습니다."
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "Unable to open Codex login."
-msgstr ""
+msgstr "Codex 로그인을 열 수 없습니다."
 
 #: src/mobile/views/useOpenFile.ts
 #: src/renderer/commands/registry.ts
@@ -13032,11 +13419,11 @@ msgstr "파일을 열 수 없습니다."
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "Unable to open Grok login."
-msgstr ""
+msgstr "Grok 로그인을 열 수 없습니다."
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "Unable to open Kimi login."
-msgstr ""
+msgstr "Kimi 로그인을 열 수 없습니다."
 
 #: src/mobile/routeComponents.tsx
 #: src/mobile/useRemoteDesktop.ts
@@ -13066,7 +13453,7 @@ msgstr "추적되지 않은 후보 파일을 읽을 수 없습니다: {path}"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Unable to read workspace"
-msgstr ""
+msgstr "작업 영역을 읽을 수 없습니다"
 
 #. placeholder {0}: agentStatus.label
 #. placeholder {0}: status.label
@@ -13238,7 +13625,7 @@ msgstr "선택 해제됨"
 
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsProviderModelFilter.tsx
 msgid "Unchecked providers and models are excluded from automatic Own Subagents routing, but remain available for manual agent threads."
-msgstr ""
+msgstr "선택 해제된 프로바이더와 모델은 Own Subagents 자동 라우팅에서 제외되지만 수동 에이전트 스레드에서는 계속 사용할 수 있습니다."
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserTabGroupMenu.tsx
 msgid "Ungroup"
@@ -13269,7 +13656,7 @@ msgstr "알 수 없음"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Unknown collaboration error"
-msgstr ""
+msgstr "알 수 없는 협업 오류"
 
 #: src/renderer/notifications.ts
 msgid "Unknown project"
@@ -13325,11 +13712,11 @@ msgstr "고정 해제"
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Unpin {0}"
-msgstr ""
+msgstr "{0} 고정 해제"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Unpin project"
-msgstr ""
+msgstr "프로젝트 고정 해제"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsSidebar.tsx
 msgid "Unpin workflow"
@@ -13337,7 +13724,7 @@ msgstr "워크플로 고정 해제"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Unread notification"
-msgstr ""
+msgstr "읽지 않은 알림"
 
 #: src/mobile/views/GitActionSheet.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/FileRow.tsx
@@ -13377,7 +13764,7 @@ msgstr "업데이트"
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "Update {0} now"
-msgstr ""
+msgstr "지금 {0} 업데이트"
 
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
@@ -13393,7 +13780,7 @@ msgstr "업데이트 가능"
 #. placeholder {1}: availableUpdate.latest
 #: src/renderer/components/crafting/workbench/HarnessInventory.tsx
 #~ msgid "Update available: v{0} → v{1}"
-#~ msgstr ""
+#~ msgstr "업데이트 사용 가능: v{0} → v{1}"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/PrSection.tsx
 msgid "Update branch"
@@ -13490,7 +13877,7 @@ msgstr "{0}({env}) 업데이트 중"
 #. placeholder {0}: entry.label
 #: src/renderer/views/MainView/parts/Sidebar/parts/UpdateButtons.tsx
 msgid "Updating {0}…"
-msgstr ""
+msgstr "{0} 업데이트 중…"
 
 #: src/renderer/views/LoginTerminalOverlay/LoginTerminalOverlay.tsx
 msgid "Updating in this terminal. Closes when finished."
@@ -13498,7 +13885,7 @@ msgstr "이 터미널에서 업데이트 중입니다. 완료되면 닫힙니다
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Updating…"
-msgstr ""
+msgstr "업데이트 중…"
 
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "URL"
@@ -13649,7 +14036,7 @@ msgstr "버전"
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Version {version} is available. Portable builds cannot auto-install — download it from GitHub Releases."
-msgstr ""
+msgstr "버전 {version}을 사용할 수 있습니다. 포터블 빌드는 자동 설치되지 않습니다. GitHub Releases에서 다운로드하세요."
 
 #. placeholder {0}: metadata.authMethod
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/authHelpers.ts
@@ -13740,7 +14127,7 @@ msgstr "음성 입력 모델"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Wait for a completed-turn boundary, then create a portable checkpoint and a new native Session."
-msgstr ""
+msgstr "완료된 턴 경계를 기다린 후 이식 가능한 체크포인트와 새 네이티브 Session을 생성합니다."
 
 #: src/renderer/actions/experimentDecisionActions.ts
 msgid "Wait for every candidate to finish before cleaning up."
@@ -13864,7 +14251,7 @@ msgstr "주간 검토"
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
 msgid "What shall we build in CraftStation?"
-msgstr ""
+msgstr "CraftStation에서 무엇을 만들까요?"
 
 #: src/renderer/views/SettingsOverlay/parts/GitSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -13888,7 +14275,7 @@ msgstr "CraftStation의 새 소식, 최신순."
 #: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "When a version check finds a newer release, update each agent CLI automatically — including account-pool managed binaries. Manual update stays available either way."
-msgstr ""
+msgstr "버전 확인에서 새 릴리스를 찾으면 각 에이전트 CLI를 자동으로 업데이트합니다(계정 풀에서 관리하는 바이너리 포함). 수동 업데이트도 계속 사용할 수 있습니다."
 
 #: src/renderer/views/SettingsOverlay/parts/SearchSettings.tsx
 msgid "When enabled, search respects <0>.gitignore</0> entries."
@@ -14050,7 +14437,7 @@ msgstr "작업 중"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 msgid "Working {elapsed}"
-msgstr ""
+msgstr "{elapsed} 작업 중"
 
 #: src/renderer/components/thread/ChatPane/ChatTurnElapsed.tsx
 msgid "Working for {elapsed}"
@@ -14206,7 +14593,7 @@ msgstr "z.ai"
 
 #: src/renderer/components/providers/zcode/manifest.ts
 msgid "ZCode"
-msgstr ""
+msgstr "ZCode"
 
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
@@ -14220,233 +14607,1910 @@ msgstr "확대"
 msgid "Zoom out"
 msgstr "축소"
 
+#. placeholder {0}: recipe.compatibilityStatus
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "一键填充 Ingredients · {0}"
+msgstr "한 번의 클릭으로 재료 채우기 · {0}"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "上一轮耗时"
+msgstr "이전 턴 소요 시간"
+
+#. placeholder {0}: model.contextSize
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "上下文 · {0}"
+msgstr "컨텍스트 · {0}"
+
+#. placeholder {0}: typeof record.contextWindow === "number" ? `${Math.round(record.contextWindow / 1000)}k` : "-"
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "上下文 {0}"
+msgstr "컨텍스트 {0}"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "上下文与额度详情"
+msgstr "컨텍스트 및 할당량 상세"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "上下文容量"
+msgstr "컨텍스트 용량"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "上下文窗口"
+msgstr "컨텍스트 윈도우"
+
+#. placeholder {0}: model.contextSize
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "上下文窗口 {0}"
+msgstr "컨텍스트 윈도우 {0}"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "上下文窗口大小"
+msgstr "컨텍스트 윈도우 크기"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "上下文管理策略"
+msgstr "컨텍스트 관리 정책"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "上游暂无可用模型，点击「获取模型」直接从上游拉取最新列表。"
+msgstr "상류에 사용 가능한 모델이 없습니다. 「모델 가져오기」를 클릭해 최신 목록을 직접 가져오세요."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "上游模型（精确 id，避免手写错位）"
+msgstr "상류 모델(정확한 id로 수기 입력 오류 방지)"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "下载并安装"
+msgstr "다운로드 및 설치"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "不可合成"
+msgstr "조합 불가"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "不可用"
+msgstr "사용 불가"
+
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "不是 Git 仓库"
-msgstr ""
+msgstr "Git 리포지토리 아님"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "临时分支"
-msgstr ""
+msgstr "임시 브랜치"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "今日 输入 / 输出 / 缓存"
+msgstr "오늘 입력 / 출력 / 캐시"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "从上游拉取"
+msgstr "상류에서 가져오기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "从名单取消全部渠道模型"
+msgstr "명단에서 모든 채널 모델 선택 해제"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "从当前线程分支"
-msgstr ""
+msgstr "이 스레드에서 브랜치"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "从首页移除该自定义模型"
+msgstr "이 사용자 지정 모델을 홈에서 제거"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "从首页移除该配方"
+msgstr "이 레시피를 홈에서 제거"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "余额 {remaining}{limit}"
+msgstr "잔액 {remaining}{limit}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "使用 API Key 添加账号"
+msgstr "API Key로 계정 추가"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "使用 Devin API Key 授权"
+msgstr "Devin API Key로 인증"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "使用 Kimi API Key 授权"
+msgstr "Kimi API Key로 인증"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "使用重置卡"
+msgstr "리셋 카드 사용"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "例如 GPT-5.6"
+msgstr "예: GPT-5.6"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "例如 gpt-5.6-sol"
+msgstr "예: gpt-5.6-sol"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "例如 My Relay"
+msgstr "예: My Relay"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "例如：日常编码组合"
+msgstr "예: 일상 코딩 조합"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存"
+msgstr "저장"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存中…"
+msgstr "저장 중…"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "保存为正式线程"
-msgstr ""
+msgstr "정식 스레드로 저장"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存前会验证 API Key 并导入账号。"
+msgstr "저장 전에 API Key를 검증하고 계정을 가져옵니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存前会验证 API Key。"
+msgstr "저장 전에 API Key를 검증합니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存前会验证 Ark Key / AK/SK。"
+msgstr "저장 전에 Ark Key / AK/SK를 검증합니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存前会验证会话 Cookie。"
+msgstr "저장 전에 세션 쿠키를 검증합니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存提供商"
+msgstr "제공업체 저장"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "保存配方"
+msgstr "레시피 저장"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "停止 Goal"
-#~ msgstr ""
+#~ msgstr "Goal 중지"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "停止 Goal（终止底层任务）"
-#~ msgstr ""
+#~ msgstr "Goal 중지(기반 작업 종료)"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "允许自动读写工作区并执行命令"
+msgstr "워크스페이스 자동 읽기/쓰기 및 명령 실행 허용"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全不选"
+msgstr "전체 해제"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全选"
+msgstr "전체 선택"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全选 {0} 渠道全部模型"
+msgstr "채널 {0}의 모든 모델 선택"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全选全部渠道模型"
+msgstr "모든 채널의 모델 전체 선택"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "全部"
+msgstr "전체"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全部取消"
+msgstr "전체 취소"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全部选中"
+msgstr "전체 선택됨"
+
+#. placeholder {0}: channels.length
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "共 {0} 个渠道 · {totalVisible} 个模型在首页可选"
+msgstr "총 채널 {0}개 · 홈에서 선택 가능한 모델 {totalVisible}개"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "关闭"
+msgstr "닫기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "关闭模型与用量"
+msgstr "모델 및 사용량 닫기"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "其他"
+msgstr "기타"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "兼容性解析失败"
+msgstr "호환성 해석 실패"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "兼容桥可合成"
+msgstr "호환 브리지로 조합 가능"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "兼容模式"
-msgstr ""
+msgstr "호환 모드"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "兼容默认"
+msgstr "호환 기본값"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "兼容默认 Harness"
+msgstr "호환 기본 Harness"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "兼容默认 Harness（无原生 Harness 的渠道与第三方模型回退到此；上图连线已按该设置实时路由）"
+msgstr "호환 기본 Harness(네이티브 Harness가 없는 채널과 서드파티 모델이 여기로 폴백. 위 연결선은 이 설정대로 실시간 라우팅됨)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "最大输出 Token"
+msgstr "최대 출력 토큰"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "最终 Harness / CLI"
+msgstr "최종 Harness / CLI"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "凭证不可用或已失效，请重新填写 AK/SK 或 API Key。"
+msgstr "자격 증명을 사용할 수 없거나 만료되었습니다. AK/SK 또는 API Key를 다시 입력하세요."
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "切换执行模式与权限"
+msgstr "실행 모드 및 권한 전환"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "切换默认"
+msgstr "기본값 전환"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "创建临时分支，不会出现在左侧列表"
-msgstr ""
+msgstr "사이드바에 표시되지 않는 임시 브랜치를 만듭니다"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "初始任务描述（可选）"
+msgstr "초기 작업 설명(선택)"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "初始化 Git 仓库"
-msgstr ""
+msgstr "Git 리포지토리 초기화"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "删除"
+msgstr "삭제"
+
+#. placeholder {0}: account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "删除失效的 {0} 缓存"
+msgstr "만료된 {0} 캐시 삭제"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "删除渠道"
+msgstr "채널 삭제"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "删除渠道 {0}"
+msgstr "채널 {0} 삭제"
+
+#. placeholder {0}: confirmRemoveChannel?.label ?? ""
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "删除渠道「{0}」将同时移除其账号凭证与该渠道下已添加的自定义模型，此操作无法撤销。"
+msgstr "채널「{0}」을 삭제하면 해당 계정 자격 증명과 이 채널에 추가된 사용자 지정 모델도 함께 제거됩니다. 이 작업은 되돌릴 수 없습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "删除该渠道账号及其凭证，并移除该渠道下已添加的自定义模型"
+msgstr "이 채널의 계정 및 자격 증명을 삭제하고, 추가된 사용자 지정 모델도 모두 제거"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "删除配方"
+msgstr "레시피 삭제"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "别名（可选）"
+msgstr "별칭(선택 사항)"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "刷新状态"
-msgstr ""
+msgstr "상태 새로 고침"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "刷新账号配额"
+msgstr "계정 할당량 새로고침"
+
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+msgid "前往 Harness/CLI 面板"
+msgstr "Harness/CLI 패널로 이동"
+
+#: src/renderer/components/crafting/workbench/ModelsInventory.tsx
+msgid "前往管理模型"
+msgstr "모델 관리로 이동"
+
+#: src/renderer/components/crafting/workbench/RecipeLoadConfirmDialog.tsx
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "加载"
+msgstr "불러오기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "加载中…"
+msgstr "불러오는 중…"
+
+#: src/renderer/components/crafting/workbench/RecipeLoadConfirmDialog.tsx
+msgid "加载该配方将替换当前合成内容"
+msgstr "이 레시피를 불러오면 현재 합성 내용이 대체됩니다"
+
+#: src/renderer/components/crafting/workbench/RecipeLoadConfirmDialog.tsx
+msgid "加载配方"
+msgstr "레시피 불러오기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "勾选的模型会显示在首页模型选择器"
+msgstr "선택한 모델이 홈 모델 선택기에 표시됩니다"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "包含未暂存的更改"
-msgstr ""
+msgstr "스테이지되지 않은 변경 사항 포함"
 
+#. placeholder {0}: props.item.metadata.vendor
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "厂商：{0}"
+msgstr "제조사: {0}"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "原料"
+msgstr "재료"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "原料 → Recipe → 产物 Item → Entity"
+msgstr "재료 → Recipe → 결과물 Item → Entity"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "原料栏"
+msgstr "재료 레일"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "原料清单"
+msgstr "재료 목록"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "原生"
-msgstr ""
+msgstr "네이티브"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "原生兼容"
+msgstr "네이티브 호환"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "原生可合成"
+msgstr "네이티브 조합 가능"
+
+#: src/renderer/uiPreview.tsx
+msgid "发送消息…"
+msgstr "메시지 보내는 중…"
+
+#: src/renderer/components/crafting/workbench/RecipeLoadConfirmDialog.tsx
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "取消"
+msgstr "취소"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "取消 {0} 渠道全部模型"
+msgstr "채널 {0}의 모든 모델 선택 해제"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "取消全部渠道模型"
+msgstr "모든 채널 모델 선택 해제"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "取消配方"
-#~ msgstr ""
+#~ msgstr "레시피 취소"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
+msgid "另有 {overflowCount} 个已授权模型"
+msgstr "추가로 승인된 모델 {overflowCount}개"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "只生成计划，不执行写入或命令"
+msgstr "계획만 생성하고 쓰기나 명령은 실행하지 않음"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "可合成"
+msgstr "조합 가능"
+
+#: src/renderer/uiPreview.tsx
+msgid "可用更新"
+msgstr "사용 가능한 업데이트"
+
+#. placeholder {0}: version ? ` v${version}` : ""
+#: src/renderer/views/SettingsOverlay/parts/SettingsTitlebar.tsx
+msgid "可用更新{0}"
+msgstr "사용 가능한 업데이트{0}"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "合成"
+msgstr "조합"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "合成台"
+msgstr "조합대"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "合成台与配方"
-msgstr ""
+msgstr "크래프팅 및 레시피"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "合成并启动 Agent"
+msgstr "Agent 조합 및 시작"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "合成结果"
+msgstr "조합 결과"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "合成结果详情"
+msgstr "조합 결과 상세"
+
+#: src/renderer/actions/sessionHandoffActions.ts
+msgid "同一线程跨模型切换可能导致一定程度的性能下降"
+msgstr "같은 스레드에서 모델 전환 시 어느 정도 성능 저하가 발생할 수 있습니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "启用账号"
+msgstr "계정 활성화"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "周"
+msgstr "주"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "周/月"
+msgstr "주/월"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "周/月限额"
+msgstr "주/월 한도"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "周已用"
+msgstr "주간 사용됨"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "图片"
+msgstr "이미지"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "在 Git 面板中打开"
-msgstr ""
+msgstr "Git 패널에서 열기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "在 OpenCode TUI 内选择模型（/models）；退出后 CraftStation 自动获取模型目录"
+msgstr "OpenCode TUI 내에서 모델 선택(/models). 종료 후 CraftStation이 모델 카탈로그를 자동으로 가져옵니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "在 OpenCode 中选择模型"
+msgstr "OpenCode에서 모델 선택"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "在你自己的浏览器中登录后，从开发者工具（F12 → 应用/网络）复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面："
+msgstr "자신의 브라우저에서 로그인한 후 개발자 도구(F12 → 애플리케이션/네트워크)에서 세션 쿠키(전체 Cookie 요청 헤더 또는 세션 쿠키의 name=value)를 복사해 아래에 붙여넣으세요:"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "在聊天中使用"
+msgstr "채팅에서 사용"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "在聊天中使用该配方"
+msgstr "이 레시피를 채팅에서 사용"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "填写 AK/SK 时必须同时填写 Ark API Key；该 Key 用于调用模型。"
+msgstr "AK/SK를 입력할 때는 Ark API Key도 함께 입력해야 합니다. 이 키는 모델 호출에 사용됩니다."
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "处理中…"
-msgstr ""
+msgstr "처리 중…"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "失败，耗时 {elapsed}"
+msgstr "실패, 소요 시간 {elapsed}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "套餐未知"
+msgstr "요금제 알 수 없음"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "如 high"
+msgstr "예: high"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "子Agent调度策略"
+msgstr "하위 에이전트 스케줄링 정책"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "安装 CLIProxyAPI"
+msgstr "CLIProxyAPI 설치"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "安装中…"
+msgstr "설치 중…"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "安装并合成"
+msgstr "설치 및 조합"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "完全访问权限"
+msgstr "전체 접근 권한"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "完成时间"
+msgstr "완료 시간"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "实验线程不支持侧边分支。"
-msgstr ""
+msgstr "실험 스레드는 사이드 브랜치를 지원하지 않습니다."
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "实验线程不支持在 Side Chat 中打开。"
-msgstr ""
+msgstr "실험 스레드는 Side Chat에서 열 수 없습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "导入"
+msgstr "가져오기"
+
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "导入未通过"
+msgstr "가져오기 실패"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "导入本机 Codex 登录"
+msgstr "로컬 Codex 로그인 가져오기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "导入本机登录"
+msgstr "로컬 로그인 가져오기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "将该账号设为本机 agy 登录（会替换本机当前登录）"
+msgstr "이 계정을 로컬 agy 로그인으로 설정(현재 로컬 로그인을 대체합니다)"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "尚未放入模型与 Harness"
+msgstr "아직 모델과 Harness를 넣지 않았습니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "尚未添加 {badgeLabel} 账号"
+msgstr "아직 {badgeLabel} 계정을 추가하지 않았습니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "尚未绑定账号"
+msgstr "아직 바인딩된 계정이 없습니다"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "就绪"
+msgstr "준비됨"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "展开 Git 面板"
-msgstr ""
+msgstr "Git 패널 펼치기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "展示名称（可选）"
+msgstr "표시 이름(선택)"
+
+#: src/renderer/uiPreview.tsx
+msgid "工作"
+msgstr "작업"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #~ msgid "工作中"
-#~ msgstr ""
+#~ msgstr "작업 중"
 
 #: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "工作区干净"
-msgstr ""
+msgstr "작업 트리가 깨끗합니다"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "工具调用"
+msgstr "도구 호출"
+
+#. placeholder {0}: record.supportsToolCalling === false ? i18n._(linguiMsg`关闭`) : i18n._(linguiMsg`开启`)
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "工具调用 {0}"
+msgstr "도구 호출 {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已从上游获取 {channelName} 模型列表，暂无可用模型"
+msgstr "{channelName}의 모델 목록을 가져왔지만 현재 사용 가능한 모델이 없습니다"
+
+#. placeholder {0}: delta.length > 0 ? `（${delta.length} 个新模型已加入首页）` : ""
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已从上游获取 {channelName} 的 {modelCount} 个可用模型{0}"
+msgstr "상류에서 {channelName}의 사용 가능한 모델 {modelCount}개를 가져왔습니다{0}"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "已从当前线程创建临时分支（不会出现在左侧列表）。"
-msgstr ""
+msgstr "이 스레드에서 임시 브랜치를 만들었습니다(사이드바에 표시되지 않습니다)."
 
 #: src/renderer/actions/forkThreadActions.ts
 msgid "已从该轮分叉为新对话"
-msgstr ""
+msgstr "해당 턴에서 새 대화로 포크했습니다"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "已保存为正式线程。"
-msgstr ""
+msgstr "정식 스레드로 저장했습니다."
+
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "已切换到{toAccount}继续作答"
+msgstr "{toAccount}(으)로 전환하여 계속 답변"
+
+#. placeholder {0}: targetConfig.model
+#: src/renderer/actions/sessionHandoffActions.ts
+msgid "已切换至 {0}"
+msgstr "{0}(으)로 전환했습니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已创建账号，但本机 ~/.codex/auth.json 无法解析"
+msgstr "계정을 생성했지만 로컬 ~/.codex/auth.json을 파싱할 수 없습니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已在你的默认浏览器打开登录页。登录完成后，从浏览器开发者工具（F12 → 应用/网络） 复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面："
+msgstr "기본 브라우저에서 로그인 페이지를 열었습니다. 로그인 완료 후 개발자 도구(F12 → 애플리케이션/네트워크)에서 세션 쿠키(전체 Cookie 요청 헤더 또는 세션 쿠키의 name=value)를 복사해 아래에 붙여넣으세요:"
+
+#: src/renderer/components/providers/useUsageProviderLogin.ts
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已在默认浏览器打开登录页面。登录完成后请返回粘贴 Cookie。"
+msgstr "기본 브라우저에서 로그인 페이지를 열었습니다. 로그인 완료 후 돌아와 쿠키를 붙여넣으세요."
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "已复制"
+msgstr "복사됨"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "已安装 · 未运行"
+msgstr "설치됨 · 실행 안 됨"
+
+#: src/renderer/components/common/ProviderModelMenu/ProviderModelMenu.tsx
+msgid "已安装但尚未登录/配置，登录后即可正常使用"
+msgstr "설치되었지만 아직 로그인/구성되지 않았습니다. 로그인 후 정상 사용 가능합니다"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "已完成 {elapsed}"
+msgstr "{elapsed} 만에 완료"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已导入本机 Codex / ChatGPT 登录"
+msgstr "로컬 Codex / ChatGPT 로그인을 가져왔습니다"
+
+#. placeholder {0}: result.email ?? account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已将 {0} 设为本机 agy 登录（本机原登录已被替换）。"
+msgstr "{0}을(를) 로컬 agy 로그인으로 설정했습니다(기존 로컬 로그인이 대체되었습니다)."
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "已工作"
+msgstr "작업함"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "已暂停，耗时 {elapsed}"
+msgstr "일시 중지됨, 소요 시간 {elapsed}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已暂停跟踪，点击恢复"
+msgstr "추적 일시 중지됨, 클릭하여 재개"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "已有 {duplicateCount} 个使用相同组件的配方"
+msgstr "동일한 구성 요소를 사용하는 레시피가 이미 {duplicateCount}개 있습니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已用 API Key 添加 Kimi Code 账号"
+msgstr "API Key로 Kimi Code 계정을 추가했습니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "已用额度 --"
+msgstr "사용된 할당량 --"
+
+#. placeholder {0}: Math.round(usedPercent)
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "已用额度 {0}%"
+msgstr "할당량 {0}% 사용됨"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已登录"
+msgstr "로그인됨"
+
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "已自动添加火山方舟模型渠道，可在「管理模型」中获取并勾选模型。"
+msgstr "화산방주(Volcengine Ark) 모델 채널이 자동 추가되었습니다. 「모델 관리」에서 모델을 가져와 선택할 수 있습니다."
+
+#. placeholder {0}: roster.length
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已选模型名单 · {0} 个"
+msgstr "선택된 모델 명단 · {0}개"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已验证 · Chat Completions，已加入首页。"
+msgstr "검증됨 · Chat Completions. 홈에 추가되었습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已验证 · Responses API，已加入首页。"
+msgstr "검증됨 · Responses API. 홈에 추가되었습니다."
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "平均缓存命中率"
+msgstr "평균 캐시 적중률"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "应用"
+msgstr "적용"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "开启"
+msgstr "켜기"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "开始时间"
+msgstr "시작 시간"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "异常"
+msgstr "비정상"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "当前不可运行"
+msgstr "현재 실행 불가"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "当前会话 Token"
+msgstr "현재 세션 토큰"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "当前会话占用"
+msgstr "현재 세션 사용량"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "当前没有可分支的正式会话。"
-msgstr ""
+msgstr "브랜치할 수 있는 정식 대화가 없습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "当前版本不支持删除渠道账号。"
+msgstr "현재 버전에서는 채널 계정 삭제를 지원하지 않습니다."
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "当前线程还没有可分支的上下文。"
-msgstr ""
+msgstr "이 스레드에는 아직 브랜치할 컨텍스트가 없습니다."
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "当前账号"
+msgstr "현재 계정"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "当前账号额度"
+msgstr "현재 계정 할당량"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "待放入材料"
+msgstr "재료 대기 중"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "循环轮换"
+msgstr "순환 교체"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "快速模式"
+msgstr "빠른 모드"
+
+#. placeholder {0}: fastControl.disabledReason
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "快速模式 {0}"
+msgstr "빠른 모드 {0}"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "思考强度"
+msgstr "사고 강도"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "思考强度档位"
+msgstr "사고 강도 단계"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "思考强度档位（逗号分隔，手写）"
+msgstr "사고 강도 단계(쉼표 구분, 직접 입력)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "恢复使用"
+msgstr "사용 재개"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "我的配方"
+msgstr "내 레시피"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "手写档位"
+msgstr "직접 입력 단계"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "手写档位直接透传给模型（如 low / high / xhigh，以各厂商文档为准）。"
+msgstr "직접 입력한 단계는 그대로 모델에 전달됩니다(예: low / high / xhigh, 각 벤더 문서 기준)."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "手动添加模型"
+msgstr "모델 수동 추가"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "打开官方 OpenCode TUI，用它自己的模型选择器选择模型"
+msgstr "공식 OpenCode TUI를 열고 자체 모델 선택기로 모델 선택"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "打开添加模型对话框"
+msgstr "모델 추가 대화상자 열기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "打开添加模型对话框，可设置上下文窗口与输入输出类型"
+msgstr "모델 추가 대화상자를 열어 컨텍스트 윈도우와 입출력 유형을 설정할 수 있습니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "打开设置"
+msgstr "설정 열기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
+msgid "打开设置页面"
+msgstr "설정 페이지 열기"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "执行模式与权限"
+msgstr "실행 모드 및 권한"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "技能"
+msgstr "스킬"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "拉取失败"
+msgstr "가져오기 실패"
+
+#: src/renderer/uiPreview.tsx
+msgid "拉取请求"
+msgstr "풀 리퀘스트"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "拖动调整渠道栏宽度"
+msgstr "드래그하여 채널 바 너비 조정"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "拖拽排序"
+msgstr "드래그하여 정렬"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "按优先级（排前优先）"
+msgstr "우선순위 순(앞쪽 우선)"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "按模型路由"
+msgstr "모델별 라우팅"
+
+#: src/renderer/actions/agentLoginActions.ts
+msgid "授权已完成，但额度刷新失败；稍后可再次刷新。"
+msgstr "인증은 완료되었지만 할당량 새로고침에 실패했습니다. 나중에 다시 새로고침할 수 있습니다."
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "接管"
+msgstr "인계"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "推理"
+msgstr "추론"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "推理强度"
+msgstr "추론 강도"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "推送"
-msgstr ""
+msgstr "푸시"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "推送 {ahead} 个提交"
-msgstr ""
+msgstr "커밋 {ahead}개 푸시"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "推送中…"
-msgstr ""
+msgstr "푸시 중…"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "提交"
-msgstr ""
+msgstr "커밋"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "提交 (Ctrl+Enter)"
-msgstr ""
+msgstr "커밋(Ctrl+Enter)"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "提交信息"
-msgstr ""
+msgstr "커밋 메시지"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "提交并推送"
-msgstr ""
+msgstr "커밋 및 푸시"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "提交或推送"
-msgstr ""
+msgstr "커밋 또는 푸시"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "提供商名称（卡片显示）"
+msgstr "제공업체 이름(카드에 표시)"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "插件清单读取失败，去插件页重试"
+msgstr "플러그인 목록을 읽지 못했습니다. 플러그인 페이지에서 다시 시도하세요"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "搜索 {0} 渠道模型"
+msgstr "{0} 채널 모델 검색"
 
 #: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "搜索分支"
-msgstr ""
+msgstr "브랜치 검색"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "搜索模型 ID 或名称…"
+msgstr "모델 ID 또는 이름 검색…"
+
+#. placeholder {0}: Array.isArray(record.supportedVendors) ? record.supportedVendors.join(", ") : "-"
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "支持厂商 {0}"
+msgstr "지원 벤더 {0}"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "收起 Git 面板"
-msgstr ""
+msgstr "Git 패널 접기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "改用粘贴 Cookie"
+msgstr "쿠키 붙여넣기로 전환"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "敏感操作、写文件与命令需要确认"
+msgstr "민감한 작업, 파일 쓰기 및 명령에는 확인이 필요합니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "文本"
+msgstr "텍스트"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "文本输入恒选"
+msgstr "텍스트 입력은 항상 선택됨"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "新会话按账号池规则调度"
+msgstr "새 세션은 계정 풀 규칙에 따라 스케줄됩니다"
+
+#: src/renderer/uiPreview.tsx
+msgid "新线程"
+msgstr "새 스레드"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "无原生 Harness · 兼容默认"
+msgstr "네이티브 Harness 없음 · 호환 기본값"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法保存 Kimi API Key。"
+msgstr "Kimi API Key를 저장할 수 없습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法保存火山方舟凭据。"
+msgstr "화산방주 자격 증명을 저장할 수 없습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "无法删除渠道。"
+msgstr "채널을 삭제할 수 없습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法删除账号。"
+msgstr "계정을 삭제할 수 없습니다."
+
+#. placeholder {0}: getBasename(ref.path)
+#. placeholder {1}: friendlyError(error)
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
+msgid "无法打开 {0}：{1}"
+msgstr "{0}을(를) 열 수 없습니다: {1}"
+
+#. placeholder {0}: friendlyError(error)
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+msgid "无法打开 {basename}：{0}"
+msgstr "{basename}을(를) 열 수 없습니다: {0}"
+
+#. placeholder {0}: input.label
+#: src/renderer/actions/runCliUpdate.ts
+msgid "无法更新 {0}。"
+msgstr "{0}을(를) 업데이트할 수 없습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "无法精确归因"
+msgstr "정확한 귀속이 불가합니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法读取该提供商配置。"
+msgstr "이 제공업체의 구성을 읽을 수 없습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法选择账号。"
+msgstr "계정을 선택할 수 없습니다."
+
+#: src/renderer/i18n/locales.ts
+#~ msgid "日本語"
+#~ msgstr "일본어"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "暂停使用"
+msgstr "사용 일시 중지"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "暂无可用额度数据，请先登录/授权。"
+msgstr "사용 가능한 할당량 데이터가 없습니다. 먼저 로그인/인증하세요."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "暂无可用额度数据。"
+msgstr "사용 가능한 할당량 데이터가 없습니다."
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "暂无已安装插件 Skills"
+msgstr "설치된 플러그인 Skill이 아직 없습니다"
 
 #: src/renderer/components/common/ProviderModelMenu/parts/buildItems.ts
 msgid "暂无已配置渠道 — 去「渠道与额度」登录后即可使用"
-msgstr ""
+msgstr "구성된 채널이 없습니다. 「채널 및 할당량」에서 로그인하면 사용할 수 있습니다"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "暂无正式线程。"
-msgstr ""
+msgstr "정식 스레드가 아직 없습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "暂无精确 Token 用量"
+msgstr "정확한 토큰 사용량이 아직 없습니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "暂无精确用量"
+msgstr "정확한 사용량이 아직 없습니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "暂无额度窗口"
+msgstr "할당량 창이 아직 없습니다"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "暂未开放"
+msgstr "아직 미개방"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "更多操作"
-msgstr ""
+msgstr "추가 작업"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "更多组件槽 · 暂未开放"
+msgstr "추가 구성 요소 슬롯 · 아직 미개방"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "更改"
-msgstr ""
+msgstr "변경"
+
+#: src/renderer/uiPreview.tsx
+msgid "更新"
+msgstr "업데이트"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "更新中"
+msgstr "업데이트 중"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "月"
+msgstr "월"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "未关联"
+msgstr "연결 안 됨"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "未安装"
+msgstr "미설치"
 
 #: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "未提交的更改：{changedFiles} 个文件（{stagedCount} staged · {unstagedCount} unstaged）"
-msgstr ""
+msgstr "커밋되지 않은 변경: 파일 {changedFiles}개({stagedCount}개 스테이지됨 · {unstagedCount}개 미스테이지)"
 
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "未提供"
+msgstr "제공되지 않음"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "未知"
+msgstr "알 수 없음"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "未知错误"
+msgstr "알 수 없는 오류"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+#~ msgid "未知错误t"
+#~ msgstr ""
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "未运行"
+msgstr "실행 안 됨"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "未选择 Harness"
+msgstr "Harness가 선택되지 않았습니다"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "未选择模型"
+msgstr "모델이 선택되지 않았습니다"
+
+#: src/renderer/components/common/ProviderModelMenu/ProviderModelMenu.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "未配置"
+msgstr "구성되지 않음"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "未验证"
+msgstr "검증 안 됨"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "未验证：保存前必须先验证 Base URL + Key + Model。"
+msgstr "검증 안 됨: 저장 전에 Base URL + Key + Model을 먼저 검증해야 합니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "未验证（上次已验证 · {lastVerifiedLabel}，修改后需重新验证）。"
+msgstr "검증 안 됨(마지막 검증 · {lastVerifiedLabel}. 수정 후 재검증 필요)."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "本机 Codex"
+msgstr "로컬 Codex"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+#~ msgid "本机 Kimi"
+#~ msgstr "로컬 Kimi"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "本轮 Token"
+msgstr "이번 턴 토큰"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "本轮耗时"
+msgstr "이번 턴 소요 시간"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "查询失败"
+msgstr "조회 실패"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "标准"
+msgstr "표준"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+#: src/renderer/components/crafting/workbench/ModelsInventory.tsx
+msgid "模型"
+msgstr "모델"
+
+#. placeholder {0}: selectedModel.displayName
+#. placeholder {1}: selectedModel.modelId
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "模型 · {0}（{1}）"
+msgstr "모델 · {0}({1})"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "模型 ID"
+msgstr "모델 ID"
+
+#. placeholder {0}: model.modelId
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "模型 ID · {0}"
+msgstr "모델 ID · {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "模型 ID，如 gpt-5.3"
+msgstr "모델 ID, 예: gpt-5.3"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "模型与用量视图"
+msgstr "모델 및 사용량 보기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "模型与管理"
-msgstr ""
+msgstr "모델 및 관리"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "模型与运行参数"
+msgstr "모델 및 실행 파라미터"
+
+#. placeholder {0}: payload.fromModel
+#. placeholder {1}: payload.toModel
+#. placeholder {2}: payload.error ? `：${payload.error}` : ""
+#: src/renderer/components/thread/ChatPane/parts/items/ModelSwitchMarker.tsx
+msgid "模型切换失败 {0} → {1}{2}"
+msgstr "모델 전환 실패 {0} → {1}{2}"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "模型列表"
+msgstr "모델 목록"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "模型名称"
+msgstr "모델 이름"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "模型展示名称"
+msgstr "모델 표시 이름"
+
+#. placeholder {0}: payload.fromModel
+#. placeholder {1}: payload.toModel
+#: src/renderer/components/thread/ChatPane/parts/items/ModelSwitchMarker.tsx
+msgid "模型已切换 {0} → {1}"
+msgstr "모델 전환됨 {0} → {1}"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "模型槽"
+msgstr "모델 슬롯"
+
+#: src/renderer/components/crafting/workbench/ModelsInventory.tsx
+msgid "模型背包"
+msgstr "모델 인벤토리"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "模型验证失败，未加入首页。"
+msgstr "모델 검증 실패로 홈에 추가되지 않았습니다."
+
+#. placeholder {0}: Math.round(percent)
+#: src/renderer/views/SettingsOverlay/parts/SettingsTitlebar.tsx
+msgid "正在下载 {0}%"
+msgstr "다운로드 중 {0}%"
+
+#. placeholder {0}: payload.fromModel
+#. placeholder {1}: payload.toModel
+#: src/renderer/components/thread/ChatPane/parts/items/ModelSwitchMarker.tsx
+msgid "正在交接上下文 {0} → {1}"
+msgstr "컨텍스트 인계 중 {0} → {1}"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "正在初始化…"
-msgstr ""
+msgstr "초기화 중…"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "正在加载 Git 状态…"
-msgstr ""
+msgstr "Git 상태 로드 중…"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "正在右侧查看正式线程，关闭不影响原线程"
-msgstr ""
+msgstr "오른쪽에서 정식 스레드를 보는 중입니다. 닫아도 원본에 영향이 없습니다"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "正在合成 Agent..."
+msgstr "Agent 조합 중..."
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "正在安装…"
+msgstr "설치 중…"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "正在获取模型列表…"
+msgstr "모델 목록 가져오는 중…"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "此配方通过兼容桥运行；启动时会再次检查运行环境与模型可用性。"
+msgstr "이 레시피는 호환 브리지를 통해 실행됩니다. 시작 시 실행 환경과 모델 가용성을 다시 확인합니다."
+
+#. placeholder {0}: modelQuery.trim()
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "没有匹配「{0}」的模型。"
+msgstr "「{0}」과 일치하는 모델이 없습니다."
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "没有可分支的正式会话"
-msgstr ""
+msgstr "브랜치할 수 있는 정식 대화가 없습니다"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "没有可推送的提交"
-msgstr ""
+msgstr "푸시할 커밋이 없습니다"
 
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "没有检测到 Harness"
+msgstr "Harness가 감지되지 않았습니다"
+
+#. placeholder {0}: record.supportsStreaming === false ? i18n._(linguiMsg`关闭`) : i18n._(linguiMsg`开启`)
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "流式输出 {0}"
+msgstr "스트리밍 출력 {0}"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "消息"
+msgstr "메시지"
+
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+#: src/renderer/components/crafting/workbench/ModelsInventory.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加"
+msgstr "추가"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 Antigravity 账号"
+msgstr "Antigravity 계정 추가"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 ChatGPT 账号"
+msgstr "ChatGPT 계정 추가"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 Grok 账号"
+msgstr "Grok 계정 추가"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 Kimi Code 账号"
+msgstr "Kimi Code 계정 추가"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 OpenAI 兼容 API 账号"
+msgstr "OpenAI 호환 API 계정 추가"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 OpenAI 兼容提供商"
+msgstr "OpenAI 호환 제공업체 추가"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加提供商"
+msgstr "제공업체 추가"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "添加模型"
+msgstr "모델 추가"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加账号"
+msgstr "계정 추가"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "清空"
+msgstr "비우기"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "渠道"
+msgstr "채널"
+
+#. placeholder {0}: model.providerLabel
+#. placeholder {1}: model.channelLabel
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "渠道 · {0} / {1}"
+msgstr "채널 · {0} / {1}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "渠道与额度"
-msgstr ""
+msgstr "채널 및 할당량"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "渠道余额"
+msgstr "채널 잔액"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "渠道模型"
+msgstr "채널 모델"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "火山方舟 Volcengine Ark"
+msgstr "화산방주 Volcengine Ark"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "火山方舟凭据已保存。"
+msgstr "화산방주 자격 증명이 저장되었습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "火山额度已登录；如需在「管理模型」中使用火山方舟模型，请再填写 Ark API Key（将自动创建模型渠道）。"
+msgstr "화산 할당량에 로그인되었습니다. 「모델 관리」에서 화산방주 모델을 사용하려면 Ark API Key도 입력하세요(모델 채널이 자동 생성됩니다)."
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "点击下载并安装"
+msgstr "클릭하여 다운로드 및 설치"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "点击查看并修复"
+msgstr "클릭하여 보기 및 수정"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "点击行首勾选可移出首页"
+msgstr "행 앞의 체크박스를 클릭해 홈에서 제거"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "点击装配并 Spawn Agent Entity"
+msgstr "클릭하여 조립하고 Agent Entity 스폰"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "点击配置"
+msgstr "클릭하여 구성"
+
+#. placeholder {0}: props.item.metadata.version
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "版本：{0}"
+msgstr "버전: {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "状态"
+msgstr "상태"
+
+#. placeholder {0}: harness.status
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "状态 · {0}"
+msgstr "상태 · {0}"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "状态：进行中"
-#~ msgstr ""
+#~ msgstr "상태: 진행 중"
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
 #~ msgid "璁″垝杩涘害"
 #~ msgstr ""
 
+#. placeholder {0}: props.providerKind || t`通用`
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "用 {0} 预设"
+msgstr "{0} 프리셋 사용"
+
+#: src/renderer/components/thread/threadComposerSubmit.ts
+#: src/renderer/components/thread/ThreadDraftComposerArea.tsx
+msgid "用法：/goal + Prompt（Prompt 不能为空）"
+msgstr "사용법: /goal + Prompt(Prompt는 비워둘 수 없습니다)"
+
+#: src/renderer/uiPreview.tsx
+msgid "用量"
+msgstr "사용량"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "用量统计"
-msgstr ""
+msgstr "사용량 통계"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "留空则跟随渠道默认；各厂商档位以其文档为准。"
+msgstr "비워 두면 채널 기본값을 따릅니다. 각 벤더의 단계는 해당 문서를 따릅니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "登录/授权"
+msgstr "로그인 / 인증"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "登录中…"
+msgstr "로그인 중…"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "登录完成后，将完整 Cookie 请求头粘贴到这里。"
-msgstr ""
+msgstr "로그인 후 전체 Cookie 요청 헤더를 여기에 붙여넣으세요."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "登录授权"
+msgstr "로그인 인증"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "目标"
-msgstr ""
+msgstr "목표"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "直接从上游获取该渠道当前可用的模型列表"
+msgstr "이 채널에서 현재 사용 가능한 모델 목록을 상류에서 직접 가져오기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "视频"
+msgstr "동영상"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "禁用账号"
+msgstr "계정 비활성화"
+
+#. placeholder {0}: item.displayName
+#. placeholder {0}: item.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "移出 {0}"
+msgstr "{0} 제거"
+
+#. placeholder {0}: model.displayName
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "移除 {0}"
+msgstr "{0} 제거"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "移除账号"
+msgstr "계정 제거"
+
+#. placeholder {0}: props.priorityRank
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "第 {0} 优先"
+msgstr "우선순위 {0}위"
+
+#. placeholder {0}: props.priorityRank
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "第 {0} 优先级：排在前面的账号优先调度，可拖拽调整顺序"
+msgstr "우선순위 {0}위: 앞에 있는 계정이 먼저 스케줄됩니다. 드래그로 순서를 조정하세요"
+
+#: src/renderer/components/thread/ThreadDraftView.tsx
+#: src/renderer/components/thread/useManagedComposerProviders.ts
+msgid "第三方 API"
+msgstr "서드파티 API"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "第三方渠道 · 按模型路由"
+msgstr "서드파티 채널 · 모델별 라우팅"
+
+#: src/renderer/i18n/locales.ts
+#~ msgid "简体中文"
+#~ msgstr "중국어 간체"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "管理"
+msgstr "관리"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "管理模型"
-msgstr ""
+msgstr "모델 관리"
 
-#: src/renderer/components/thread/ThreadStatusCapsule.tsx
-#~ msgid "计划"
-#~ msgstr ""
+#. placeholder {0}: props.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "粘贴 {0} API Key"
+msgstr "{0} API Key 붙여넣기"
+
+#. placeholder {0}: props.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "粘贴 {0} 的 Cookie"
+msgstr "{0}의 쿠키 붙여넣기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "粘贴 Kimi Code API Key"
+msgstr "Kimi Code API Key 붙여넣기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "精确用量暂不可用。"
+msgstr "정확한 사용량을 일시적으로 사용할 수 없습니다."
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "系统工具"
+msgstr "시스템 도구"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "系统提示词"
+msgstr "시스템 프롬프트"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "系统组合名"
+msgstr "시스템 조합 이름"
+
+#: src/renderer/actions/threadActions.ts
+msgid "线程不存在"
+msgstr "스레드가 존재하지 않습니다"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "组件"
+msgstr "구성 요소"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "组件背包"
+msgstr "구성 요소 인벤토리"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "组合无效"
+msgstr "유효하지 않은 조합"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "缓存"
+msgstr "캐시"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "缓存残留：未解析到账号身份"
+msgstr "캐시 잔여: 계정 식별 정보를 해석하지 못했습니다"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "缓存读取"
+msgstr "캐시 읽기"
+
+#. placeholder {0}: account.providerAccountId ?? account.label
+#. placeholder {0}: model.displayName
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "编辑 {0}"
+msgstr "{0} 편집"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "编辑 OpenAI 兼容提供商"
+msgstr "OpenAI 호환 제공업체 편집"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "编辑 Volcengine Ark Token Plan"
+msgstr "Volcengine Ark Token Plan 편집"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "编辑上下文 / 模态 / 思考强度 / 展示名"
+msgstr "컨텍스트 / 모달리티 / 사고 강도 / 표시 이름 편집"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "编辑别名"
+msgstr "별칭 편집"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "编辑模型"
+msgstr "모델 편집"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "编辑阿里 Token Plan"
+msgstr "Ali Token Plan 편집"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "缺少模型或 Harness 组件"
+msgstr "모델 또는 Harness 구성 요소 누락"
+
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "网络/连接中断，{delaySeconds} 秒后自动重试（第 {attempt}/{maxAttempts} 次）"
+msgstr "네트워크/연결 중단, {delaySeconds}초 후 자동 재시도({attempt}/{maxAttempts}번째)"
+
+#: src/renderer/uiPreview.tsx
+msgid "聊天"
+msgstr "채팅"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义"
+msgstr "사용자 지정"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "自定义 API 渠道的模型列表"
+msgstr "사용자 지정 API 채널의 모델 목록"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义，如 200K / 500000，回车应用"
+msgstr "사용자 지정, 예: 200K / 500000, Enter로 적용"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义…"
+msgstr "사용자 지정…"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义上下文窗口大小"
+msgstr "사용자 지정 컨텍스트 윈도우 크기"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义思考强度"
+msgstr "사용자 지정 사고 강도"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "自定义提供商 · 支持添加多个"
+msgstr "사용자 지정 제공업체 · 여러 개 추가 가능"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "自定义模型（已加入首页）"
+msgstr "사용자 지정 모델(홈에 추가됨)"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取 {0} 上游可用模型列表"
+msgstr "{0}의 상류 사용 가능 모델 목록 가져오기"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取 {0} 渠道上游可用模型列表"
+msgstr "채널 {0}의 상류 사용 가능 모델 목록 가져오기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取模型"
+msgstr "모델 가져오기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取模型列表失败"
+msgstr "모델 목록 가져오기 실패"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取模型列表失败，请重试"
+msgstr "모델 목록 가져오기 실패, 다시 시도하세요"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取模型列表超时（30s），请重试。"
+msgstr "모델 목록 가져오기 시간 초과(30s), 다시 시도하세요."
+
+#: src/renderer/uiPreview.tsx
+msgid "计划"
+msgstr "계획"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "计划模式"
+msgstr "계획 모드"
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
 msgid "计划进度"
-msgstr ""
+msgstr "계획 진행률"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "设为本机"
+msgstr "로컬로 설정"
+
+#: src/renderer/uiPreview.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "设置"
+msgstr "설정"
+
+#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+msgid "设置已同步"
+msgstr "설정이 동기화되었습니다"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "该 Provider 跨线程消息"
+msgstr "이 Provider의 스레드 간 메시지"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "该渠道暂无可用模型。点击右上「获取模型」直接从上游拉取，或在下方手动添加模型 ID。"
+msgstr "이 채널에는 아직 사용 가능한 모델이 없습니다. 우측 상단의 「모델 가져오기」로 상류에서 직접 가져오거나, 아래에서 모델 ID를 수동으로 추가하세요."
+
+#: src/renderer/actions/threadLaunchActions.ts
+msgid "该配方当前不可执行"
+msgstr "이 레시피는 현재 실행할 수 없습니다"
+
+#: src/renderer/components/thread/pausedTurn.ts
+msgid "请从刚才被打断的地方继续任务，不要从头开始。"
+msgstr "방금 중단된 지점부터 작업을 이어가세요. 처음부터 다시 시작하지 마세요."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "请先添加一个项目，再打开 OpenCode 模型选择器。"
+msgstr "먼저 프로젝트를 추가한 후 OpenCode 모델 선택기를 여세요."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "请先验证通过（Base URL + API Key + Model），验证通过后才能保存。"
+msgstr "먼저 검증(Base URL + API Key + Model)을 통과하세요. 검증 후에만 저장할 수 있습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "请填写 Model Name，验证通过后才能添加。"
+msgstr "Model Name을 입력하세요. 검증 후에만 추가할 수 있습니다."
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "请填写提交信息"
-msgstr ""
+msgstr "커밋 메시지를 입력하세요"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "请安装/配置所选 Harness，或更换可用的模型/Harness 组合"
+msgstr "선택한 Harness를 설치/구성하거나 사용 가능한 모델/Harness 조합으로 변경하세요"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "请求批准"
+msgstr "승인 요청"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "读取插件清单中…"
+msgstr "플러그인 목록 읽는 중…"
+
+#. placeholder {0}: model.accountId
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "账号 · {0}"
+msgstr "계정 · {0}"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "账号余额"
+msgstr "계정 잔액"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "账号名称"
+msgstr "계정 이름"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "账号已禁用。"
+msgstr "계정이 비활성화되었습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "账号授权已过期，需要重新授权。"
+msgstr "계정 인증이 만료되었습니다. 재인증이 필요합니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "账号身份未知"
+msgstr "계정 식별 불명"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "账号身份未知（已失效）"
+msgstr "계정 식별 불명(만료됨)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "跟随渠道默认"
+msgstr "채널 기본값 따르기"
+
+#: src/renderer/components/thread/threadCollaborationUi.tsx
+msgid "跨线程对话"
+msgstr "스레드 간 대화"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "输入"
+msgstr "입력"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "输入类型"
+msgstr "입력 유형"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "输出"
+msgstr "출력"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "输出类型"
+msgstr "출력 유형"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "输出速度"
+msgstr "출력 속도"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "运行中"
+msgstr "실행 중"
+
+#. placeholder {0}: bridge.endpoint ?? ""
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "运行中 {0}"
+msgstr "실행 중 {0}"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "还没有保存的配方"
+msgstr "저장된 레시피가 아직 없습니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "还没有保存的配方。去「合成台 / Harness」合成并保存后，可在这里勾选进首页模型选择器。"
+msgstr "아직 저장된 레시피가 없습니다. 「조합대 / Harness」에서 조합하고 저장하면 여기서 홈 모델 선택기에 추가할 수 있습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "还没有可用渠道。请先在「渠道与额度」页添加并登录渠道账号。"
+msgstr "아직 사용 가능한 채널이 없습니다. 먼저 「채널 및 할당량」 페이지에서 채널 계정을 추가하고 로그인하세요."
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "还没有在「管理模型」中选定任何模型"
+msgstr "아직 「모델 관리」에서 선택한 모델이 없습니다"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "还没有已选模型。在中间列勾选渠道模型即可加入首页选择器。"
+msgstr "아직 선택된 모델이 없습니다. 가운데 열에서 채널 모델을 체크하면 홈 선택기에 추가됩니다."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "进程"
@@ -14454,16 +16518,161 @@ msgstr "단계"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "远程线程不支持侧边分支。"
-msgstr ""
+msgstr "원격 스레드는 사이드 브랜치를 지원하지 않습니다."
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "远程线程不支持在 Side Chat 中打开。"
-msgstr ""
+msgstr "원격 스레드는 Side Chat에서 열 수 없습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "连接 {label} 显示额度"
+msgstr "{label}에 연결해 할당량 표시"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "连接会话显示额度"
+msgstr "세션에 연결해 할당량 표시"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "连接额度"
+msgstr "할당량 연결"
+
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "选择一件物品查看详情"
+msgstr "항목을 선택해 상세 보기"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "选择已有线程（右侧并行打开，原线程不受影响）"
-msgstr ""
+msgstr "기존 스레드를 선택하세요(오른쪽에 나란히 열리며 원본에는 영향이 없습니다)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "通用"
+msgstr "일반"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "配方"
+msgstr "레시피"
+
+#. placeholder {0}: recipes.length
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "配方 · {0}"
+msgstr "레시피 · {0}"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "配方列表"
+msgstr "레시피 목록"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "配方别名"
+msgstr "레시피 별칭"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "重命名账号"
+msgstr "계정 이름 변경"
 
 #: src/renderer/components/common/ZoomIndicator.tsx
 msgid "重置"
-msgstr ""
+msgstr "재설정"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "重置卡 {resetCreditCount} 张未使用。额度要等核销后才会下降。"
+msgstr "미사용 리셋 카드 {resetCreditCount}장. 할당량은 소진 확인 후에만 감소합니다."
+
+#: src/renderer/actions/installNativeAgent.ts
+msgid "重试"
+msgstr "다시 시도"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "错误原因"
+msgstr "오류 원인"
+
+#: src/renderer/uiPreview.tsx
+msgid "隐藏侧边栏"
+msgstr "사이드바 숨기기"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "随机"
+msgstr "랜덤"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "预留"
+msgstr "예약됨"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "额度"
+msgstr "할당량"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "额度低"
+msgstr "할당량 부족"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "额度充足"
+msgstr "할당량 충분"
+
+#. placeholder {0}: error instanceof Error ? error.message : i18n._(linguiMsg`导入未通过`)
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "额度已登录；火山方舟模型渠道导入失败（{0}），可在「OpenAI 兼容 API」手动添加。"
+msgstr "할당량 로그인됨. 화산방주 모델 채널 가져오기 실패({0}). 「OpenAI 호환 API」에서 수동으로 추가할 수 있습니다."
+
+#. placeholder {0}: error instanceof Error ? error.message : t`未知错误`
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "额度已登录；火山方舟模型渠道自动创建失败（{0}），可在「OpenAI 兼容 API」手动添加。"
+msgstr "할당량 로그인됨. 화산방주 모델 채널 자동 생성 실패({0}). 「OpenAI 호환 API」에서 수동으로 추가할 수 있습니다."
+
+#. placeholder {0}: error instanceof Error ? error.message : i18n._(linguiMsg`验证未通过`)
+#. placeholder {0}: staged.error ?? i18n._(linguiMsg`验证未通过`)
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "额度已登录；自动创建火山方舟模型渠道失败（{0}），可在「OpenAI 兼容 API」手动添加。"
+msgstr "할당량 로그인됨. 화산방주 모델 채널 자동 생성 실패({0}). 「OpenAI 호환 API」에서 수동으로 추가할 수 있습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "额度已耗尽。"
+msgstr "할당량이 소진되었습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "额度暂不可用。"
+msgstr "할당량을 일시적으로 사용할 수 없습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "额度查询失败。"
+msgstr "할당량 조회에 실패했습니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证"
+msgstr "검증"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证 Base URL 与模型"
+msgstr "Base URL 및 모델 검증"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证中…"
+msgstr "검증 중…"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证中…正在做最小真实请求探测。"
+msgstr "검증 중… 최소 실제 요청으로 프로브 중입니다."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证失败，请检查后重试。"
+msgstr "검증 실패, 확인 후 다시 시도하세요."
+
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "验证未通过"
+msgstr "검증 미통과"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证通过后才能保存"
+msgstr "검증 통과 후에만 저장 가능"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "默认"
+msgstr "기본값"
+
+#: src/renderer/components/thread/customModelCatalog.ts
+msgid "默认最高"
+msgstr "기본 최고"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "默认思考强度"
+msgstr "기본 사고 강도"

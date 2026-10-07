@@ -66,10 +66,10 @@ export function ComponentsInventory(props: {
     <section
       className="flex min-h-0 flex-1 flex-col gap-2"
       data-testid="components-inventory"
-      aria-label="组件背包"
+      aria-label={t`组件背包`}
     >
       <header className="flex shrink-0 items-center justify-between px-1">
-        <h3 className="text-xs font-semibold text-neutral-300">组件</h3>
+        <h3 className="text-xs font-semibold text-neutral-300">{t`组件`}</h3>
         <span className="flex items-center gap-1 text-[10px] text-neutral-500">
           {bridgeKnown ? 1 : "–"}
           <button
@@ -102,14 +102,14 @@ export function ComponentsInventory(props: {
           }}
           title={
             bridgeKnown
-              ? `CLIProxyAPI 兼容桥 · ${
+              ? t`CLIProxyAPI 兼容桥 · ${
                   running
-                    ? `运行中 ${bridge.endpoint ?? ""}`
+                    ? t`运行中 ${bridge.endpoint ?? ""}`
                     : installed
-                      ? "已安装 · 未运行"
-                      : "未安装"
+                      ? t`已安装 · 未运行`
+                      : t`未安装`
                 }`
-              : "CLIProxyAPI 兼容桥 · 状态未知"
+              : t`CLIProxyAPI 兼容桥 · 状态未知`
           }
           data-testid="component-cpa"
           className="aspect-square flex flex-col items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/[0.04] p-1 text-center transition-colors hover:bg-white/10"
@@ -124,13 +124,13 @@ export function ComponentsInventory(props: {
             CLIProxyAPI
           </span>
           <span className="w-full truncate text-[8px] leading-tight text-neutral-500">
-            {bridgeKnown ? (running ? "运行中" : installed ? "未运行" : "未安装") : "未知"}
+            {bridgeKnown ? (running ? t`运行中` : installed ? t`未运行` : t`未安装`) : t`未知`}
           </span>
         </button>
         <button
           type="button"
           onClick={props.onSelect}
-          title="更多组件槽 · 暂未开放"
+          title={t`更多组件槽 · 暂未开放`}
           className="aspect-square flex items-center justify-center rounded-lg border border-dashed border-white/15 text-neutral-500 transition-colors hover:border-white/30 hover:text-white"
         >
           <Plus className="size-4" />
@@ -165,7 +165,7 @@ export function ComponentsInventory(props: {
             data-testid="bridge-install"
             className="rounded-md border border-sky-400/30 px-2 py-1 text-[10px] text-sky-200 transition-colors hover:bg-sky-400/10 disabled:opacity-40"
           >
-            {busy === "installing" ? "安装中…" : "安装 CLIProxyAPI"}
+            {busy === "installing" ? t`安装中…` : t`安装 CLIProxyAPI`}
           </button>
         )}
       </div>

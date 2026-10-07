@@ -335,9 +335,9 @@ describe("ThreadComposer", () => {
       />,
     );
 
-    expect(screen.getByRole("button", { name: "切换执行模式与权限" })).toHaveTextContent(
-      "请求批准",
-    );
+    expect(
+      screen.getByRole("button", { name: "Switch execution mode and permissions" }),
+    ).toHaveTextContent("Request approval");
     expect(visibleText("5.6 Sol · Medium")).toBeVisible();
     expect(screen.queryByText("Chat")).not.toBeInTheDocument();
     expect(screen.queryByText("CLI")).not.toBeInTheDocument();
@@ -419,7 +419,7 @@ describe("ThreadComposer", () => {
 
     const toolbar = composerToolbar(container);
     const add = screen.getByRole("button", { name: "添加数据和文件" });
-    const access = screen.getByRole("button", { name: "切换执行模式与权限" });
+    const access = screen.getByRole("button", { name: "Switch execution mode and permissions" });
     const ring = screen.getByRole("button", { name: "上下文与额度详情" });
     const model = screen.getByRole("button", { name: /5.6 Sol/ });
 
@@ -480,7 +480,7 @@ describe("ThreadComposer", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Current Model/ }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /模型列表/ }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Model list/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Enabled Model/ }));
 
     expect(onModelChange).toHaveBeenCalledWith({
@@ -540,7 +540,7 @@ describe("ThreadComposer", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Current Model/ }));
 
-    expect(screen.queryByRole("menuitem", { name: "重置为默认设置" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Reset to defaults" })).not.toBeInTheDocument();
   });
 
   it("uses the execution-mode dropdown as an action menu", async () => {
@@ -575,8 +575,8 @@ describe("ThreadComposer", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "切换执行模式与权限" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /完全访问权限/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Switch execution mode and permissions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Full access/ }));
 
     expect(onModeChange).toHaveBeenCalledWith(false);
     expect(onPermissionChange).toHaveBeenCalledWith(true);
@@ -617,8 +617,8 @@ describe("ThreadComposer", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "切换执行模式与权限" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /完全访问权限/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Switch execution mode and permissions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Full access/ }));
 
     expect(onModeChange).toHaveBeenCalledWith(false);
     expect(onPermissionChange).toHaveBeenCalledWith("yolo");
@@ -658,8 +658,8 @@ describe("ThreadComposer", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "切换执行模式与权限" }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /请求批准/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Switch execution mode and permissions" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: /Request approval/ }));
 
     expect(onPermissionChange).toHaveBeenCalledWith("default");
   });
@@ -689,9 +689,9 @@ describe("ThreadComposer", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "切换执行模式与权限" }));
-    expect(await screen.findByRole("menuitem", { name: /请求批准/ })).toBeInTheDocument();
-    expect(screen.queryByRole("menuitem", { name: /计划模式/ })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Switch execution mode and permissions" }));
+    expect(await screen.findByRole("menuitem", { name: /Request approval/ })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: /Plan mode/ })).not.toBeInTheDocument();
   });
 
   it("shows an attachment drop target for supported files", () => {

@@ -10,7 +10,36 @@ import { useSideChatStore } from "@/renderer/state/sideChatStore";
 import { deleteThreadOnly, openThread } from "./threadActions";
 
 /** Title suffix marking a memory-only Side Chat branch (stripped on save). */
-export const SIDE_CHAT_BRANCH_TITLE_SUFFIX = "（临时分支）";
+export function sideChatBranchTitleSuffix(): string {
+  return i18n._(linguiMsg`（临时分支）`);
+}
+
+/**
+ * Every translated form the suffix can take. Titles are persisted, so a branch
+ * created under one UI language must still strip correctly after the user
+ * switches languages (and for legacy Chinese-only titles).
+ */
+const SIDE_CHAT_BRANCH_TITLE_SUFFIXES = [
+  "（临时分支）",
+  "(temporary branch)",
+  "(temporärer Branch)",
+  "（一時ブランチ）",
+  "(임시 브랜치)",
+  "(branche temporaire)",
+  "(rama temporal)",
+  "(branch temporário)",
+  "(временная ветка)",
+  "(тимчасова гілка)",
+  "(nhánh tạm)",
+  "(geçici dal)",
+  "(gałąź tymczasowa)",
+];
+
+function stripSideChatBranchSuffix(title: string): string | undefined {
+  const suffix = SIDE_CHAT_BRANCH_TITLE_SUFFIXES.find((candidate) => title.endsWith(candidate));
+  if (suffix === undefined) return undefined;
+  return title.slice(0, -suffix.length).trim() || title;
+}
 
 /**
  * Drop flags that are only valid in the originating live session: a replayed
@@ -131,7 +160,7 @@ export function openSideChatBranch(sourceThreadId: string): boolean {
     ...(source.agentInstanceId ? { agentInstanceId: source.agentInstanceId } : {}),
     config: { ...source.config },
     prompt: promptText,
-    title: `${baseTitle}${SIDE_CHAT_BRANCH_TITLE_SUFFIX}`,
+    title: `${baseTitle}${sideChatBranchTitleSuffix()}`,
     ...(source.worktreePath ? { worktreePath: source.worktreePath } : {}),
     ...(source.worktreeBranch ? { worktreeBranch: source.worktreeBranch } : {}),
     ...(source.compositionProvenance
@@ -208,9 +237,7 @@ export function saveSideChatAsFormal(): boolean {
     : undefined;
   const groupId = parent?.groupId ?? crypto.randomUUID();
   const groupName = parent ? (parent.groupName ?? parent.title) : thread.title;
-  const title = thread.title.endsWith(SIDE_CHAT_BRANCH_TITLE_SUFFIX)
-    ? thread.title.slice(0, -SIDE_CHAT_BRANCH_TITLE_SUFFIX.length).trim() || thread.title
-    : thread.title;
+  const title = stripSideChatBranchSuffix(thread.title) ?? thread.title;
   useAppStore.setState((state) => ({
     threads: state.threads.map((candidate) => {
       if (candidate.id === parent?.id && !parent.groupId) {

@@ -9,6 +9,8 @@ import {
   isRetiredHarnessKind,
   NATIVE_HARNESS_AGENT_KINDS,
 } from "@/renderer/crafting/harnessInventory";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 // Inflight dedup across mounts: re-opening a page while a scoped probe is
 // still running reuses that probe instead of stacking another full
@@ -57,11 +59,13 @@ export function useNativeHarnessControlPlane() {
             });
             if (response.degraded) {
               console.warn("[crafting] agent status refresh degraded", response.degraded);
-              toast.warning("Agent 状态刷新超时，已保留上次结果。请稍后重试。");
+              toast.warning(i18n._(linguiMsg`Agent 状态刷新超时，已保留上次结果。请稍后重试。`));
             }
           } catch (error) {
             console.warn("[crafting] failed to refresh agent statuses", error);
-            toast.warning(`Agent 状态刷新失败，已保留上次结果：${friendlyError(error)}`);
+            toast.warning(
+              i18n._(linguiMsg`Agent 状态刷新失败，已保留上次结果：${friendlyError(error)}`),
+            );
           } finally {
             refreshHarnessInflight = undefined;
           }

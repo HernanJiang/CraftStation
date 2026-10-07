@@ -2,6 +2,8 @@ import { toast } from "@heroui/react";
 import { readBridge } from "@/renderer/bridge";
 import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
 import { useUsageLoginStateStore } from "@/renderer/state/usageLoginStateStore";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 /**
  * Volcengine Ark's OpenAI-compatible coding endpoint — the same surface the
@@ -46,13 +48,17 @@ export async function autoProvisionVolcengineArkChannel(input: {
     });
   } catch (error) {
     toast.warning(
-      `额度已登录；自动创建火山方舟模型渠道失败（${error instanceof Error ? error.message : "验证未通过"}），可在「OpenAI 兼容 API」手动添加。`,
+      i18n._(
+        linguiMsg`额度已登录；自动创建火山方舟模型渠道失败（${error instanceof Error ? error.message : i18n._(linguiMsg`验证未通过`)}），可在「OpenAI 兼容 API」手动添加。`,
+      ),
     );
     return;
   }
   if (!staged.ok) {
     toast.warning(
-      `额度已登录；自动创建火山方舟模型渠道失败（${staged.error ?? "验证未通过"}），可在「OpenAI 兼容 API」手动添加。`,
+      i18n._(
+        linguiMsg`额度已登录；自动创建火山方舟模型渠道失败（${staged.error ?? i18n._(linguiMsg`验证未通过`)}），可在「OpenAI 兼容 API」手动添加。`,
+      ),
     );
     return;
   }
@@ -62,12 +68,14 @@ export async function autoProvisionVolcengineArkChannel(input: {
     // 导入阶段失败最容易被误读为“显示成功但没有新渠道”：必须给出明确提示，
     // 不能静默吞掉。
     toast.warning(
-      `额度已登录；火山方舟模型渠道导入失败（${error instanceof Error ? error.message : "导入未通过"}），可在「OpenAI 兼容 API」手动添加。`,
+      i18n._(
+        linguiMsg`额度已登录；火山方舟模型渠道导入失败（${error instanceof Error ? error.message : i18n._(linguiMsg`导入未通过`)}），可在「OpenAI 兼容 API」手动添加。`,
+      ),
     );
     return;
   }
   const refreshed = await bridge.listAccounts({});
   useUsageAccountsStore.getState().setAccounts(refreshed);
   useUsageLoginStateStore.getState().setStored("openai-compatible", true);
-  toast.success("已自动添加火山方舟模型渠道，可在「管理模型」中获取并勾选模型。");
+  toast.success(i18n._(linguiMsg`已自动添加火山方舟模型渠道，可在「管理模型」中获取并勾选模型。`));
 }

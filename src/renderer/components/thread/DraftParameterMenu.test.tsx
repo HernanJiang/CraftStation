@@ -128,14 +128,14 @@ describe("DraftParameterMenu", () => {
     render(<DraftParameterMenu controls={makeControls()} />);
 
     fireEvent.click(screen.getByRole("button", { name: /ChatGPT-5.6-Sol/ }));
-    const modelRow = screen.getByRole("menuitem", { name: /模型列表/ });
+    const modelRow = screen.getByRole("menuitem", { name: /Model list/ });
 
     fireEvent.pointerEnter(modelRow);
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
 
-    expect(document.querySelector('[role="menu"][aria-label="模型列表"]')).toBeInTheDocument();
+    expect(document.querySelector('[role="menu"][aria-label="Model list"]')).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /ChatGPT-5.6-Luna/ })).toBeInTheDocument();
     expect(document.querySelector(".craftstation-composer-menu-surface")).toBeInTheDocument();
   });
@@ -163,7 +163,7 @@ describe("DraftParameterMenu", () => {
     render(<DraftParameterMenu controls={[control]} />);
 
     fireEvent.click(screen.getByRole("button", { name: /glm-5.3-flash-C/ }));
-    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /模型列表/ }));
+    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /Model list/ }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -275,7 +275,7 @@ describe("DraftParameterMenu", () => {
     render(<DraftParameterMenu controls={[control]} />);
 
     fireEvent.click(screen.getByRole("button", { name: /GLM 5.3 Flash/ }));
-    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /模型列表/ }));
+    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /Model list/ }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -306,7 +306,7 @@ describe("DraftParameterMenu", () => {
     render(<DraftParameterMenu controls={[control]} />);
 
     fireEvent.click(screen.getByRole("button", { name: /GLM 5.3 Flash/ }));
-    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /模型列表/ }));
+    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /Model list/ }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -337,7 +337,7 @@ describe("DraftParameterMenu", () => {
     render(<DraftParameterMenu controls={[control]} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Gemini 3.1 Flash Lite/ }));
-    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /模型列表/ }));
+    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /Model list/ }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -424,7 +424,7 @@ describe("DraftParameterMenu", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /DeepSeek V4.1 Flash/ }));
-    const modelRow = screen.getByRole("menuitem", { name: /模型列表/ });
+    const modelRow = screen.getByRole("menuitem", { name: /Model list/ });
     expect(modelRow).toHaveTextContent("DeepSeek V4.1 Flash");
     expect(modelRow.querySelector(".truncate")).toBeNull();
 
@@ -433,7 +433,7 @@ describe("DraftParameterMenu", () => {
       await vi.advanceTimersByTimeAsync(0);
     });
     expect(screen.getByRole("menuitem", { name: /DeepSeek V4.1 Pro/ })).toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: /推理强度/ })).toHaveTextContent("Max");
+    expect(screen.getByRole("menuitem", { name: /Reasoning effort/ })).toHaveTextContent("Max");
   });
 
   it("names Command Code as Command Code even when the model is a DeepSeek id", () => {
@@ -547,7 +547,7 @@ describe("DraftParameterMenu", () => {
     };
     render(<DraftParameterMenu controls={[merged]} />);
     fireEvent.click(screen.getByRole("button", { name: /Muse Spark 1.3 Contributor/ }));
-    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /模型列表/ }));
+    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /Model list/ }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -597,7 +597,7 @@ describe("DraftParameterMenu", () => {
     render(<DraftParameterMenu controls={[control]} />);
 
     fireEvent.click(screen.getByRole("button", { name: /Muse Spark 1.3 Contributor/ }));
-    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /模型列表/ }));
+    fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /Model list/ }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
@@ -660,12 +660,12 @@ describe("DraftParameterMenu", () => {
     );
   });
 
-  it("renders the Fast toggle as a 快速模式 switch row that flips on press", () => {
+  it("renders the Fast toggle as a Fast mode switch row that flips on press", () => {
     const fast = makeFastControl();
     render(<DraftParameterMenu controls={[makeModelControl(), fast]} />);
 
     fireEvent.click(screen.getByRole("button", { name: /ChatGPT-5.6-Sol/ }));
-    const row = screen.getByRole("menuitem", { name: "快速模式" });
+    const row = screen.getByRole("menuitem", { name: "Fast mode" });
     fireEvent.click(row);
 
     expect(fast.kind === "toggle" ? fast.onChange : undefined).toHaveBeenCalledWith(true);
@@ -690,7 +690,7 @@ describe("DraftParameterMenu", () => {
     render(<DraftParameterMenu controls={[makeModelControl(), fast]} />);
 
     fireEvent.click(screen.getByRole("button", { name: /ChatGPT-5.6-Sol/ }));
-    const row = screen.getByRole("menuitem", { name: /快速模式/ });
+    const row = screen.getByRole("menuitem", { name: /Fast mode/ });
     expect(row).toHaveAttribute("aria-disabled", "true");
     expect(row).toHaveTextContent("该账号不支持快速模式");
     fireEvent.click(row);
@@ -717,7 +717,7 @@ describe("DraftParameterMenu", () => {
     render(<DraftParameterMenu controls={[makeModelControl(), fast]} />);
 
     fireEvent.click(screen.getByRole("button", { name: /ChatGPT-5.6-Sol/ }));
-    const row = screen.getByRole("menuitem", { name: /快速模式/ });
+    const row = screen.getByRole("menuitem", { name: /Fast mode/ });
     expect(row).toHaveTextContent("Ultrafast");
 
     fireEvent.click(row);
@@ -729,11 +729,11 @@ describe("DraftParameterMenu", () => {
 
     // Picking a tier closes the whole menu; reopen to exercise the off row.
     fireEvent.click(screen.getByRole("button", { name: /ChatGPT-5.6-Sol/ }));
-    fireEvent.click(screen.getByRole("menuitem", { name: /快速模式/ }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Fast mode/ }));
     await act(async () => {
       await vi.advanceTimersByTimeAsync(0);
     });
-    fireEvent.click(screen.getByRole("menuitem", { name: "标准" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Standard" }));
     expect(onSpeedTierChange).toHaveBeenCalledWith(undefined);
   });
 

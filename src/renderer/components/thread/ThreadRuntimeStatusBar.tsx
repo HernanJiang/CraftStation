@@ -8,6 +8,8 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { formatTokenCount } from "./formatTokenCount";
 import { estimateStreamedTokens, formatTokenRate } from "@/shared/tokenSpeed";
 import { resolveThreadContextUsageSummary } from "./threadContextUsage";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 type RuntimeState = "working" | "completed" | "error" | "idle";
 const EMPTY_COMPLETED_TURNS: readonly {
@@ -20,8 +22,8 @@ function formatDuration(seconds: number): string {
   const safe = Math.max(0, Math.floor(seconds));
   const minutes = Math.floor(safe / 60);
   const remainder = safe % 60;
-  if (minutes <= 0) return `${remainder}秒`;
-  return `${minutes}分${remainder}秒`;
+  if (minutes <= 0) return i18n._(linguiMsg`${remainder}秒`);
+  return i18n._(linguiMsg`${minutes}分${remainder}秒`);
 }
 
 function formatClock(value: string | undefined): string {
@@ -208,7 +210,7 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
     >
       <button
         type="button"
-        aria-label={state === "error" ? `${label}，点击复制错误详情` : label}
+        aria-label={state === "error" ? t`${label}，点击复制错误详情` : label}
         className={`inline-flex h-7 items-center gap-1.5 rounded-lg px-2 text-[11px] font-medium ${tone} hover:bg-[var(--row-hover)]`}
         onClick={() => void copyError()}
       >
@@ -225,36 +227,39 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
               data-testid="thread-runtime-status-popover"
             >
               <div className="mb-2 font-semibold text-foreground">{label}</div>
-              <Detail label="开始时间" value={formatClock(startedAt)} />
-              <Detail label={state === "working" ? "已工作" : "本轮耗时"} value={elapsed ?? "--"} />
+              <Detail label={t`开始时间`} value={formatClock(startedAt)} />
               <Detail
-                label="本轮 Token"
-                value={currentTokens === undefined ? "未提供" : formatTokenCount(currentTokens)}
+                label={state === "working" ? t`已工作` : t`本轮耗时`}
+                value={elapsed ?? "--"}
+              />
+              <Detail
+                label={t`本轮 Token`}
+                value={currentTokens === undefined ? t`未提供` : formatTokenCount(currentTokens)}
               />
               {tokensPerSecond !== undefined ? (
                 <Detail
-                  label="输出速度"
-                  value={`${formatTokenRate(tokensPerSecond)}${rateIsEstimated ? "（估算）" : ""}`}
+                  label={t`输出速度`}
+                  value={t`${formatTokenRate(tokensPerSecond)}${rateIsEstimated ? t`（估算）` : ""}`}
                 />
               ) : null}
               {state === "completed" ? (
-                <Detail label="完成时间" value={formatClock(endedAt)} />
+                <Detail label={t`完成时间`} value={formatClock(endedAt)} />
               ) : null}
               {previousTurn ? (
                 <Detail
-                  label="上一轮耗时"
+                  label={t`上一轮耗时`}
                   value={formatDuration((previousTurn.endedAt - previousTurn.startedAt) / 1000)}
                 />
               ) : null}
               {state === "error" && visibleErrorMessage ? (
                 <div className="mt-2 border-t border-white/10 pt-2">
-                  <div className="mb-1 font-semibold text-red-300">错误原因</div>
+                  <div className="mb-1 font-semibold text-red-300">{t`错误原因`}</div>
                   <button
                     type="button"
                     className="w-full break-words text-left text-red-200 hover:text-red-100"
                     onClick={() => void copyError()}
                   >
-                    {copied ? "已复制" : visibleErrorMessage}
+                    {copied ? t`已复制` : visibleErrorMessage}
                   </button>
                 </div>
               ) : null}

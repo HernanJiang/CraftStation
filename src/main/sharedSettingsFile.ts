@@ -15,6 +15,7 @@ import {
   type SharedSettings,
   type SharedSettingsInput,
 } from "@/shared/settings";
+import { repairGbkMojibake } from "@/shared/mojibakeRepair";
 
 function serializeSharedSettings(settings: SharedSettings): string {
   return `${JSON.stringify(settings, null, 2)}\n`;
@@ -26,7 +27,14 @@ export function readSharedSettingsFile(settingsPath: string): SharedSettings {
   }
 
   try {
-    return normalizeSharedSettings(JSON.parse(readFileSync(settingsPath, "utf8")));
+    const settings = normalizeSharedSettings(JSON.parse(readFileSync(settingsPath, "utf8")));
+    // Self-heal a historically corrupted prompt (UTF-8 text stored through a
+    // GBK channel): repaired value flows to the renderer and the next save
+    // persists it, so the corruption does not stick forever.
+    if (settings.customGlobalPrompt) {
+      settings.customGlobalPrompt = repairGbkMojibake(settings.customGlobalPrompt);
+    }
+    return settings;
   } catch (error) {
     console.warn("[settings] failed to read shared settings, using defaults:", error);
     return { ...defaultSharedSettings };

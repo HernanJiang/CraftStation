@@ -6,6 +6,8 @@ import type {
   ThreadExchangeView,
   ThreadRuntimeProvenance,
 } from "@/shared/threadCollaboration";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 export const SETTLED_THREAD_EXCHANGE_STATUSES = new Set<ThreadExchangeStatus>([
   "replied",
@@ -131,7 +133,7 @@ const ID_LIKE_TITLE_RE = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[A-Za-z0-9_-]{4,12}$/u;
 export function displayDialogueTitle(provenance: ThreadRuntimeProvenance): string {
   const title = provenance.title?.trim() ?? "";
   if (title && !ID_LIKE_TITLE_RE.test(title)) return title;
-  return "跨线程对话";
+  return i18n._(linguiMsg`跨线程对话`);
 }
 
 export function compositionLabel(provenance: ThreadRuntimeProvenance): string {

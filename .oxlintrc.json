@@ -80,5 +80,5 @@
       }
     }
   ],
-  "ignorePatterns": ["dist", "node_modules", "/main"]
+  "ignorePatterns": ["dist", "node_modules", "/main", "ai_workspace"]
 }

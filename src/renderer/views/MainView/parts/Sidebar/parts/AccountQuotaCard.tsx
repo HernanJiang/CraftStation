@@ -4,9 +4,12 @@ import { formatMoney } from "@/renderer/components/providers/usageFormat";
 import type { AccountUsageQueryState } from "./AccountUsageGrid";
 import { accountQuotaFailureMessage, hasAccountQuotaValue } from "./AccountUsageGrid";
 import { formatUsedQuota } from "./quotaStatus";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 /** Reset time is only written when the collector actually reported one —
- * unknown values render nothing instead of a "恢复时间未知" placeholder. */
+ * unknown values render nothing instead of a 恢复时间未知 placeholder. */
 function formatResetsAt(value: number | undefined): string | null {
   if (value == null || !Number.isFinite(value) || value <= 0) return null;
   try {
@@ -60,17 +63,17 @@ function deriveWindowLabel(window: QuotaWindowLike): string {
   const label = window.label?.trim();
   if (label) return label;
   const id = window.id.toLowerCase();
-  if (id.includes("5h") || id.includes("session")) return "5h 限额";
-  if (id.includes("week")) return "周/月限额";
+  if (id.includes("5h") || id.includes("session")) return i18n._(linguiMsg`5h 限额`);
+  if (id.includes("week")) return i18n._(linguiMsg`周/月限额`);
   return window.id;
 }
 
 /**
  * Honest quota rows: render the windows the collector actually returned, with
  * their own labels (e.g. Grok "Monthly credits", Antigravity "Gemini · 5h").
- * The legacy forced "5h 限额 / 周/月限额" pair only applies when the windows
+ * The legacy forced 5h 限额 / 周/月限额 pair only applies when the windows
  * really are a 5h+weekly pair — otherwise a Grok credits window rendered as a
- * meaningless "5h -- / 周月 --" pair (user acceptance defect).
+ * meaningless 5h -- / 周月 -- pair (user acceptance defect).
  */
 function quotaRows(windows: readonly QuotaWindowLike[], providerId: string): QuotaWindowLike[] {
   const headline = switcherDisplayWindow(providerId, windows);
@@ -104,11 +107,11 @@ function formatQuotaResetParts(
     if (longText) {
       const lowerId = long.id.toLowerCase();
       const label =
-        lowerId.includes("week") || long.label.includes("周")
-          ? "周"
-          : lowerId.includes("month") || long.label.includes("月")
-            ? "月"
-            : "周/月";
+        lowerId.includes("week") || long.label.includes(i18n._(linguiMsg`周`))
+          ? i18n._(linguiMsg`周`)
+          : lowerId.includes("month") || long.label.includes(i18n._(linguiMsg`月`))
+            ? i18n._(linguiMsg`月`)
+            : i18n._(linguiMsg`周/月`);
       parts.push(label + " " + longText);
     }
   }
@@ -170,6 +173,7 @@ export function AccountQuotaCard(props: {
   queryState?: AccountUsageQueryState | undefined;
   onRedeemResetCredit?: ((account: AccountView) => void) | undefined;
 }) {
+  const { t } = useLingui();
   const { account, queryState } = props;
   const { fast, long } = resolveAccountQuotaWindows(account);
   const hasQuota = hasAccountQuotaValue(account);
@@ -204,9 +208,9 @@ export function AccountQuotaCard(props: {
       const remaining = formatMoney(balanceWindow.remaining, balanceWindow.currency);
       const limit =
         balanceWindow.limit !== undefined
-          ? ` / 共 ${formatMoney(balanceWindow.limit, balanceWindow.currency)}`
+          ? t` / 共 ${formatMoney(balanceWindow.limit, balanceWindow.currency)}`
           : "";
-      metaBits.push(`余额 ${remaining}${limit}`);
+      metaBits.push(t`余额 ${remaining}${limit}`);
     } else if (compatRows.length > 0) {
       const resetParts = formatWindowResetParts(compatRows);
       if (resetParts) metaBits.push(resetParts);
@@ -257,13 +261,13 @@ export function AccountQuotaCard(props: {
         ))
       ) : (
         <p className="text-[10px] leading-4 text-neutral-500">
-          {failureText ?? "暂无可用额度数据。"}
+          {failureText ?? t`暂无可用额度数据。`}
         </p>
       )}
       {resetCreditCount > 0 ? (
         <div className="flex items-center justify-between gap-2">
           <p className="text-[10px] leading-4 text-neutral-500">
-            重置卡 {resetCreditCount} 张未使用。额度要等核销后才会下降。
+            {t`重置卡 ${resetCreditCount} 张未使用。额度要等核销后才会下降。`}
           </p>
           {props.onRedeemResetCredit ? (
             <button
@@ -274,7 +278,7 @@ export function AccountQuotaCard(props: {
                 props.onRedeemResetCredit?.(account);
               }}
             >
-              使用重置卡
+              {t`使用重置卡`}
             </button>
           ) : null}
         </div>
@@ -317,6 +321,7 @@ export function ProviderQuotaCard(props: {
    */
   onPasteCookie?: () => void;
 }) {
+  const { t } = useLingui();
   const { snapshot } = props;
   if (props.providerId === "volcengine" && snapshot.windows.length > 0) {
     return (
@@ -344,9 +349,9 @@ export function ProviderQuotaCard(props: {
   const failureText =
     snapshot.error ??
     (snapshot.status === "ok" && !hasQuota
-      ? "暂无额度窗口"
+      ? t`暂无额度窗口`
       : props.providerId === "volcengine" && snapshot.status === "auth-missing"
-        ? "凭证不可用或已失效，请重新填写 AK/SK 或 API Key。"
+        ? t`凭证不可用或已失效，请重新填写 AK/SK 或 API Key。`
         : undefined);
   // Same honest-window contract as the account card: a Grok credits window is
   // "Monthly credits", not a fake "5h -- / 周月 --" pair.
@@ -366,7 +371,7 @@ export function ProviderQuotaCard(props: {
         ))
       ) : (
         <p className="text-[10px] leading-4 text-neutral-500">
-          {failureText ?? "暂无可用额度数据，请先登录/授权。"}
+          {failureText ?? t`暂无可用额度数据，请先登录/授权。`}
         </p>
       )}
       {showConnectAction ? (
@@ -376,7 +381,7 @@ export function ProviderQuotaCard(props: {
             onClick={props.onConnectUsageSession}
             className="rounded-lg bg-white/5 px-2 py-1.5 text-[10px] font-medium text-foreground hover:bg-white/10"
           >
-            {props.connectLabel ?? "连接会话显示额度"}
+            {props.connectLabel ?? t`连接会话显示额度`}
           </button>
           {props.onPasteCookie ? (
             <button
@@ -384,7 +389,7 @@ export function ProviderQuotaCard(props: {
               onClick={props.onPasteCookie}
               className="rounded-lg px-2 py-1.5 text-[10px] text-neutral-400 hover:bg-white/5 hover:text-neutral-200"
             >
-              改用粘贴 Cookie
+              {t`改用粘贴 Cookie`}
             </button>
           ) : null}
         </div>

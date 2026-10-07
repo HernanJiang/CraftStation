@@ -45,18 +45,18 @@ describe("quotaStatus", () => {
       ),
     ).toBe(12);
     expect(maxUsedPercent([{ usedPercent: 12 }, { usedPercent: 81.4 }])).toBe(81.4);
-    expect(formatUsedQuota(81.4)).toBe("已用额度 81%");
-    expect(formatUsedQuota(null)).toBe("已用额度 --");
+    expect(formatUsedQuota(81.4)).toBe("Quota used 81%");
+    expect(formatUsedQuota(null)).toBe("Quota used --");
   });
 
-  it("provides the requested Chinese labels and warning colors", () => {
-    expect(quotaDisplayStateLabel("sufficient")).toBe("额度充足");
-    expect(quotaDisplayStateLabel("low")).toBe("额度低");
-    expect(quotaDisplayStateLabel("unavailable")).toBe("不可用");
+  it("provides the requested display labels and warning colors", () => {
+    expect(quotaDisplayStateLabel("sufficient")).toBe("Quota sufficient");
+    expect(quotaDisplayStateLabel("low")).toBe("Quota low");
+    expect(quotaDisplayStateLabel("unavailable")).toBe("Unavailable");
     expect(quotaDisplayStateClass("low")).toContain("amber");
     expect(quotaDisplayStateClass("unavailable")).toContain("red");
     expect(userFacingTokenMessage("Runtime ledger has no exact account usage.")).toBe(
-      "暂无精确 Token 用量",
+      "No precise token usage yet",
     );
   });
 

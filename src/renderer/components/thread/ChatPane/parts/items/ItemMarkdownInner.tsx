@@ -685,6 +685,7 @@ function findCodeChild(children: ReactNode): ReactElement | null {
 }
 
 function MdAnchor(props: { href: string; children?: ReactNode }) {
+  const { t } = useLingui();
   const actions = useChatPaneActions();
   const href = props.href?.trim() ?? "";
   if (!href) return <span>{props.children}</span>;
@@ -767,7 +768,7 @@ function MdAnchor(props: { href: string; children?: ReactNode }) {
                 ref.line,
               )
               .catch((error: unknown) => {
-                toast.danger(`无法打开 ${getBasename(ref.path)}：${friendlyError(error)}`);
+                toast.danger(t`无法打开 ${getBasename(ref.path)}：${friendlyError(error)}`);
               });
           }}
         >

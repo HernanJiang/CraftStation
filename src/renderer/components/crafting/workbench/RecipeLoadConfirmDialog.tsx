@@ -1,4 +1,5 @@
 import { Button, Modal } from "@heroui/react";
+import { useLingui } from "@lingui/react/macro";
 
 /**
  * Load Recipe confirmation: shown when the current draft is non-empty and the
@@ -11,6 +12,7 @@ export function RecipeLoadConfirmDialog(props: {
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const { t } = useLingui();
   const { open, systemName, onCancel, onConfirm } = props;
   return (
     <Modal.Backdrop isOpen={open} onOpenChange={(next) => !next && onCancel()}>
@@ -18,18 +20,18 @@ export function RecipeLoadConfirmDialog(props: {
         <Modal.Dialog className="sm:max-w-[420px]" data-testid="recipe-load-dialog">
           <Modal.CloseTrigger />
           <Modal.Header>
-            <Modal.Heading>加载配方</Modal.Heading>
+            <Modal.Heading>{t`加载配方`}</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="px-5 pb-5 pt-2">
-            <p className="text-sm text-neutral-300">加载该配方将替换当前合成内容</p>
+            <p className="text-sm text-neutral-300">{t`加载该配方将替换当前合成内容`}</p>
             <p className="mt-1 text-[11px] text-neutral-500">{systemName}</p>
           </Modal.Body>
           <Modal.Footer>
             <Button slot="close" variant="ghost" className="text-muted" onPress={onCancel}>
-              取消
+              {t`取消`}
             </Button>
             <Button variant="primary" onPress={onConfirm} data-testid="confirm-load-recipe">
-              加载
+              {t`加载`}
             </Button>
           </Modal.Footer>
         </Modal.Dialog>

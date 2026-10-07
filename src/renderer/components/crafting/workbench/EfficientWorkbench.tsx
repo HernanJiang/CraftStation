@@ -7,11 +7,14 @@ import type {
 import { Button } from "@/renderer/components/common";
 import { shortHarnessName } from "@/renderer/crafting/harnessInventory";
 import { CraftingSlot } from "./CraftingSlot";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import type { MessageDescriptor } from "@lingui/core";
+import { useLingui } from "@lingui/react/macro";
 
-const uiStatusLabel: Record<CapabilityResolution["status"], string> = {
-  NATIVE: "原生可合成",
-  CRAFTABLE: "兼容桥可合成",
-  IMPOSSIBLE: "不可合成",
+const uiStatusLabel: Record<CapabilityResolution["status"], MessageDescriptor> = {
+  NATIVE: linguiMsg`原生可合成`,
+  CRAFTABLE: linguiMsg`兼容桥可合成`,
+  IMPOSSIBLE: linguiMsg`不可合成`,
 };
 
 /**
@@ -29,6 +32,7 @@ export function EfficientWorkbench(props: {
   onCraft: () => void;
   onClear: () => void;
 }) {
+  const { t } = useLingui();
   const { model, harness, resolution, onCraft, onClear } = props;
 
   // NATIVE, CRAFTABLE, and CPA-missing (install-on-craft) are executable.
@@ -37,8 +41,8 @@ export function EfficientWorkbench(props: {
     resolution?.status === "CRAFTABLE" ||
     resolution?.diagnostics.some((entry) => entry.code === "CPA_NOT_INSTALLED");
   const craftLabel = resolution?.diagnostics.some((entry) => entry.code === "CPA_NOT_INSTALLED")
-    ? "安装并合成"
-    : "合成";
+    ? t`安装并合成`
+    : t`合成`;
   const resultName = model && harness ? `${harness.displayName} · ${model.displayName}` : "";
   const reason =
     resolution?.status !== "NATIVE" && resolution?.status !== "CRAFTABLE"
@@ -49,7 +53,7 @@ export function EfficientWorkbench(props: {
     <section
       className="rounded-2xl border border-white/10 bg-white/[0.03] p-3"
       data-testid="efficient-workbench"
-      aria-label="合成台"
+      aria-label={t`合成台`}
     >
       <div className="flex items-center gap-3">
         <div
@@ -57,7 +61,7 @@ export function EfficientWorkbench(props: {
           data-testid="crafting-grid-3x3"
         >
           <CraftingSlot
-            label="模型"
+            label={t`模型`}
             filled={Boolean(model)}
             brandId={model?.providerKind}
             brandLabel={model?.displayName}
@@ -73,9 +77,9 @@ export function EfficientWorkbench(props: {
             title={harness ? `Harness · ${harness.displayName}` : undefined}
             testId="crafting-slot-harness"
           />
-          <CraftingSlot label="组件" testId="crafting-slot-component" />
+          <CraftingSlot label={t`组件`} testId="crafting-slot-component" />
           {[4, 5, 6, 7, 8, 9].map((slot) => (
-            <CraftingSlot key={slot} label="预留" testId={`crafting-slot-reserved-${slot}`} />
+            <CraftingSlot key={slot} label={t`预留`} testId={`crafting-slot-reserved-${slot}`} />
           ))}
         </div>
 
@@ -91,7 +95,7 @@ export function EfficientWorkbench(props: {
             }`}
             data-testid="compatibility-status"
           >
-            {resolution ? uiStatusLabel[resolution.status] : "待放入材料"}
+            {resolution ? t(uiStatusLabel[resolution.status]) : t`待放入材料`}
           </span>
           {reason ? (
             <span
@@ -105,7 +109,7 @@ export function EfficientWorkbench(props: {
         </div>
 
         <CraftingSlot
-          label="合成结果"
+          label={t`合成结果`}
           filled={Boolean(resultName)}
           status={
             resolution?.status === "NATIVE"
@@ -130,7 +134,7 @@ export function EfficientWorkbench(props: {
           data-testid="clear-workbench"
           className="h-12"
         >
-          清空
+          {t`清空`}
         </Button>
         <Button
           size="lg"

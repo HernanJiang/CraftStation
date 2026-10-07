@@ -13,6 +13,11 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#. placeholder {0}: formatMoney(balanceWindow.limit, balanceWindow.currency)
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid " / 共 {0}"
+msgstr " / {0} total"
+
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "-y @modelcontextprotocol/server-memory"
 msgstr "-y @modelcontextprotocol/server-memory"
@@ -33,6 +38,18 @@ msgstr "(no branch)"
 #: src/renderer/views/PrReviewOverlay/parts/PrCommitsTab.tsx
 msgid "(no message)"
 msgstr "(no message)"
+
+#: src/renderer/actions/sideChatActions.ts
+msgid "（临时分支）"
+msgstr "(temporary branch)"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "（估算）"
+msgstr "(estimated)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "（编辑时留空表示保持不变）"
+msgstr "(leave empty while editing to keep unchanged)"
 
 #. placeholder {0}: candidates.length
 #. placeholder {0}: props.candidates.length
@@ -136,6 +153,11 @@ msgstr "{0, plural, one {target} other {targets}}"
 msgid "{0, plural, other {# other chats use this same tree. File restore could overwrite their changes.}}"
 msgstr "{0, plural, other {# other chats use this same tree. File restore could overwrite their changes.}}"
 
+#. placeholder {0}: import { useEffect, useRef, useState } from "react"; import { Plural, Trans, useLingui } from "@lingui/react/macro"; import { GitBranch, Search } from "lucide-react"; import { toast } from "@heroui/react"; import type { GitBranchInfo, GitStatusResult } from "@/shared/contracts"; import { friendlyError } from "@/shared/messages"; import { readBridge } from "@/renderer/bridge"; import { useGitStore } from "@/renderer/state/gitStore"; import { buildBranchNamePrKey } from "@/renderer/state/gitSelectors"; import { usePanelStore } from "@/renderer/state/panelStore"; import { deleteWorktreeGroup } from "@/renderer/actions/worktreeActions"; import { useBranchList } from "@/renderer/components/common/BranchSelector/parts/useBranchList"; import { BranchListBox, type OpenPrReviewArgs, } from "@/renderer/components/common/BranchSelector/parts/BranchListBox"; import { BranchFooterActions } from "@/renderer/components/common/BranchSelector/parts/BranchFooterActions"; import { ConfirmDialog } from "@/renderer/components/common/ConfirmDialog"; import { BranchSyncGraph } from "@/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/BranchSyncGraph"; interface PendingDelete { branch: GitBranchInfo; worktreePath?: string; threadIds: string[]; threadCount: number; } /** * In-place branch management for the top-right status capsule. * Reuses the BranchSelector parts (search + list + create footer + delete * confirm) and the review sidebar's sync graph; only the switching callback * comes from the capsule so store patching stays in one place. * Worktree threads get a read-only view — switching the main checkout from * here would target the wrong tree. */ export function CapsuleBranchView(props: { projectId: string; branch: string; changedFiles: number; stagedCount: number; unstagedCount: number; gitStatus: GitStatusResult; isWorktree: boolean; onSwitchBranch: (branch: string, createNew: boolean) => void; }) { const { t } = useLingui(); const { projectId, branch, changedFiles, stagedCount, unstagedCount, gitStatus, isWorktree, onSwitchBranch, } = props; const [search, setSearch] = useState(""); const [isCreating, setIsCreating] = useState(false); const [newBranchName, setNewBranchName] = useState(""); const [deletingBranch, setDeletingBranch] = useState<string | null>(null); const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null); const searchRef = useRef<HTMLInputElement>(null); const createRef = useRef<HTMLInputElement>(null); // Focus the search like the BranchSelector popover does on open. useEffect(() => { const id = window.setTimeout(() => searchRef.current?.focus(), 50); return () => window.clearTimeout(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps -- focus once on view open const { items, hasLocal, hasRemote, worktreeBranches, branchWorktreePath, threadsByBranch, projectLocation, } = useBranchList({ projectId, search }); function handleSelectBranch(next: string) { if (next === branch) return; onSwitchBranch(next, false); } function handleCreateBranch() { const name = newBranchName.trim(); if (!name) return; onSwitchBranch(name, true); setIsCreating(false); setNewBranchName(""); } function handleRequestDelete(target: GitBranchInfo) { const worktreePath = target.isRemote ? undefined : branchWorktreePath.get(target.name); const threads = threadsByBranch.get(target.name) ?? []; setPendingDelete({ branch: target, ...(worktreePath ? { worktreePath } : {}), threadIds: threads.map((thread) => thread.id), threadCount: threads.length, }); } function handleOpenPrReview(args: OpenPrReviewArgs) { usePanelStore.getState().setPrReviewContext({ projectId, prNumber: args.prNumber, ...(args.worktreePath ? { worktreePath: args.worktreePath } : { prKey: buildBranchNamePrKey(projectId, args.branch) }), }); } async function confirmDelete() { const target = pendingDelete; setPendingDelete(null); if (!target || !projectLocation) return; const { branch: doomed, worktreePath, threadIds } = target; // Worktree branches reuse the sidebar's removal path (closes linked threads, // runs the cleanup script, removes the worktree, then deletes the branch). if (worktreePath) { deleteWorktreeGroup(projectId, worktreePath, threadIds); return; } // Plain local or remote branch with no worktree — delete the ref directly. setDeletingBranch(doomed.name); try { await readBridge().gitDeleteBranch({ projectLocation, branch: doomed.name, force: true, ...(doomed.remote ? { remote: doomed.remote } : {}), }); } catch (error) { toast.danger(friendlyError(error)); } try { const [branches, wts] = await Promise.all([ readBridge().gitListBranches({ projectLocation, includeRemote: true }), readBridge().gitListWorktrees({ projectLocation }), ]); const store = useGitStore.getState(); store.setBranches(projectId, branches); store.setWorktrees(projectId, wts.worktrees); } catch { // ignore refresh errors } finally { setDeletingBranch(null); } } return ( <div> <div className="flex items-center gap-1.5 px-1.5 py-1"> <GitBranch className="size-3.5 shrink-0 text-muted" aria-hidden="true" /> <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground"> {branch || "—"} </span> </div> <p className="truncate px-1.5 pb-1 text-[11px] leading-5 text-muted"> {changedFiles > 0 ? ( <Trans> {t`未提交的更改：${changedFiles} 个文件（${stagedCount} staged · ${unstagedCount} unstaged）`} </Trans> ) : ( <Trans>{t`工作区干净`}</Trans> )} </p> {isWorktree ? null : ( <> <div className="flex items-center gap-1.5 border-y border-[var(--hairline)] px-1.5 py-1.5"> <Search className="size-3.5 shrink-0 text-muted" aria-hidden="true" /> <input ref={searchRef} className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted" placeholder={t`搜索分支`} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Escape") { if (isCreating) { setIsCreating(false); setNewBranchName(""); } else { setSearch(""); } } }} /> </div> <div className="py-0.5"> <BranchListBox projectId={projectId} items={items} hasLocal={hasLocal} hasRemote={hasRemote} currentBranch={branch} value={branch} baseBranch={undefined} isWorktree={false} worktreeMode={false} deletingBranch={deletingBranch} worktreeBranches={worktreeBranches} branchWorktreePath={branchWorktreePath} threadsByBranch={threadsByBranch} onSelect={handleSelectBranch} onDelete={(b) => handleRequestDelete(b as GitBranchInfo)} onOpenPrReview={handleOpenPrReview} /> </div> <BranchFooterActions isCreating={isCreating} setIsCreating={setIsCreating} newBranchName={newBranchName} setNewBranchName={setNewBranchName} createRef={createRef} searchRef={searchRef} handleCreateBranch={handleCreateBranch} hideWorktreeToggle worktreeMode={false} onWorktreeModeChange={undefined} baseBranch={undefined} value={branch} isWorktree={false} branchWorktreePath={branchWorktreePath} onSelect={undefined} showMoveBranch={false} isMovingBranch={false} onMoveBranchToWorktree={() => undefined} /> </> )} <BranchSyncGraph gitStatus={gitStatus} /> <ConfirmDialog isOpen={pendingDelete !== null} title={pendingDelete?.worktreePath ? t`Remove worktree?` : t`Delete branch?`} body={ pendingDelete?.worktreePath ? ( pendingDelete.threadCount > 0 ? ( <Trans> This removes the worktree on "{pendingDelete.branch.name}" and closes{" "} <Plural value={pendingDelete.threadCount} one="# linked thread" other="# linked threads" /> , then deletes the branch. </Trans> ) : ( <Trans> This removes the worktree on "{pendingDelete.branch.name}", then deletes the branch. </Trans> ) ) : pendingDelete?.branch.isRemote ? ( <Trans> This permanently deletes the branch "{pendingDelete.branch.name}" from its remote. </Trans> ) : ( <Trans>This permanently deletes the branch "{pendingDelete?.branch.name ?? ""}".</Trans> ) } confirmLabel={pendingDelete?.worktreePath ? t`Remove` : t`Delete`} onConfirm={() => void confirmDelete()} onClose={() => setPendingDelete(null)} /> </div> ); } 
+#: src/renderer/components/thread/CapsuleBranchView.tsx
+msgid "{0}"
+msgstr "{0}"
+
 #. placeholder {0}: target.title
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "{0} — Composer"
@@ -145,6 +167,24 @@ msgstr "{0} — Composer"
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "{0} — Terminal"
 msgstr "{0} — Terminal"
+
+#. placeholder {0}: BUILT_IN_MCP_SERVER_NAMES[id]
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "{0} · 内置服务"
+msgstr "{0} · built-in service"
+
+#. placeholder {0}: ref.displayName
+#. placeholder {1}: ref.status
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+msgid "{0} · 状态：{1}\n"
+"点击配置"
+msgstr "{0} · status: {1}\n"
+"点击配置"
+
+#. placeholder {0}: server.name
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "{0} · 自定义 MCP"
+msgstr "{0} · custom MCP"
 
 #. placeholder {0}: agent.label
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
@@ -160,6 +200,11 @@ msgstr "{0} ({envName}) updated to v{newVersion}."
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
 msgid "{0} ({envName}) updated."
 msgstr "{0} ({envName}) updated."
+
+#. placeholder {0}: account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{0} {label} 账号"
+msgstr "{0} {label} account"
 
 #. placeholder {0}: agentCounts.total
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
@@ -369,6 +414,70 @@ msgstr "{0} updated."
 msgid "{0} used"
 msgstr "{0} used"
 
+#. placeholder {0}: input.label
+#: src/renderer/actions/installNativeAgent.ts
+msgid "{0} 不支持在应用内直接安装，请在设置的 Agents 或 ACP 注册表中手动安装。"
+msgstr "{0} cannot be installed in-app; install it manually via the Agents or ACP registry in Settings."
+
+#. placeholder {0}: channels.length
+#. placeholder {0}: harnessNodes.length
+#. placeholder {0}: modelRows.length
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "{0} 个"
+msgstr "{0}"
+
+#. placeholder {0}: serverNames.length
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "{0} 个 MCP 服务器未能注入会话"
+msgstr "{0} MCP server(s) failed to inject into the session"
+
+#. placeholder {0}: node.rows.length
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "{0} 个模型"
+msgstr "{0} models"
+
+#. placeholder {0}: input.label
+#: src/renderer/actions/installNativeAgent.ts
+msgid "{0} 安装后状态刷新失败。"
+msgstr "Failed to refresh status after installing {0}."
+
+#. placeholder {0}: input.label
+#: src/renderer/actions/installNativeAgent.ts
+msgid "{0} 安装失败（退出码 {exitCode}）。常见原因是缺少 curl、PowerShell 或 WSL。请查看安装终端输出后重试。"
+msgstr "{0} installation failed (exit code {exitCode}). A common cause is missing curl, PowerShell, or WSL. Check the install terminal output and retry."
+
+#. placeholder {0}: input.label
+#. placeholder {1}: input.latest
+#: src/renderer/actions/runCliUpdate.ts
+msgid "{0} 已更新到 v{1}。"
+msgstr "{0} updated to v{1}."
+
+#. placeholder {0}: serverNames.join("、")
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "{0} 未注入：当前 Agent 不接受对应的 MCP 传输方式。会话已正常启动，但这些服务器在本次对话中不可用。"
+msgstr "{0} not injected: the current agent does not accept the corresponding MCP transport. The session started normally, but these servers are unavailable in this conversation."
+
+#. placeholder {0}: account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{0} 登录授权"
+msgstr "{0} sign-in authorization"
+
+#. placeholder {0}: account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{0} 设为本机登录"
+msgstr "Set {0} as local sign-in"
+
+#. placeholder {0}: channel.accountCount
+#. placeholder {1}: channel.rows.length
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "{0} 账号 · {1} 模型"
+msgstr "{0} accounts · {1} models"
+
+#. placeholder {0}: window.label || window.id
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "{0} 额度"
+msgstr "{0} quota"
+
 #. placeholder {0}: tab.title
 #: src/renderer/views/MainView/parts/RightPanel/parts/DevTerminalPanel/parts/BottomTerminalLayout.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/DevTerminalPanel/parts/RightTerminalLayout.tsx
@@ -386,6 +495,12 @@ msgstr "{0}, Running"
 msgid "{0}: {stateLabel}"
 msgstr "{0}: {stateLabel}"
 
+#. placeholder {0}: formatTokenRate(tokensPerSecond)
+#. placeholder {1}: rateIsEstimated ? t`（估算）` : ""
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "{0}{1}"
+msgstr "{0}{1}"
+
 #. placeholder {0}: selectedRows.length
 #. placeholder {0}: selectedSkills.length
 #. placeholder {1}: importableRows.length
@@ -394,6 +509,11 @@ msgstr "{0}: {stateLabel}"
 #: src/renderer/components/skills/SkillImportModal.tsx
 msgid "{0}/{1} selected"
 msgstr "{0}/{1} selected"
+
+#. placeholder {0}: Math.max(0, Math.min(100, Math.round(100 - usedPercent)))
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "{0}% 剩余"
+msgstr "{0}% remaining"
 
 #. placeholder {0}: Math.floor(days / 30)
 #: src/renderer/views/ProfileOverlay/parts/ProfileHeader.tsx
@@ -422,11 +542,11 @@ msgstr "{agentsSummary}. Show agents."
 
 #: src/renderer/actions/forkThreadActions.ts
 msgid "{baseTitle}（分叉）"
-msgstr "{baseTitle}（分叉）"
+msgstr "{baseTitle} (fork)"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "{changedFiles} 个文件"
-msgstr "{changedFiles} 个文件"
+msgstr "{changedFiles} files"
 
 #: src/mobile/views/pr/PrOverviewPage.tsx
 msgid "{commitsCount, plural, one {# commit} other {# commits}}"
@@ -483,6 +603,14 @@ msgstr "{hook} hook failed"
 msgid "{hours}h ago"
 msgstr "{hours}h ago"
 
+#: src/renderer/utils/formatTime.ts
+msgid "{hours}时"
+msgstr "{hours}h"
+
+#: src/renderer/utils/formatTime.ts
+msgid "{hours}时{remMinutes}分"
+msgstr "{hours}h {remMinutes}m"
+
 #: src/renderer/components/thread/AgentDiscoveryScreen.tsx
 msgid "{installedCount, plural, one {# agent ready} other {# agents ready}}"
 msgstr "{installedCount, plural, one {# agent ready} other {# agents ready}}"
@@ -515,6 +643,34 @@ msgstr "{label} usage"
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 msgid "{label} usage — open usage panel"
 msgstr "{label} usage — open usage panel"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 刷新状态"
+msgstr "{label} refresh status"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 导入本机登录"
+msgstr "{label} import local sign-in"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 当前没有可用的登录方式，请先在设置中配置授权。"
+msgstr "No sign-in method is currently available for {label}; configure authorization in Settings first."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 授权删除失败。"
+msgstr "Failed to delete {label} authorization."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 授权已删除。"
+msgstr "{label} authorization deleted."
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "{label} 暂不支持：该 Provider 的运行时不提供此能力，未产生失败。"
+msgstr "{label} not supported: this provider's runtime does not offer this capability; no failure occurred."
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "{label}，点击复制错误详情"
+msgstr "{label}, click to copy error details"
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
 msgid "{label}. Show plan."
@@ -550,6 +706,15 @@ msgstr "{minute} minutes past the hour"
 msgid "{minutes}m ago"
 msgstr "{minutes}m ago"
 
+#. placeholder {0}: String(remSeconds).padStart(2, "0")
+#: src/renderer/utils/formatTime.ts
+msgid "{minutes}分{0}秒"
+msgstr "{minutes}m {0}s"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "{minutes}分{remainder}秒"
+msgstr "{minutes}m {remainder}s"
+
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
 msgid "{missingAuthLabel} needs authentication."
 msgstr "{missingAuthLabel} needs authentication."
@@ -557,6 +722,10 @@ msgstr "{missingAuthLabel} needs authentication."
 #: src/renderer/actions/workspaceActions.ts
 msgid "{movedCount, plural, one {Moved # project to {target}.} other {Moved # projects to {target}.}}"
 msgstr "{movedCount, plural, one {Moved # project to {target}.} other {Moved # projects to {target}.}}"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "{name} 我的配方"
+msgstr "{name} My recipes"
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "{original}\n"
@@ -585,6 +754,14 @@ msgstr "{projectName} Settings"
 msgid "{provider} does not support one-shot generation"
 msgstr "{provider} does not support one-shot generation"
 
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "{provider}账号{fromAccount}额度已耗尽"
+msgstr "{provider} account {fromAccount} quota exhausted"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "{remainder}秒"
+msgstr "{remainder}s"
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/NotesPanel/TodoList.tsx
 msgid "{remaining, plural, one {# open} other {# open}}"
 msgstr "{remaining, plural, one {# open} other {# open}}"
@@ -597,6 +774,10 @@ msgstr "{resultCount, plural, one {# result} other {# results}}"
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/UsagePanel.tsx
 msgid "{seconds}s ago"
 msgstr "{seconds}s ago"
+
+#: src/renderer/utils/formatTime.ts
+msgid "{seconds}秒"
+msgstr "{seconds}s"
 
 #: src/renderer/components/plugins/PluginMarketplace.tsx
 msgid "{serverCount, plural, one {# server} other {# servers}}"
@@ -636,6 +817,10 @@ msgstr "{visibleCount} of {totalCount} usable"
 msgid "{visibleCount} of {totalCount} visible"
 msgstr "{visibleCount} of {totalCount} visible"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "{visibleCount} 个可见"
+msgstr "{visibleCount} visible"
+
 #: src/renderer/views/SettingsOverlay/parts/CursorSdkRuntimeSetup.tsx
 msgid "@cursor/sdk is not installed."
 msgstr "@cursor/sdk is not installed."
@@ -671,6 +856,19 @@ msgstr "~{money}{tokens} · {0} · est."
 msgid "≈{0}% by reset"
 msgstr "≈{0}% by reset"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "✓ 已验证 · Chat Completions"
+msgstr "✓ Verified · Chat Completions"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "✓ 已验证 · Responses API"
+msgstr "✓ Verified · Responses API"
+
+#. placeholder {0}: validation.error
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "✕ 验证失败：{0}"
+msgstr "✕ Verification failed: {0}"
+
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "1 run"
 msgstr "1 run"
@@ -686,6 +884,14 @@ msgstr "22"
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "30d"
 msgstr "30d"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "5h 已用"
+msgstr "5h used"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "5h 限额"
+msgstr "5h limit"
 
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "7d"
@@ -1121,6 +1327,19 @@ msgstr "Agent usage"
 msgid "Agent workspace"
 msgstr "Agent workspace"
 
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "Agent 合成台"
+msgstr "Agent crafting table"
+
+#. placeholder {0}: friendlyError(error)
+#: src/renderer/crafting/useNativeHarnessControlPlane.ts
+msgid "Agent 状态刷新失败，已保留上次结果：{0}"
+msgstr "Agent status refresh failed; kept last result: {0}"
+
+#: src/renderer/crafting/useNativeHarnessControlPlane.ts
+msgid "Agent 状态刷新超时，已保留上次结果。请稍后重试。"
+msgstr "Agent status refresh timed out; kept last result. Please retry later."
+
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Agent: {description}"
 msgstr "Agent: {description}"
@@ -1173,6 +1392,10 @@ msgstr "AI judge"
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
 msgid "AI providers"
 msgstr "AI providers"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "AK 与 SK 必须同时填写。"
+msgstr "AK and SK must be filled in together."
 
 #: src/mobile/settingsSections.ts
 msgid "Alerts when threads need you"
@@ -1312,6 +1535,27 @@ msgstr "Another operation for this experiment is still running."
 msgid "Antigravity"
 msgstr "Antigravity"
 
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Antigravity 授权失败，请重试。"
+msgstr "Antigravity authorization failed; please retry."
+
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Antigravity 登录失败，请重试。"
+msgstr "Antigravity sign-in failed; please retry."
+
+#. placeholder {0}: account.label
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Antigravity 账号 {0} 已更新授权。"
+msgstr "Antigravity account {0} authorization updated."
+
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Antigravity 账号已加入号池。"
+msgstr "Antigravity account added to the pool."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Antigravity 账号池"
+msgstr "Antigravity account pool"
+
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Anything currently unavailable — a provider, model, reasoning level, or Fast mode — is skipped automatically. Unchecked providers and models are skipped until re-checked."
 msgstr "Anything currently unavailable — a provider, model, reasoning level, or Fast mode — is skipped automatically. Unchecked providers and models are skipped until re-checked."
@@ -1446,6 +1690,18 @@ msgstr "Are you sure you want to revert all unstaged changes? This cannot be und
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "Arguments"
 msgstr "Arguments"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Ark API Key 已保存，但验证没有返回可用模型，暂未创建模型渠道。请确认该 Key 有 Ark 推理权限，或在「OpenAI 兼容 API」手动添加。"
+msgstr "Ark API Key saved, but verification returned no usable models, so no model channel was created. Confirm the key has Ark inference permission, or add it manually under \"OpenAI-compatible API\"."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Ark API Key 用于调用模型（保存后自动创建渠道）；AK + SK 用于显示 Coding Plan / Agent Plan 额度。填写 AK/SK 时，三项凭据必须同时填写。"
+msgstr "The Ark API Key is used to call models (a channel is created automatically after saving); AK + SK are used to display Coding Plan / Agent Plan quota. When filling in AK/SK, all three credentials must be provided together."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Ark API Key（模型调用 Key）"
+msgstr "Ark API Key (model-calling key)"
 
 #. placeholder {0}: project.name
 #: src/renderer/views/QuickComposerOverlay/QuickComposerOverlay.tsx
@@ -1583,6 +1839,10 @@ msgstr "Auto Merge"
 msgid "Auto mode"
 msgstr "Auto mode"
 
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "Auto 接管（{nativeKind} → {finalKind}）"
+msgstr "Auto takeover ({nativeKind} → {finalKind})"
+
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/ThreadSettings.tsx
 msgid "Auto-archive done threads after"
@@ -1623,6 +1883,10 @@ msgstr "Auto-show terminal panel"
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Auto-update CLIs"
 msgstr "Auto-update CLIs"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "auto（确定性 Codex）"
+msgstr "auto (deterministic Codex)"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconPicker.tsx
 msgid "Automatic"
@@ -1735,6 +1999,10 @@ msgstr "Base font size for agent terminals. Auto-shrinks in narrow or short pane
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
 msgid "Base font size for the terminal panel. Auto-shrinks in narrow or short panes."
 msgstr "Base font size for the terminal panel. Auto-shrinks in narrow or short panes."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Base URL 与 API Key 为必填项。"
+msgstr "Base URL and API Key are required."
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Bash output"
@@ -2195,6 +2463,10 @@ msgstr "Chat starred"
 msgid "Chat unstarred"
 msgstr "Chat unstarred"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "ChatGPT 账号池"
+msgstr "ChatGPT account pool"
+
 #: src/renderer/components/thread/ChatPane/parts/items/commandSummary.ts
 msgid "Check"
 msgstr "Check"
@@ -2517,6 +2789,19 @@ msgstr "Click to check for a new CraftStation version"
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Clipboard rejected the image (unsupported format)"
 msgstr "Clipboard rejected the image (unsupported format)"
+
+#. placeholder {0}: running ? t`运行中 ${bridge.endpoint ?? ""}` : installed ? t`已安装 · 未运行` : t`未安装`
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "CLIProxyAPI 兼容桥 · {0}"
+msgstr "CLIProxyAPI compatibility bridge · {0}"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "CLIProxyAPI 兼容桥 · 状态未知"
+msgstr "CLIProxyAPI compatibility bridge · status unknown"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "CLIProxyAPI 启动后仍无法合成"
+msgstr "Still unable to craft after starting CLIProxyAPI"
 
 #: src/mobile/views/ManageProjectsView.tsx
 #: src/renderer/views/MainView/parts/AppContent/parts/Thread/parts/ContinueInProviderDialog.tsx
@@ -5668,7 +5953,7 @@ msgstr "Git review mode"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Git 工具"
-msgstr "Git 工具"
+msgstr "Git tools"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "GitHub"
@@ -5785,6 +6070,10 @@ msgstr "Green"
 msgid "Grok Build"
 msgstr "Grok Build"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Grok 账号池"
+msgstr "Grok account pool"
+
 #: src/renderer/views/MainView/parts/AppContent/AppContent.tsx
 msgid "Group"
 msgstr "Group"
@@ -5826,6 +6115,10 @@ msgstr "Handle"
 msgid "Hard Reload"
 msgstr "Hard Reload"
 
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "Harness"
+msgstr "Harness"
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Harness Ingredient"
 msgstr "Harness Ingredient"
@@ -5834,9 +6127,22 @@ msgstr "Harness Ingredient"
 msgid "Harness Library"
 msgstr "Harness Library"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Harness 总览"
-msgstr "Harness 总览"
+msgstr "Harness overview"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "Harness 槽"
+msgstr "Harness slot"
+
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+msgid "Harness 背包"
+msgstr "Harness inventory"
+
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Harness/CLI 面板"
+msgstr "Harness/CLI panel"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/DraftIndicator.tsx
 msgid "Has unsent draft"
@@ -6422,6 +6728,10 @@ msgstr "Kill bash"
 msgid "Kimi Code"
 msgstr "Kimi Code"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Kimi Code API Key 已更新"
+msgstr "Kimi Code API Key updated"
+
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Kimi Code could not update its credentials because another process is using the credential file. Close other CraftStation or Kimi Code processes, then retry."
 msgstr "Kimi Code could not update its credentials because another process is using the credential file. Close other CraftStation or Kimi Code processes, then retry."
@@ -6429,6 +6739,18 @@ msgstr "Kimi Code could not update its credentials because another process is us
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Kimi Code ended the turn without returning a response. Restart the thread and try again."
 msgstr "Kimi Code ended the turn without returning a response. Restart the thread and try again."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Kimi Code 账号池"
+msgstr "Kimi Code account pool"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Kimi 官方接口不返回账号邮箱，建议填入该账号的邮箱，方便区分多个账号（也可稍后右键改名）。"
+msgstr "Kimi's official API does not return the account email; it's recommended to enter this account's email to distinguish multiple accounts (you can also rename it later via right-click)."
+
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Kimi 登录未完成身份验证。"
+msgstr "Kimi sign-in did not complete authentication."
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -6953,6 +7275,18 @@ msgstr "MCP tool calls"
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "MCP transport type"
 msgstr "MCP transport type"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "MCP 工具"
+msgstr "MCP tools"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "MCP 服务器"
+msgstr "MCP servers"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "MCP 服务器 · Skills · 策略"
+msgstr "MCP servers · Skills · Policies"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "mcp.json could not be read, so this plugin's servers were skipped."
@@ -8563,9 +8897,54 @@ msgstr "Open the model picker"
 msgid "Open With System Default"
 msgstr "Open With System Default"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/providerBrands.tsx
+msgid "OpenAI 兼容 API"
+msgstr "OpenAI-compatible API"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容 API Base URL"
+msgstr "OpenAI-compatible API Base URL"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容 API Key"
+msgstr "OpenAI-compatible API Key"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容 API 保存失败。"
+msgstr "Failed to save the OpenAI-compatible API."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容 API 账号池"
+msgstr "OpenAI-compatible API account pool"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容提供商名称"
+msgstr "OpenAI-compatible provider name"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容提供商已更新。"
+msgstr "OpenAI-compatible provider updated."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容提供商已添加。"
+msgstr "OpenAI-compatible provider added."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容模型名称"
+msgstr "OpenAI-compatible model name"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容模型展示名称"
+msgstr "OpenAI-compatible model display name"
+
 #: src/renderer/components/providers/opencode/manifest.ts
 msgid "OpenCode"
 msgstr "OpenCode"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "OpenCode 模型选择"
+msgstr "OpenCode model selection"
 
 #. placeholder {0}: request.receivedAt
 #. placeholder {1}: index + 1
@@ -8871,6 +9250,10 @@ msgstr "Paused after {elapsed}"
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #~ msgid "paused until you send"
 #~ msgstr "paused until you send"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "PDF"
+msgstr "PDF"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
@@ -12914,6 +13297,10 @@ msgstr "Type into the page"
 msgid "Type into the page (tap a field first)"
 msgstr "Type into the page (tap a field first)"
 
+#: src/renderer/uiPreview.tsx
+msgid "UI Preview v0.2.0 · 纯界面预览，不含功能"
+msgstr "UI Preview v0.2.0 · interface preview only, no functionality"
+
 #. placeholder {0}: agent.label
 #. placeholder {0}: agentStatus.label
 #: src/renderer/components/thread/ThreadAuthRequiredDock.tsx
@@ -14220,250 +14607,2072 @@ msgstr "Zoom in"
 msgid "Zoom out"
 msgstr "Zoom out"
 
+#. placeholder {0}: recipe.compatibilityStatus
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "一键填充 Ingredients · {0}"
+msgstr "Fill ingredients in one click · {0}"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "上一轮耗时"
+msgstr "Previous turn duration"
+
+#. placeholder {0}: model.contextSize
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "上下文 · {0}"
+msgstr "Context · {0}"
+
+#. placeholder {0}: typeof record.contextWindow === "number" ? `${Math.round(record.contextWindow / 1000)}k` : "-"
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "上下文 {0}"
+msgstr "Context {0}"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "上下文与额度详情"
+msgstr "Context and quota details"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "上下文容量"
+msgstr "Context capacity"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "上下文窗口"
+msgstr "Context window"
+
+#. placeholder {0}: model.contextSize
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "上下文窗口 {0}"
+msgstr "Context window {0}"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "上下文窗口大小"
+msgstr "Context window size"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "上下文管理策略"
+msgstr "Context management policies"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "上游暂无可用模型，点击「获取模型」直接从上游拉取最新列表。"
+msgstr "No models available upstream; click \"Fetch models\" to pull the latest list directly from upstream."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "上游模型（精确 id，避免手写错位）"
+msgstr "Upstream model (exact id, avoids handwriting errors)"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "下载并安装"
+msgstr "Download and install"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "不可合成"
+msgstr "Not craftable"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "不可用"
+msgstr "Unavailable"
+
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "不是 Git 仓库"
-msgstr "不是 Git 仓库"
+msgstr "Not a Git repository"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "临时分支"
-msgstr "临时分支"
+msgstr "Temporary branch"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "今日 输入 / 输出 / 缓存"
+msgstr "Today input / output / cache"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "从上游拉取"
+msgstr "Pull from upstream"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "从名单取消全部渠道模型"
+msgstr "Deselect all channel models from the list"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "从当前线程分支"
-msgstr "从当前线程分支"
+msgstr "Branch from this thread"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "从首页移除该自定义模型"
+msgstr "Remove this custom model from the home page"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "从首页移除该配方"
+msgstr "Remove this recipe from the home page"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "余额 {remaining}{limit}"
+msgstr "Balance {remaining}{limit}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "使用 API Key 添加账号"
+msgstr "Add account with API Key"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "使用 Devin API Key 授权"
+msgstr "Authorize with Devin API Key"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "使用 Kimi API Key 授权"
+msgstr "Authorize with Kimi API Key"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "使用重置卡"
+msgstr "Use reset card"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "例如 GPT-5.6"
+msgstr "e.g. GPT-5.6"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "例如 gpt-5.6-sol"
+msgstr "e.g. gpt-5.6-sol"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "例如 My Relay"
+msgstr "e.g. My Relay"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "例如：日常编码组合"
+msgstr "e.g.: everyday coding combo"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存"
+msgstr "Save"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存中…"
+msgstr "Saving…"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "保存为正式线程"
-msgstr "保存为正式线程"
+msgstr "Save as a regular thread"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存前会验证 API Key 并导入账号。"
+msgstr "The API Key will be verified and the account imported before saving."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存前会验证 API Key。"
+msgstr "The API Key will be verified before saving."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存前会验证 Ark Key / AK/SK。"
+msgstr "The Ark Key / AK/SK will be verified before saving."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存前会验证会话 Cookie。"
+msgstr "The session cookie will be verified before saving."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存提供商"
+msgstr "Save provider"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "保存配方"
+msgstr "Save recipe"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "停止 Goal"
-#~ msgstr "停止 Goal"
+#~ msgstr "Stop Goal"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "停止 Goal（终止底层任务）"
-#~ msgstr "停止 Goal（终止底层任务）"
+#~ msgstr "Stop Goal (terminate the underlying task)"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "允许自动读写工作区并执行命令"
+msgstr "Allow automatic workspace read/write and command execution"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全不选"
+msgstr "Select none"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全选"
+msgstr "Select all"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全选 {0} 渠道全部模型"
+msgstr "Select all models of channel {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全选全部渠道模型"
+msgstr "Select all models across channels"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "全部"
+msgstr "All"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全部取消"
+msgstr "Clear all"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全部选中"
+msgstr "All selected"
+
+#. placeholder {0}: channels.length
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "共 {0} 个渠道 · {totalVisible} 个模型在首页可选"
+msgstr "{0} channels in total · {totalVisible} models selectable on home"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "关闭"
+msgstr "Close"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "关闭模型与用量"
+msgstr "Close models & usage"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "其他"
+msgstr "Other"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "兼容性解析失败"
+msgstr "Compatibility resolution failed"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "兼容桥可合成"
+msgstr "Craftable via compatibility bridge"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "兼容模式"
-msgstr "兼容模式"
+msgstr "Compatibility mode"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "兼容默认"
+msgstr "Compatibility default"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "兼容默认 Harness"
+msgstr "Compatibility default Harness"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "兼容默认 Harness（无原生 Harness 的渠道与第三方模型回退到此；上图连线已按该设置实时路由）"
+msgstr "Compatibility default Harness (channels without a native Harness and third-party models fall back here; connections above are routed live by this setting)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "最大输出 Token"
+msgstr "Max output tokens"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "最终 Harness / CLI"
+msgstr "Final Harness / CLI"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "凭证不可用或已失效，请重新填写 AK/SK 或 API Key。"
+msgstr "Credentials unavailable or expired; please re-enter AK/SK or API Key."
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "切换执行模式与权限"
+msgstr "Switch execution mode and permissions"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "切换默认"
+msgstr "Switch default"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "创建临时分支，不会出现在左侧列表"
-msgstr "创建临时分支，不会出现在左侧列表"
+msgstr "Creates a temporary branch that won't appear in the sidebar"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "初始任务描述（可选）"
+msgstr "Initial task description (optional)"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "初始化 Git 仓库"
-msgstr "初始化 Git 仓库"
+msgstr "Initialize Git repository"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "删除"
+msgstr "Delete"
+
+#. placeholder {0}: account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "删除失效的 {0} 缓存"
+msgstr "Delete expired {0} cache"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "删除渠道"
+msgstr "Delete channel"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "删除渠道 {0}"
+msgstr "Delete channel {0}"
+
+#. placeholder {0}: confirmRemoveChannel?.label ?? ""
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "删除渠道「{0}」将同时移除其账号凭证与该渠道下已添加的自定义模型，此操作无法撤销。"
+msgstr "Deleting channel \"{0}\" will also remove its account credentials and all custom models added under it. This action cannot be undone."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "删除该渠道账号及其凭证，并移除该渠道下已添加的自定义模型"
+msgstr "Delete this channel's account and credentials, and remove all custom models added under it"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "删除配方"
+msgstr "Delete recipe"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "别名（可选）"
+msgstr "Alias (optional)"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "刷新状态"
-msgstr "刷新状态"
+msgstr "Refresh status"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "刷新账号配额"
+msgstr "Refresh account quotas"
+
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+msgid "前往 Harness/CLI 面板"
+msgstr "Go to Harness/CLI panel"
+
+#: src/renderer/components/crafting/workbench/ModelsInventory.tsx
+msgid "前往管理模型"
+msgstr "Go to manage models"
+
+#: src/renderer/components/crafting/workbench/RecipeLoadConfirmDialog.tsx
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "加载"
+msgstr "Load"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "加载中…"
+msgstr "Loading…"
+
+#: src/renderer/components/crafting/workbench/RecipeLoadConfirmDialog.tsx
+msgid "加载该配方将替换当前合成内容"
+msgstr "Loading this recipe replaces the current crafting content"
+
+#: src/renderer/components/crafting/workbench/RecipeLoadConfirmDialog.tsx
+msgid "加载配方"
+msgstr "Load recipe"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "勾选的模型会显示在首页模型选择器"
+msgstr "Checked models will appear in the home model picker"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "包含未暂存的更改"
-msgstr "包含未暂存的更改"
+msgstr "Contains unstaged changes"
 
+#. placeholder {0}: props.item.metadata.vendor
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "厂商：{0}"
+msgstr "Vendor: {0}"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "原料"
+msgstr "Ingredients"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "原料 → Recipe → 产物 Item → Entity"
+msgstr "Ingredients → Recipe → result Item → Entity"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "原料栏"
+msgstr "Ingredients rail"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "原料清单"
+msgstr "Ingredients list"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "原生"
-msgstr "原生"
+msgstr "Native"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "原生兼容"
+msgstr "Natively compatible"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "原生可合成"
+msgstr "Natively craftable"
+
+#: src/renderer/uiPreview.tsx
+msgid "发送消息…"
+msgstr "Sending message…"
+
+#: src/renderer/components/crafting/workbench/RecipeLoadConfirmDialog.tsx
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "取消"
+msgstr "Cancel"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "取消 {0} 渠道全部模型"
+msgstr "Deselect all models of channel {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "取消全部渠道模型"
+msgstr "Deselect models of all channels"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "取消配方"
-#~ msgstr "取消配方"
+#~ msgstr "Cancel recipe"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
+msgid "另有 {overflowCount} 个已授权模型"
+msgstr "Plus {overflowCount} more authorized models"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "只生成计划，不执行写入或命令"
+msgstr "Only generate a plan; do not execute writes or commands"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "可合成"
+msgstr "Craftable"
+
+#: src/renderer/uiPreview.tsx
+msgid "可用更新"
+msgstr "Available updates"
+
+#. placeholder {0}: version ? ` v${version}` : ""
+#: src/renderer/views/SettingsOverlay/parts/SettingsTitlebar.tsx
+msgid "可用更新{0}"
+msgstr "Update available {0}"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "合成"
+msgstr "Craft"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "合成台"
+msgstr "Crafting table"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "合成台与配方"
-msgstr "合成台与配方"
+msgstr "Crafting & recipes"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "合成并启动 Agent"
+msgstr "Craft and launch Agent"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "合成结果"
+msgstr "Craft result"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "合成结果详情"
+msgstr "Craft result details"
+
+#: src/renderer/actions/sessionHandoffActions.ts
+msgid "同一线程跨模型切换可能导致一定程度的性能下降"
+msgstr "Switching models within the same thread may cause some performance degradation"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "启用账号"
+msgstr "Enable account"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "周"
+msgstr "Week"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "周/月"
+msgstr "Week/Month"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "周/月限额"
+msgstr "Weekly/monthly limit"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "周已用"
+msgstr "Weekly used"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "图片"
+msgstr "Image"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "在 Git 面板中打开"
-msgstr "在 Git 面板中打开"
+msgstr "Open in Git panel"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "在 OpenCode TUI 内选择模型（/models）；退出后 CraftStation 自动获取模型目录"
+msgstr "Select models inside the OpenCode TUI (/models); after exiting, CraftStation automatically fetches the model catalog"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "在 OpenCode 中选择模型"
+msgstr "Select a model in OpenCode"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "在你自己的浏览器中登录后，从开发者工具（F12 → 应用/网络）复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面："
+msgstr "After signing in in your own browser, copy the session cookie from DevTools (F12 → Application/Network) — the full Cookie request header or the session cookie's name=value — and paste it below:"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "在聊天中使用"
+msgstr "Use in chat"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "在聊天中使用该配方"
+msgstr "Use this recipe in chat"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "填写 AK/SK 时必须同时填写 Ark API Key；该 Key 用于调用模型。"
+msgstr "When filling in AK/SK, the Ark API Key must also be provided; that key is used to call models."
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "处理中…"
-msgstr "处理中…"
+msgstr "Processing…"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "失败，耗时 {elapsed}"
+msgstr "Failed, took {elapsed}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "套餐未知"
+msgstr "Plan unknown"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "如 high"
+msgstr "e.g. high"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "子Agent调度策略"
+msgstr "Sub-agent scheduling policies"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "安装 CLIProxyAPI"
+msgstr "Install CLIProxyAPI"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "安装中…"
+msgstr "Installing…"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "安装并合成"
+msgstr "Install and craft"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "完全访问权限"
+msgstr "Full access"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "完成时间"
+msgstr "Completion time"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "实验线程不支持侧边分支。"
-msgstr "实验线程不支持侧边分支。"
+msgstr "Scratch threads don't support side branches."
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "实验线程不支持在 Side Chat 中打开。"
-msgstr "实验线程不支持在 Side Chat 中打开。"
+msgstr "Scratch threads can't be opened in Side Chat."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "导入"
+msgstr "Import"
+
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "导入未通过"
+msgstr "Import failed"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "导入本机 Codex 登录"
+msgstr "Import local Codex sign-in"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "导入本机登录"
+msgstr "Import local sign-in"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "将该账号设为本机 agy 登录（会替换本机当前登录）"
+msgstr "Set this account as the local agy sign-in (replaces the current local sign-in)"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "尚未放入模型与 Harness"
+msgstr "No model or Harness placed yet"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "尚未添加 {badgeLabel} 账号"
+msgstr "No {badgeLabel} account added yet"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "尚未绑定账号"
+msgstr "No account bound yet"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "就绪"
+msgstr "Ready"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "展开 Git 面板"
-msgstr "展开 Git 面板"
+msgstr "Expand Git panel"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "展示名称（可选）"
+msgstr "Display name (optional)"
+
+#: src/renderer/uiPreview.tsx
+msgid "工作"
+msgstr "Work"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #~ msgid "工作中"
-#~ msgstr "工作中"
+#~ msgstr "Working"
 
 #: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "工作区干净"
-msgstr "工作区干净"
+msgstr "Working tree clean"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "工具调用"
+msgstr "Tool call"
+
+#. placeholder {0}: record.supportsToolCalling === false ? i18n._(linguiMsg`关闭`) : i18n._(linguiMsg`开启`)
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "工具调用 {0}"
+msgstr "Tool call {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已从上游获取 {channelName} 模型列表，暂无可用模型"
+msgstr "Fetched {channelName} model list from upstream; no models currently available"
+
+#. placeholder {0}: delta.length > 0 ? `（${delta.length} 个新模型已加入首页）` : ""
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已从上游获取 {channelName} 的 {modelCount} 个可用模型{0}"
+msgstr "Fetched {modelCount} available models for {channelName} from upstream{0}"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "已从当前线程创建临时分支（不会出现在左侧列表）。"
-msgstr "已从当前线程创建临时分支（不会出现在左侧列表）。"
+msgstr "Created a temporary branch from this thread (it won't appear in the sidebar)."
 
 #: src/renderer/actions/forkThreadActions.ts
 msgid "已从该轮分叉为新对话"
-msgstr "已从该轮分叉为新对话"
+msgstr "Forked into a new conversation from that turn"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "已保存为正式线程。"
-msgstr "已保存为正式线程。"
+msgstr "Saved as a regular thread."
+
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "已切换到{toAccount}继续作答"
+msgstr "Switched to {toAccount} to continue answering"
+
+#. placeholder {0}: targetConfig.model
+#: src/renderer/actions/sessionHandoffActions.ts
+msgid "已切换至 {0}"
+msgstr "Switched to {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已创建账号，但本机 ~/.codex/auth.json 无法解析"
+msgstr "Account created, but the local ~/.codex/auth.json could not be parsed"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已在你的默认浏览器打开登录页。登录完成后，从浏览器开发者工具（F12 → 应用/网络） 复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面："
+msgstr "The sign-in page has been opened in your default browser. After signing in, copy the session cookie from DevTools (F12 → Application/Network) — the full Cookie request header or the session cookie's name=value — and paste it below:"
+
+#: src/renderer/components/providers/useUsageProviderLogin.ts
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已在默认浏览器打开登录页面。登录完成后请返回粘贴 Cookie。"
+msgstr "The sign-in page has been opened in your default browser. After signing in, please return and paste the cookie."
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "已复制"
+msgstr "Copied"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "已安装 · 未运行"
+msgstr "Installed · not running"
+
+#: src/renderer/components/common/ProviderModelMenu/ProviderModelMenu.tsx
+msgid "已安装但尚未登录/配置，登录后即可正常使用"
+msgstr "Installed but not yet signed in/configured; it will work after sign-in"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "已完成 {elapsed}"
+msgstr "Completed in {elapsed}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已导入本机 Codex / ChatGPT 登录"
+msgstr "Local Codex / ChatGPT sign-in imported"
+
+#. placeholder {0}: result.email ?? account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已将 {0} 设为本机 agy 登录（本机原登录已被替换）。"
+msgstr "{0} has been set as the local agy sign-in (the previous local sign-in was replaced)."
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "已工作"
+msgstr "Worked"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "已暂停，耗时 {elapsed}"
+msgstr "Paused after {elapsed}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已暂停跟踪，点击恢复"
+msgstr "Tracking paused; click to resume"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "已有 {duplicateCount} 个使用相同组件的配方"
+msgstr "{duplicateCount} recipe(s) already use the same components"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已用 API Key 添加 Kimi Code 账号"
+msgstr "Kimi Code account added with API Key"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "已用额度 --"
+msgstr "Quota used --"
+
+#. placeholder {0}: Math.round(usedPercent)
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "已用额度 {0}%"
+msgstr "Quota used {0}%"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已登录"
+msgstr "Signed in"
+
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "已自动添加火山方舟模型渠道，可在「管理模型」中获取并勾选模型。"
+msgstr "The Volcengine Ark model channel was added automatically; you can fetch and select models in \"Manage models\"."
+
+#. placeholder {0}: roster.length
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已选模型名单 · {0} 个"
+msgstr "Selected model list · {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已验证 · Chat Completions，已加入首页。"
+msgstr "Verified · Chat Completions; added to home."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已验证 · Responses API，已加入首页。"
+msgstr "Verified · Responses API; added to home."
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "平均缓存命中率"
+msgstr "Average cache hit rate"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "应用"
+msgstr "Apply"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "开启"
+msgstr "Enable"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "开始时间"
+msgstr "Start time"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "异常"
+msgstr "Abnormal"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "当前不可运行"
+msgstr "Currently not runnable"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "当前会话 Token"
+msgstr "Current session tokens"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "当前会话占用"
+msgstr "Current session usage"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "当前没有可分支的正式会话。"
-msgstr "当前没有可分支的正式会话。"
+msgstr "No regular conversation is available to branch."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "当前版本不支持删除渠道账号。"
+msgstr "The current version does not support deleting channel accounts."
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "当前线程还没有可分支的上下文。"
-msgstr "当前线程还没有可分支的上下文。"
+msgstr "This thread has no context to branch yet."
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "当前账号"
+msgstr "Current account"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "当前账号额度"
+msgstr "Current account quota"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "待放入材料"
+msgstr "Awaiting ingredients"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "循环轮换"
+msgstr "Round-robin rotation"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "快速模式"
+msgstr "Fast mode"
+
+#. placeholder {0}: fastControl.disabledReason
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "快速模式 {0}"
+msgstr "Fast mode {0}"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "思考强度"
+msgstr "Thinking effort"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "思考强度档位"
+msgstr "Thinking effort levels"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "思考强度档位（逗号分隔，手写）"
+msgstr "Thinking effort levels (comma-separated, handwritten)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "恢复使用"
+msgstr "Resume use"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "我的配方"
+msgstr "My recipes"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "手写档位"
+msgstr "Handwritten levels"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "手写档位直接透传给模型（如 low / high / xhigh，以各厂商文档为准）。"
+msgstr "Handwritten levels are passed through to the model as-is (e.g. low / high / xhigh — refer to each vendor's documentation)."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "手动添加模型"
+msgstr "Add model manually"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "打开官方 OpenCode TUI，用它自己的模型选择器选择模型"
+msgstr "Open the official OpenCode TUI and select a model with its own model picker"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "打开添加模型对话框"
+msgstr "Open add-model dialog"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "打开添加模型对话框，可设置上下文窗口与输入输出类型"
+msgstr "Open the add-model dialog; you can set the context window and input/output types"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "打开设置"
+msgstr "Open settings"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
+msgid "打开设置页面"
+msgstr "Open settings page"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "执行模式与权限"
+msgstr "Execution mode & permissions"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "技能"
+msgstr "Skills"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "拉取失败"
+msgstr "Pull failed"
+
+#: src/renderer/uiPreview.tsx
+msgid "拉取请求"
+msgstr "Pull request"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "拖动调整渠道栏宽度"
+msgstr "Drag to adjust channel rail width"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "拖拽排序"
+msgstr "Drag to reorder"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "按优先级（排前优先）"
+msgstr "By priority (earlier first)"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "按模型路由"
+msgstr "Routed by model"
+
+#: src/renderer/actions/agentLoginActions.ts
+msgid "授权已完成，但额度刷新失败；稍后可再次刷新。"
+msgstr "Authorization completed, but quota refresh failed; you can refresh again later."
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "接管"
+msgstr "Takeover"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "推理"
+msgstr "Reasoning"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "推理强度"
+msgstr "Reasoning effort"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "推送"
-msgstr "推送"
+msgstr "Push"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "推送 {ahead} 个提交"
-msgstr "推送 {ahead} 个提交"
+msgstr "Push {ahead} commits"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "推送中…"
-msgstr "推送中…"
+msgstr "Pushing…"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "提交"
-msgstr "提交"
+msgstr "Commit"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "提交 (Ctrl+Enter)"
-msgstr "提交 (Ctrl+Enter)"
+msgstr "Commit (Ctrl+Enter)"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "提交信息"
-msgstr "提交信息"
+msgstr "Commit message"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "提交并推送"
-msgstr "提交并推送"
+msgstr "Commit & push"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "提交或推送"
-msgstr "提交或推送"
+msgstr "Commit or push"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "提供商名称（卡片显示）"
+msgstr "Provider name (shown on card)"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "插件清单读取失败，去插件页重试"
+msgstr "Failed to read the plugin list; retry on the Plugins page"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "搜索 {0} 渠道模型"
+msgstr "Search {0} channel models"
 
 #: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "搜索分支"
-msgstr "搜索分支"
+msgstr "Search branches"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "搜索模型 ID 或名称…"
+msgstr "Search model ID or name…"
+
+#. placeholder {0}: Array.isArray(record.supportedVendors) ? record.supportedVendors.join(", ") : "-"
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "支持厂商 {0}"
+msgstr "Supported vendors {0}"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "收起 Git 面板"
-msgstr "收起 Git 面板"
+msgstr "Collapse Git panel"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "改用粘贴 Cookie"
+msgstr "Switch to pasting a cookie"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "敏感操作、写文件与命令需要确认"
+msgstr "Sensitive operations, file writes, and commands require confirmation"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "文本"
+msgstr "Text"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "文本输入恒选"
+msgstr "Text input always selected"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "新会话按账号池规则调度"
+msgstr "New sessions are scheduled by account-pool rules"
+
+#: src/renderer/uiPreview.tsx
+msgid "新线程"
+msgstr "New thread"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "无原生 Harness · 兼容默认"
+msgstr "No native Harness · compatibility default"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法保存 Kimi API Key。"
+msgstr "Could not save the Kimi API Key."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法保存火山方舟凭据。"
+msgstr "Could not save Volcengine Ark credentials."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "无法删除渠道。"
+msgstr "Could not delete the channel."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法删除账号。"
+msgstr "Could not delete the account."
+
+#. placeholder {0}: getBasename(ref.path)
+#. placeholder {1}: friendlyError(error)
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
+msgid "无法打开 {0}：{1}"
+msgstr "Cannot open {0}: {1}"
+
+#. placeholder {0}: friendlyError(error)
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+msgid "无法打开 {basename}：{0}"
+msgstr "Cannot open {basename}: {0}"
+
+#. placeholder {0}: input.label
+#: src/renderer/actions/runCliUpdate.ts
+msgid "无法更新 {0}。"
+msgstr "Cannot update {0}."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "无法精确归因"
+msgstr "Cannot attribute precisely"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法读取该提供商配置。"
+msgstr "Could not read this provider's configuration."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法选择账号。"
+msgstr "Could not select an account."
+
+#: src/renderer/i18n/locales.ts
+#~ msgid "日本語"
+#~ msgstr "Japanese"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "暂停使用"
+msgstr "Pause use"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "暂无可用额度数据，请先登录/授权。"
+msgstr "No quota data available; please sign in / authorize first."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "暂无可用额度数据。"
+msgstr "No quota data available."
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "暂无已安装插件 Skills"
+msgstr "No installed plugin Skills yet"
 
 #: src/renderer/components/common/ProviderModelMenu/parts/buildItems.ts
 msgid "暂无已配置渠道 — 去「渠道与额度」登录后即可使用"
-msgstr "暂无已配置渠道 — 去「渠道与额度」登录后即可使用"
+msgstr "No channels configured — sign in under Channels & Quotas to use them"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "暂无正式线程。"
-msgstr "暂无正式线程。"
+msgstr "No regular threads yet."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "暂无精确 Token 用量"
+msgstr "No precise token usage yet"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "暂无精确用量"
+msgstr "No precise usage yet"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "暂无额度窗口"
+msgstr "No quota windows yet"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "暂未开放"
+msgstr "Not open yet"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "更多操作"
-msgstr "更多操作"
+msgstr "More actions"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "更多组件槽 · 暂未开放"
+msgstr "More component slots · not open yet"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "更改"
-msgstr "更改"
+msgstr "Changes"
+
+#: src/renderer/uiPreview.tsx
+msgid "更新"
+msgstr "Update"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "更新中"
+msgstr "Updating"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "月"
+msgstr "Month"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "未关联"
+msgstr "Not linked"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "未安装"
+msgstr "Not installed"
 
 #: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "未提交的更改：{changedFiles} 个文件（{stagedCount} staged · {unstagedCount} unstaged）"
-msgstr "未提交的更改：{changedFiles} 个文件（{stagedCount} staged · {unstagedCount} unstaged）"
+msgstr "Uncommitted changes: {changedFiles} files ({stagedCount} staged · {unstagedCount} unstaged)"
 
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "未提供"
+msgstr "Not provided"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "未知"
+msgstr "Unknown"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "未知错误"
+msgstr "Unknown error"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+#~ msgid "未知错误t"
+#~ msgstr "未知错误t"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "未运行"
+msgstr "Not running"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "未选择 Harness"
+msgstr "No Harness selected"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "未选择模型"
+msgstr "No model selected"
+
+#: src/renderer/components/common/ProviderModelMenu/ProviderModelMenu.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "未配置"
+msgstr "Not configured"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "未验证"
+msgstr "Not verified"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "未验证：保存前必须先验证 Base URL + Key + Model。"
+msgstr "Not verified: Base URL + Key + Model must be verified before saving."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "未验证（上次已验证 · {lastVerifiedLabel}，修改后需重新验证）。"
+msgstr "Not verified (last verified · {lastVerifiedLabel}; re-verification required after changes)."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "本机 Codex"
+msgstr "Local Codex"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+#~ msgid "本机 Kimi"
+#~ msgstr "Local Kimi"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "本轮 Token"
+msgstr "This turn's tokens"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "本轮耗时"
+msgstr "This turn's duration"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "查询失败"
+msgstr "Query failed"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "标准"
+msgstr "Standard"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+#: src/renderer/components/crafting/workbench/ModelsInventory.tsx
+msgid "模型"
+msgstr "Model"
+
+#. placeholder {0}: selectedModel.displayName
+#. placeholder {1}: selectedModel.modelId
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "模型 · {0}（{1}）"
+msgstr "Model · {0} ({1})"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "模型 ID"
+msgstr "Model ID"
+
+#. placeholder {0}: model.modelId
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "模型 ID · {0}"
+msgstr "Model ID · {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "模型 ID，如 gpt-5.3"
+msgstr "Model ID, e.g. gpt-5.3"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "模型与用量视图"
+msgstr "Models & usage view"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "模型与管理"
-msgstr "模型与管理"
+msgstr "Models & management"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "模型与运行参数"
+msgstr "Model & run parameters"
+
+#. placeholder {0}: payload.fromModel
+#. placeholder {1}: payload.toModel
+#. placeholder {2}: payload.error ? `：${payload.error}` : ""
+#: src/renderer/components/thread/ChatPane/parts/items/ModelSwitchMarker.tsx
+msgid "模型切换失败 {0} → {1}{2}"
+msgstr "Model switch failed {0} → {1}{2}"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "模型列表"
+msgstr "Model list"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "模型名称"
+msgstr "Model name"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "模型展示名称"
+msgstr "Model display name"
+
+#. placeholder {0}: payload.fromModel
+#. placeholder {1}: payload.toModel
+#: src/renderer/components/thread/ChatPane/parts/items/ModelSwitchMarker.tsx
+msgid "模型已切换 {0} → {1}"
+msgstr "Model switched {0} → {1}"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "模型槽"
+msgstr "Model slot"
+
+#: src/renderer/components/crafting/workbench/ModelsInventory.tsx
+msgid "模型背包"
+msgstr "Model inventory"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "模型验证失败，未加入首页。"
+msgstr "Model verification failed; not added to home."
+
+#. placeholder {0}: Math.round(percent)
+#: src/renderer/views/SettingsOverlay/parts/SettingsTitlebar.tsx
+msgid "正在下载 {0}%"
+msgstr "Downloading {0}%"
+
+#. placeholder {0}: payload.fromModel
+#. placeholder {1}: payload.toModel
+#: src/renderer/components/thread/ChatPane/parts/items/ModelSwitchMarker.tsx
+msgid "正在交接上下文 {0} → {1}"
+msgstr "Handing off context {0} → {1}"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "正在初始化…"
-msgstr "正在初始化…"
+msgstr "Initializing…"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "正在加载 Git 状态…"
-msgstr "正在加载 Git 状态…"
+msgstr "Loading Git status…"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "正在右侧查看正式线程，关闭不影响原线程"
-msgstr "正在右侧查看正式线程，关闭不影响原线程"
+msgstr "Viewing the regular thread on the right — closing it won't affect the original"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "正在合成 Agent..."
+msgstr "Crafting Agent..."
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "正在安装…"
+msgstr "Installing…"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "正在获取模型列表…"
+msgstr "Fetching model list…"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "此配方通过兼容桥运行；启动时会再次检查运行环境与模型可用性。"
+msgstr "This recipe runs via the compatibility bridge; the runtime environment and model availability will be re-checked at launch."
+
+#. placeholder {0}: modelQuery.trim()
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "没有匹配「{0}」的模型。"
+msgstr "No models matching \"{0}\"."
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "没有可分支的正式会话"
-msgstr "没有可分支的正式会话"
+msgstr "No regular conversation can be branched"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "没有可推送的提交"
-msgstr "没有可推送的提交"
+msgstr "Nothing to push"
 
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "没有检测到 Harness"
+msgstr "No Harness detected"
+
+#. placeholder {0}: record.supportsStreaming === false ? i18n._(linguiMsg`关闭`) : i18n._(linguiMsg`开启`)
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "流式输出 {0}"
+msgstr "Streaming output {0}"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "消息"
+msgstr "Messages"
+
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+#: src/renderer/components/crafting/workbench/ModelsInventory.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加"
+msgstr "Add"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 Antigravity 账号"
+msgstr "Add Antigravity account"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 ChatGPT 账号"
+msgstr "Add ChatGPT account"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 Grok 账号"
+msgstr "Add Grok account"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 Kimi Code 账号"
+msgstr "Add Kimi Code account"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 OpenAI 兼容 API 账号"
+msgstr "Add OpenAI-compatible API account"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 OpenAI 兼容提供商"
+msgstr "Add OpenAI-compatible provider"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加提供商"
+msgstr "Add provider"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "添加模型"
+msgstr "Add model"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加账号"
+msgstr "Add account"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "清空"
+msgstr "Clear"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "渠道"
+msgstr "Channel"
+
+#. placeholder {0}: model.providerLabel
+#. placeholder {1}: model.channelLabel
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "渠道 · {0} / {1}"
+msgstr "Channel · {0} / {1}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "渠道与额度"
-msgstr "渠道与额度"
+msgstr "Channels & quotas"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "渠道余额"
+msgstr "Channel balance"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "渠道模型"
+msgstr "Channel models"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "火山方舟 Volcengine Ark"
+msgstr "Volcengine Ark"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "火山方舟凭据已保存。"
+msgstr "Volcengine Ark credentials saved."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "火山额度已登录；如需在「管理模型」中使用火山方舟模型，请再填写 Ark API Key（将自动创建模型渠道）。"
+msgstr "Volcano quota signed in; to use Volcengine Ark models in \"Manage models\", please also fill in the Ark API Key (a model channel will be created automatically)."
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "点击下载并安装"
+msgstr "Click to download and install"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "点击查看并修复"
+msgstr "Click to view and fix"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "点击行首勾选可移出首页"
+msgstr "Click the checkbox at row start to remove from home"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "点击装配并 Spawn Agent Entity"
+msgstr "Click to assemble and spawn Agent Entity"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "点击配置"
+msgstr "Click to configure"
+
+#. placeholder {0}: props.item.metadata.version
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "版本：{0}"
+msgstr "Version: {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "状态"
+msgstr "Status"
+
+#. placeholder {0}: harness.status
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "状态 · {0}"
+msgstr "Status · {0}"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "状态：进行中"
-#~ msgstr "状态：进行中"
+#~ msgstr "Status: in progress"
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
 #~ msgid "璁″垝杩涘害"
 #~ msgstr "璁″垝杩涘害"
 
+#. placeholder {0}: props.providerKind || t`通用`
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "用 {0} 预设"
+msgstr "Use {0} preset"
+
+#: src/renderer/components/thread/threadComposerSubmit.ts
+#: src/renderer/components/thread/ThreadDraftComposerArea.tsx
+msgid "用法：/goal + Prompt（Prompt 不能为空）"
+msgstr "Usage: /goal + Prompt (Prompt must not be empty)"
+
+#: src/renderer/uiPreview.tsx
+msgid "用量"
+msgstr "Usage"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "用量统计"
-msgstr "用量统计"
+msgstr "Usage stats"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "留空则跟随渠道默认；各厂商档位以其文档为准。"
+msgstr "Leave empty to follow the channel default; each vendor's levels follow their own documentation."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "登录/授权"
+msgstr "Sign in / Authorize"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "登录中…"
+msgstr "Signing in…"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "登录完成后，将完整 Cookie 请求头粘贴到这里。"
-msgstr "登录完成后，将完整 Cookie 请求头粘贴到这里。"
+msgstr "After signing in, paste the full Cookie request header here."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "登录授权"
+msgstr "Sign-in authorization"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "目标"
-msgstr "目标"
+msgstr "Goal"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "直接从上游获取该渠道当前可用的模型列表"
+msgstr "Fetch this channel's currently available model list directly from upstream"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "视频"
+msgstr "Video"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "禁用账号"
+msgstr "Disable account"
+
+#. placeholder {0}: item.displayName
+#. placeholder {0}: item.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "移出 {0}"
+msgstr "Remove {0}"
+
+#. placeholder {0}: model.displayName
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "移除 {0}"
+msgstr "Remove {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "移除账号"
+msgstr "Remove account"
+
+#. placeholder {0}: props.priorityRank
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "第 {0} 优先"
+msgstr "Priority #{0}"
+
+#. placeholder {0}: props.priorityRank
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "第 {0} 优先级：排在前面的账号优先调度，可拖拽调整顺序"
+msgstr "Priority #{0}: accounts listed earlier are scheduled first; drag to reorder"
+
+#: src/renderer/components/thread/ThreadDraftView.tsx
+#: src/renderer/components/thread/useManagedComposerProviders.ts
+msgid "第三方 API"
+msgstr "Third-party API"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "第三方渠道 · 按模型路由"
+msgstr "Third-party channel · routed by model"
+
+#: src/renderer/i18n/locales.ts
+#~ msgid "简体中文"
+#~ msgstr "Simplified Chinese"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "管理"
+msgstr "Manage"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "管理模型"
-msgstr "管理模型"
+msgstr "Manage models"
 
-#: src/renderer/components/thread/ThreadStatusCapsule.tsx
-#~ msgid "计划"
-#~ msgstr "计划"
+#. placeholder {0}: props.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "粘贴 {0} API Key"
+msgstr "Paste {0} API Key"
+
+#. placeholder {0}: props.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "粘贴 {0} 的 Cookie"
+msgstr "Paste the {0} cookie"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "粘贴 Kimi Code API Key"
+msgstr "Paste Kimi Code API Key"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "精确用量暂不可用。"
+msgstr "Precise usage is temporarily unavailable."
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "系统工具"
+msgstr "System tools"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "系统提示词"
+msgstr "System prompt"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "系统组合名"
+msgstr "System combo name"
+
+#: src/renderer/actions/threadActions.ts
+msgid "线程不存在"
+msgstr "Thread does not exist"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "组件"
+msgstr "Component"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "组件背包"
+msgstr "Component inventory"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "组合无效"
+msgstr "Invalid combination"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "缓存"
+msgstr "Cache"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "缓存残留：未解析到账号身份"
+msgstr "Cache residue: account identity could not be resolved"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "缓存读取"
+msgstr "Cache read"
+
+#. placeholder {0}: account.providerAccountId ?? account.label
+#. placeholder {0}: model.displayName
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "编辑 {0}"
+msgstr "Edit {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "编辑 OpenAI 兼容提供商"
+msgstr "Edit OpenAI-compatible provider"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "编辑 Volcengine Ark Token Plan"
+msgstr "Edit Volcengine Ark Token Plan"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "编辑上下文 / 模态 / 思考强度 / 展示名"
+msgstr "Edit context / modality / thinking effort / display name"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "编辑别名"
+msgstr "Edit alias"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "编辑模型"
+msgstr "Edit model"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "编辑阿里 Token Plan"
+msgstr "Edit Ali Token Plan"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "缺少模型或 Harness 组件"
+msgstr "Missing model or Harness component"
+
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "网络/连接中断，{delaySeconds} 秒后自动重试（第 {attempt}/{maxAttempts} 次）"
+msgstr "Network/connection interrupted; auto-retrying in {delaySeconds}s (attempt {attempt}/{maxAttempts})"
+
+#: src/renderer/uiPreview.tsx
+msgid "聊天"
+msgstr "Chat"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义"
+msgstr "Custom"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "自定义 API 渠道的模型列表"
+msgstr "Model list for custom API channels"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义，如 200K / 500000，回车应用"
+msgstr "Custom, e.g. 200K / 500000; press Enter to apply"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义…"
+msgstr "Custom…"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义上下文窗口大小"
+msgstr "Custom context window size"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义思考强度"
+msgstr "Custom thinking effort"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "自定义提供商 · 支持添加多个"
+msgstr "Custom provider · supports adding multiple"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "自定义模型（已加入首页）"
+msgstr "Custom model (added to home)"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取 {0} 上游可用模型列表"
+msgstr "Fetch available model list for {0} from upstream"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取 {0} 渠道上游可用模型列表"
+msgstr "Fetch available model list for channel {0} from upstream"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取模型"
+msgstr "Fetch models"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取模型列表失败"
+msgstr "Failed to fetch model list"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取模型列表失败，请重试"
+msgstr "Failed to fetch model list; please retry"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取模型列表超时（30s），请重试。"
+msgstr "Fetching the model list timed out (30s); please retry."
+
+#: src/renderer/uiPreview.tsx
+msgid "计划"
+msgstr "Plan"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "计划模式"
+msgstr "Plan mode"
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
 msgid "计划进度"
-msgstr "计划进度"
+msgstr "Plan progress"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "设为本机"
+msgstr "Set as local"
+
+#: src/renderer/uiPreview.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "设置"
+msgstr "Settings"
+
+#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+msgid "设置已同步"
+msgstr "Settings synced"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "该 Provider 跨线程消息"
+msgstr "Cross-thread messages for this provider"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "该渠道暂无可用模型。点击右上「获取模型」直接从上游拉取，或在下方手动添加模型 ID。"
+msgstr "No models available for this channel yet. Click \"Fetch models\" at top right to pull from upstream, or manually add a model ID below."
+
+#: src/renderer/actions/threadLaunchActions.ts
+msgid "该配方当前不可执行"
+msgstr "This recipe is not executable right now"
+
+#: src/renderer/components/thread/pausedTurn.ts
+msgid "请从刚才被打断的地方继续任务，不要从头开始。"
+msgstr "Please continue the task from where it was interrupted; do not start over."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "请先添加一个项目，再打开 OpenCode 模型选择器。"
+msgstr "Please add a project first, then open the OpenCode model picker."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "请先验证通过（Base URL + API Key + Model），验证通过后才能保存。"
+msgstr "Please verify first (Base URL + API Key + Model); saving is only possible after verification passes."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "请填写 Model Name，验证通过后才能添加。"
+msgstr "Please fill in the Model Name; it can only be added after verification passes."
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "请填写提交信息"
-msgstr "请填写提交信息"
+msgstr "Enter a commit message"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "请安装/配置所选 Harness，或更换可用的模型/Harness 组合"
+msgstr "Please install/configure the selected Harness, or switch to an available model/Harness combination"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "请求批准"
+msgstr "Request approval"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "读取插件清单中…"
+msgstr "Reading plugin list…"
+
+#. placeholder {0}: model.accountId
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "账号 · {0}"
+msgstr "Account · {0}"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "账号余额"
+msgstr "Account balance"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "账号名称"
+msgstr "Account name"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "账号已禁用。"
+msgstr "Account disabled."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "账号授权已过期，需要重新授权。"
+msgstr "Account authorization expired; re-authorization required."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "账号身份未知"
+msgstr "Account identity unknown"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "账号身份未知（已失效）"
+msgstr "Account identity unknown (expired)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "跟随渠道默认"
+msgstr "Follow channel default"
+
+#: src/renderer/components/thread/threadCollaborationUi.tsx
+msgid "跨线程对话"
+msgstr "Cross-thread conversation"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "输入"
+msgstr "Input"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "输入类型"
+msgstr "Input types"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "输出"
+msgstr "Output"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "输出类型"
+msgstr "Output types"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "输出速度"
+msgstr "Output speed"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "运行中"
+msgstr "Running"
+
+#. placeholder {0}: bridge.endpoint ?? ""
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "运行中 {0}"
+msgstr "Running {0}"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "还没有保存的配方"
+msgstr "No saved recipes yet"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "还没有保存的配方。去「合成台 / Harness」合成并保存后，可在这里勾选进首页模型选择器。"
+msgstr "No saved recipes yet. Craft and save one in \"Crafting / Harness\", then you can select it here into the home model picker."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "还没有可用渠道。请先在「渠道与额度」页添加并登录渠道账号。"
+msgstr "No channels available yet. Please add and sign in to a channel account on the \"Channels & quotas\" page first."
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "还没有在「管理模型」中选定任何模型"
+msgstr "No models selected in \"Manage models\" yet"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "还没有已选模型。在中间列勾选渠道模型即可加入首页选择器。"
+msgstr "No selected models yet. Check channel models in the middle column to add them to the home picker."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "进程"
-msgstr "进程"
+msgstr "Process"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "远程线程不支持侧边分支。"
-msgstr "远程线程不支持侧边分支。"
+msgstr "Remote threads don't support side branches."
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "远程线程不支持在 Side Chat 中打开。"
-msgstr "远程线程不支持在 Side Chat 中打开。"
+msgstr "Remote threads can't be opened in Side Chat."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "连接 {label} 显示额度"
+msgstr "Connect {label} to show quota"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "连接会话显示额度"
+msgstr "Connect session to show quota"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "连接额度"
+msgstr "Connect quota"
+
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "选择一件物品查看详情"
+msgstr "Select an item to view details"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "选择已有线程（右侧并行打开，原线程不受影响）"
-msgstr "选择已有线程（右侧并行打开，原线程不受影响）"
+msgstr "Pick an existing thread (opens side by side; the original isn't affected)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "通用"
+msgstr "General"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "配方"
+msgstr "Recipe"
+
+#. placeholder {0}: recipes.length
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "配方 · {0}"
+msgstr "Recipe · {0}"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "配方列表"
+msgstr "Recipe list"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "配方别名"
+msgstr "Recipe alias"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "重命名账号"
+msgstr "Rename account"
 
 #: src/renderer/components/common/ZoomIndicator.tsx
 msgid "重置"
-msgstr "重置"
+msgstr "Reset"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "重置卡 {resetCreditCount} 张未使用。额度要等核销后才会下降。"
+msgstr "{resetCreditCount} reset card(s) unused. The quota only drops after redemption."
+
+#: src/renderer/actions/installNativeAgent.ts
+msgid "重试"
+msgstr "Retry"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "错误原因"
+msgstr "Error reason"
+
+#: src/renderer/uiPreview.tsx
+msgid "隐藏侧边栏"
+msgstr "Hide sidebar"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "随机"
+msgstr "Random"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "预留"
+msgstr "Reserved"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "额度"
+msgstr "Quota"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "额度低"
+msgstr "Quota low"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "额度充足"
+msgstr "Quota sufficient"
+
+#. placeholder {0}: error instanceof Error ? error.message : i18n._(linguiMsg`导入未通过`)
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "额度已登录；火山方舟模型渠道导入失败（{0}），可在「OpenAI 兼容 API」手动添加。"
+msgstr "Quota signed in; importing the Volcengine Ark model channel failed ({0}) — you can add it manually under \"OpenAI-compatible API\"."
+
+#. placeholder {0}: error instanceof Error ? error.message : t`未知错误`
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "额度已登录；火山方舟模型渠道自动创建失败（{0}），可在「OpenAI 兼容 API」手动添加。"
+msgstr "Quota signed in; auto-creating the Volcengine Ark model channel failed ({0}) — you can add it manually under \"OpenAI-compatible API\"."
+
+#. placeholder {0}: error instanceof Error ? error.message : i18n._(linguiMsg`验证未通过`)
+#. placeholder {0}: staged.error ?? i18n._(linguiMsg`验证未通过`)
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "额度已登录；自动创建火山方舟模型渠道失败（{0}），可在「OpenAI 兼容 API」手动添加。"
+msgstr "Quota signed in; failed to auto-create the Volcengine Ark model channel ({0}) — you can add it manually under \"OpenAI-compatible API\"."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "额度已耗尽。"
+msgstr "Quota exhausted."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "额度暂不可用。"
+msgstr "Quota temporarily unavailable."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "额度查询失败。"
+msgstr "Quota query failed."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证"
+msgstr "Verify"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证 Base URL 与模型"
+msgstr "Verify Base URL and model"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证中…"
+msgstr "Verifying…"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证中…正在做最小真实请求探测。"
+msgstr "Verifying… performing a minimal real request probe."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证失败，请检查后重试。"
+msgstr "Verification failed; please check and retry."
+
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "验证未通过"
+msgstr "Verification failed"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证通过后才能保存"
+msgstr "Save only after verification passes"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "默认"
+msgstr "Default"
+
+#: src/renderer/components/thread/customModelCatalog.ts
+msgid "默认最高"
+msgstr "Highest by default"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "默认思考强度"
+msgstr "Default thinking effort"

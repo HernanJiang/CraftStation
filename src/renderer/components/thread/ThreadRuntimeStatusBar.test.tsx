@@ -34,7 +34,7 @@ function seed(thread: Thread, usage?: { usedTokens: number; maxTokens: number })
             usedTokens: usage.usedTokens,
             maxTokens: usage.maxTokens,
             breakdown: [
-              { id: "messages", label: "消息", tokens: usage.usedTokens },
+              { id: "messages", label: "Messages", tokens: usage.usedTokens },
               { id: "input", label: "Input Token", tokens: usage.usedTokens },
               { id: "output", label: "Output Token", tokens: 0 },
               { id: "reasoning", label: "Reasoning Token", tokens: 243 },
@@ -76,7 +76,7 @@ describe("ThreadRuntimeStatusBar", () => {
     expect(chip).toHaveTextContent("Working");
     expect(chip).not.toHaveTextContent("FOC_t1");
     expect(chip).not.toHaveTextContent("84%");
-    expect(chip).not.toHaveTextContent("上下文");
+    expect(chip).not.toHaveTextContent("Context");
     expect(chip.textContent).not.toMatch(/218K/);
     expect(chip.querySelector("span.h-1")).toBeNull();
   });
@@ -100,17 +100,17 @@ describe("ThreadRuntimeStatusBar", () => {
     const popover = screen.getByTestId("thread-runtime-status-popover");
     expect(popover).toHaveTextContent("Completed");
     expect(popover).not.toHaveTextContent("FOC_t1");
-    expect(popover).toHaveTextContent("本轮 Token");
+    expect(popover).toHaveTextContent("This turn's tokens");
     expect(popover).toHaveTextContent("218K");
-    expect(popover).toHaveTextContent("本轮耗时");
-    expect(popover).toHaveTextContent("上一轮耗时");
-    expect(popover).not.toHaveTextContent("上下文");
-    expect(popover).not.toHaveTextContent("消息");
+    expect(popover).toHaveTextContent("This turn's duration");
+    expect(popover).toHaveTextContent("Previous turn duration");
+    expect(popover).not.toHaveTextContent("Context");
+    expect(popover).not.toHaveTextContent("Messages");
     expect(popover).not.toHaveTextContent("Input Token");
     expect(popover).not.toHaveTextContent("Output Token");
     expect(popover).not.toHaveTextContent("Cache read");
-    expect(popover).not.toHaveTextContent("上一轮 Token");
-    expect(popover).not.toHaveTextContent("缓存命中率");
+    expect(popover).not.toHaveTextContent("Previous turn tokens");
+    expect(popover).not.toHaveTextContent("Cache hit rate");
   });
 
   it("shows the average output rate only in the details popover", () => {
@@ -139,7 +139,7 @@ describe("ThreadRuntimeStatusBar", () => {
 
     fireEvent.mouseEnter(screen.getByTestId("thread-runtime-status"));
     const popover = screen.getByTestId("thread-runtime-status-popover");
-    expect(popover).toHaveTextContent("输出速度");
+    expect(popover).toHaveTextContent("Output speed");
     expect(popover).toHaveTextContent("≈ 42 tok/s");
   });
 
@@ -179,9 +179,9 @@ describe("ThreadRuntimeStatusBar", () => {
     fireEvent.mouseEnter(screen.getByTestId("thread-runtime-status"));
     const popover = screen.getByTestId("thread-runtime-status-popover");
     // 120 est. tokens over the 60s turn → ≈ 2 tok/s, flagged as estimated.
-    expect(popover).toHaveTextContent("输出速度");
+    expect(popover).toHaveTextContent("Output speed");
     expect(popover).toHaveTextContent("≈ 2 tok/s");
-    expect(popover).toHaveTextContent("估算");
+    expect(popover).toHaveTextContent("estimated");
   });
 
   it("estimates output from persisted streams when no live turn output exists", () => {
@@ -223,9 +223,9 @@ describe("ThreadRuntimeStatusBar", () => {
     fireEvent.mouseEnter(screen.getByTestId("thread-runtime-status"));
     const popover = screen.getByTestId("thread-runtime-status-popover");
     // 240 ASCII chars ≈ 60 est. tokens over the 60s turn → ≈ 1 tok/s.
-    expect(popover).toHaveTextContent("输出速度");
+    expect(popover).toHaveTextContent("Output speed");
     expect(popover).toHaveTextContent("≈ 1 tok/s");
-    expect(popover).toHaveTextContent("估算");
+    expect(popover).toHaveTextContent("estimated");
   });
 
   it("does not claim a token total when the runtime has not reported usage", () => {
@@ -233,7 +233,9 @@ describe("ThreadRuntimeStatusBar", () => {
     render(<ThreadRuntimeStatusBar threadId="thread-1" />);
 
     fireEvent.mouseEnter(screen.getByTestId("thread-runtime-status"));
-    expect(screen.getByTestId("thread-runtime-status-popover")).toHaveTextContent("本轮 Token");
-    expect(screen.getByTestId("thread-runtime-status-popover")).toHaveTextContent("未提供");
+    expect(screen.getByTestId("thread-runtime-status-popover")).toHaveTextContent(
+      "This turn's tokens",
+    );
+    expect(screen.getByTestId("thread-runtime-status-popover")).toHaveTextContent("Not provided");
   });
 });

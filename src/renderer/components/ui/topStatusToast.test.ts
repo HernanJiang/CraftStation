@@ -32,16 +32,16 @@ describe("showTopStatusToast", () => {
     });
   });
 
-  it("formats pool-failover notices in readable Chinese", () => {
+  it("formats pool-failover notices in readable text", () => {
     expect(poolFailoverToastCopy("Grok", "a@x.com", "b@y.com")).toEqual({
-      title: "Grok账号a@x.com额度已耗尽",
-      description: "已切换到b@y.com继续作答",
+      title: "Grok account a@x.com quota exhausted",
+      description: "Switched to b@y.com to continue answering",
     });
   });
 
   it("formats Craft-Harness retry notices with attempt, interval and reason", () => {
     expect(turnRetryToastCopy(1, 2, 5, "ECONNRESET")).toEqual({
-      title: "网络/连接中断，5 秒后自动重试（第 1/2 次）",
+      title: "Network/connection interrupted; auto-retrying in 5s (attempt 1/2)",
       description: "ECONNRESET",
     });
   });

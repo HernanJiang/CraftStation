@@ -11,6 +11,9 @@ import {
   X,
 } from "lucide-react";
 import { useShallow } from "zustand/shallow";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 import "@/renderer/components/providers/bootstrap";
 import { ProviderBrandBadge, providerLabel } from "./providerBrands";
 import {
@@ -85,14 +88,32 @@ function hasProviderIdentity(snapshot: UsageSnapshot | undefined): boolean {
 }
 
 function accountIdentity(account: AccountView): string {
-  return account.providerAccountId?.trim() || account.maskedIdentity?.trim() || "账号身份未知";
+  return (
+    account.providerAccountId?.trim() ||
+    account.maskedIdentity?.trim() ||
+    i18n._(linguiMsg`账号身份未知`)
+  );
 }
 
 /**
- * Kimi 账号池默认标签（创建/导入时写入）。命中这些标签说明用户还没写备注，
- * 行标题继续显示接口身份；一旦用户自定义备注就优先显示备注。
+ * Kimi 账号池默认标签（创建/导入时按当时 UI 语言写入）。命中这些标签说明用户还没写备注，
+ * 行标题继续显示接口身份；一旦用户自定义备注就优先显示备注。集合覆盖全部
+ * locale 变体——持久化标签是写入那一刻的语言，切换 UI 语言后仍须识别。
  */
-const DEFAULT_KIMI_LABELS = new Set(["New Kimi", "本机 Kimi"]);
+const DEFAULT_KIMI_LABELS = new Set([
+  "New Kimi",
+  "本机 Kimi",
+  "Local Kimi",
+  "Lokaler Kimi",
+  "ローカル Kimi",
+  "로컬 Kimi",
+  "Kimi local",
+  "Локальный Kimi",
+  "Локальний Kimi",
+  "Kimi cục bộ",
+  "Yerel Kimi",
+  "Lokalny Kimi",
+]);
 
 async function submitKimiApiKey(input: {
   apiKey: string;
@@ -115,12 +136,16 @@ async function submitKimiApiKey(input: {
       .setAccounts([...current.filter((row) => row.provider !== "kimi"), ...refreshed]);
     await refreshAndMergeProviderUsage("kimi");
     toast.success(
-      input.accountId ? "Kimi Code API Key 已更新" : "已用 API Key 添加 Kimi Code 账号",
+      input.accountId
+        ? i18n._(linguiMsg`Kimi Code API Key 已更新`)
+        : i18n._(linguiMsg`已用 API Key 添加 Kimi Code 账号`),
     );
     if (account.accountId) input.onImported?.(account.accountId);
     return true;
   } catch (error) {
-    toast.danger(error instanceof Error ? error.message : "无法保存 Kimi API Key。");
+    toast.danger(
+      error instanceof Error ? error.message : i18n._(linguiMsg`无法保存 Kimi API Key。`),
+    );
     return false;
   }
 }
@@ -168,7 +193,7 @@ interface AuthorizedChannel {
 }
 
 function accountPlan(account: AccountView): string {
-  return account.plan?.trim() || "套餐未知";
+  return account.plan?.trim() || i18n._(linguiMsg`套餐未知`);
 }
 
 async function removeAccountBoundCustomModels(input: {
@@ -196,6 +221,7 @@ async function removeAccountBoundCustomModels(input: {
  * 第一行即自定义提供商名称。
  */
 function OpenAiCompatibleCard(props: { onOpenForm: () => void }) {
+  const { t } = useLingui();
   return (
     <article
       data-testid="provider-card-openai-compatible"
@@ -203,17 +229,17 @@ function OpenAiCompatibleCard(props: { onOpenForm: () => void }) {
       className="col-span-1 self-start rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-3"
     >
       <div className="flex min-w-0 items-center gap-2.5">
-        <ProviderBrandBadge id="openai-compatible" label="OpenAI 兼容 API" size="compact" />
+        <ProviderBrandBadge id="openai-compatible" label={t`OpenAI 兼容 API`} size="compact" />
         <div className="min-w-0 flex-1">
-          <h3 className="truncate text-sm font-semibold text-foreground">OpenAI 兼容 API</h3>
-          <p className="mt-0.5 truncate text-[10px] text-muted">自定义提供商 · 支持添加多个</p>
+          <h3 className="truncate text-sm font-semibold text-foreground">{t`OpenAI 兼容 API`}</h3>
+          <p className="mt-0.5 truncate text-[10px] text-muted">{t`自定义提供商 · 支持添加多个`}</p>
         </div>
         <button
           type="button"
           onClick={props.onOpenForm}
           className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground hover:bg-[var(--row-hover)]"
         >
-          <UserRoundPlus className="size-3.5" /> 添加账号
+          <UserRoundPlus className="size-3.5" /> {t`添加账号`}
         </button>
       </div>
     </article>
@@ -242,6 +268,7 @@ function OpenAiCompatibleFormCard(props: {
   onCancel: () => void;
   onSaved: (account: AccountView) => void;
 }) {
+  const { t } = useLingui();
   const [values, setValues] = useState<OpenAiCompatibleFormValues>(EMPTY_OPENAI_FORM);
   const [loading, setLoading] = useState(Boolean(props.accountId));
   const [verifying, setVerifying] = useState(false);
@@ -296,7 +323,7 @@ function OpenAiCompatibleFormCard(props: {
           );
         }
       } catch (error) {
-        toast.danger(error instanceof Error ? error.message : "无法读取该提供商配置。");
+        toast.danger(error instanceof Error ? error.message : t`无法读取该提供商配置。`);
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -304,7 +331,7 @@ function OpenAiCompatibleFormCard(props: {
     return () => {
       cancelled = true;
     };
-  }, [props.accountId]);
+  }, [props.accountId, t]);
 
   const canVerify =
     !verifying &&
@@ -317,9 +344,9 @@ function OpenAiCompatibleFormCard(props: {
 
   const verify = async () => {
     if (!canVerify) {
-      if (!values.model.trim()) toast.danger("请填写 Model Name，验证通过后才能添加。");
+      if (!values.model.trim()) toast.danger(t`请填写 Model Name，验证通过后才能添加。`);
       else if (!values.baseUrl.trim() || !values.apiKey.trim())
-        toast.danger("Base URL 与 API Key 为必填项。");
+        toast.danger(t`Base URL 与 API Key 为必填项。`);
       return;
     }
     setVerifying(true);
@@ -335,7 +362,7 @@ function OpenAiCompatibleFormCard(props: {
         ...(values.displayName.trim() ? { displayName: values.displayName.trim() } : {}),
       });
       if (!outcome.ok || !outcome.validatedProtocol) {
-        setValidation({ status: "failed", error: outcome.error ?? "验证失败，请检查后重试。" });
+        setValidation({ status: "failed", error: outcome.error ?? t`验证失败，请检查后重试。` });
         return;
       }
       setValidation({
@@ -348,7 +375,7 @@ function OpenAiCompatibleFormCard(props: {
     } catch (error) {
       setValidation({
         status: "failed",
-        error: error instanceof Error ? error.message : "验证失败，请检查后重试。",
+        error: error instanceof Error ? error.message : t`验证失败，请检查后重试。`,
       });
     } finally {
       setVerifying(false);
@@ -366,7 +393,7 @@ function OpenAiCompatibleFormCard(props: {
       validation.apiKey !== values.apiKey.trim() ||
       validation.model !== values.model.trim()
     ) {
-      toast.danger("请先验证通过（Base URL + API Key + Model），验证通过后才能保存。");
+      toast.danger(t`请先验证通过（Base URL + API Key + Model），验证通过后才能保存。`);
       return;
     }
     setSaving(true);
@@ -380,10 +407,10 @@ function OpenAiCompatibleFormCard(props: {
       const accounts = await readBridge().listAccounts({});
       useUsageAccountsStore.getState().setAccounts(accounts);
       useUsageLoginStateStore.getState().setStored("openai-compatible", true);
-      toast.success(props.accountId ? "OpenAI 兼容提供商已更新。" : "OpenAI 兼容提供商已添加。");
+      toast.success(props.accountId ? t`OpenAI 兼容提供商已更新。` : t`OpenAI 兼容提供商已添加。`);
       props.onSaved(account);
     } catch (error) {
-      toast.danger(error instanceof Error ? error.message : "OpenAI 兼容 API 保存失败。");
+      toast.danger(error instanceof Error ? error.message : t`OpenAI 兼容 API 保存失败。`);
     } finally {
       setSaving(false);
     }
@@ -398,12 +425,12 @@ function OpenAiCompatibleFormCard(props: {
           <Modal.CloseTrigger />
           <Modal.Header>
             <Modal.Heading>
-              {props.accountId ? "编辑 OpenAI 兼容提供商" : "添加 OpenAI 兼容提供商"}
+              {props.accountId ? t`编辑 OpenAI 兼容提供商` : t`添加 OpenAI 兼容提供商`}
             </Modal.Heading>
           </Modal.Header>
           <Modal.Body className="px-5 pb-2 pt-2">
             {loading ? (
-              <p className="text-[10px] text-muted">加载中…</p>
+              <p className="text-[10px] text-muted">{t`加载中…`}</p>
             ) : (
               <form
                 id="openai-compatible-credential-form"
@@ -412,12 +439,12 @@ function OpenAiCompatibleFormCard(props: {
               >
                 <div className="grid grid-cols-2 gap-2">
                   <label className="space-y-1">
-                    <span className="text-[10px] text-muted">提供商名称（卡片显示）</span>
+                    <span className="text-[10px] text-muted">{t`提供商名称（卡片显示）`}</span>
                     <input
                       value={values.providerName}
                       onChange={(e) => set("providerName")(e.target.value)}
-                      placeholder="例如 My Relay"
-                      aria-label="OpenAI 兼容提供商名称"
+                      placeholder={t`例如 My Relay`}
+                      aria-label={t`OpenAI 兼容提供商名称`}
                       className={field}
                     />
                   </label>
@@ -427,7 +454,7 @@ function OpenAiCompatibleFormCard(props: {
                       value={values.baseUrl}
                       onChange={(e) => set("baseUrl")(e.target.value)}
                       placeholder="https://api.example.com/v1"
-                      aria-label="OpenAI 兼容 API Base URL"
+                      aria-label={t`OpenAI 兼容 API Base URL`}
                       autoComplete="url"
                       className={field}
                     />
@@ -435,36 +462,36 @@ function OpenAiCompatibleFormCard(props: {
                 </div>
                 <label className="block space-y-1">
                   <span className="text-[10px] text-muted">
-                    API Key *{props.accountId ? "（编辑时留空表示保持不变）" : ""}
+                    API Key *{props.accountId ? t`（编辑时留空表示保持不变）` : ""}
                   </span>
                   <input
                     type="password"
                     value={values.apiKey}
                     onChange={(e) => set("apiKey")(e.target.value)}
                     placeholder="sk-..."
-                    aria-label="OpenAI 兼容 API Key"
+                    aria-label={t`OpenAI 兼容 API Key`}
                     autoComplete="off"
                     className={field}
                   />
                 </label>
                 <div className="grid grid-cols-2 gap-2">
                   <label className="space-y-1">
-                    <span className="text-[10px] text-muted">模型名称</span>
+                    <span className="text-[10px] text-muted">{t`模型名称`}</span>
                     <input
                       value={values.model}
                       onChange={(e) => set("model")(e.target.value)}
-                      placeholder="例如 gpt-5.6-sol"
-                      aria-label="OpenAI 兼容模型名称"
+                      placeholder={t`例如 gpt-5.6-sol`}
+                      aria-label={t`OpenAI 兼容模型名称`}
                       className={field}
                     />
                   </label>
                   <label className="space-y-1">
-                    <span className="text-[10px] text-muted">模型展示名称</span>
+                    <span className="text-[10px] text-muted">{t`模型展示名称`}</span>
                     <input
                       value={values.displayName}
                       onChange={(e) => set("displayName")(e.target.value)}
-                      placeholder="例如 GPT-5.6"
-                      aria-label="OpenAI 兼容模型展示名称"
+                      placeholder={t`例如 GPT-5.6`}
+                      aria-label={t`OpenAI 兼容模型展示名称`}
                       className={field}
                     />
                   </label>
@@ -476,40 +503,40 @@ function OpenAiCompatibleFormCard(props: {
             <p className="min-w-0 flex-1 text-[10px] leading-4 text-muted" aria-live="polite">
               {validation.status === "unverified" &&
                 (lastVerifiedLabel
-                  ? `未验证（上次已验证 · ${lastVerifiedLabel}，修改后需重新验证）。`
-                  : "未验证：保存前必须先验证 Base URL + Key + Model。")}
-              {validation.status === "verifying" && "验证中…正在做最小真实请求探测。"}
+                  ? t`未验证（上次已验证 · ${lastVerifiedLabel}，修改后需重新验证）。`
+                  : t`未验证：保存前必须先验证 Base URL + Key + Model。`)}
+              {validation.status === "verifying" && t`验证中…正在做最小真实请求探测。`}
               {validation.status === "verified" &&
                 (validation.protocol === "responses"
-                  ? "✓ 已验证 · Responses API"
-                  : "✓ 已验证 · Chat Completions")}
-              {validation.status === "failed" && `✕ 验证失败：${validation.error}`}
+                  ? t`✓ 已验证 · Responses API`
+                  : t`✓ 已验证 · Chat Completions`)}
+              {validation.status === "failed" && t`✕ 验证失败：${validation.error}`}
             </p>
             <button
               type="button"
               onClick={props.onCancel}
               className="rounded-lg px-3 py-2 text-sm text-muted"
             >
-              取消
+              {t`取消`}
             </button>
             <button
               type="button"
               onClick={() => void verify()}
               disabled={!canVerify}
-              aria-label="验证 Base URL 与模型"
+              aria-label={t`验证 Base URL 与模型`}
               className="rounded-lg border border-[color:var(--hairline)] px-3 py-2 text-sm text-foreground hover:bg-[var(--row-hover)] disabled:opacity-50"
             >
-              {validation.status === "verifying" ? "验证中…" : "验证"}
+              {validation.status === "verifying" ? t`验证中…` : t`验证`}
             </button>
             <button
               type="submit"
               form="openai-compatible-credential-form"
               disabled={!canSave}
-              aria-label={props.accountId ? "保存提供商" : "添加提供商"}
-              title={!canSave ? "验证通过后才能保存" : undefined}
+              aria-label={props.accountId ? t`保存提供商` : t`添加提供商`}
+              title={!canSave ? t`验证通过后才能保存` : undefined}
               className="rounded-lg bg-[var(--row-active)] px-3 py-2 text-sm text-foreground disabled:opacity-50"
             >
-              {saving ? "保存中…" : props.accountId ? "保存" : "添加"}
+              {saving ? t`保存中…` : props.accountId ? t`保存` : t`添加`}
             </button>
           </Modal.Footer>
         </Modal.Dialog>
@@ -524,6 +551,7 @@ function KimiApiKeyDialog(props: {
   onClose: () => void;
   onImported?: ((accountId: string) => void) | undefined;
 }) {
+  const { t } = useLingui();
   const [apiKey, setApiKey] = useState("");
   const [saving, setSaving] = useState(false);
   const field =
@@ -556,12 +584,12 @@ function KimiApiKeyDialog(props: {
                   .finally(() => setSaving(false));
               }}
             >
-              <p className="text-[10px] leading-4 text-muted">保存前会验证 API Key 并导入账号。</p>
+              <p className="text-[10px] leading-4 text-muted">{t`保存前会验证 API Key 并导入账号。`}</p>
               <input
                 type="password"
                 value={apiKey}
                 onChange={(event) => setApiKey(event.target.value)}
-                placeholder="粘贴 Kimi Code API Key"
+                placeholder={t`粘贴 Kimi Code API Key`}
                 aria-label="Kimi Code API Key"
                 autoComplete="off"
                 className={field}
@@ -570,14 +598,14 @@ function KimiApiKeyDialog(props: {
           </Modal.Body>
           <Modal.Footer>
             <p className="min-w-0 flex-1 text-[10px] leading-4 text-muted" aria-live="polite">
-              {saving ? "验证中…" : "未验证"}
+              {saving ? t`验证中…` : t`未验证`}
             </p>
             <button
               type="button"
               onClick={props.onClose}
               className="rounded-lg px-3 py-2 text-sm text-muted"
             >
-              取消
+              {t`取消`}
             </button>
             <button
               type="submit"
@@ -585,7 +613,7 @@ function KimiApiKeyDialog(props: {
               disabled={saving || apiKey.trim().length === 0}
               className="rounded-lg bg-[var(--row-active)] px-3 py-2 text-sm text-foreground disabled:opacity-50"
             >
-              {saving ? "保存中…" : "保存"}
+              {saving ? t`保存中…` : t`保存`}
             </button>
           </Modal.Footer>
         </Modal.Dialog>
@@ -610,13 +638,14 @@ function VolcengineCredentialDialog(props: {
   onClose: () => void;
   onSavingChange: (saving: boolean) => void;
 }) {
+  const { t } = useLingui();
   return (
     <Modal.Backdrop isOpen onOpenChange={(next) => !next && props.onClose()}>
       <Modal.Container>
         <Modal.Dialog className="sm:max-w-[520px]" data-testid="volcengine-credential-form">
           <Modal.CloseTrigger />
           <Modal.Header>
-            <Modal.Heading>火山方舟 Volcengine Ark</Modal.Heading>
+            <Modal.Heading>{t`火山方舟 Volcengine Ark`}</Modal.Heading>
           </Modal.Header>
           <Modal.Body className="px-5 pb-2 pt-2">
             <form
@@ -629,11 +658,11 @@ function VolcengineCredentialDialog(props: {
                 const hasAccessKey = props.accessKeyId.trim().length > 0;
                 const hasSecretKey = props.secretAccessKey.trim().length > 0;
                 if (!submittedApiKey && (hasAccessKey || hasSecretKey)) {
-                  toast.danger("填写 AK/SK 时必须同时填写 Ark API Key；该 Key 用于调用模型。");
+                  toast.danger(t`填写 AK/SK 时必须同时填写 Ark API Key；该 Key 用于调用模型。`);
                   return;
                 }
                 if (hasAccessKey !== hasSecretKey) {
-                  toast.danger("AK 与 SK 必须同时填写。");
+                  toast.danger(t`AK 与 SK 必须同时填写。`);
                   return;
                 }
                 props.onSavingChange(true);
@@ -648,7 +677,7 @@ function VolcengineCredentialDialog(props: {
                     region: props.region.trim() || "cn-beijing",
                   });
                   if (!outcome.ok) {
-                    toast.danger(outcome.error ?? "无法保存火山方舟凭据。");
+                    toast.danger(outcome.error ?? t`无法保存火山方舟凭据。`);
                     return;
                   }
                   useUsageLoginStateStore.getState().setStored("volcengine", true);
@@ -657,19 +686,19 @@ function VolcengineCredentialDialog(props: {
                   props.onSecretAccessKeyChange("");
                   props.onClose();
                   await refreshAndMergeProviderUsage("volcengine");
-                  toast.success("火山方舟凭据已保存。");
+                  toast.success(t`火山方舟凭据已保存。`);
                   if (submittedApiKey && outcome.arkModel) {
                     await autoProvisionVolcengineArkChannel({
                       apiKey: submittedApiKey,
                       model: outcome.arkModel,
                     }).catch((error) =>
                       toast.warning(
-                        `额度已登录；火山方舟模型渠道自动创建失败（${error instanceof Error ? error.message : "未知错误"}），可在「OpenAI 兼容 API」手动添加。`,
+                        t`额度已登录；火山方舟模型渠道自动创建失败（${error instanceof Error ? error.message : t`未知错误`}），可在「OpenAI 兼容 API」手动添加。`,
                       ),
                     );
                   } else if (submittedApiKey && !outcome.arkModel) {
                     toast.warning(
-                      "Ark API Key 已保存，但验证没有返回可用模型，暂未创建模型渠道。请确认该 Key 有 Ark 推理权限，或在「OpenAI 兼容 API」手动添加。",
+                      t`Ark API Key 已保存，但验证没有返回可用模型，暂未创建模型渠道。请确认该 Key 有 Ark 推理权限，或在「OpenAI 兼容 API」手动添加。`,
                     );
                   } else if (!submittedApiKey) {
                     const hasArkChannel = useUsageAccountsStore
@@ -683,26 +712,27 @@ function VolcengineCredentialDialog(props: {
                       );
                     if (!hasArkChannel) {
                       toast.info(
-                        "火山额度已登录；如需在「管理模型」中使用火山方舟模型，请再填写 Ark API Key（将自动创建模型渠道）。",
+                        t`火山额度已登录；如需在「管理模型」中使用火山方舟模型，请再填写 Ark API Key（将自动创建模型渠道）。`,
                       );
                     }
                   }
                 })()
                   .catch((error) =>
-                    toast.danger(error instanceof Error ? error.message : "无法保存火山方舟凭据。"),
+                    toast.danger(
+                      error instanceof Error ? error.message : t`无法保存火山方舟凭据。`,
+                    ),
                   )
                   .finally(() => props.onSavingChange(false));
               }}
             >
               <p className="text-[10px] leading-4 text-muted">
-                Ark API Key 用于调用模型（保存后自动创建渠道）；AK + SK 用于显示 Coding Plan / Agent
-                Plan 额度。填写 AK/SK 时，三项凭据必须同时填写。
+                {t`Ark API Key 用于调用模型（保存后自动创建渠道）；AK + SK 用于显示 Coding Plan / Agent Plan 额度。填写 AK/SK 时，三项凭据必须同时填写。`}
               </p>
               <input
                 type="password"
                 value={props.apiKey}
                 onChange={(event) => props.onApiKeyChange(event.target.value)}
-                placeholder="Ark API Key（模型调用 Key）"
+                placeholder={t`Ark API Key（模型调用 Key）`}
                 aria-label="Volcengine Ark API Key"
                 required
                 autoComplete="off"
@@ -738,14 +768,14 @@ function VolcengineCredentialDialog(props: {
           </Modal.Body>
           <Modal.Footer>
             <p className="min-w-0 flex-1 text-[10px] leading-4 text-muted" aria-live="polite">
-              {props.saving ? "验证中…" : "保存前会验证 Ark Key / AK/SK。"}
+              {props.saving ? t`验证中…` : t`保存前会验证 Ark Key / AK/SK。`}
             </p>
             <button
               type="button"
               onClick={props.onClose}
               className="rounded-lg px-3 py-2 text-sm text-muted"
             >
-              取消
+              {t`取消`}
             </button>
             <button
               type="submit"
@@ -757,7 +787,7 @@ function VolcengineCredentialDialog(props: {
               }
               className="rounded-lg bg-[var(--row-active)] px-3 py-2 text-sm text-foreground disabled:opacity-50"
             >
-              {props.saving ? "保存中…" : "保存"}
+              {props.saving ? t`保存中…` : t`保存`}
             </button>
           </Modal.Footer>
         </Modal.Dialog>
@@ -774,6 +804,7 @@ function ApiKeyCredentialDialog(props: {
   onClose: () => void;
   onSubmit: () => Promise<boolean>;
 }) {
+  const { t } = useLingui();
   return (
     <Modal.Backdrop isOpen onOpenChange={(next) => !next && props.onClose()}>
       <Modal.Container>
@@ -797,12 +828,12 @@ function ApiKeyCredentialDialog(props: {
                 });
               }}
             >
-              <p className="text-[10px] leading-4 text-muted">保存前会验证 API Key。</p>
+              <p className="text-[10px] leading-4 text-muted">{t`保存前会验证 API Key。`}</p>
               <input
                 type="password"
                 value={props.apiKey}
                 onChange={(event) => props.onApiKeyChange(event.target.value)}
-                placeholder={`粘贴 ${props.label} API Key`}
+                placeholder={t`粘贴 ${props.label} API Key`}
                 aria-label={`${props.label} API Key`}
                 autoComplete="off"
                 className={CREDENTIAL_FIELD_CLASS}
@@ -811,14 +842,14 @@ function ApiKeyCredentialDialog(props: {
           </Modal.Body>
           <Modal.Footer>
             <p className="min-w-0 flex-1 text-[10px] leading-4 text-muted" aria-live="polite">
-              {props.saving ? "验证中…" : "未验证"}
+              {props.saving ? t`验证中…` : t`未验证`}
             </p>
             <button
               type="button"
               onClick={props.onClose}
               className="rounded-lg px-3 py-2 text-sm text-muted"
             >
-              取消
+              {t`取消`}
             </button>
             <button
               type="submit"
@@ -826,7 +857,7 @@ function ApiKeyCredentialDialog(props: {
               disabled={props.saving || props.apiKey.trim().length === 0}
               className="rounded-lg bg-[var(--row-active)] px-3 py-2 text-sm text-foreground disabled:opacity-50"
             >
-              {props.saving ? "保存中…" : "保存"}
+              {props.saving ? t`保存中…` : t`保存`}
             </button>
           </Modal.Footer>
         </Modal.Dialog>
@@ -844,6 +875,7 @@ function CookieCredentialDialog(props: {
   onClose: () => void;
   onSubmit: () => Promise<boolean>;
 }) {
+  const { t } = useLingui();
   return (
     <Modal.Backdrop isOpen onOpenChange={(next) => !next && props.onClose()}>
       <Modal.Container>
@@ -869,7 +901,7 @@ function CookieCredentialDialog(props: {
                 type="password"
                 value={props.cookie}
                 onChange={(event) => props.onCookieChange(event.target.value)}
-                placeholder={"粘贴 " + props.label + " 的 Cookie"}
+                placeholder={t`粘贴 ${props.label} 的 Cookie`}
                 aria-label={props.label + " Cookie"}
                 autoComplete="off"
                 className={CREDENTIAL_FIELD_CLASS}
@@ -878,14 +910,14 @@ function CookieCredentialDialog(props: {
           </Modal.Body>
           <Modal.Footer>
             <p className="min-w-0 flex-1 text-[10px] leading-4 text-muted" aria-live="polite">
-              {props.saving ? "验证中…" : "保存前会验证会话 Cookie。"}
+              {props.saving ? t`验证中…` : t`保存前会验证会话 Cookie。`}
             </p>
             <button
               type="button"
               onClick={props.onClose}
               className="rounded-lg px-3 py-2 text-sm text-muted"
             >
-              取消
+              {t`取消`}
             </button>
             <button
               type="submit"
@@ -893,7 +925,7 @@ function CookieCredentialDialog(props: {
               disabled={props.saving || props.cookie.trim().length === 0}
               className="rounded-lg bg-[var(--row-active)] px-3 py-2 text-sm text-foreground disabled:opacity-50"
             >
-              {props.saving ? "保存中…" : "保存"}
+              {props.saving ? t`保存中…` : t`保存`}
             </button>
           </Modal.Footer>
         </Modal.Dialog>
@@ -912,6 +944,7 @@ function ProviderCard(props: {
   onImportAccount?: () => void;
   onKimiApiKeyImported?: (accountId: string) => void;
 }) {
+  const { t } = useLingui();
   const snapshot = useProviderUsage(props.id);
   const managedAccounts = useUsageAccountsStore(
     useShallow((state) => state.accounts.filter((account) => account.provider === props.id)),
@@ -974,7 +1007,7 @@ function ProviderCard(props: {
    * (today only OpenCode: local Go plan badge, meters live behind the
    * opencode.ai cookie). Deliberately independent of the persisted
    * stored-session flag — a dead/lost cookie with a stale flag must still
-   * offer the reconnect path instead of a dead "暂无额度窗口" card.
+   * offer the reconnect path instead of a dead 暂无额度窗口 card.
    */
   const needsUsageSessionConnect =
     needsBrowserSessionForUsage(props.id) &&
@@ -993,7 +1026,7 @@ function ProviderCard(props: {
   const openPasteFallback = () => {
     if (pasteUrl) {
       openExternalWithFeedback(pasteUrl, {
-        successMessage: "已在默认浏览器打开登录页面。登录完成后请返回粘贴 Cookie。",
+        successMessage: t`已在默认浏览器打开登录页面。登录完成后请返回粘贴 Cookie。`,
       });
     }
     setCookieOpen(true);
@@ -1054,9 +1087,9 @@ function ProviderCard(props: {
         useUsageLoginStateStore.getState().setStored(props.id, false);
         useProviderUsageStore.getState().removeSnapshot(props.id);
         await refreshAndMergeProviderUsage(props.id);
-        toast.success(label + " 授权已删除。");
+        toast.success(t`${label} 授权已删除。`);
       } catch (error) {
-        toast.danger(error instanceof Error ? error.message : label + " 授权删除失败。");
+        toast.danger(error instanceof Error ? error.message : t`${label} 授权删除失败。`);
       }
     })();
   };
@@ -1129,7 +1162,7 @@ function ProviderCard(props: {
       void handleSignIn();
       return;
     }
-    toast.info(label + " 当前没有可用的登录方式，请先在设置中配置授权。");
+    toast.info(t`${label} 当前没有可用的登录方式，请先在设置中配置授权。`);
     usePanelStore.getState().openSettingsSection("usage");
   };
 
@@ -1154,7 +1187,7 @@ function ProviderCard(props: {
       useUsageAccountsStore.getState().setNextSessionAccount(account.accountId);
       await refreshManagedAccounts();
     } catch (error) {
-      toast.danger(error instanceof Error ? error.message : "无法选择账号。");
+      toast.danger(error instanceof Error ? error.message : t`无法选择账号。`);
     } finally {
       setAccountActionInFlight(null);
     }
@@ -1172,7 +1205,7 @@ function ProviderCard(props: {
       await removeAccountBoundCustomModels({ accountIds: [account.accountId], provider: props.id });
       await refreshManagedAccounts();
     } catch (error) {
-      toast.danger(error instanceof Error ? error.message : "无法删除账号。");
+      toast.danger(error instanceof Error ? error.message : t`无法删除账号。`);
     } finally {
       setAccountActionInFlight(null);
     }
@@ -1221,19 +1254,19 @@ function ProviderCard(props: {
           type="button"
           disabled={signingIn || cliSigningIn}
           onClick={handleAccountAction}
-          aria-label={props.id === "kimi" ? "使用 Kimi API Key 授权" : undefined}
+          aria-label={props.id === "kimi" ? t`使用 Kimi API Key 授权` : undefined}
           className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
         >
           <UserRoundPlus className="size-3.5" />
           {props.id === "kimi"
             ? "API Key"
             : cliSigningIn || signingIn
-              ? "登录中…"
+              ? t`登录中…`
               : connected || managedAccounts.length > 0 || hasStoredSession || hasRememberedIdentity
                 ? needsUsageSessionConnect
-                  ? "连接额度"
-                  : "添加账号"
-                : "登录/授权"}
+                  ? t`连接额度`
+                  : t`添加账号`
+                : t`登录/授权`}
         </button>
         {props.onImportAccount ? (
           <button
@@ -1241,9 +1274,9 @@ function ProviderCard(props: {
             disabled={signingIn || cliSigningIn}
             onClick={props.onImportAccount}
             className="inline-flex h-8 shrink-0 items-center rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
-            aria-label={label + " 导入本机登录"}
+            aria-label={t`${label} 导入本机登录`}
           >
-            导入
+            {t`导入`}
           </button>
         ) : null}
         {props.id === "devin" ? (
@@ -1255,7 +1288,7 @@ function ProviderCard(props: {
               setApiKeyOpen(true);
             }}
             className="inline-flex h-8 shrink-0 items-center rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
-            aria-label="使用 Devin API Key 授权"
+            aria-label={t`使用 Devin API Key 授权`}
           >
             API Key
           </button>
@@ -1271,7 +1304,7 @@ function ProviderCard(props: {
                 data-testid={"compact-account-row-" + account.accountId}
                 role="button"
                 tabIndex={0}
-                aria-label={account.label + " " + label + "账号"}
+                aria-label={t`${account.label} ${label} 账号`}
                 onClick={() => void selectCompactAccount(account)}
                 onContextMenu={(event) => {
                   event.preventDefault();
@@ -1313,9 +1346,9 @@ function ProviderCard(props: {
                       void (login as Promise<unknown>).finally(() => setCliSigningIn(false));
                     }}
                     className="shrink-0 rounded-md bg-black/5 dark:bg-white/5 px-1.5 py-1 text-[9px] text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
-                    aria-label={account.label + " 登录授权"}
+                    aria-label={t`${account.label} 登录授权`}
                   >
-                    登录授权
+                    {t`登录授权`}
                   </button>
                 ) : null}
               </div>
@@ -1327,18 +1360,18 @@ function ProviderCard(props: {
               >
                 <span
                   className="min-w-0 flex-1 break-all text-[9px] leading-4 text-neutral-500"
-                  title="缓存残留：未解析到账号身份"
+                  title={t`缓存残留：未解析到账号身份`}
                 >
-                  账号身份未知（已失效）
+                  {t`账号身份未知（已失效）`}
                 </span>
                 <button
                   type="button"
                   disabled={accountActionInFlight === account.accountId}
                   onClick={() => void removeCompactAccount(account)}
                   className="shrink-0 rounded-md bg-black/5 dark:bg-white/5 px-1.5 py-1 text-[9px] text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
-                  aria-label={"删除失效的 " + account.label + " 缓存"}
+                  aria-label={t`删除失效的 ${account.label} 缓存`}
                 >
-                  删除
+                  {t`删除`}
                 </button>
               </div>
             ),
@@ -1371,10 +1404,10 @@ function ProviderCard(props: {
                     managedAccounts
                       .find((account) => account.provider === props.id)
                       ?.maskedIdentity?.trim() ||
-                    (isAuthorizedUsageStatus(snapshot?.status) ? "已登录" : label)}
+                    (isAuthorizedUsageStatus(snapshot?.status) ? t`已登录` : label)}
                 </p>
                 <p className="break-words text-[9px] leading-4 text-neutral-500">
-                  {snapshot?.plan ?? "套餐未知"}
+                  {snapshot?.plan ?? t`套餐未知`}
                 </p>
               </div>
             </div>
@@ -1382,7 +1415,7 @@ function ProviderCard(props: {
               {props.id === "volcengine" ? (
                 <button
                   type="button"
-                  aria-label="编辑 Volcengine Ark Token Plan"
+                  aria-label={t`编辑 Volcengine Ark Token Plan`}
                   onClick={() => setApiKeyOpen(true)}
                   className="rounded p-1 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
                 >
@@ -1391,7 +1424,7 @@ function ProviderCard(props: {
               ) : props.id === "qwen" ? (
                 <button
                   type="button"
-                  aria-label="编辑阿里 Token Plan"
+                  aria-label={t`编辑阿里 Token Plan`}
                   onClick={() => void handleSignIn()}
                   className="rounded p-1 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
                 >
@@ -1400,7 +1433,7 @@ function ProviderCard(props: {
               ) : null}
               <button
                 type="button"
-                aria-label={label + " 刷新状态"}
+                aria-label={t`${label} 刷新状态`}
                 onClick={() => void refreshAndMergeProviderUsage(props.id)}
                 className="rounded p-1 text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
               >
@@ -1409,7 +1442,7 @@ function ProviderCard(props: {
               {pauseAllowed ? (
                 <button
                   type="button"
-                  aria-label={providerPaused ? "恢复使用" : "暂停使用"}
+                  aria-label={providerPaused ? t`恢复使用` : t`暂停使用`}
                   onClick={toggleProviderPaused}
                   className="rounded p-1 text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
                 >
@@ -1418,7 +1451,7 @@ function ProviderCard(props: {
               ) : null}
               <button
                 type="button"
-                aria-label="移除账号"
+                aria-label={t`移除账号`}
                 onClick={handleRemoveAuthorization}
                 className="rounded p-1 text-muted hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
               >
@@ -1433,7 +1466,7 @@ function ProviderCard(props: {
               {...(needsUsageSessionConnect
                 ? {
                     onConnectUsageSession: connectUsageSession,
-                    connectLabel: `连接 ${label} 显示额度`,
+                    connectLabel: t`连接 ${label} 显示额度`,
                     ...(pasteUrl ? { onPasteCookie: openPasteFallback } : {}),
                   }
                 : {})}
@@ -1480,7 +1513,7 @@ function ProviderCard(props: {
           onClick={toggleProviderPaused}
           className="mt-2 inline-flex items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 py-1 text-[10px] text-muted transition-colors hover:bg-[var(--row-hover)]"
         >
-          <Power className="size-3" /> 已暂停跟踪，点击恢复
+          <Power className="size-3" /> {t`已暂停跟踪，点击恢复`}
         </button>
       ) : null}
       {cookieOpen && (externalLoginUrl ?? pasteUrl) ? (
@@ -1490,8 +1523,8 @@ function ProviderCard(props: {
           saving={signingIn}
           hint={
             externalLoginUrl
-              ? "已在你的默认浏览器打开登录页。登录完成后，从浏览器开发者工具（F12 → 应用/网络） 复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面："
-              : "在你自己的浏览器中登录后，从开发者工具（F12 → 应用/网络）复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面："
+              ? t`已在你的默认浏览器打开登录页。登录完成后，从浏览器开发者工具（F12 → 应用/网络） 复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面：`
+              : t`在你自己的浏览器中登录后，从开发者工具（F12 → 应用/网络）复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面：`
           }
           onCookieChange={setCookie}
           onClose={() => setCookieOpen(false)}
@@ -1520,6 +1553,7 @@ function AccountRow(props: {
   onDragStart: (id: string) => void;
   onDrop: (id: string) => void;
 }) {
+  const { t } = useLingui();
   const { account, busy, onReauth } = props;
   return (
     <div
@@ -1545,7 +1579,10 @@ function AccountRow(props: {
       className="self-start h-fit rounded-xl border border-[color:var(--hairline)] bg-[var(--surface-secondary)] dark:bg-[#17181c] p-3"
     >
       <div className="flex min-w-0 flex-wrap items-start gap-x-2 gap-y-1">
-        <GripVertical className="mt-0.5 size-3.5 shrink-0 text-neutral-500" aria-label="拖拽排序" />
+        <GripVertical
+          className="mt-0.5 size-3.5 shrink-0 text-neutral-500"
+          aria-label={t`拖拽排序`}
+        />
         <span data-testid={"account-provider-icon-" + account.accountId} className="shrink-0">
           <ProviderBrandBadge
             id={account.provider}
@@ -1566,17 +1603,17 @@ function AccountRow(props: {
         <div className="flex shrink-0 items-center gap-1 self-start">
           {props.priorityRank ? (
             <span
-              title={`第 ${props.priorityRank} 优先级：排在前面的账号优先调度，可拖拽调整顺序`}
+              title={t`第 ${props.priorityRank} 优先级：排在前面的账号优先调度，可拖拽调整顺序`}
               className="shrink-0 rounded bg-black/5 dark:bg-white/5 px-1.5 py-0.5 text-[9px] leading-4 text-muted tabular-nums"
             >
-              第{props.priorityRank}优先
+              {t`第 ${props.priorityRank} 优先`}
             </span>
           ) : null}
           {props.onEdit ? (
             <button
               type="button"
               disabled={busy}
-              aria-label={"编辑 " + (account.providerAccountId ?? account.label)}
+              aria-label={t`编辑 ${account.providerAccountId ?? account.label}`}
               onClick={(e) => {
                 e.stopPropagation();
                 props.onEdit?.(account);
@@ -1595,9 +1632,9 @@ function AccountRow(props: {
                 onReauth(account);
               }}
               className="rounded px-1.5 py-1 text-[9px] text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
-              aria-label={account.label + " 登录授权"}
+              aria-label={t`${account.label} 登录授权`}
             >
-              登录授权
+              {t`登录授权`}
             </button>
           ) : null}
           {props.onApplyHostLogin ? (
@@ -1609,10 +1646,10 @@ function AccountRow(props: {
                 props.onApplyHostLogin?.(account);
               }}
               className="rounded px-1.5 py-1 text-[9px] text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
-              title="将该账号设为本机 agy 登录（会替换本机当前登录）"
-              aria-label={account.label + " 设为本机登录"}
+              title={t`将该账号设为本机 agy 登录（会替换本机当前登录）`}
+              aria-label={t`${account.label} 设为本机登录`}
             >
-              设为本机
+              {t`设为本机`}
             </button>
           ) : null}
           <button
@@ -1623,7 +1660,7 @@ function AccountRow(props: {
               props.onRefresh(account);
             }}
             className="rounded p-1 text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
-            aria-label="刷新账号配额"
+            aria-label={t`刷新账号配额`}
           >
             <RefreshCw className="size-3" />
           </button>
@@ -1635,7 +1672,7 @@ function AccountRow(props: {
               props.onToggleEnabled(account);
             }}
             className="rounded p-1 text-muted hover:bg-[var(--row-hover)] disabled:opacity-50"
-            aria-label={account.enabled ? "禁用账号" : "启用账号"}
+            aria-label={account.enabled ? t`禁用账号` : t`启用账号`}
           >
             <Power className={"size-3 " + (account.enabled ? "text-emerald-300" : "")} />
           </button>
@@ -1647,7 +1684,7 @@ function AccountRow(props: {
               props.onRemove(account);
             }}
             className="rounded p-1 text-muted hover:bg-red-400/10 hover:text-red-300 disabled:opacity-50"
-            aria-label="移除账号"
+            aria-label={t`移除账号`}
           >
             <Trash2 className="size-3" />
           </button>
@@ -1665,6 +1702,7 @@ function AccountRow(props: {
 }
 
 function PoolSchedulingControl(props: { providerId: string }) {
+  const { t } = useLingui();
   const [value, setValue] = useState<string>("priority");
   useEffect(() => {
     let cancelled = false;
@@ -1702,9 +1740,9 @@ function PoolSchedulingControl(props: { providerId: string }) {
       }}
       className="h-7 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] text-foreground"
     >
-      <option value="priority">按优先级（排前优先）</option>
-      <option value="round-robin">循环轮换</option>
-      <option value="random">随机</option>
+      <option value="priority">{t`按优先级（排前优先）`}</option>
+      <option value="round-robin">{t`循环轮换`}</option>
+      <option value="random">{t`随机`}</option>
     </select>
   );
 }
@@ -1739,6 +1777,7 @@ function ManagedAccountPool(props: {
   onDragStartProvider?: (p: string) => void;
   onDropProvider?: (t: string) => void;
 }) {
+  const { t } = useLingui();
   const { providerId, title, badgeLabel, addAriaLabel, accounts, busy, actionError } = props;
   // 单账号时渲染成紧凑卡片；分区宽度跟随账号数，1 个账号 = 1/4 行宽，
   // 2/3 个账号分别占 2/3 列，≥4 个账号才占满整行。
@@ -1757,7 +1796,7 @@ function ManagedAccountPool(props: {
         aria-label={addAriaLabel}
         className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
       >
-        <UserRoundPlus className="size-3.5" /> 添加账号
+        <UserRoundPlus className="size-3.5" /> {t`添加账号`}
       </button>
       {props.onImport ? (
         <button
@@ -1767,7 +1806,7 @@ function ManagedAccountPool(props: {
           aria-label={props.importAriaLabel}
           className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
         >
-          导入
+          {t`导入`}
         </button>
       ) : null}
       {props.onAddApiKey ? (
@@ -1775,7 +1814,7 @@ function ManagedAccountPool(props: {
           type="button"
           disabled={busy}
           onClick={props.onAddApiKey}
-          aria-label={props.addApiKeyAriaLabel ?? "使用 API Key 添加账号"}
+          aria-label={props.addApiKeyAriaLabel ?? t`使用 API Key 添加账号`}
           className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] font-medium text-foreground transition-colors hover:bg-[var(--row-hover)] disabled:opacity-50"
         >
           API Key
@@ -1788,7 +1827,7 @@ function ManagedAccountPool(props: {
         <ProviderBrandBadge id={providerId} label={badgeLabel} size="compact" />
         <div className="min-w-0">
           <h3 className="truncate text-xs font-semibold text-foreground">{title}</h3>
-          <p className="mt-0.5 truncate text-[10px] text-muted">新会话按账号池规则调度</p>
+          <p className="mt-0.5 truncate text-[10px] text-muted">{t`新会话按账号池规则调度`}</p>
         </div>
       </div>
       <div className="flex items-center gap-2">
@@ -1800,7 +1839,7 @@ function ManagedAccountPool(props: {
           aria-label={addAriaLabel}
           className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] text-foreground hover:bg-[var(--row-hover)] disabled:opacity-50"
         >
-          <UserRoundPlus className="size-3" /> 添加账号
+          <UserRoundPlus className="size-3" /> {t`添加账号`}
         </button>
         {props.onImport ? (
           <button
@@ -1810,7 +1849,7 @@ function ManagedAccountPool(props: {
             aria-label={props.importAriaLabel}
             className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] text-foreground hover:bg-[var(--row-hover)] disabled:opacity-50"
           >
-            导入本机登录
+            {t`导入本机登录`}
           </button>
         ) : null}
         {props.onAddApiKey ? (
@@ -1818,7 +1857,7 @@ function ManagedAccountPool(props: {
             type="button"
             disabled={busy}
             onClick={props.onAddApiKey}
-            aria-label={props.addApiKeyAriaLabel ?? "使用 API Key 添加账号"}
+            aria-label={props.addApiKeyAriaLabel ?? t`使用 API Key 添加账号`}
             className="inline-flex h-7 shrink-0 items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 px-2 text-[10px] text-foreground hover:bg-[var(--row-hover)] disabled:opacity-50"
           >
             API Key
@@ -1861,7 +1900,7 @@ function ManagedAccountPool(props: {
       {actionError ? <p className="mb-2 text-[10px] text-red-300">{actionError}</p> : null}
       {accounts.length === 0 ? (
         <p className="rounded-lg bg-black/5 dark:bg-black/20 p-3 text-[10px] text-muted">
-          尚未添加 {badgeLabel} 账号
+          {t`尚未添加 ${badgeLabel} 账号`}
         </p>
       ) : single ? (
         <div className="mt-2">
@@ -1918,6 +1957,7 @@ function ManagedAccountPool(props: {
 }
 
 export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: boolean } = {}) {
+  const { t } = useLingui();
   const open = usePanelStore((state) => state.modelUsageDialogOpen);
   const closeModelUsageDialog = usePanelStore((state) => state.closeModelUsageDialog);
   const close = props.onClose ?? closeModelUsageDialog;
@@ -2240,7 +2280,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
       channels.set("openai-compatible", {
         kind: "pool",
         id: "openai-compatible",
-        label: "OpenAI 兼容 API",
+        label: t`OpenAI 兼容 API`,
       });
     for (const provider of leftCardProviders) {
       if (!channels.has(provider.id)) {
@@ -2262,6 +2302,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
     signedKimiAccounts.length,
     signedAntigravityAccounts.length,
     signedOpenAiCompatibleAccounts.length,
+    t,
   ]);
 
   const refreshAccountList = async () => {
@@ -2316,8 +2357,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
     setRenameHint(null);
   };
   /** Kimi 新账号创建成功后引导填备注：官方接口不给邮箱，备注是唯一可读身份。 */
-  const KIMI_REMARK_HINT =
-    "Kimi 官方接口不返回账号邮箱，建议填入该账号的邮箱，方便区分多个账号（也可稍后右键改名）。";
+  const KIMI_REMARK_HINT = t`Kimi 官方接口不返回账号邮箱，建议填入该账号的邮箱，方便区分多个账号（也可稍后右键改名）。`;
   const promptNewKimiLabel = async (accountId: string) => {
     const next = await refreshAccountList().catch(() => []);
     const account = next.find((a) => a.accountId === accountId);
@@ -2337,7 +2377,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
         .refreshAgentStatuses?.(currentWslDistros(), { agentKinds: ["antigravity"] })
         .catch(() => undefined);
       toast.success(
-        `已将 ${result.email ?? account.label} 设为本机 agy 登录（本机原登录已被替换）。`,
+        t`已将 ${result.email ?? account.label} 设为本机 agy 登录（本机原登录已被替换）。`,
       );
     }, "antigravity");
   const renameAccount = async () => {
@@ -2371,12 +2411,12 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
     const bridge = readBridge() as unknown as {
       importCodexProfile: (p: { label: string }) => Promise<AccountView>;
     };
-    const account = await bridge.importCodexProfile({ label: "本机 Codex" });
+    const account = await bridge.importCodexProfile({ label: t`本机 Codex` });
     await refreshAccountList();
     toast.success(
       account.status === "available"
-        ? "已导入本机 Codex / ChatGPT 登录"
-        : "已创建账号，但本机 ~/.codex/auth.json 无法解析",
+        ? t`已导入本机 Codex / ChatGPT 登录`
+        : t`已创建账号，但本机 ~/.codex/auth.json 无法解析`,
     );
   };
   const handleProviderDrop = (targetId: string) => {
@@ -2472,7 +2512,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
       onDrop: (id: string) => reorder(id, poolProviderId),
       index,
       onDragStartProvider: (id: string) => setDraggedProviderId(id),
-      onDropProvider: (t: string) => handleProviderDrop(t),
+      onDropProvider: (targetId: string) => handleProviderDrop(targetId),
     };
     switch (poolProviderId) {
       case "codex":
@@ -2480,13 +2520,13 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
           <ManagedAccountPool
             {...shared}
             providerId="codex"
-            title="ChatGPT 账号池"
+            title={t`ChatGPT 账号池`}
             badgeLabel="ChatGPT"
-            addAriaLabel="添加 ChatGPT 账号"
+            addAriaLabel={t`添加 ChatGPT 账号`}
             accounts={signedInCodexAccounts}
             onAdd={() => void accountActions(createCodexProfile, "codex")}
             onImport={() => void accountActions(importHostCodexLogin, "codex")}
-            importAriaLabel="导入本机 Codex 登录"
+            importAriaLabel={t`导入本机 Codex 登录`}
             onReauth={(a) =>
               void accountActions(async () => {
                 await runCodexProfileLogin({ accountId: a.accountId, label: a.label });
@@ -2499,9 +2539,9 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
           <ManagedAccountPool
             {...shared}
             providerId="grok"
-            title="Grok 账号池"
+            title={t`Grok 账号池`}
             badgeLabel="Grok"
-            addAriaLabel="添加 Grok 账号"
+            addAriaLabel={t`添加 Grok 账号`}
             accounts={signedGrokAccounts}
             onAdd={() => void accountActions(createGrokProfile, "grok")}
             onReauth={(a) =>
@@ -2516,9 +2556,9 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
           <ManagedAccountPool
             {...shared}
             providerId="kimi"
-            title="Kimi Code 账号池"
+            title={t`Kimi Code 账号池`}
             badgeLabel="Kimi Code"
-            addAriaLabel="添加 Kimi Code 账号"
+            addAriaLabel={t`添加 Kimi Code 账号`}
             accounts={signedKimiAccounts}
             onAdd={() => setKimiApiKeyForm({})}
             onReauth={(a) => setKimiApiKeyForm({ accountId: a.accountId, label: a.label })}
@@ -2529,9 +2569,9 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
           <ManagedAccountPool
             {...shared}
             providerId="antigravity"
-            title="Antigravity 账号池"
+            title={t`Antigravity 账号池`}
             badgeLabel="Antigravity"
-            addAriaLabel="添加 Antigravity 账号"
+            addAriaLabel={t`添加 Antigravity 账号`}
             accounts={signedAntigravityAccounts}
             onAdd={() =>
               void accountActions(() => signInAndImportAntigravityAccount(), "antigravity")
@@ -2550,9 +2590,9 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
           <ManagedAccountPool
             {...shared}
             providerId="openai-compatible"
-            title="OpenAI 兼容 API 账号池"
-            badgeLabel="OpenAI 兼容 API"
-            addAriaLabel="添加 OpenAI 兼容 API 账号"
+            title={t`OpenAI 兼容 API 账号池`}
+            badgeLabel={t`OpenAI 兼容 API`}
+            addAriaLabel={t`添加 OpenAI 兼容 API 账号`}
             accounts={signedOpenAiCompatibleAccounts}
             onAdd={() => setOpenAiCompatibleForm({})}
             onEdit={(a) => setOpenAiCompatibleForm({ accountId: a.accountId })}
@@ -2592,16 +2632,16 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
           )}
           <div
             role="tablist"
-            aria-label="模型与用量视图"
+            aria-label={t`模型与用量视图`}
             className="flex items-center gap-1 rounded-lg bg-black/5 dark:bg-white/5 p-1"
           >
             {(
               [
-                ["usage", "渠道与额度"],
-                ["models", "管理模型"],
-                ["stats", "用量统计"],
-                ["harnesses", "Harness 总览"],
-                ["crafting", "合成台与配方"],
+                ["usage", t`渠道与额度`],
+                ["models", t`管理模型`],
+                ["stats", t`用量统计`],
+                ["harnesses", t`Harness 总览`],
+                ["crafting", t`合成台与配方`],
               ] as const
             ).map(([tab, label]) => (
               <button
@@ -2624,15 +2664,15 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
                 key="settings"
                 type="button"
                 data-testid="model-usage-settings-tab"
-                aria-label="打开设置"
-                title="打开设置"
+                aria-label={t`打开设置`}
+                title={t`打开设置`}
                 onClick={() => {
                   close();
                   usePanelStore.getState().openSettings();
                 }}
                 className="rounded-md px-4 py-1.5 text-sm font-medium text-muted transition-colors hover:text-foreground"
               >
-                设置
+                {t`设置`}
               </button>
             )}
           </div>
@@ -2641,7 +2681,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
           <button
             type="button"
             onClick={close}
-            aria-label="关闭模型与用量"
+            aria-label={t`关闭模型与用量`}
             className="rounded-lg p-1.5 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
           >
             <X className="size-4" />
@@ -2693,7 +2733,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
                       index={index}
                       onRenameAccount={openRenameAccount}
                       onDragStartProvider={(id) => setDraggedProviderId(id)}
-                      onDropProvider={(t) => handleProviderDrop(t)}
+                      onDropProvider={(targetId) => handleProviderDrop(targetId)}
                     />
                   )}
                 </Fragment>
@@ -2705,7 +2745,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
               signedOpenAiCompatibleAccounts.length === 0 &&
               leftCardProviders.length === 0 ? (
                 <p className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-6 text-center text-sm text-muted">
-                  尚未绑定账号
+                  {t`尚未绑定账号`}
                 </p>
               ) : null}
             </div>
@@ -2713,7 +2753,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
           <div
             role="separator"
             aria-orientation="vertical"
-            aria-label="拖动调整渠道栏宽度"
+            aria-label={t`拖动调整渠道栏宽度`}
             data-testid="usage-rail-divider"
             onPointerDown={(event) => {
               event.preventDefault();
@@ -2774,7 +2814,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
                 index={index}
                 onRenameAccount={openRenameAccount}
                 onDragStartProvider={(id) => setDraggedProviderId(id)}
-                onDropProvider={(t) => handleProviderDrop(t)}
+                onDropProvider={(targetId) => handleProviderDrop(targetId)}
               />
             ))}
           </div>
@@ -2806,7 +2846,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
           <Modal.Dialog className="sm:max-w-[420px]">
             <Modal.CloseTrigger />
             <Modal.Header>
-              <Modal.Heading>重命名账号</Modal.Heading>
+              <Modal.Heading>{t`重命名账号`}</Modal.Heading>
             </Modal.Header>
             <Modal.Body className="px-5 pb-5 pt-2">
               {renameHint ? (
@@ -2821,7 +2861,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
                   }
                 }}
               >
-                <Label>账号名称</Label>
+                <Label>{t`账号名称`}</Label>
                 <Input />
               </TextField>
             </Modal.Body>
@@ -2831,7 +2871,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
                 onClick={() => closeRenameAccount()}
                 className="rounded-lg px-3 py-2 text-sm text-muted"
               >
-                取消
+                {t`取消`}
               </button>
               <button
                 type="button"
@@ -2839,7 +2879,7 @@ export function ModelUsageWorkspace(props: { onClose?: () => void; embedded?: bo
                 onClick={() => void renameAccount()}
                 className="rounded-lg bg-[var(--row-active)] px-3 py-2 text-sm text-foreground disabled:opacity-50"
               >
-                保存
+                {t`保存`}
               </button>
             </Modal.Footer>
           </Modal.Dialog>

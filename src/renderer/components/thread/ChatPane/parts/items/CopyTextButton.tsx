@@ -6,7 +6,7 @@ import { friendlyError } from "@/shared/messages";
 
 interface CopyTextButtonProps {
   text: string;
-  /** Idle tooltip / aria-label (already translated), e.g. t`Copy message`. */
+  /** Idle tooltip / aria-label (already translated), e.g. Copy message. */
   label: string;
 }
 

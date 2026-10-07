@@ -24,6 +24,9 @@ import { CustomModelDialog, type CustomModelDialogValues } from "./CustomModelDi
 import type { SharedSettings } from "@/shared/settings";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { resolveThirdPartyHarnessForModel } from "@/shared/thirdPartyRouting";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { useLingui } from "@lingui/react/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 const inputClass =
   "w-full rounded-lg border border-[color:var(--field-border)] bg-[var(--field-background)] px-2.5 py-1.5 text-xs text-foreground outline-none placeholder:text-muted focus:border-[color:var(--hairline-strong)]";
@@ -75,7 +78,10 @@ export async function listChannelModelsWithTimeout(
         })
         .then((response) => response.models),
       new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new Error("获取模型列表超时（30s），请重试。")), timeoutMs);
+        timer = setTimeout(
+          () => reject(new Error(i18n._(linguiMsg`获取模型列表超时（30s），请重试。`))),
+          timeoutMs,
+        );
       }),
     ]);
   } finally {
@@ -90,6 +96,7 @@ function CustomModelRow(props: {
   onEdit: () => void;
   onRemove: () => void;
 }) {
+  const { t } = useLingui();
   const { model, providerLabel, onUpdate, onEdit, onRemove } = props;
   const contextBadge = formatContextBadge(model.contextSize);
   return (
@@ -99,7 +106,7 @@ function CustomModelRow(props: {
     >
       <div className="flex items-center gap-2">
         <input
-          aria-label="模型展示名称"
+          aria-label={t`模型展示名称`}
           value={model.displayName}
           onChange={(event) => onUpdate({ displayName: event.target.value })}
           className="min-w-0 flex-1 rounded-md border border-[color:var(--hairline)] bg-[var(--field-background)] px-2 py-1 text-[11px] text-foreground outline-none focus:border-[color:var(--hairline-strong)]"
@@ -107,7 +114,7 @@ function CustomModelRow(props: {
         {contextBadge ? (
           <span
             className="shrink-0 rounded-full border border-[color:var(--hairline)] bg-[var(--surface-secondary)] px-1.5 py-0.5 text-[10px] text-muted"
-            title={`上下文窗口 ${model.contextSize}`}
+            title={t`上下文窗口 ${model.contextSize}`}
           >
             {contextBadge}
           </span>
@@ -116,8 +123,8 @@ function CustomModelRow(props: {
         <span className="shrink-0 text-[10px] text-muted">{model.modelId}</span>
         <button
           type="button"
-          aria-label={`编辑 ${model.displayName}`}
-          title="编辑上下文 / 模态 / 思考强度 / 展示名"
+          aria-label={t`编辑 ${model.displayName}`}
+          title={t`编辑上下文 / 模态 / 思考强度 / 展示名`}
           onClick={onEdit}
           className="shrink-0 rounded-md p-1 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
         >
@@ -125,7 +132,7 @@ function CustomModelRow(props: {
         </button>
         <button
           type="button"
-          aria-label={`移除 ${model.displayName}`}
+          aria-label={t`移除 ${model.displayName}`}
           onClick={onRemove}
           className="shrink-0 rounded-md p-1 text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
         >
@@ -149,6 +156,7 @@ export function ModelManagementPage(props: {
   /** Providers configured in the usage workspace; installed-only CLIs stay out. */
   configuredProviderIds: readonly string[];
 }) {
+  const { t } = useLingui();
   const { accounts, customModels, onUpdateCustomModels, configuredProviderIds } = props;
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
@@ -212,14 +220,14 @@ export function ModelManagementPage(props: {
     entries.push({
       key: "recipes",
       kind: "recipes",
-      label: "我的配方",
+      label: t`我的配方`,
       models: recipes.map((recipe) => ({
         id: recipe.id,
         label: recipe.alias?.trim() || recipe.systemName,
       })),
     });
     return entries;
-  }, [agentChannels, compatibleAccounts, recipes]);
+  }, [agentChannels, compatibleAccounts, recipes, t]);
 
   const [selectedKey, setSelectedKey] = useState<string>("");
   useEffect(() => {
@@ -316,11 +324,11 @@ export function ModelManagementPage(props: {
       const channelName = label ?? kind;
       setActionHint(
         modelCount > 0
-          ? `已从上游获取 ${channelName} 的 ${modelCount} 个可用模型${delta.length > 0 ? `（${delta.length} 个新模型已加入首页）` : ""}`
-          : `已从上游获取 ${channelName} 模型列表，暂无可用模型`,
+          ? t`已从上游获取 ${channelName} 的 ${modelCount} 个可用模型${delta.length > 0 ? `（${delta.length} 个新模型已加入首页）` : ""}`
+          : t`已从上游获取 ${channelName} 模型列表，暂无可用模型`,
       );
     } catch {
-      setActionHint("获取模型列表失败，请重试");
+      setActionHint(t`获取模型列表失败，请重试`);
     } finally {
       setRefreshingKinds((current) => ({ ...current, [kind]: false }));
     }
@@ -330,14 +338,14 @@ export function ModelManagementPage(props: {
     // Official OpenCode TUI as the selection surface — spawned by the supervisor
     // through the shared login-terminal overlay, never by the renderer.
     const opened = runAgentLoginCommand({
-      label: "OpenCode 模型选择",
+      label: t`OpenCode 模型选择`,
       command: "opencode",
-      subtitle: "在 OpenCode TUI 内选择模型（/models）；退出后 CraftStation 自动获取模型目录",
+      subtitle: t`在 OpenCode TUI 内选择模型（/models）；退出后 CraftStation 自动获取模型目录`,
       onCommandComplete: (exitCode) => {
         if (exitCode === 0) void fetchChannelModels("opencode", "OpenCode");
       },
     });
-    if (!opened) setActionHint("请先添加一个项目，再打开 OpenCode 模型选择器。");
+    if (!opened) setActionHint(t`请先添加一个项目，再打开 OpenCode 模型选择器。`);
   };
 
   // 与设置页一致：可见性 = capabilities 默认 + 用户显式 hidden 列表的并集的反面。
@@ -483,7 +491,7 @@ export function ModelManagementPage(props: {
       removeAccount?: (payload: { accountId: string }) => Promise<void>;
     };
     if (typeof bridge.removeAccount !== "function") {
-      toast.danger("当前版本不支持删除渠道账号。");
+      toast.danger(t`当前版本不支持删除渠道账号。`);
       return;
     }
     setRemovingChannelId(accountId);
@@ -498,7 +506,7 @@ export function ModelManagementPage(props: {
       }
       setSelectedKey("");
     } catch (error) {
-      toast.danger(error instanceof Error ? error.message : "无法删除渠道。");
+      toast.danger(error instanceof Error ? error.message : t`无法删除渠道。`);
     } finally {
       setRemovingChannelId(null);
     }
@@ -541,7 +549,7 @@ export function ModelManagementPage(props: {
         model: trimmedId,
       });
       if (!verdict.ok) {
-        toast.danger(verdict.error ?? "模型验证失败，未加入首页。");
+        toast.danger(verdict.error ?? t`模型验证失败，未加入首页。`);
         return false;
       }
       upsertCustomModel(provider, trimmedId, displayName, accountId, channelLabel, {
@@ -553,12 +561,12 @@ export function ModelManagementPage(props: {
       });
       toast.success(
         verdict.validatedProtocol === "chat_completions"
-          ? `已验证 · Chat Completions，已加入首页。`
-          : `已验证 · Responses API，已加入首页。`,
+          ? t`已验证 · Chat Completions，已加入首页。`
+          : t`已验证 · Responses API，已加入首页。`,
       );
       return true;
     } catch (error) {
-      toast.danger(error instanceof Error ? error.message : "模型验证失败，未加入首页。");
+      toast.danger(error instanceof Error ? error.message : t`模型验证失败，未加入首页。`);
       return false;
     } finally {
       setVerifyingModelKey(null);
@@ -594,7 +602,7 @@ export function ModelManagementPage(props: {
       setFetched({
         models: [],
         loading: false,
-        error: error instanceof Error ? error.message : "获取模型列表失败",
+        error: error instanceof Error ? error.message : t`获取模型列表失败`,
       });
     }
   };
@@ -710,26 +718,26 @@ export function ModelManagementPage(props: {
       >
         <div className="rounded-lg bg-[var(--surface-secondary)] px-3 py-2">
           <p className="text-[11px] text-muted">
-            共 {channels.length} 个渠道 · {totalVisible} 个模型在首页可选
+            {t`共 ${channels.length} 个渠道 · ${totalVisible} 个模型在首页可选`}
           </p>
           <div className="mt-2 flex items-center gap-1.5">
             <button
               type="button"
-              aria-label="全选全部渠道模型"
+              aria-label={t`全选全部渠道模型`}
               onClick={() => setAllAgentModelsVisible(true)}
               disabled={agentChannels.length === 0}
               className={bulkActionClass}
             >
-              全部选中
+              {t`全部选中`}
             </button>
             <button
               type="button"
-              aria-label="取消全部渠道模型"
+              aria-label={t`取消全部渠道模型`}
               onClick={() => setAllAgentModelsVisible(false)}
               disabled={agentChannels.length === 0}
               className={bulkActionClass}
             >
-              全部取消
+              {t`全部取消`}
             </button>
           </div>
         </div>
@@ -771,7 +779,7 @@ export function ModelManagementPage(props: {
                 <span className="block truncate text-sm font-semibold text-foreground">
                   {channel.label}
                 </span>
-                <span className="mt-0.5 block text-[11px] text-muted">{visibleCount} 个可见</span>
+                <span className="mt-0.5 block text-[11px] text-muted">{t`${visibleCount} 个可见`}</span>
               </span>
             </button>
           );
@@ -781,7 +789,7 @@ export function ModelManagementPage(props: {
       <div className="min-w-0 flex-1 overflow-y-auto pr-1" data-testid="model-channel-detail">
         {!selected ? (
           <div className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface-secondary)] p-4 text-xs text-muted">
-            还没有可用渠道。请先在「渠道与额度」页添加并登录渠道账号。
+            {t`还没有可用渠道。请先在「渠道与额度」页添加并登录渠道账号。`}
           </div>
         ) : (
           <section className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-3">
@@ -791,15 +799,15 @@ export function ModelManagementPage(props: {
                 <h3 className="truncate text-sm font-semibold text-foreground">{selected.label}</h3>
                 <p className="text-[11px] text-muted">
                   {selectedAgentChannel
-                    ? "勾选的模型会显示在首页模型选择器"
-                    : "自定义 API 渠道的模型列表"}
+                    ? t`勾选的模型会显示在首页模型选择器`
+                    : t`自定义 API 渠道的模型列表`}
                 </p>
               </div>
               {selected.kind === "openai-compatible" && selected.accountId ? (
                 <button
                   type="button"
-                  aria-label={`删除渠道 ${selected.label}`}
-                  title="删除该渠道账号及其凭证，并移除该渠道下已添加的自定义模型"
+                  aria-label={t`删除渠道 ${selected.label}`}
+                  title={t`删除该渠道账号及其凭证，并移除该渠道下已添加的自定义模型`}
                   disabled={removingChannelId === selected.accountId}
                   onClick={() => setConfirmRemoveChannel(selected)}
                   className="ml-auto flex shrink-0 items-center gap-1 rounded-md border border-[color:var(--hairline)] px-2 py-1 text-[10px] text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-red-400 disabled:cursor-not-allowed disabled:opacity-40"
@@ -809,7 +817,7 @@ export function ModelManagementPage(props: {
                   ) : (
                     <Trash2 className="size-3" />
                   )}
-                  删除渠道
+                  {t`删除渠道`}
                 </button>
               ) : null}
               {selectedAgentChannel ? (
@@ -817,18 +825,18 @@ export function ModelManagementPage(props: {
                   {selected.kind === "opencode" ? (
                     <button
                       type="button"
-                      aria-label="在 OpenCode 中选择模型"
-                      title="打开官方 OpenCode TUI，用它自己的模型选择器选择模型"
+                      aria-label={t`在 OpenCode 中选择模型`}
+                      title={t`打开官方 OpenCode TUI，用它自己的模型选择器选择模型`}
                       onClick={openOpencodeModelSelector}
                       className="flex items-center gap-1 rounded-md border border-[color:var(--hairline)] px-2 py-1 text-[10px] text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"
                     >
-                      在 OpenCode 中选择模型
+                      {t`在 OpenCode 中选择模型`}
                     </button>
                   ) : null}
                   <button
                     type="button"
-                    aria-label={`获取 ${selected.label} 渠道上游可用模型列表`}
-                    title="直接从上游获取该渠道当前可用的模型列表"
+                    aria-label={t`获取 ${selected.label} 渠道上游可用模型列表`}
+                    title={t`直接从上游获取该渠道当前可用的模型列表`}
                     onClick={() => void fetchChannelModels(selected.kind, selected.label)}
                     disabled={refreshingKinds[selected.kind] === true}
                     className="flex items-center gap-1 rounded-md border border-[color:var(--hairline)] px-2 py-1 text-[10px] text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-40"
@@ -838,23 +846,23 @@ export function ModelManagementPage(props: {
                     ) : (
                       <RefreshCw className="size-3" />
                     )}
-                    获取模型
+                    {t`获取模型`}
                   </button>
                   <button
                     type="button"
-                    aria-label={`全选 ${selected.label} 渠道全部模型`}
+                    aria-label={t`全选 ${selected.label} 渠道全部模型`}
                     onClick={() => setChannelModelsVisible(selected, true)}
                     className={bulkActionClass}
                   >
-                    全选
+                    {t`全选`}
                   </button>
                   <button
                     type="button"
-                    aria-label={`取消 ${selected.label} 渠道全部模型`}
+                    aria-label={t`取消 ${selected.label} 渠道全部模型`}
                     onClick={() => setChannelModelsVisible(selected, false)}
                     className={bulkActionClass}
                   >
-                    全不选
+                    {t`全不选`}
                   </button>
                 </div>
               ) : null}
@@ -866,10 +874,10 @@ export function ModelManagementPage(props: {
               <div className="relative mt-2">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted" />
                 <input
-                  aria-label={`搜索 ${selected.label} 渠道模型`}
+                  aria-label={t`搜索 ${selected.label} 渠道模型`}
                   value={modelQuery}
                   onChange={(event) => setModelQuery(event.target.value)}
-                  placeholder="搜索模型 ID 或名称…"
+                  placeholder={t`搜索模型 ID 或名称…`}
                   className={`${inputClass} pl-8`}
                 />
               </div>
@@ -877,7 +885,7 @@ export function ModelManagementPage(props: {
 
             {selectedAgentChannel && selectedAgentChannel.models.length === 0 ? (
               <p className="mt-3 rounded-lg bg-[var(--surface-secondary)] px-3 py-2 text-[11px] text-muted">
-                该渠道暂无可用模型。点击右上「获取模型」直接从上游拉取，或在下方手动添加模型 ID。
+                {t`该渠道暂无可用模型。点击右上「获取模型」直接从上游拉取，或在下方手动添加模型 ID。`}
               </p>
             ) : null}
 
@@ -913,7 +921,7 @@ export function ModelManagementPage(props: {
                 })}
                 {filteredChannelModels.length === 0 ? (
                   <li className="px-3 py-2 text-[11px] text-muted">
-                    没有匹配「{modelQuery.trim()}」的模型。
+                    {t`没有匹配「${modelQuery.trim()}」的模型。`}
                   </li>
                 ) : null}
               </ul>
@@ -962,8 +970,7 @@ export function ModelManagementPage(props: {
                 })}
                 {recipes.length === 0 ? (
                   <li className="px-3 py-2 text-[11px] text-muted">
-                    还没有保存的配方。去「合成台 /
-                    Harness」合成并保存后，可在这里勾选进首页模型选择器。
+                    {t`还没有保存的配方。去「合成台 / Harness」合成并保存后，可在这里勾选进首页模型选择器。`}
                   </li>
                 ) : null}
               </ul>
@@ -972,7 +979,7 @@ export function ModelManagementPage(props: {
             {selectedCustom.length > 0 ? (
               <div className="mt-3">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
-                  自定义模型（已加入首页）
+                  {t`自定义模型（已加入首页）`}
                 </p>
                 <ul className="mt-1 flex flex-col gap-2">
                   {selectedCustom.map((model) => (
@@ -994,13 +1001,13 @@ export function ModelManagementPage(props: {
                 {fetched.error ? <p className="text-[11px] text-red-400">{fetched.error}</p> : null}
                 {fetched.loading ? (
                   <p className="flex items-center gap-1.5 text-[11px] text-muted">
-                    <Loader2 className="size-3 animate-spin" /> 正在获取模型列表…
+                    <Loader2 className="size-3 animate-spin" /> {t`正在获取模型列表…`}
                   </p>
                 ) : null}
                 {compatibleListed.length > 0 ? (
                   <>
                     <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
-                      渠道模型
+                      {t`渠道模型`}
                     </p>
                     <ul className="mt-1 flex flex-col gap-1">
                       {compatibleListed.map((modelId) => (
@@ -1033,7 +1040,7 @@ export function ModelManagementPage(props: {
                             ) : (
                               <Plus className="size-3" />
                             )}{" "}
-                            添加
+                            {t`添加`}
                           </button>
                         </li>
                       ))}
@@ -1042,18 +1049,18 @@ export function ModelManagementPage(props: {
                 ) : null}
                 {!fetched.loading && !fetched.error && fetched.models.length === 0 ? (
                   <p className="mt-1 text-[11px] text-muted">
-                    上游暂无可用模型，点击「获取模型」直接从上游拉取最新列表。
+                    {t`上游暂无可用模型，点击「获取模型」直接从上游拉取最新列表。`}
                   </p>
                 ) : null}
                 {!fetched.loading ? (
                   <button
                     type="button"
-                    aria-label={`获取 ${selected.label} 上游可用模型列表`}
-                    title="直接从上游获取该渠道当前可用的模型列表"
+                    aria-label={t`获取 ${selected.label} 上游可用模型列表`}
+                    title={t`直接从上游获取该渠道当前可用的模型列表`}
                     onClick={() => void fetchCompatibleModels()}
                     className="mt-2 flex items-center gap-1 rounded-lg border border-[color:var(--hairline)] px-2 py-1 text-[11px] text-muted hover:bg-[var(--row-hover)] hover:text-foreground"
                   >
-                    <RefreshCw className="size-3" /> 获取模型
+                    <RefreshCw className="size-3" /> {t`获取模型`}
                   </button>
                 ) : null}
               </div>
@@ -1062,31 +1069,31 @@ export function ModelManagementPage(props: {
             {selected?.kind === "recipes" ? null : (
               <div className="mt-3 rounded-lg border border-[color:var(--hairline)] bg-[var(--surface-secondary)] p-2">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-muted">
-                  手动添加模型
+                  {t`手动添加模型`}
                 </p>
                 <div className="mt-1.5 flex items-center gap-1.5">
                   <input
-                    aria-label="模型 ID"
+                    aria-label={t`模型 ID`}
                     value={manualDraft.modelId}
                     onChange={(event) =>
                       setManualDraft({ ...manualDraft, modelId: event.target.value })
                     }
-                    placeholder="模型 ID，如 gpt-5.3"
+                    placeholder={t`模型 ID，如 gpt-5.3`}
                     className={inputClass}
                   />
                   <input
-                    aria-label="模型展示名称"
+                    aria-label={t`模型展示名称`}
                     value={manualDraft.displayName}
                     onChange={(event) =>
                       setManualDraft({ ...manualDraft, displayName: event.target.value })
                     }
-                    placeholder="展示名称（可选）"
+                    placeholder={t`展示名称（可选）`}
                     className={inputClass}
                   />
                   <button
                     type="button"
-                    aria-label="打开添加模型对话框"
-                    title="打开添加模型对话框，可设置上下文窗口与输入输出类型"
+                    aria-label={t`打开添加模型对话框`}
+                    title={t`打开添加模型对话框，可设置上下文窗口与输入输出类型`}
                     onClick={() => setModelDialogOpen(true)}
                     disabled={!manualDraft.modelId.trim() || verifyingModelKey !== null}
                     className="flex shrink-0 items-center gap-1 rounded-lg border border-[color:var(--hairline)] px-2 py-1.5 text-[11px] text-muted hover:bg-[var(--row-hover)] hover:text-foreground disabled:opacity-40"
@@ -1096,7 +1103,7 @@ export function ModelManagementPage(props: {
                     ) : (
                       <Plus className="size-3" />
                     )}{" "}
-                    添加
+                    {t`添加`}
                   </button>
                 </div>
               </div>
@@ -1158,9 +1165,9 @@ export function ModelManagementPage(props: {
             ) : null}
             <ConfirmDialog
               isOpen={confirmRemoveChannel !== null}
-              title="删除渠道"
-              body={`删除渠道「${confirmRemoveChannel?.label ?? ""}」将同时移除其账号凭证与该渠道下已添加的自定义模型，此操作无法撤销。`}
-              confirmLabel="删除渠道"
+              title={t`删除渠道`}
+              body={t`删除渠道「${confirmRemoveChannel?.label ?? ""}」将同时移除其账号凭证与该渠道下已添加的自定义模型，此操作无法撤销。`}
+              confirmLabel={t`删除渠道`}
               onClose={() => setConfirmRemoveChannel(null)}
               onConfirm={() => {
                 const channel = confirmRemoveChannel;
@@ -1204,23 +1211,23 @@ export function ModelManagementPage(props: {
         <div className="rounded-lg bg-[var(--surface-secondary)] px-3 py-2">
           <div className="flex items-center gap-2">
             <p className="min-w-0 flex-1 text-[11px] text-muted">
-              已选模型名单 · {roster.length} 个
+              {t`已选模型名单 · ${roster.length} 个`}
             </p>
             <button
               type="button"
-              aria-label="从名单取消全部渠道模型"
+              aria-label={t`从名单取消全部渠道模型`}
               onClick={() => setAllAgentModelsVisible(false)}
               disabled={agentChannels.length === 0}
               className={bulkActionClass}
             >
-              全部取消
+              {t`全部取消`}
             </button>
           </div>
-          <p className="mt-1 text-[10px] text-muted">点击行首勾选可移出首页</p>
+          <p className="mt-1 text-[10px] text-muted">{t`点击行首勾选可移出首页`}</p>
         </div>
         {roster.length === 0 ? (
           <div className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface-secondary)] p-4 text-[11px] text-muted">
-            还没有已选模型。在中间列勾选渠道模型即可加入首页选择器。
+            {t`还没有已选模型。在中间列勾选渠道模型即可加入首页选择器。`}
           </div>
         ) : null}
         {roster.map((item) =>
@@ -1231,21 +1238,21 @@ export function ModelManagementPage(props: {
             >
               <button
                 type="button"
-                aria-label={`移出 ${item.label}`}
-                title="从首页移除该配方"
+                aria-label={t`移出 ${item.label}`}
+                title={t`从首页移除该配方`}
                 onClick={() => setRecipeHomepageVisible(item.id, false)}
                 className="shrink-0"
               >
                 <Check className="size-4 text-emerald-400 hover:text-red-400" />
               </button>
-              <ProviderBrandBadge id="recipes" label="我的配方" size="compact" />
+              <ProviderBrandBadge id="recipes" label={t`我的配方`} size="compact" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm text-foreground">{item.label}</span>
                 {item.sub ? (
                   <span className="block truncate text-[11px] text-muted">{item.sub}</span>
                 ) : null}
               </span>
-              <span className="shrink-0 text-xs text-muted">我的配方</span>
+              <span className="shrink-0 text-xs text-muted">{t`我的配方`}</span>
             </div>
           ) : item.type === "agent" ? (
             <div
@@ -1254,7 +1261,7 @@ export function ModelManagementPage(props: {
             >
               <button
                 type="button"
-                aria-label={`移出 ${item.label}`}
+                aria-label={t`移出 ${item.label}`}
                 onClick={() => {
                   const channel = channels.find((entry) => entry.key === item.channelKey);
                   if (channel) toggleChannelModelVisible(channel, item.modelId);
@@ -1275,8 +1282,8 @@ export function ModelManagementPage(props: {
               <div className="flex items-center gap-2.5">
                 <button
                   type="button"
-                  aria-label={`移出 ${item.displayName}`}
-                  title="从首页移除该自定义模型"
+                  aria-label={t`移出 ${item.displayName}`}
+                  title={t`从首页移除该自定义模型`}
                   onClick={() => removeCustomModel(item.id)}
                   className="shrink-0"
                 >

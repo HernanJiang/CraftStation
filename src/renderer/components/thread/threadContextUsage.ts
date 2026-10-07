@@ -1,4 +1,5 @@
-import { msg } from "@lingui/core/macro";
+import { msg, msg as linguiMsg } from "@lingui/core/macro";
+import type { MessageDescriptor } from "@lingui/core";
 import type {
   AgentCapability,
   AgentStatus,
@@ -22,14 +23,14 @@ export const CONTEXT_OCCUPANCY_ORDER = [
 
 export type ContextOccupancyId = (typeof CONTEXT_OCCUPANCY_ORDER)[number];
 
-export const CONTEXT_OCCUPANCY_LABELS: Record<ContextOccupancyId, string> = {
-  messages: "消息",
-  "tool-calls": "工具调用",
-  "mcp-tools": "MCP 工具",
-  "system-tools": "系统工具",
-  skills: "技能",
-  "system-prompt": "系统提示词",
-  other: "其他",
+const CONTEXT_OCCUPANCY_LABELS: Record<ContextOccupancyId, MessageDescriptor> = {
+  messages: linguiMsg`消息`,
+  "tool-calls": linguiMsg`工具调用`,
+  "mcp-tools": linguiMsg`MCP 工具`,
+  "system-tools": linguiMsg`系统工具`,
+  skills: linguiMsg`技能`,
+  "system-prompt": linguiMsg`系统提示词`,
+  other: linguiMsg`其他`,
 };
 
 export interface ContextOccupancyRow {
@@ -192,7 +193,7 @@ export function resolveContextOccupancy(
   }
   return CONTEXT_OCCUPANCY_ORDER.map((id) => ({
     id,
-    label: CONTEXT_OCCUPANCY_LABELS[id],
+    label: i18n._(CONTEXT_OCCUPANCY_LABELS[id]),
     tokens: totals[id],
   }));
 }

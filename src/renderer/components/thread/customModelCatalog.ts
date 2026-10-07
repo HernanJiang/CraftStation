@@ -1,12 +1,18 @@
 import type { AgentCapability } from "@/shared/contracts";
 import { fastVariantModelId } from "@/shared/fastModelVariants";
 import type { SharedSettings } from "@/shared/settings";
+import type { MessageDescriptor } from "@lingui/core";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 export type CustomModel = SharedSettings["customModels"][number];
 
 /** 上下文档位：""＝默认最高；其余为预设档位或用户手填的原始值（如 "200K"、"300000"）。 */
-export const CONTEXT_SIZE_PRESETS: ReadonlyArray<{ value: string; label: string }> = [
-  { value: "", label: "默认最高" },
+export const CONTEXT_SIZE_PRESETS: ReadonlyArray<{
+  value: string;
+  label: string | MessageDescriptor;
+}> = [
+  { value: "", label: linguiMsg`默认最高` },
   { value: "128K", label: "128K" },
   { value: "256K", label: "256K" },
   { value: "384K", label: "384K" },
@@ -66,7 +72,9 @@ export function customModelId(provider: string, modelId: string, accountId?: str
 }
 
 function contextLabel(value: string): string {
-  return CONTEXT_SIZE_PRESETS.find((preset) => preset.value === value)?.label ?? value;
+  const preset = CONTEXT_SIZE_PRESETS.find((entry) => entry.value === value);
+  if (!preset) return value;
+  return typeof preset.label === "string" ? preset.label : i18n._(preset.label);
 }
 
 /**

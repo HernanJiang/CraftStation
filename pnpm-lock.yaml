@@ -204,6 +204,9 @@ importers:
       electron-updater:
         specifier: ^6.8.9
         version: 6.8.9(supports-color@10.2.2)
+      iconv-lite:
+        specifier: 0.7.2
+        version: 0.7.2
       json5:
         specifier: ^2.2.3
         version: 2.2.3

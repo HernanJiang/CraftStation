@@ -16,6 +16,8 @@ import { buildProviderModelMenuProviders } from "./buildModelPickerControls";
 import { resolveThirdPartyHarnessForModel } from "@/shared/thirdPartyRouting";
 import { resolveInitialPresentationMode } from "./threadDraftViewHelpers";
 import type { ProviderModelMenuProvider } from "@/renderer/components/common/ProviderModelMenu/parts/buildItems";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 /**
  * DeepSeek 原生 Harness 只活在合成台。Auto 目录走 Command Code 等渠道，
@@ -101,7 +103,10 @@ export function useManagedComposerProviders(input?: {
     const accountProviders = [...accountGroups].flatMap(([accountId, models]) => {
       const account = usageAccounts.find((candidate) => candidate.accountId === accountId);
       const label =
-        models[0]?.channelLabel ?? account?.providerAccountId ?? account?.label ?? "第三方 API";
+        models[0]?.channelLabel ??
+        account?.providerAccountId ??
+        account?.label ??
+        i18n._(linguiMsg`第三方 API`);
       const source =
         allProviders.find(
           (provider) =>

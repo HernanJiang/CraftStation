@@ -1,16 +1,21 @@
 import { existsSync, readFileSync, watch, type FSWatcher } from "node:fs";
 import { dirname } from "node:path";
 import { defaultSharedSettings, normalizeSharedSettings } from "@/shared/settings";
+import { repairGbkMojibake } from "@/shared/mojibakeRepair";
 import { decryptSecret, transformSensitiveAgentSecrets } from "../secretStorage";
 
 export function readSupervisorSharedSettings(settingsPath: string) {
   if (!existsSync(settingsPath)) return { ...defaultSharedSettings };
   try {
-    return transformSensitiveAgentSecrets(
+    const settings = transformSensitiveAgentSecrets(
       normalizeSharedSettings(JSON.parse(readFileSync(settingsPath, "utf8"))),
       dirname(settingsPath),
       decryptSecret,
     );
+    if (settings.customGlobalPrompt) {
+      settings.customGlobalPrompt = repairGbkMojibake(settings.customGlobalPrompt);
+    }
+    return settings;
   } catch {
     return { ...defaultSharedSettings };
   }

@@ -38,7 +38,7 @@ describe("CustomModelDialog", () => {
     expect(screen.getByDisplayValue("1000000")).toBeInTheDocument();
     expect(screen.getByDisplayValue("128000")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledWith({
       modelId: "gpt-5.6-sol",
       displayName: "",
@@ -64,8 +64,8 @@ describe("CustomModelDialog", () => {
         onSave={onSave}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /用codex预设/u }));
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    fireEvent.click(screen.getByRole("button", { name: /Use codex preset/u }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({
         efforts: ["low", "medium", "high", "xhigh", "max", "ultra"],
@@ -103,8 +103,8 @@ describe("CustomModelDialog", () => {
       />,
     );
 
-    expect(screen.getByText("编辑模型")).toBeInTheDocument();
-    expect(screen.queryByText("添加模型")).not.toBeInTheDocument();
+    expect(screen.getByText("Edit model")).toBeInTheDocument();
+    expect(screen.queryByText("Add model")).not.toBeInTheDocument();
     // 模型 ID 在编辑模式锁定不可改。
     expect(screen.getByDisplayValue("kimi-k2.8-preview")).toBeDisabled();
     expect(screen.getByDisplayValue("K2.8")).toBeInTheDocument();
@@ -112,17 +112,17 @@ describe("CustomModelDialog", () => {
     expect(screen.getByDisplayValue("64000")).toBeInTheDocument();
     expect(screen.getByDisplayValue("low, high, max")).toBeInTheDocument();
     // 编辑模式隐藏上游拉取（否则可选出另一个模型 id，绕过锁定）。
-    expect(screen.queryByRole("button", { name: /从上游拉取/u })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Fetch from upstream/u })).not.toBeInTheDocument();
 
     fireEvent.change(screen.getByDisplayValue("K2.8"), { target: { value: "K2.8 Pro" } });
     fireEvent.change(screen.getByDisplayValue("256K"), { target: { value: "512K" } });
     fireEvent.change(screen.getByDisplayValue("low, high, max"), {
       target: { value: "low, high" },
     });
-    const inputGroup = screen.getByRole("group", { name: "输入类型" });
-    fireEvent.click(within(inputGroup).getByRole("checkbox", { name: /图片/u }));
+    const inputGroup = screen.getByRole("group", { name: "Input types" });
+    fireEvent.click(within(inputGroup).getByRole("checkbox", { name: /Image/u }));
 
-    fireEvent.click(screen.getByRole("button", { name: "保存" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     expect(onSave).toHaveBeenCalledWith({
       modelId: "kimi-k2.8-preview",
       displayName: "K2.8 Pro",

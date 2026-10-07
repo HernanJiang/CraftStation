@@ -13,6 +13,11 @@ msgstr ""
 "Language-Team: \n"
 "Plural-Forms: \n"
 
+#. placeholder {0}: formatMoney(balanceWindow.limit, balanceWindow.currency)
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid " / 共 {0}"
+msgstr " / tổng {0}"
+
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "-y @modelcontextprotocol/server-memory"
 msgstr "-y @modelcontextprotocol/server-memory"
@@ -33,6 +38,18 @@ msgstr "(không có nhánh)"
 #: src/renderer/views/PrReviewOverlay/parts/PrCommitsTab.tsx
 msgid "(no message)"
 msgstr "(không có tin nhắn)"
+
+#: src/renderer/actions/sideChatActions.ts
+msgid "（临时分支）"
+msgstr "(nhánh tạm)"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "（估算）"
+msgstr "(ước tính)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "（编辑时留空表示保持不变）"
+msgstr "(để trống khi sửa để giữ nguyên)"
 
 #. placeholder {0}: candidates.length
 #. placeholder {0}: props.candidates.length
@@ -136,6 +153,11 @@ msgstr "{0, plural, one {mục tiêu} other {mục tiêu}}"
 msgid "{0, plural, other {# other chats use this same tree. File restore could overwrite their changes.}}"
 msgstr "{0, plural, other {# các cuộc trò chuyện khác sử dụng cùng một cây này. Khôi phục tập tin có thể ghi đè lên những thay đổi của họ.}}"
 
+#. placeholder {0}: import { useEffect, useRef, useState } from "react"; import { Plural, Trans, useLingui } from "@lingui/react/macro"; import { GitBranch, Search } from "lucide-react"; import { toast } from "@heroui/react"; import type { GitBranchInfo, GitStatusResult } from "@/shared/contracts"; import { friendlyError } from "@/shared/messages"; import { readBridge } from "@/renderer/bridge"; import { useGitStore } from "@/renderer/state/gitStore"; import { buildBranchNamePrKey } from "@/renderer/state/gitSelectors"; import { usePanelStore } from "@/renderer/state/panelStore"; import { deleteWorktreeGroup } from "@/renderer/actions/worktreeActions"; import { useBranchList } from "@/renderer/components/common/BranchSelector/parts/useBranchList"; import { BranchListBox, type OpenPrReviewArgs, } from "@/renderer/components/common/BranchSelector/parts/BranchListBox"; import { BranchFooterActions } from "@/renderer/components/common/BranchSelector/parts/BranchFooterActions"; import { ConfirmDialog } from "@/renderer/components/common/ConfirmDialog"; import { BranchSyncGraph } from "@/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/BranchSyncGraph"; interface PendingDelete { branch: GitBranchInfo; worktreePath?: string; threadIds: string[]; threadCount: number; } /** * In-place branch management for the top-right status capsule. * Reuses the BranchSelector parts (search + list + create footer + delete * confirm) and the review sidebar's sync graph; only the switching callback * comes from the capsule so store patching stays in one place. * Worktree threads get a read-only view — switching the main checkout from * here would target the wrong tree. */ export function CapsuleBranchView(props: { projectId: string; branch: string; changedFiles: number; stagedCount: number; unstagedCount: number; gitStatus: GitStatusResult; isWorktree: boolean; onSwitchBranch: (branch: string, createNew: boolean) => void; }) { const { t } = useLingui(); const { projectId, branch, changedFiles, stagedCount, unstagedCount, gitStatus, isWorktree, onSwitchBranch, } = props; const [search, setSearch] = useState(""); const [isCreating, setIsCreating] = useState(false); const [newBranchName, setNewBranchName] = useState(""); const [deletingBranch, setDeletingBranch] = useState<string | null>(null); const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null); const searchRef = useRef<HTMLInputElement>(null); const createRef = useRef<HTMLInputElement>(null); // Focus the search like the BranchSelector popover does on open. useEffect(() => { const id = window.setTimeout(() => searchRef.current?.focus(), 50); return () => window.clearTimeout(id); }, []); // eslint-disable-line react-hooks/exhaustive-deps -- focus once on view open const { items, hasLocal, hasRemote, worktreeBranches, branchWorktreePath, threadsByBranch, projectLocation, } = useBranchList({ projectId, search }); function handleSelectBranch(next: string) { if (next === branch) return; onSwitchBranch(next, false); } function handleCreateBranch() { const name = newBranchName.trim(); if (!name) return; onSwitchBranch(name, true); setIsCreating(false); setNewBranchName(""); } function handleRequestDelete(target: GitBranchInfo) { const worktreePath = target.isRemote ? undefined : branchWorktreePath.get(target.name); const threads = threadsByBranch.get(target.name) ?? []; setPendingDelete({ branch: target, ...(worktreePath ? { worktreePath } : {}), threadIds: threads.map((thread) => thread.id), threadCount: threads.length, }); } function handleOpenPrReview(args: OpenPrReviewArgs) { usePanelStore.getState().setPrReviewContext({ projectId, prNumber: args.prNumber, ...(args.worktreePath ? { worktreePath: args.worktreePath } : { prKey: buildBranchNamePrKey(projectId, args.branch) }), }); } async function confirmDelete() { const target = pendingDelete; setPendingDelete(null); if (!target || !projectLocation) return; const { branch: doomed, worktreePath, threadIds } = target; // Worktree branches reuse the sidebar's removal path (closes linked threads, // runs the cleanup script, removes the worktree, then deletes the branch). if (worktreePath) { deleteWorktreeGroup(projectId, worktreePath, threadIds); return; } // Plain local or remote branch with no worktree — delete the ref directly. setDeletingBranch(doomed.name); try { await readBridge().gitDeleteBranch({ projectLocation, branch: doomed.name, force: true, ...(doomed.remote ? { remote: doomed.remote } : {}), }); } catch (error) { toast.danger(friendlyError(error)); } try { const [branches, wts] = await Promise.all([ readBridge().gitListBranches({ projectLocation, includeRemote: true }), readBridge().gitListWorktrees({ projectLocation }), ]); const store = useGitStore.getState(); store.setBranches(projectId, branches); store.setWorktrees(projectId, wts.worktrees); } catch { // ignore refresh errors } finally { setDeletingBranch(null); } } return ( <div> <div className="flex items-center gap-1.5 px-1.5 py-1"> <GitBranch className="size-3.5 shrink-0 text-muted" aria-hidden="true" /> <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground"> {branch || "—"} </span> </div> <p className="truncate px-1.5 pb-1 text-[11px] leading-5 text-muted"> {changedFiles > 0 ? ( <Trans> {t`未提交的更改：${changedFiles} 个文件（${stagedCount} staged · ${unstagedCount} unstaged）`} </Trans> ) : ( <Trans>{t`工作区干净`}</Trans> )} </p> {isWorktree ? null : ( <> <div className="flex items-center gap-1.5 border-y border-[var(--hairline)] px-1.5 py-1.5"> <Search className="size-3.5 shrink-0 text-muted" aria-hidden="true" /> <input ref={searchRef} className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted" placeholder={t`搜索分支`} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { e.stopPropagation(); if (e.key === "Escape") { if (isCreating) { setIsCreating(false); setNewBranchName(""); } else { setSearch(""); } } }} /> </div> <div className="py-0.5"> <BranchListBox projectId={projectId} items={items} hasLocal={hasLocal} hasRemote={hasRemote} currentBranch={branch} value={branch} baseBranch={undefined} isWorktree={false} worktreeMode={false} deletingBranch={deletingBranch} worktreeBranches={worktreeBranches} branchWorktreePath={branchWorktreePath} threadsByBranch={threadsByBranch} onSelect={handleSelectBranch} onDelete={(b) => handleRequestDelete(b as GitBranchInfo)} onOpenPrReview={handleOpenPrReview} /> </div> <BranchFooterActions isCreating={isCreating} setIsCreating={setIsCreating} newBranchName={newBranchName} setNewBranchName={setNewBranchName} createRef={createRef} searchRef={searchRef} handleCreateBranch={handleCreateBranch} hideWorktreeToggle worktreeMode={false} onWorktreeModeChange={undefined} baseBranch={undefined} value={branch} isWorktree={false} branchWorktreePath={branchWorktreePath} onSelect={undefined} showMoveBranch={false} isMovingBranch={false} onMoveBranchToWorktree={() => undefined} /> </> )} <BranchSyncGraph gitStatus={gitStatus} /> <ConfirmDialog isOpen={pendingDelete !== null} title={pendingDelete?.worktreePath ? t`Remove worktree?` : t`Delete branch?`} body={ pendingDelete?.worktreePath ? ( pendingDelete.threadCount > 0 ? ( <Trans> This removes the worktree on "{pendingDelete.branch.name}" and closes{" "} <Plural value={pendingDelete.threadCount} one="# linked thread" other="# linked threads" /> , then deletes the branch. </Trans> ) : ( <Trans> This removes the worktree on "{pendingDelete.branch.name}", then deletes the branch. </Trans> ) ) : pendingDelete?.branch.isRemote ? ( <Trans> This permanently deletes the branch "{pendingDelete.branch.name}" from its remote. </Trans> ) : ( <Trans>This permanently deletes the branch "{pendingDelete?.branch.name ?? ""}".</Trans> ) } confirmLabel={pendingDelete?.worktreePath ? t`Remove` : t`Delete`} onConfirm={() => void confirmDelete()} onClose={() => setPendingDelete(null)} /> </div> ); } 
+#: src/renderer/components/thread/CapsuleBranchView.tsx
+msgid "{0}"
+msgstr "{0}"
+
 #. placeholder {0}: target.title
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "{0} — Composer"
@@ -145,6 +167,24 @@ msgstr "{0} — Trình soạn thảo"
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "{0} — Terminal"
 msgstr "{0} — Terminal"
+
+#. placeholder {0}: BUILT_IN_MCP_SERVER_NAMES[id]
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "{0} · 内置服务"
+msgstr "{0} · dịch vụ tích hợp"
+
+#. placeholder {0}: ref.displayName
+#. placeholder {1}: ref.status
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+msgid "{0} · 状态：{1}\n"
+"点击配置"
+msgstr "{0} · trạng thái: {1}\n"
+""
+
+#. placeholder {0}: server.name
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "{0} · 自定义 MCP"
+msgstr "{0} · MCP tùy chỉnh"
 
 #. placeholder {0}: agent.label
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
@@ -160,6 +200,11 @@ msgstr "{0} ({envName}) đã cập nhật lên v{newVersion}."
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
 msgid "{0} ({envName}) updated."
 msgstr "{0} ({envName}) đã cập nhật."
+
+#. placeholder {0}: account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{0} {label} 账号"
+msgstr "{0} tài khoản {label}"
 
 #. placeholder {0}: agentCounts.total
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
@@ -369,6 +414,70 @@ msgstr "{0} đã cập nhật."
 msgid "{0} used"
 msgstr "Đã dùng {0}"
 
+#. placeholder {0}: input.label
+#: src/renderer/actions/installNativeAgent.ts
+msgid "{0} 不支持在应用内直接安装，请在设置的 Agents 或 ACP 注册表中手动安装。"
+msgstr "{0} không hỗ trợ cài trực tiếp trong ứng dụng; hãy cài thủ công qua registry Agents hoặc ACP trong Cài đặt."
+
+#. placeholder {0}: channels.length
+#. placeholder {0}: harnessNodes.length
+#. placeholder {0}: modelRows.length
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "{0} 个"
+msgstr "{0}"
+
+#. placeholder {0}: serverNames.length
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "{0} 个 MCP 服务器未能注入会话"
+msgstr "{0} máy chủ MCP không thể tiêm vào phiên"
+
+#. placeholder {0}: node.rows.length
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "{0} 个模型"
+msgstr "{0} mô hình"
+
+#. placeholder {0}: input.label
+#: src/renderer/actions/installNativeAgent.ts
+msgid "{0} 安装后状态刷新失败。"
+msgstr "Không làm mới được trạng thái sau khi cài {0}."
+
+#. placeholder {0}: input.label
+#: src/renderer/actions/installNativeAgent.ts
+msgid "{0} 安装失败（退出码 {exitCode}）。常见原因是缺少 curl、PowerShell 或 WSL。请查看安装终端输出后重试。"
+msgstr "Cài {0} thất bại (mã thoát {exitCode}). Nguyên nhân thường gặp là thiếu curl, PowerShell hoặc WSL. Xem output của terminal cài đặt rồi thử lại."
+
+#. placeholder {0}: input.label
+#. placeholder {1}: input.latest
+#: src/renderer/actions/runCliUpdate.ts
+msgid "{0} 已更新到 v{1}。"
+msgstr "{0} đã cập nhật lên v{1}."
+
+#. placeholder {0}: serverNames.join("、")
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "{0} 未注入：当前 Agent 不接受对应的 MCP 传输方式。会话已正常启动，但这些服务器在本次对话中不可用。"
+msgstr "{0} chưa được tiêm: agent hiện tại không chấp nhận phương thức truyền MCP tương ứng. Phiên đã khởi động bình thường nhưng các máy chủ này không khả dụng trong hội thoại này."
+
+#. placeholder {0}: account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{0} 登录授权"
+msgstr "{0} ủy quyền đăng nhập"
+
+#. placeholder {0}: account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{0} 设为本机登录"
+msgstr "Đặt {0} làm đăng nhập cục bộ"
+
+#. placeholder {0}: channel.accountCount
+#. placeholder {1}: channel.rows.length
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "{0} 账号 · {1} 模型"
+msgstr "{0} tài khoản · {1} mô hình"
+
+#. placeholder {0}: window.label || window.id
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "{0} 额度"
+msgstr "{0} hạn mức"
+
 #. placeholder {0}: tab.title
 #: src/renderer/views/MainView/parts/RightPanel/parts/DevTerminalPanel/parts/BottomTerminalLayout.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/DevTerminalPanel/parts/RightTerminalLayout.tsx
@@ -386,6 +495,12 @@ msgstr "{0}, Đang chạy"
 msgid "{0}: {stateLabel}"
 msgstr "{0}: {stateLabel}"
 
+#. placeholder {0}: formatTokenRate(tokensPerSecond)
+#. placeholder {1}: rateIsEstimated ? t`（估算）` : ""
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "{0}{1}"
+msgstr "{0}{1}"
+
 #. placeholder {0}: selectedRows.length
 #. placeholder {0}: selectedSkills.length
 #. placeholder {1}: importableRows.length
@@ -394,6 +509,11 @@ msgstr "{0}: {stateLabel}"
 #: src/renderer/components/skills/SkillImportModal.tsx
 msgid "{0}/{1} selected"
 msgstr "Đã chọn {0}/{1}"
+
+#. placeholder {0}: Math.max(0, Math.min(100, Math.round(100 - usedPercent)))
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "{0}% 剩余"
+msgstr "còn lại {0}%"
 
 #. placeholder {0}: Math.floor(days / 30)
 #: src/renderer/views/ProfileOverlay/parts/ProfileHeader.tsx
@@ -418,15 +538,15 @@ msgstr "{agentLead} cần bạn nhập thông tin để tiếp tục."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "{agentsSummary}. Show agents."
-msgstr ""
+msgstr "{agentsSummary}. Hiển thị agent."
 
 #: src/renderer/actions/forkThreadActions.ts
 msgid "{baseTitle}（分叉）"
-msgstr ""
+msgstr "{baseTitle} (fork)"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "{changedFiles} 个文件"
-msgstr ""
+msgstr "{changedFiles} tệp"
 
 #: src/mobile/views/pr/PrOverviewPage.tsx
 msgid "{commitsCount, plural, one {# commit} other {# commits}}"
@@ -483,6 +603,14 @@ msgstr "Hook {hook} không thành công"
 msgid "{hours}h ago"
 msgstr "{hours} giờ trước"
 
+#: src/renderer/utils/formatTime.ts
+msgid "{hours}时"
+msgstr "{hours} giờ"
+
+#: src/renderer/utils/formatTime.ts
+msgid "{hours}时{remMinutes}分"
+msgstr "{hours} giờ {remMinutes} phút"
+
 #: src/renderer/components/thread/AgentDiscoveryScreen.tsx
 msgid "{installedCount, plural, one {# agent ready} other {# agents ready}}"
 msgstr "{installedCount, plural, one {# tác nhân đã sẵn sàng} other {# tác nhân đã sẵn sàng}}"
@@ -498,7 +626,7 @@ msgstr "Khoảng thời gian tự động làm mới {label} tính bằng phút"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "{label} Cookie"
-msgstr ""
+msgstr "Cookie {label}"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "{label} copied."
@@ -506,7 +634,7 @@ msgstr "Đã sao chép {label}."
 
 #: src/renderer/views/SettingsOverlay/parts/UsageProviderRow.tsx
 msgid "{label} session cookie"
-msgstr ""
+msgstr "Cookie phiên của {label}"
 
 #: src/mobile/ThreadUsageIndicator.tsx
 msgid "{label} usage"
@@ -516,9 +644,37 @@ msgstr "Mức sử dụng {label}"
 msgid "{label} usage — open usage panel"
 msgstr "Mức sử dụng {label} — mở bảng sử dụng"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 刷新状态"
+msgstr "{label} làm mới trạng thái"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 导入本机登录"
+msgstr "{label} nhập đăng nhập cục bộ"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 当前没有可用的登录方式，请先在设置中配置授权。"
+msgstr "Hiện không có phương thức đăng nhập nào cho {label}; hãy cấu hình ủy quyền trong Cài đặt trước."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 授权删除失败。"
+msgstr "Xóa ủy quyền {label} thất bại."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "{label} 授权已删除。"
+msgstr "Đã xóa ủy quyền {label}."
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "{label} 暂不支持：该 Provider 的运行时不提供此能力，未产生失败。"
+msgstr "{label} chưa hỗ trợ: runtime của provider này không cung cấp khả năng này; không có lỗi."
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "{label}，点击复制错误详情"
+msgstr "{label}, nhấp để sao chép chi tiết lỗi"
+
 #: src/renderer/components/thread/ComposerPlanChip.tsx
 msgid "{label}. Show plan."
-msgstr ""
+msgstr "{label}. Hiển thị kế hoạch."
 
 #. placeholder {0}: method.name
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
@@ -550,6 +706,15 @@ msgstr "{minute} phút sau đầu giờ"
 msgid "{minutes}m ago"
 msgstr "{minutes} phút trước"
 
+#. placeholder {0}: String(remSeconds).padStart(2, "0")
+#: src/renderer/utils/formatTime.ts
+msgid "{minutes}分{0}秒"
+msgstr "{minutes} phút {0} giây"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "{minutes}分{remainder}秒"
+msgstr "{minutes} phút {remainder} giây"
+
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
 msgid "{missingAuthLabel} needs authentication."
 msgstr "{missingAuthLabel} cần xác thực."
@@ -557,6 +722,10 @@ msgstr "{missingAuthLabel} cần xác thực."
 #: src/renderer/actions/workspaceActions.ts
 msgid "{movedCount, plural, one {Moved # project to {target}.} other {Moved # projects to {target}.}}"
 msgstr "{movedCount, plural, other {Đã chuyển # dự án sang {target}.}}"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "{name} 我的配方"
+msgstr "{name} Công thức của tôi"
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "{original}\n"
@@ -585,6 +754,14 @@ msgstr "Cài đặt {projectName}"
 msgid "{provider} does not support one-shot generation"
 msgstr "{provider} không hỗ trợ tạo một lượt"
 
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "{provider}账号{fromAccount}额度已耗尽"
+msgstr "Hạn mức tài khoản {provider} {fromAccount} đã cạn"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "{remainder}秒"
+msgstr "{remainder} giây"
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/NotesPanel/TodoList.tsx
 msgid "{remaining, plural, one {# open} other {# open}}"
 msgstr "{remaining, plural, one {# mở} other {# mở}}"
@@ -598,6 +775,10 @@ msgstr "{resultCount, plural, one {# kết quả} other {# kết quả}}"
 msgid "{seconds}s ago"
 msgstr "{seconds} giây trước"
 
+#: src/renderer/utils/formatTime.ts
+msgid "{seconds}秒"
+msgstr "{seconds} giây"
+
 #: src/renderer/components/plugins/PluginMarketplace.tsx
 msgid "{serverCount, plural, one {# server} other {# servers}}"
 msgstr "{serverCount, plural, one {# máy chủ} other {# máy chủ}}"
@@ -608,7 +789,7 @@ msgstr "{serverName} từ {providerLabel}: {disabledLabel}"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "{taskFraction}. Show task."
-msgstr ""
+msgstr "{taskFraction}. Hiển thị tác vụ."
 
 #: src/renderer/components/thread/ThreadGoalDock.tsx
 msgid "{used} tokens"
@@ -635,6 +816,10 @@ msgstr "{visibleCount} trong số {totalCount} khả dụng"
 #: src/renderer/views/SettingsOverlay/parts/SidebarShortcutsSelector.tsx
 msgid "{visibleCount} of {totalCount} visible"
 msgstr "{visibleCount} trong số {totalCount} hiển thị"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "{visibleCount} 个可见"
+msgstr "{visibleCount} mục hiển thị"
 
 #: src/renderer/views/SettingsOverlay/parts/CursorSdkRuntimeSetup.tsx
 msgid "@cursor/sdk is not installed."
@@ -671,6 +856,19 @@ msgstr "~{money}{tokens} · {0} · ước tính."
 msgid "≈{0}% by reset"
 msgstr "≈{0}% khi đặt lại"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "✓ 已验证 · Chat Completions"
+msgstr "✓ Đã xác minh · Chat Completions"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "✓ 已验证 · Responses API"
+msgstr "✓ Đã xác minh · Responses API"
+
+#. placeholder {0}: validation.error
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "✕ 验证失败：{0}"
+msgstr "✕ Xác minh thất bại: {0}"
+
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "1 run"
 msgstr "1 lượt chạy"
@@ -686,6 +884,14 @@ msgstr "22"
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "30d"
 msgstr "30 ngày"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "5h 已用"
+msgstr "đã dùng 5h"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "5h 限额"
+msgstr "giới hạn 5h"
 
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "7d"
@@ -706,7 +912,7 @@ msgstr "Nguồn cây làm việc đã đóng băng yêu cầu hàm băm đầy �
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "A login terminal is already active."
-msgstr ""
+msgstr "Đã có một terminal đăng nhập đang hoạt động."
 
 #: src/renderer/views/SettingsOverlay/parts/AgentProfileList.tsx
 msgid "A profile with this name already exists."
@@ -734,7 +940,7 @@ msgstr "Chủ sở hữu cây làm việc yêu cầu một nhánh nguồn đã �
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Abort current turn and switch"
-msgstr ""
+msgstr "Hủy lượt hiện tại và chuyển"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/ConflictResolutionActions.tsx
 msgid "Abort Merge"
@@ -852,7 +1058,7 @@ msgstr "Thêm vào"
 #. placeholder {0}: skill.name
 #: src/renderer/components/skills/SkillsManager.tsx
 msgid "Add {0} to Shared"
-msgstr ""
+msgstr "Thêm {0} vào Chia sẻ"
 
 #: src/renderer/commands/registry.ts
 msgid "Add a local project"
@@ -1001,11 +1207,11 @@ msgstr "Thêm vào màn hình chính"
 
 #: src/renderer/components/thread/ProjectSwitchMenu.tsx
 msgid "Add to project"
-msgstr ""
+msgstr "Thêm vào dự án"
 
 #: src/renderer/components/skills/SkillsManager.tsx
 msgid "Add to Shared"
-msgstr ""
+msgstr "Thêm vào Chia sẻ"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/NotesPanel/TodoList.tsx
 msgid "Add to-do"
@@ -1013,7 +1219,7 @@ msgstr "Thêm việc cần làm"
 
 #: src/renderer/components/layout/UnifiedRightPanel.tsx
 msgid "Add tool"
-msgstr ""
+msgstr "Thêm công cụ"
 
 #: src/renderer/views/SettingsOverlay/parts/WorkspacesSettings.tsx
 msgid "Add workspace"
@@ -1021,7 +1227,7 @@ msgstr "Thêm không gian làm việc"
 
 #: src/renderer/components/skills/SkillsManager.tsx
 msgid "Added to Shared."
-msgstr ""
+msgstr "Đã thêm vào Chia sẻ."
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
@@ -1034,23 +1240,23 @@ msgstr "Công bố một URL cơ sở tùy chỉnh, ví dụ một reverse proxy
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "After 15 days"
-msgstr ""
+msgstr "Sau 15 ngày"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "After 3 days"
-msgstr ""
+msgstr "Sau 3 ngày"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "After 30 days"
-msgstr ""
+msgstr "Sau 30 ngày"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "After 7 days"
-msgstr ""
+msgstr "Sau 7 ngày"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "After current turn"
-msgstr ""
+msgstr "Sau lượt hiện tại"
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
@@ -1119,7 +1325,20 @@ msgstr "Mức sử dụng tác nhân"
 
 #: src/renderer/views/MainView/parts/MainContentHeaderControls.tsx
 msgid "Agent workspace"
-msgstr ""
+msgstr "Workspace của agent"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "Agent 合成台"
+msgstr "Bàn chế tạo Agent"
+
+#. placeholder {0}: friendlyError(error)
+#: src/renderer/crafting/useNativeHarnessControlPlane.ts
+msgid "Agent 状态刷新失败，已保留上次结果：{0}"
+msgstr "Làm mới trạng thái agent thất bại; đã giữ kết quả trước: {0}"
+
+#: src/renderer/crafting/useNativeHarnessControlPlane.ts
+msgid "Agent 状态刷新超时，已保留上次结果。请稍后重试。"
+msgstr "Làm mới trạng thái agent quá thời gian; đã giữ kết quả trước. Vui lòng thử lại sau."
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Agent: {description}"
@@ -1144,11 +1363,11 @@ msgstr "Tác nhân · Chung"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Agents classify delegated work with task tags. Explicit per-call values and manual task routes rank first, followed by this order, then matching learned routes, global usage, normal agent usage and favorites, and built-in order. Drag rows or use the arrows to reorder; the native lane cannot be removed."
-msgstr ""
+msgstr "Agent phân loại công việc được ủy quyền bằng tag tác vụ. Giá trị tường minh theo từng lần gọi và route thủ công được ưu tiên cao nhất, sau đó đến thứ tự này, các route đã học phù hợp, mức sử dụng toàn cục, agent thường dùng và mục yêu thích, cuối cùng là thứ tự mặc định. Kéo hàng hoặc dùng mũi tên để sắp xếp lại; làn native không thể xóa."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Agents. Show agents."
-msgstr ""
+msgstr "Agent. Hiển thị agent."
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "AI agent orchestrator — manage coding agents via Terminal and Native ACP."
@@ -1173,6 +1392,10 @@ msgstr "AI đánh giá"
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
 msgid "AI providers"
 msgstr "Nhà cung cấp AI"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "AK 与 SK 必须同时填写。"
+msgstr "AK và SK phải được điền cùng nhau."
 
 #: src/mobile/settingsSections.ts
 msgid "Alerts when threads need you"
@@ -1202,7 +1425,7 @@ msgstr "Tất cả phiên, cây làm việc và nhánh của các ứng viên s�
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "All CLIs are up to date"
-msgstr ""
+msgstr "Tất cả CLI đều đã mới nhất"
 
 #: src/renderer/views/ProfileOverlay/parts/ProfileHeader.tsx
 msgid "All devices"
@@ -1312,6 +1535,27 @@ msgstr "Một thao tác khác của thử nghiệm này vẫn đang chạy."
 msgid "Antigravity"
 msgstr "Antigravity"
 
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Antigravity 授权失败，请重试。"
+msgstr "Ủy quyền Antigravity thất bại; vui lòng thử lại."
+
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Antigravity 登录失败，请重试。"
+msgstr "Đăng nhập Antigravity thất bại; vui lòng thử lại."
+
+#. placeholder {0}: account.label
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Antigravity 账号 {0} 已更新授权。"
+msgstr "Tài khoản Antigravity {0}: đã cập nhật ủy quyền."
+
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Antigravity 账号已加入号池。"
+msgstr "Tài khoản Antigravity đã thêm vào pool."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Antigravity 账号池"
+msgstr "Pool tài khoản Antigravity"
+
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Anything currently unavailable — a provider, model, reasoning level, or Fast mode — is skipped automatically. Unchecked providers and models are skipped until re-checked."
 msgstr "Mọi thứ hiện không khả dụng — nhà cung cấp, mô hình, mức suy luận hoặc chế độ Fast — sẽ tự động được bỏ qua. Nhà cung cấp và mô hình không được chọn sẽ bị bỏ qua cho đến khi được chọn lại."
@@ -1339,7 +1583,7 @@ msgstr "Điều khiển ứng dụng"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "App Controls enabled for this thread"
-msgstr ""
+msgstr "Đã bật điều khiển ứng dụng cho thread này"
 
 #: src/mobile/settingsSections.ts
 #: src/renderer/views/SettingsOverlay/parts/AppearanceSettings.tsx
@@ -1424,11 +1668,11 @@ msgstr "Luồng đã lưu trữ"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Archived threads are permanently deleted after this long, counted strictly from when each thread was archived."
-msgstr ""
+msgstr "Thread đã lưu trữ sẽ bị xóa vĩnh viễn sau khoảng thời gian này, tính nghiêm ngặt từ lúc mỗi thread được lưu trữ."
 
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
 msgid "Archived threads are permanently deleted after this long, counted strictly from when each thread was archived. Changing this re-evaluates existing archives immediately."
-msgstr ""
+msgstr "Thread đã lưu trữ sẽ bị xóa vĩnh viễn sau khoảng thời gian này, tính nghiêm ngặt từ lúc mỗi thread được lưu trữ. Thay đổi sẽ đánh giá lại các mục lưu trữ hiện có ngay lập tức."
 
 #. placeholder {0}: file.path
 #: src/renderer/views/GitReviewOverlay/parts/GitStackedDiff.tsx
@@ -1447,6 +1691,18 @@ msgstr "Bạn có chắc chắn muốn hoàn nguyên tất cả các thay đổi
 msgid "Arguments"
 msgstr "Đối số"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Ark API Key 已保存，但验证没有返回可用模型，暂未创建模型渠道。请确认该 Key 有 Ark 推理权限，或在「OpenAI 兼容 API」手动添加。"
+msgstr "Đã lưu Ark API Key nhưng xác minh không trả về model khả dụng nên chưa tạo kênh model. Hãy xác nhận key có quyền inference Ark, hoặc thêm thủ công trong mục \"OpenAI-compatible API\"."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Ark API Key 用于调用模型（保存后自动创建渠道）；AK + SK 用于显示 Coding Plan / Agent Plan 额度。填写 AK/SK 时，三项凭据必须同时填写。"
+msgstr "Ark API Key dùng để gọi model (kênh tự tạo sau khi lưu); AK + SK dùng để hiển thị hạn mức Coding Plan / Agent Plan. Khi điền AK/SK, cả ba thông tin xác thực phải điền cùng nhau."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Ark API Key（模型调用 Key）"
+msgstr "Ark API Key (khóa gọi model)"
+
 #. placeholder {0}: project.name
 #: src/renderer/views/QuickComposerOverlay/QuickComposerOverlay.tsx
 msgid "Ask {0} anything about this workspace"
@@ -1454,11 +1710,11 @@ msgstr "Hỏi {0} bất cứ điều gì về không gian làm việc này"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Ask another thread"
-msgstr ""
+msgstr "Hỏi thread khác"
 
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Ask anything"
-msgstr ""
+msgstr "Hỏi bất cứ điều gì"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Ask each time"
@@ -1471,7 +1727,7 @@ msgstr "Yêu cầu phê duyệt"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Ask the target thread a specific question or task…"
-msgstr ""
+msgstr "Đặt câu hỏi hoặc tác vụ cụ thể cho thread đích…"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "At"
@@ -1487,7 +1743,7 @@ msgstr "Đính kèm"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Attach an explicit portable context summary"
-msgstr ""
+msgstr "Đính kèm tóm tắt ngữ cảnh di động rõ ràng"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Attach files"
@@ -1581,7 +1837,11 @@ msgstr "Tự động hợp nhất"
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Auto mode"
-msgstr ""
+msgstr "Chế độ Auto"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "Auto 接管（{nativeKind} → {finalKind}）"
+msgstr "Auto tiếp quản ({nativeKind} → {finalKind})"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/ThreadSettings.tsx
@@ -1595,7 +1855,7 @@ msgstr "Tự động lưu trữ các chủ đề đã hoàn thành sau (ngày)"
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Auto-delete archived threads"
-msgstr ""
+msgstr "Tự động xóa thread đã lưu trữ"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Auto-generate"
@@ -1622,7 +1882,11 @@ msgstr "Tự động hiển thị bảng điều khiển thiết bị đầu cu�
 #: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Auto-update CLIs"
-msgstr ""
+msgstr "Tự động cập nhật CLI"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "auto（确定性 Codex）"
+msgstr "auto (Codex tất định)"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconPicker.tsx
 msgid "Automatic"
@@ -1663,7 +1927,7 @@ msgstr "Tác nhân ACP có sẵn"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Available target threads"
-msgstr ""
+msgstr "Thread đích khả dụng"
 
 #: src/renderer/views/ProfileOverlay/parts/EditProfileDialog.tsx
 msgid "Avatar color"
@@ -1736,6 +2000,10 @@ msgstr "Kích thước phông chữ cơ sở cho thiết bị đầu cuối củ
 msgid "Base font size for the terminal panel. Auto-shrinks in narrow or short panes."
 msgstr "Kích thước phông chữ cơ bản cho bảng điều khiển thiết bị đầu cuối. Tự động thu nhỏ trong các ô hẹp hoặc ngắn."
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Base URL 与 API Key 为必填项。"
+msgstr "Base URL và API Key là bắt buộc."
+
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Bash output"
 msgstr "Đầu ra Bash"
@@ -1762,7 +2030,7 @@ msgstr "Tệp nhị phân - không có bản xem trước."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "Binary file cannot be previewed directly."
-msgstr ""
+msgstr "Không thể xem trước trực tiếp tệp nhị phân."
 
 #: src/renderer/components/diff/DiffCardList.tsx
 msgid "Binary file or no diff available"
@@ -1822,7 +2090,7 @@ msgstr "Nhánh <0>{0}</0> có các thay đổi chưa được hợp nhất:"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/BranchSyncGraph.tsx
 msgid "Branch graph"
-msgstr ""
+msgstr "Đồ thị nhánh"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ForceDeleteBranchDialog.tsx
 msgid "Branch not fully merged"
@@ -1935,7 +2203,7 @@ msgstr "Đã đạt đến giới hạn ngân sách"
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
 #~ msgid "Build new features, apps, or tools"
-#~ msgstr ""
+#~ msgstr "Xây dựng tính năng, ứng dụng hoặc công cụ mới"
 
 #: src/renderer/components/diff/DiffCardList.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/InlineDiffView.tsx
@@ -2060,11 +2328,11 @@ msgstr "Hủy bộ chọn"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Cancel queued request"
-msgstr ""
+msgstr "Hủy yêu cầu đang xếp hàng"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Cancel queued switch"
-msgstr ""
+msgstr "Hủy chuyển đang xếp hàng"
 
 #: src/mobile/views/ManageProjectsView.tsx
 msgid "Cancel removing project"
@@ -2091,11 +2359,11 @@ msgstr "Đã hủy"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 #~ msgid "Cancelled after {elapsed}"
-#~ msgstr ""
+#~ msgstr "Đã hủy sau {elapsed}"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Cancelling"
-msgstr ""
+msgstr "Đang hủy"
 
 #: src/renderer/views/ExperimentView/parts/ExperimentCandidateCard.tsx
 msgid "Candidate actions"
@@ -2195,6 +2463,10 @@ msgstr "Đã gắn sao cuộc trò chuyện"
 msgid "Chat unstarred"
 msgstr "Đã bỏ gắn sao cuộc trò chuyện"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "ChatGPT 账号池"
+msgstr "Pool tài khoản ChatGPT"
+
 #: src/renderer/components/thread/ChatPane/parts/items/commandSummary.ts
 msgid "Check"
 msgstr "Kiểm tra"
@@ -2209,19 +2481,19 @@ msgstr "Kiểm tra lại"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Check all CLIs"
-msgstr ""
+msgstr "Kiểm tra tất cả CLI"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Check all installed agent CLIs"
-msgstr ""
+msgstr "Kiểm tra tất cả CLI agent đã cài"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Check for CLI updates"
-msgstr ""
+msgstr "Kiểm tra cập nhật CLI"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Check for CraftStation updates"
-msgstr ""
+msgstr "Kiểm tra cập nhật CraftStation"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteHostUpdateControl.tsx
 msgid "Check for update"
@@ -2256,11 +2528,11 @@ msgstr "Đang kiểm tra {serverName}"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Checking for CraftStation update"
-msgstr ""
+msgstr "Đang kiểm tra cập nhật CraftStation"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Checking for CraftStation update…"
-msgstr ""
+msgstr "Đang kiểm tra cập nhật CraftStation…"
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "Checking host…"
@@ -2268,7 +2540,7 @@ msgstr "Đang kiểm tra máy chủ…"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Checking installed CLIs…"
-msgstr ""
+msgstr "Đang kiểm tra các CLI đã cài…"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Checking Tailscale…"
@@ -2329,7 +2601,7 @@ msgstr "Chọn ảnh biểu tượng dự án"
 
 #: src/renderer/views/MainView/parts/SelectProjectForThreadModal.tsx
 msgid "Choose a project to start your conversation."
-msgstr ""
+msgstr "Chọn một dự án để bắt đầu hội thoại."
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconPicker.tsx
 msgid "Choose an image inside the project folder."
@@ -2371,7 +2643,7 @@ msgstr "Chọn ngôn ngữ hiển thị cho giao diện của CraftStation."
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Choose the GUI presentation to switch in place."
-msgstr ""
+msgstr "Chọn cách hiển thị GUI để chuyển ngay tại chỗ."
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "Choose thread to attach to"
@@ -2443,7 +2715,7 @@ msgstr "Tên hồ sơ Claude"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "clean"
-msgstr ""
+msgstr "sạch"
 
 #: src/mobile/views/threadActionSurfaces.tsx
 #: src/mobile/views/threadContextMenus.tsx
@@ -2453,7 +2725,7 @@ msgstr "Cây làm việc sạch"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Clean. Show git status."
-msgstr ""
+msgstr "Sạch. Hiển thị trạng thái git."
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ScriptsSection.tsx
 msgid "Cleanup script"
@@ -2461,7 +2733,7 @@ msgstr "Tập lệnh dọn dẹp"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
 msgid "Clear all"
-msgstr ""
+msgstr "Xóa tất cả"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
 msgid "Clear browsing history"
@@ -2504,7 +2776,7 @@ msgstr "Hook CLI"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "CLI updates"
-msgstr ""
+msgstr "Cập nhật CLI"
 
 #: src/renderer/views/SettingsOverlay/parts/ShortcutsSettings.tsx
 msgid "Click a shortcut to record a new key, or ＋ to add another."
@@ -2512,11 +2784,24 @@ msgstr "Nhấp vào một phím tắt để ghi lại phím mới, hoặc ＋ đ
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Click to check for a new CraftStation version"
-msgstr ""
+msgstr "Nhấp để kiểm tra phiên bản CraftStation mới"
 
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Clipboard rejected the image (unsupported format)"
-msgstr ""
+msgstr "Clipboard từ chối hình ảnh (định dạng không hỗ trợ)"
+
+#. placeholder {0}: running ? t`运行中 ${bridge.endpoint ?? ""}` : installed ? t`已安装 · 未运行` : t`未安装`
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "CLIProxyAPI 兼容桥 · {0}"
+msgstr "Cầu tương thích CLIProxyAPI · {0}"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "CLIProxyAPI 兼容桥 · 状态未知"
+msgstr "Cầu tương thích CLIProxyAPI · trạng thái không rõ"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "CLIProxyAPI 启动后仍无法合成"
+msgstr "Vẫn không thể craft sau khi khởi động CLIProxyAPI"
 
 #: src/mobile/views/ManageProjectsView.tsx
 #: src/renderer/views/MainView/parts/AppContent/parts/Thread/parts/ContinueInProviderDialog.tsx
@@ -2563,7 +2848,7 @@ msgstr "Đóng"
 #. placeholder {0}: tab.label
 #: src/renderer/components/layout/UnifiedRightPanel.tsx
 msgid "Close {0}"
-msgstr ""
+msgstr "Đóng {0}"
 
 #: src/mobile/views/BrowserView.tsx
 msgid "Close {closeTarget}"
@@ -2651,15 +2936,15 @@ msgstr "Đóng lớp phủ"
 
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
 msgid "Close own subagent"
-msgstr ""
+msgstr "Đóng subagent riêng"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ActiveSubAgentTile.tsx
 msgid "Close Own Subagents"
-msgstr ""
+msgstr "Đóng Own Subagents"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ActiveSubAgentTile.tsx
 msgid "Close Own Subagents panel"
-msgstr ""
+msgstr "Đóng bảng Own Subagents"
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "Close pairing"
@@ -2779,7 +3064,7 @@ msgstr "Thu gọn"
 #. placeholder {0}: project.name
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 #~ msgid "Collapse {0}"
-#~ msgstr ""
+#~ msgstr "Thu gọn {0}"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "Collapse {label}"
@@ -2937,7 +3222,7 @@ msgstr "Đang nén ngữ cảnh"
 
 #: src/renderer/components/thread/ThreadContextDock.tsx
 msgid "Compaction"
-msgstr ""
+msgstr "Nén gọn"
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "Compare this fingerprint with the one shown by your server."
@@ -2945,7 +3230,7 @@ msgstr "So sánh dấu vân tay này với dấu vân tay hiển thị trên má
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Compiled CraftPlan spawns an executable Agent Entity."
-msgstr ""
+msgstr "CraftPlan đã biên dịch sẽ tạo ra một Agent Entity có thể thực thi."
 
 #: src/renderer/components/thread/ThreadGoalDock.tsx
 msgid "Complete"
@@ -2994,11 +3279,11 @@ msgstr "Đã hoàn tất"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 msgid "Completed in {elapsed}"
-msgstr ""
+msgstr "Hoàn thành trong {elapsed}"
 
 #: src/renderer/views/MainView/parts/AppContent/ConversationErrorBoundary.tsx
 msgid "Component stack"
-msgstr ""
+msgstr "Ngăn xếp component"
 
 #: src/renderer/commands/shortcutCatalog.ts
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserToolbar.tsx
@@ -3043,7 +3328,7 @@ msgstr "Máy chủ MCP đã cấu hình"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Confirm again to interrupt the target's active turn. If stop confirmation fails, the request will not be delivered."
-msgstr ""
+msgstr "Xác nhận lại để ngắt lượt đang hoạt động của đích. Nếu xác nhận dừng thất bại, yêu cầu sẽ không được gửi đi."
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/ThreadSettings.tsx
@@ -3052,11 +3337,11 @@ msgstr "Xác nhận trước khi xóa luồng"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Confirm interrupt and send"
-msgstr ""
+msgstr "Xác nhận ngắt và gửi"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Confirm the source turn stopped before activating a new Runtime Segment."
-msgstr ""
+msgstr "Xác nhận lượt nguồn đã dừng trước khi kích hoạt Runtime Segment mới."
 
 #: src/renderer/views/SettingsOverlay/parts/AISettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -3198,7 +3483,7 @@ msgstr "Ngữ cảnh được nén thủ công: {before} → {after} token"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Context summary"
-msgstr ""
+msgstr "Tóm tắt ngữ cảnh"
 
 #: src/renderer/views/MainView/parts/AppContent/AppContent.tsx
 msgid "Context transferred to {targetLabel}"
@@ -3232,7 +3517,7 @@ msgstr "Tiếp tục trên địa chỉ của desktop"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 msgid "Continue paused task"
-msgstr ""
+msgstr "Tiếp tục tác vụ đã tạm dừng"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Continue thread"
@@ -3240,7 +3525,7 @@ msgstr "Tiếp tục luồng"
 
 #: src/renderer/views/SchedulesView/parts/ScheduleRow.tsx
 msgid "Continues thread"
-msgstr ""
+msgstr "Tiếp tục thread"
 
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
 msgid "Control an external Chrome browser."
@@ -3270,11 +3555,11 @@ msgstr "Cuộc trò chuyện"
 
 #: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
 msgid "Conversation quick navigation"
-msgstr ""
+msgstr "Điều hướng nhanh hội thoại"
 
 #: src/renderer/views/MainView/parts/AppContent/ConversationErrorBoundary.tsx
 msgid "Conversation view failed to render."
-msgstr ""
+msgstr "Không thể hiển thị chế độ xem hội thoại."
 
 #: src/mobile/UserMessageActionsSheet.tsx
 #: src/mobile/views/PortsView.tsx
@@ -3288,19 +3573,19 @@ msgstr "Đã sao chép"
 #. placeholder {0}: paths.length
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 #~ msgid "Copied {0} session paths."
-#~ msgstr ""
+#~ msgstr "Đã sao chép {0} đường dẫn phiên."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Copied session address."
-msgstr ""
+msgstr "Đã sao chép địa chỉ phiên."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 #~ msgid "Copied session path."
-#~ msgstr ""
+#~ msgstr "Đã sao chép đường dẫn phiên."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Copied thread path."
-msgstr ""
+msgstr "Đã sao chép đường dẫn thread."
 
 #: src/renderer/views/ProfileOverlay/parts/ShareDialog.tsx
 msgid "Copied to clipboard"
@@ -3387,7 +3672,7 @@ msgstr "Sao chép URL Tailscale"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Copy Thread Address"
-msgstr ""
+msgstr "Sao chép địa chỉ thread"
 
 #: src/renderer/components/thread/WorktreeModeSelect.tsx
 msgid "Copy uncommitted changes here (keeps them on this branch)"
@@ -3407,7 +3692,7 @@ msgstr "Không thể hoàn tất việc hợp nhất"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Could not copy the thread path."
-msgstr ""
+msgstr "Không thể sao chép đường dẫn thread."
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Could not create the project folder."
@@ -3429,7 +3714,7 @@ msgstr "Không thể tải pull request cho {0}."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/NotebookPreview.tsx
 msgid "Could not parse this notebook — open it as text instead."
-msgstr ""
+msgstr "Không thể phân tích notebook này — hãy mở dưới dạng văn bản."
 
 #: src/renderer/components/thread/ChatPane/parts/items/useReadAbsoluteFile.tsx
 msgid "Could not read file."
@@ -3504,7 +3789,7 @@ msgstr "Không thể tải thống kê hồ sơ của bạn."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/UsageStatsPage.tsx
 msgid "Couldn't load your usage stats."
-msgstr ""
+msgstr "Không thể tải thống kê sử dụng của bạn."
 
 #: src/mobile/useRemoteDesktop.ts
 msgid "Couldn't move the thread to a worktree."
@@ -3536,19 +3821,19 @@ msgstr "Không thể cập nhật skill."
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 msgid "Craft-Harness automatically retries a turn interrupted by network or connection failures, injecting a continuation prompt on retry. Set to 0 to disable."
-msgstr ""
+msgstr "Craft-Harness tự động thử lại lượt bị gián đoạn do lỗi mạng hoặc kết nối, chèn prompt tiếp nối khi thử lại. Đặt về 0 để tắt."
 
 #: src/renderer/views/MainView/parts/TopShortcuts/topShortcuts.tsx
 msgid "Crafting Table"
-msgstr ""
+msgstr "Bàn chế tạo"
 
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 msgid "Crafting Workbench"
-msgstr ""
+msgstr "Bàn làm việc chế tạo"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "CraftStation"
-msgstr ""
+msgstr "CraftStation"
 
 #: src/renderer/views/SettingsOverlay/parts/SshConnectionForm.tsx
 msgid "CraftStation and your agents run on the remote machine. SSH is used only to start the remote environment and secure its local tunnel."
@@ -3572,11 +3857,11 @@ msgstr "CraftStation Helper đã trả về phản hồi không hợp lệ."
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "CraftStation is up to date"
-msgstr ""
+msgstr "CraftStation đã là bản mới nhất"
 
 #: src/renderer/components/common/CraftStationMascot.tsx
 msgid "CraftStation mascot"
-msgstr ""
+msgstr "Linh vật CraftStation"
 
 #: src/renderer/components/startup/StartupRecoveryScreen.tsx
 msgid "CraftStation may be waiting on saved data or a background service. You can keep waiting, restart, or install an available update."
@@ -3584,7 +3869,7 @@ msgstr "CraftStation có thể đang chờ dữ liệu đã lưu hoặc một d�
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "CraftStation mode"
-msgstr ""
+msgstr "Chế độ CraftStation"
 
 #: src/renderer/components/skills/SkillImportModal.tsx
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
@@ -3598,7 +3883,7 @@ msgstr "Tệp kê khai thời gian chạy SSH của CraftStation bị thiếu ho
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 #~ msgid "CraftStation version"
-#~ msgstr ""
+#~ msgstr "Phiên bản CraftStation"
 
 #: src/mobile/views/DesktopsView.tsx
 msgid "CraftStation will install or reuse its server on the SSH host and keep credentials in this device's secure storage."
@@ -3692,7 +3977,7 @@ msgstr "Tạo bằng tác nhân"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Created"
-msgstr ""
+msgstr "Đã tạo"
 
 #: src/renderer/actions/moveThreadToWorktreeActions.ts
 #: src/renderer/components/common/BranchSelector/BranchSelector.tsx
@@ -3710,7 +3995,7 @@ msgstr "Đang tạo cây làm việc…"
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Creative mode"
-msgstr ""
+msgstr "Chế độ Creative"
 
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/SingleAgentSettings.tsx
 msgid "Credentials are configured."
@@ -3734,7 +4019,7 @@ msgstr "Hội thoại liên luồng"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Cross-thread dialogue with {dialogueTitle}. Show details."
-msgstr ""
+msgstr "Hội thoại liên thread với {dialogueTitle}. Hiển thị chi tiết."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Cross-thread dialogue. Show details."
@@ -3765,7 +4050,7 @@ msgstr "Gần đây"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Current harness native subagent"
-msgstr ""
+msgstr "Subagent native của harness hiện tại"
 
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 msgid "Current project"
@@ -3782,14 +4067,14 @@ msgstr "Chuỗi ngày hiện tại"
 #. placeholder {0}: activeStep.text
 #: src/renderer/components/thread/ComposerStatusRow.tsx
 #~ msgid "Current: {0}"
-#~ msgstr ""
+#~ msgstr "Hiện tại: {0}"
 
 #. placeholder {0}: activeSegment?.recipeId ?? thread.compositionProvenance?.recipeId
 #. placeholder {1}: activeSegment?.runtimeBinding.modelId ?? thread.config.model
 #. placeholder {2}: activeSegment?.runtimeBinding.harnessKind ?? thread.agentKind
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Current: {0} · {1} · {2}"
-msgstr ""
+msgstr "Hiện tại: {0} · {1} · {2}"
 
 #: src/renderer/components/providers/cursor/manifest.ts
 msgid "Cursor"
@@ -3872,15 +4157,15 @@ msgstr "đường dẫn tùy chỉnh"
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Custom prompt"
-msgstr ""
+msgstr "Prompt tùy chỉnh"
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Customize Model and Harness ingredients"
-msgstr ""
+msgstr "Tùy chỉnh nguyên liệu Model và Harness"
 
 #: src/renderer/views/MainView/parts/TopShortcuts/TopShortcutBar.tsx
 msgid "Customize shortcuts"
-msgstr ""
+msgstr "Tùy chỉnh phím tắt"
 
 #: src/renderer/commands/composerCommands.ts
 msgid "Cycle permission mode"
@@ -3921,7 +4206,7 @@ msgstr "DeepSeek"
 
 #: src/renderer/components/providers/deepseek/manifest.ts
 msgid "DeepSeek Harness"
-msgstr ""
+msgstr "DeepSeek Harness"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconPicker.tsx
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconSources.tsx
@@ -3941,7 +4226,7 @@ msgstr "Hành động Tạo PR mặc định"
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Default model with its native Harness"
-msgstr ""
+msgstr "Model mặc định với Harness native"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -4042,7 +4327,7 @@ msgstr "Xóa tập tin"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Delete immediately"
-msgstr ""
+msgstr "Xóa ngay"
 
 #. Tooltip: permanently delete the archived thread
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
@@ -4051,11 +4336,11 @@ msgstr "Xóa vĩnh viễn"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #~ msgid "Delete queue"
-#~ msgstr ""
+#~ msgstr "Xóa hàng đợi"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 msgid "Delete queued message"
-msgstr ""
+msgstr "Xóa tin nhắn đang xếp hàng"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "Delete run"
@@ -4131,19 +4416,19 @@ msgstr "Đang xóa"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Delivered"
-msgstr ""
+msgstr "Đã gửi"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Delivering"
-msgstr ""
+msgstr "Đang gửi"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Delivery"
-msgstr ""
+msgstr "Gửi đi"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Delivery waits for the target to confirm it has stopped."
-msgstr ""
+msgstr "Việc gửi sẽ chờ đích xác nhận đã dừng."
 
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/helpers.ts
 msgid "Deny"
@@ -4251,7 +4536,7 @@ msgstr "Thiết bị có thể ghép nối khi máy tính này có thể truy c�
 
 #: src/renderer/components/providers/devin/manifest.ts
 msgid "Devin"
-msgstr ""
+msgstr "Devin"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Dialogue exchanges"
@@ -4282,7 +4567,7 @@ msgstr "Tắt {tool}"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "Disable App Controls"
-msgstr ""
+msgstr "Tắt điều khiển ứng dụng"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "Disable Browser MCP"
@@ -4303,7 +4588,7 @@ msgstr "Tắt sử dụng máy tính"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "Disable Own Subagents"
-msgstr ""
+msgstr "Tắt Own Subagents"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Disable Project"
@@ -4311,7 +4596,7 @@ msgstr "Vô hiệu hóa dự án"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "Disable Schedule MCP"
-msgstr ""
+msgstr "Tắt Schedule MCP"
 
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettings.tsx
 msgid "Disable tiers an external provider collapses (e.g. keep only High and Max)."
@@ -4449,12 +4734,12 @@ msgstr "Xong · Đang chờ bạn nhập"
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "Download and install {0}"
-msgstr ""
+msgstr "Tải xuống và cài đặt {0}"
 
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "Download and install {0} now"
-msgstr ""
+msgstr "Tải xuống và cài đặt {0} ngay"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx
 msgid "Download image"
@@ -4462,19 +4747,19 @@ msgstr "Tải hình ảnh"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Download in browser instead"
-msgstr ""
+msgstr "Tải xuống trong trình duyệt thay thế"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Download package"
-msgstr ""
+msgstr "Tải gói cài đặt"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "Download v{version}"
-msgstr ""
+msgstr "Tải xuống v{version}"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Downloading CraftStation update"
-msgstr ""
+msgstr "Đang tải bản cập nhật CraftStation"
 
 #. placeholder {0}: name || t`the chosen folder`
 #: src/renderer/views/MainView/parts/CreateProject/CloneProjectModal.tsx
@@ -4529,7 +4814,7 @@ msgstr "Thả vào đây để đính kèm"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Drop to move to project root"
-msgstr ""
+msgstr "Thả để di chuyển về thư mục gốc của dự án"
 
 #: src/renderer/views/SettingsOverlay/parts/DevSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -4542,7 +4827,7 @@ msgstr "Tên máy chủ bị trùng trong kết quả quét"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Durable messaging between long-lived native threads across harnesses."
-msgstr ""
+msgstr "Nhắn tin bền vững giữa các thread native tồn tại lâu dài trên nhiều harness."
 
 #: src/renderer/views/SettingsOverlay/parts/TerminalSettings.tsx
 msgid "e.g. -NoProfile"
@@ -4554,7 +4839,7 @@ msgstr "vd. 512k hoặc 1m"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 msgid "e.g. Always reply in Simplified Chinese. Prefer concise answers with code first."
-msgstr ""
+msgstr "ví dụ: Luôn trả lời bằng tiếng Trung giản thể. Ưu tiên câu trả lời ngắn gọn, đưa code lên trước."
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "e.g. Codex GPT-5.5 fast for quick lookups, OpenCode GLM for bulk refactors, Claude Opus for anything subtle."
@@ -4627,7 +4912,7 @@ msgstr "Chỉnh sửa desktop đã ghép đôi và đồng bộ lại về đó.
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Efficient mode"
-msgstr ""
+msgstr "Chế độ Efficient"
 
 #: src/renderer/components/common/EffortContextMenu/EffortContextMenu.tsx
 msgid "Effort and context"
@@ -4648,15 +4933,15 @@ msgstr "Electron"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/CsvPreview.tsx
 msgid "Empty CSV file."
-msgstr ""
+msgstr "Tệp CSV trống."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/NotebookPreview.tsx
 msgid "Empty notebook."
-msgstr ""
+msgstr "Notebook trống."
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Empty workspace"
-msgstr ""
+msgstr "Workspace trống"
 
 #. placeholder {0}: server.name
 #. placeholder {0}: skill.name
@@ -4743,7 +5028,7 @@ msgstr "Tăng cường (Móc)"
 
 #: src/renderer/commands/registry.ts
 msgid "Enlarge the whole app UI"
-msgstr ""
+msgstr "Phóng to toàn bộ giao diện ứng dụng"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Enter a full origin URL like https://code.example.com, with no path."
@@ -4812,7 +5097,7 @@ msgstr "Nhập JSON hợp lệ."
 #. placeholder {0}: shortId(payload.entityId)
 #: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
 msgid "Entity {0}"
-msgstr ""
+msgstr "Entity {0}"
 
 #: src/renderer/views/SettingsOverlay/parts/AISettings.tsx
 msgid "Environment"
@@ -4873,12 +5158,12 @@ msgstr "Sự kiện"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Every"
-msgstr ""
+msgstr "Mỗi"
 
 #. placeholder {0}: task.recurrence.everyMinutes
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Every {0} minutes"
-msgstr ""
+msgstr "Mỗi {0} phút"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Every day at {time}"
@@ -4899,7 +5184,7 @@ msgstr "Mỗi giờ vào phút thứ {0}"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Every N minutes"
-msgstr ""
+msgstr "Mỗi N phút"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteServerProjectList.tsx
 msgid "Exclude from sync"
@@ -5060,7 +5345,7 @@ msgstr "Các lựa chọn rõ ràng được ghi lại từ những lần ủy q
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
 #~ msgid "Explore and understand code"
-#~ msgstr ""
+#~ msgstr "Khám phá và hiểu mã"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Export MCP servers"
@@ -5087,7 +5372,7 @@ msgstr "Đang trích xuất ngữ cảnh từ {0}..."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
 msgid "Extracting document text…"
-msgstr ""
+msgstr "Đang trích xuất văn bản tài liệu…"
 
 #: src/renderer/components/providers/factory/manifest.ts
 msgid "Factory Droid"
@@ -5110,7 +5395,7 @@ msgstr "Thất bại"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 msgid "Failed after {elapsed}"
-msgstr ""
+msgstr "Thất bại sau {elapsed}"
 
 #: src/renderer/views/GitHubActionsView/useGitHubActionsViewModel.ts
 msgid "Failed jobs queued to run again."
@@ -5210,7 +5495,7 @@ msgstr "Tệp không còn tồn tại trên đĩa."
 
 #: src/renderer/views/GitReviewOverlay/parts/GitDiffContent/parts/SingleFileDiff.tsx
 msgid "File too large to display"
-msgstr ""
+msgstr "Tệp quá lớn để hiển thị"
 
 #. placeholder {0}: entry.insertions + entry.deletions
 #. placeholder {0}: file.insertions + file.deletions
@@ -5257,7 +5542,7 @@ msgstr "Lọc theo dự án"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Filter files…"
-msgstr ""
+msgstr "Lọc tệp…"
 
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
 msgid "Filter marketplace by source"
@@ -5282,7 +5567,7 @@ msgstr "Tìm kiếm"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Find a target thread"
-msgstr ""
+msgstr "Tìm thread đích"
 
 #: src/renderer/components/find/ChatFindBar.tsx
 msgid "Find in chat"
@@ -5332,11 +5617,11 @@ msgstr "Tích hợp Cursor đầy đủ bằng ACP hoặc môi trường chạy 
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class DeepSeek Harness (dsh) integration using CraftStation's ACP runtime."
-msgstr ""
+msgstr "Tích hợp hạng nhất DeepSeek Harness (dsh) dùng ACP runtime của CraftStation."
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Devin CLI integration using CraftStation's ACP runtime."
-msgstr ""
+msgstr "Tích hợp hạng nhất Devin CLI dùng ACP runtime của CraftStation."
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Factory Droid integration using CraftStation's ACP runtime."
@@ -5360,7 +5645,7 @@ msgstr "Tích hợp Kimi Code CLI hạng nhất bằng cách sử dụng thời 
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class MiniMax Code integration using its official ACP runtime."
-msgstr ""
+msgstr "Tích hợp hạng nhất MiniMax Code dùng ACP runtime chính thức của nó."
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Muse Code CLI integration using CraftStation's native terminal runtime."
@@ -5384,15 +5669,15 @@ msgstr "Tích hợp Qwen Code hạng nhất bằng các môi trường chạy te
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class Step Code integration using StepFun's official CLI and structured RPC runtime."
-msgstr ""
+msgstr "Tích hợp hạng nhất Step Code dùng CLI chính thức và RPC runtime có cấu trúc của StepFun."
 
 #: src/renderer/views/SettingsOverlay/parts/agentRegistryNative.ts
 msgid "First-class ZCode terminal integration built from the official open-source CLI."
-msgstr ""
+msgstr "Tích hợp terminal hạng nhất của ZCode xây dựng từ CLI mã nguồn mở chính thức."
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
 #~ msgid "Fix bugs and failures"
-#~ msgstr ""
+#~ msgstr "Sửa lỗi và sự cố"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/ConflictResolutionActions.tsx
 msgid "Fix in Agent"
@@ -5473,7 +5758,7 @@ msgstr "Fork"
 
 #: src/renderer/components/thread/ChatPane/parts/items/ForkTurnButton.tsx
 msgid "Fork from this turn"
-msgstr ""
+msgstr "Fork từ lượt này"
 
 #. placeholder {0}: props.baseBranch
 #: src/renderer/views/ExperimentView/parts/ExperimentPromptSection.tsx
@@ -5526,7 +5811,7 @@ msgstr "Thứ Sáu lúc 4:00 CH"
 #: src/renderer/components/thread/ThreadCollaborationActivity.tsx
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "From"
-msgstr ""
+msgstr "Từ"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconSources.tsx
 msgid "From this project"
@@ -5641,11 +5926,11 @@ msgstr "Hành động Git"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Git branch"
-msgstr ""
+msgstr "Nhánh Git"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Git branch information"
-msgstr ""
+msgstr "Thông tin nhánh Git"
 
 #: src/renderer/views/GitReviewOverlay/GitReviewOverlay.tsx
 msgid "Git Review"
@@ -5668,7 +5953,7 @@ msgstr "Chế độ đánh giá Git"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Git 工具"
-msgstr ""
+msgstr "Công cụ Git"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "GitHub"
@@ -5762,7 +6047,7 @@ msgstr "Nội dung mục tiêu"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #~ msgid "Goal. Show task."
-#~ msgstr ""
+#~ msgstr "Goal. Hiển thị tác vụ."
 
 #: src/renderer/views/ProfileOverlay/parts/ActivityInsights.tsx
 msgid "Goals set"
@@ -5784,6 +6069,10 @@ msgstr "Xanh lá"
 #: src/renderer/components/providers/grok/manifest.ts
 msgid "Grok Build"
 msgstr "Grok Build"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Grok 账号池"
+msgstr "Pool tài khoản Grok"
 
 #: src/renderer/views/MainView/parts/AppContent/AppContent.tsx
 msgid "Group"
@@ -5826,17 +6115,34 @@ msgstr "Handle"
 msgid "Hard Reload"
 msgstr "Tải lại cứng"
 
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "Harness"
+msgstr "Harness"
+
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Harness Ingredient"
 msgstr "Thành phần Harness"
 
 #: src/renderer/components/crafting/CraftingRegistrySections.tsx
 msgid "Harness Library"
-msgstr ""
+msgstr "Thư viện Harness"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Harness 总览"
-msgstr ""
+msgstr "Tổng quan Harness"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "Harness 槽"
+msgstr "Ô Harness"
+
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+msgid "Harness 背包"
+msgstr "Túi đồ Harness"
+
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "Harness/CLI 面板"
+msgstr "Bảng Harness/CLI"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/DraftIndicator.tsx
 msgid "Has unsent draft"
@@ -5861,7 +6167,7 @@ msgstr "Các chủ đề tiếp tục ẩn sẽ được quét 5 phút một l�
 
 #: src/renderer/views/MainView/parts/TopShortcuts/TopShortcutBar.tsx
 msgid "Hidden shortcuts"
-msgstr ""
+msgstr "Phím tắt ẩn"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewPanel.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/WhatsNewButton.tsx
@@ -5892,7 +6198,7 @@ msgstr "Ẩn chi tiết sử dụng ngữ cảnh"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Hide directory"
-msgstr ""
+msgstr "Ẩn thư mục"
 
 #: src/mobile/views/BrowserView.tsx
 msgid "Hide keyboard"
@@ -5912,7 +6218,7 @@ msgstr "Ẩn bảng gỡ lỗi thời gian chạy"
 
 #: src/renderer/components/layout/UnifiedRightPanel.tsx
 msgid "Hide side panel"
-msgstr ""
+msgstr "Ẩn bảng bên"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsSidebar.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/GitReviewSidebar.tsx
@@ -6041,7 +6347,7 @@ msgstr "Hình ảnh"
 
 #: src/renderer/components/composer/AttachmentBar.tsx
 msgid "Image format may not be supported by the model"
-msgstr ""
+msgstr "Model có thể không hỗ trợ định dạng hình ảnh này"
 
 #: src/renderer/components/composer/ImageLightbox.tsx
 msgid "Image preview"
@@ -6094,12 +6400,12 @@ msgstr "Nhập vào phạm vi toàn cục"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Imported"
-msgstr ""
+msgstr "Đã nhập"
 
 #. placeholder {0}: server.sourceProviderLabel
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Imported ({0})"
-msgstr ""
+msgstr "Đã nhập ({0})"
 
 #. placeholder {0}: selectedSkills.length
 #: src/renderer/components/skills/SkillImportModal.tsx
@@ -6156,7 +6462,7 @@ msgstr "Kế thừa cài đặt chung (hiện tại {0})."
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "Initialize Git and connect GitHub to see Actions workflows."
-msgstr ""
+msgstr "Khởi tạo Git và kết nối GitHub để xem các workflow Actions."
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/GitReviewSidebar.tsx
 msgid "Initialize Repository"
@@ -6196,7 +6502,7 @@ msgstr "cài đặt"
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #~ msgid "Install {0}"
-#~ msgstr ""
+#~ msgstr "Cài đặt {0}"
 
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
@@ -6206,7 +6512,7 @@ msgstr "Cài đặt {0} cho {env}."
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #~ msgid "Install {0} now"
-#~ msgstr ""
+#~ msgstr "Cài {0} ngay"
 
 #. placeholder {0}: formatAgentList(props.agentStatuses.map((s) => s.label))
 #: src/renderer/components/thread/ThreadDraftView.tsx
@@ -6337,7 +6643,7 @@ msgstr "Cài đặt trong thiết bị đầu cuối này. Đóng lại khi hoà
 
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "Installing…"
-msgstr ""
+msgstr "Đang cài đặt…"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Instructions"
@@ -6354,7 +6660,7 @@ msgstr "Lệnh nội bộ và tác nhân"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Interrupt the target, then send"
-msgstr ""
+msgstr "Ngắt đích, rồi gửi"
 
 #: src/renderer/views/SchedulesView/parts/PreviousRunsModal.tsx
 msgid "Interrupted"
@@ -6422,6 +6728,10 @@ msgstr "Dừng bash"
 msgid "Kimi Code"
 msgstr "Kimi Code"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Kimi Code API Key 已更新"
+msgstr "Đã cập nhật Kimi Code API Key"
+
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Kimi Code could not update its credentials because another process is using the credential file. Close other CraftStation or Kimi Code processes, then retry."
 msgstr "Kimi Code không thể cập nhật thông tin xác thực vì một tiến trình khác đang sử dụng tệp thông tin xác thực. Hãy đóng các tiến trình CraftStation hoặc Kimi Code khác rồi thử lại."
@@ -6429,6 +6739,18 @@ msgstr "Kimi Code không thể cập nhật thông tin xác thực vì một ti�
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Kimi Code ended the turn without returning a response. Restart the thread and try again."
 msgstr "Kimi Code đã kết thúc lượt mà không trả về phản hồi. Hãy khởi động lại luồng rồi thử lại."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Kimi Code 账号池"
+msgstr "Pool tài khoản Kimi Code"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "Kimi 官方接口不返回账号邮箱，建议填入该账号的邮箱，方便区分多个账号（也可稍后右键改名）。"
+msgstr "API chính thức của Kimi không trả về email tài khoản; nên điền email của tài khoản này để phân biệt nhiều tài khoản (cũng có thể đổi tên sau bằng chuột phải)."
+
+#: src/renderer/actions/agentLoginActions.ts
+msgid "Kimi 登录未完成身份验证。"
+msgstr "Đăng nhập Kimi chưa hoàn tất xác thực."
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -6617,7 +6939,7 @@ msgstr "Đang tải skill…"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Loading target threads…"
-msgstr ""
+msgstr "Đang tải thread đích…"
 
 #: src/mobile/views/ThreadView.tsx
 msgid "Loading thread"
@@ -6637,7 +6959,7 @@ msgstr "Đang tải các lần chạy quy trình"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Loading workspace…"
-msgstr ""
+msgstr "Đang tải workspace…"
 
 #: src/mobile/routeComponents.tsx
 #: src/mobile/ThreadDetail.tsx
@@ -6664,7 +6986,7 @@ msgstr "Cục bộ"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/BranchSyncGraph.tsx
 msgid "Local branch"
-msgstr ""
+msgstr "Nhánh cục bộ"
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Local changes need to be stashed before pulling from {branch}"
@@ -6672,7 +6994,7 @@ msgstr "Các thay đổi cục bộ cần được lưu tạm trước khi kéo 
 
 #: src/renderer/components/thread/threadContextUsage.ts
 msgid "Local estimate"
-msgstr ""
+msgstr "Ước tính cục bộ"
 
 #. placeholder {0}: forward.targetPort
 #: src/mobile/views/PortsView.tsx
@@ -6777,7 +7099,7 @@ msgstr "Quản lý cấu hình máy chủ MCP mà CraftStation thêm khi khởi 
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Managed"
-msgstr ""
+msgstr "Được quản lý"
 
 #. placeholder {0}: props.managedByPlugin
 #: src/renderer/components/mcp/McpServersManager.tsx
@@ -6868,7 +7190,7 @@ msgstr "Tối đa hóa trình duyệt"
 
 #: src/renderer/components/layout/UnifiedRightPanel.tsx
 msgid "Maximize side panel"
-msgstr ""
+msgstr "Phóng to bảng bên"
 
 #: src/renderer/components/plugins/PluginDetail.tsx
 msgid "MCP"
@@ -6953,6 +7275,18 @@ msgstr "Lượt gọi công cụ MCP"
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "MCP transport type"
 msgstr "Loại phương thức truyền MCP"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "MCP 工具"
+msgstr "Công cụ MCP"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "MCP 服务器"
+msgstr "Máy chủ MCP"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "MCP 服务器 · Skills · 策略"
+msgstr "Máy chủ MCP · Skills · Chính sách"
 
 #: src/renderer/components/plugins/pluginCopy.ts
 msgid "mcp.json could not be read, so this plugin's servers were skipped."
@@ -7104,7 +7438,7 @@ msgstr "phút"
 
 #: src/renderer/components/thread/CraftModeSwitch.tsx
 msgid "Minimal Harness mode preview"
-msgstr ""
+msgstr "Xem trước chế độ Harness tối giản"
 
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettingsModel.ts
 msgid "MiniMax"
@@ -7112,7 +7446,7 @@ msgstr "MiniMax"
 
 #: src/renderer/components/providers/minimax/manifest.ts
 msgid "MiniMax Code"
-msgstr ""
+msgstr "MiniMax Code"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 msgid "Minimize browser to right panel"
@@ -7128,7 +7462,7 @@ msgstr "Phút"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Minutes between runs (1–1440)."
-msgstr ""
+msgstr "Số phút giữa các lần chạy (1–1440)."
 
 #: src/mobile/views/BrowserView.tsx
 msgid "Mirrored desktop browser tab"
@@ -7199,7 +7533,7 @@ msgstr "Nhiều"
 #. placeholder {0}: props.thread.title
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "More actions for {0}"
-msgstr ""
+msgstr "Thêm thao tác cho {0}"
 
 #. placeholder {0}: props.candidateNumber
 #: src/renderer/views/ExperimentView/parts/ExperimentCandidateCard.tsx
@@ -7224,7 +7558,7 @@ msgstr "Nhiều lựa chọn PR hơn"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 msgid "More project actions"
-msgstr ""
+msgstr "Thêm thao tác dự án"
 
 #: src/renderer/components/providers/UsageOverflowChip.tsx
 msgid "More providers"
@@ -7240,7 +7574,7 @@ msgstr "Thêm tùy chọn lịch"
 
 #: src/renderer/views/MainView/parts/TopShortcuts/TopShortcutBar.tsx
 msgid "More shortcuts"
-msgstr ""
+msgstr "Thêm phím tắt"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/CommitSyncPanel.tsx
 msgid "More sync options"
@@ -7279,12 +7613,12 @@ msgstr "Di chuyển"
 #. placeholder {0}: providerLabelFor(slot.id)
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Move {0} down"
-msgstr ""
+msgstr "Di chuyển {0} xuống"
 
 #. placeholder {0}: providerLabelFor(slot.id)
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Move {0} up"
-msgstr ""
+msgstr "Di chuyển {0} lên"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 msgid "Move browser back to main window"
@@ -7300,11 +7634,11 @@ msgstr "Di chuyển các thay đổi sang một cây làm việc mới"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Move native lane down"
-msgstr ""
+msgstr "Di chuyển làn native xuống"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Move native lane up"
-msgstr ""
+msgstr "Di chuyển làn native lên"
 
 #: src/renderer/components/layout/PanelDock/PanelSectionHeader.tsx
 msgid "Move panel"
@@ -7387,7 +7721,7 @@ msgstr "Bản địa"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Native · Default — hands back to this harness's own subagent loop"
-msgstr ""
+msgstr "Native · Mặc định — trả lại cho vòng subagent riêng của harness này"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Native Harness status"
@@ -7417,7 +7751,7 @@ msgstr "Cần phê duyệt"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Needs attention"
-msgstr ""
+msgstr "Cần chú ý"
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -7444,7 +7778,7 @@ msgstr "Trung lập"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsOptions.ts
 msgid "Never"
-msgstr ""
+msgstr "Không bao giờ"
 
 #: src/renderer/components/changelog/ChangelogView.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
@@ -7465,20 +7799,20 @@ msgstr "Tên chi nhánh mới..."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
 msgid "New chat"
-msgstr ""
+msgstr "Chat mới"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
 msgid "New chat / project"
-msgstr ""
+msgstr "Chat mới / dự án"
 
 #. placeholder {0}: project.name
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 msgid "New chat in {0}"
-msgstr ""
+msgstr "Chat mới trong {0}"
 
 #: src/renderer/views/MainView/parts/SelectProjectForThreadModal.tsx
 msgid "New chat in project"
-msgstr ""
+msgstr "Chat mới trong dự án"
 
 #: src/renderer/views/SettingsOverlay/parts/ClaudeProfileSettings.tsx
 msgid "New Claude profile config directory"
@@ -7610,13 +7944,13 @@ msgstr "Luồng mới mỗi lần chạy"
 #. placeholder {1}: availableUpdate.latest
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "New version available: v{0} → v{1}. Click to update now."
-msgstr ""
+msgstr "Có phiên bản mới: v{0} → v{1}. Nhấp để cập nhật ngay."
 
 #. placeholder {0}: availableUpdate.version
 #. placeholder {1}: availableUpdate.latest
 #: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #~ msgid "New version available: v{0} → v{1}. Update from the title bar download menu."
-#~ msgstr ""
+#~ msgstr "Có phiên bản mới: v{0} → v{1}. Cập nhật từ menu tải xuống trên thanh tiêu đề."
 
 #: src/renderer/components/workspace/WorkspaceNameDialog.tsx
 msgid "New workspace"
@@ -7693,7 +8027,7 @@ msgstr "Không có tác nhân nào được cài đặt."
 
 #: src/renderer/views/ProfileOverlay/parts/AiActions.tsx
 msgid "No AI commits, pushes, PRs, merges, or branch operations tracked yet."
-msgstr ""
+msgstr "Chưa ghi nhận commit, push, PR, merge hoặc thao tác nhánh nào của AI."
 
 #: src/mobile/views/SettingsView.tsx
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
@@ -7815,7 +8149,7 @@ msgstr "Không tìm thấy skill bên ngoài trong phạm vi này."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
 msgid "No extractable text in this document."
-msgstr ""
+msgstr "Tài liệu này không có văn bản có thể trích xuất."
 
 #: src/renderer/components/thread/ChatPane/parts/CheckpointRevertControls.tsx
 msgid "No file checkpoint is stored for this message."
@@ -7823,7 +8157,7 @@ msgstr "Không có điểm kiểm tra tập tin nào được lưu trữ cho tin
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "No files found."
-msgstr ""
+msgstr "Không tìm thấy tệp nào."
 
 #. placeholder {0}: query.trim()
 #: src/mobile/views/FilesView.tsx
@@ -7872,7 +8206,7 @@ msgstr "Không có pull request nào phù hợp."
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "No matching Recipe"
-msgstr ""
+msgstr "Không có Recipe phù hợp"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "No matching schedules."
@@ -7880,7 +8214,7 @@ msgstr "Không có lịch phù hợp."
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "No matching target threads."
-msgstr ""
+msgstr "Không có thread đích phù hợp."
 
 #: src/mobile/views/ThreadsView.tsx
 #: src/renderer/views/ThreadSearchOverlay/ThreadSearchOverlay.tsx
@@ -7913,7 +8247,7 @@ msgstr "Không tìm thấy micrô."
 
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "No mode usage yet."
-msgstr ""
+msgstr "Chưa có dữ liệu sử dụng chế độ."
 
 #: src/renderer/components/common/ProviderModelMenu/ProviderModelMenu.tsx
 #: src/renderer/views/SettingsOverlay/parts/ModelVisibilityPopover.tsx
@@ -7923,7 +8257,7 @@ msgstr "Không tìm thấy mô hình nào"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarCodexNav.tsx
 msgid "No notifications"
-msgstr ""
+msgstr "Không có thông báo"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "No other agents installed"
@@ -7947,27 +8281,27 @@ msgstr "Không có plugin nào khớp với tìm kiếm."
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 msgid "No project"
-msgstr ""
+msgstr "Không có dự án"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "No project location available to load audio."
-msgstr ""
+msgstr "Không có vị trí dự án nào để tải âm thanh."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "No project location available to load image."
-msgstr ""
+msgstr "Không có vị trí dự án nào để tải hình ảnh."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "No project location available to load PDF."
-msgstr ""
+msgstr "Không có vị trí dự án nào để tải PDF."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "No project location available to load video."
-msgstr ""
+msgstr "Không có vị trí dự án nào để tải video."
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "No project selected to launch crafted Agent."
-msgstr ""
+msgstr "Chưa chọn dự án để khởi chạy agent đã tạo."
 
 #: src/mobile/views/ManageProjectsView.tsx
 msgid "No projects"
@@ -7975,7 +8309,7 @@ msgstr "Không có dự án"
 
 #: src/renderer/views/MainView/parts/SelectProjectForThreadModal.tsx
 msgid "No projects found."
-msgstr ""
+msgstr "Không tìm thấy dự án nào."
 
 #: src/renderer/views/MainView/parts/Sidebar/Sidebar.tsx
 msgid "No projects in this workspace"
@@ -8056,7 +8390,7 @@ msgstr "Chưa dùng skill nào."
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "No spawnable providers right now — the native lane still applies."
-msgstr ""
+msgstr "Hiện không có provider nào có thể khởi chạy — làn native vẫn được áp dụng."
 
 #: src/renderer/components/composer/VoiceInputButton.tsx
 msgid "No speech detected."
@@ -8124,7 +8458,7 @@ msgstr "Không phải là kho lưu trữ git"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "not a repo"
-msgstr ""
+msgstr "không phải repo"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Not configured"
@@ -8266,7 +8600,7 @@ msgstr "Trực tuyến"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Only include context the target is allowed to receive"
-msgstr ""
+msgstr "Chỉ bao gồm ngữ cảnh mà đích được phép nhận"
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 msgid "Only when unfocused"
@@ -8292,7 +8626,7 @@ msgstr "Mở {0}"
 
 #: src/renderer/components/thread/ThreadCollaborationActivity.tsx
 msgid "Open {displayTitle}"
-msgstr ""
+msgstr "Mở {displayTitle}"
 
 #: src/renderer/views/SettingsOverlay/parts/AgentProfileList.tsx
 msgid "Open {label}"
@@ -8300,7 +8634,7 @@ msgstr "Mở {label}"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "Open a file"
-msgstr ""
+msgstr "Mở một tệp"
 
 #: src/renderer/commands/registry.ts
 msgid "Open a new browser tab"
@@ -8316,7 +8650,7 @@ msgstr "Mở một luồng trước để đính kèm vào đó."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Open agent conversation"
-msgstr ""
+msgstr "Mở hội thoại agent"
 
 #: src/renderer/views/ExperimentView/ExperimentView.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/ExperimentGroupHeader.tsx
@@ -8372,7 +8706,7 @@ msgstr "Mở hộp thoại"
 
 #: src/renderer/views/SettingsOverlay/parts/AboutSettings.tsx
 msgid "Open download page"
-msgstr ""
+msgstr "Mở trang tải xuống"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarThreadGroup.tsx
 msgid "Open experiment"
@@ -8475,7 +8809,7 @@ msgstr "Mở qua SSH"
 #. placeholder {0}: display.title
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentToolCall.tsx
 msgid "Open own subagent: {0}"
-msgstr ""
+msgstr "Mở subagent riêng: {0}"
 
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/ThreadRuntimeRequestPanel.tsx
 msgid "Open plan"
@@ -8561,11 +8895,56 @@ msgstr "Mở bộ chọn mô hình"
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/parts/TreeEntryRow.tsx
 msgid "Open With System Default"
-msgstr ""
+msgstr "Mở bằng ứng dụng mặc định của hệ thống"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/providerBrands.tsx
+msgid "OpenAI 兼容 API"
+msgstr "API tương thích OpenAI"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容 API Base URL"
+msgstr "Base URL của API tương thích OpenAI"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容 API Key"
+msgstr "API Key tương thích OpenAI"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容 API 保存失败。"
+msgstr "Lưu API tương thích OpenAI thất bại."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容 API 账号池"
+msgstr "Pool tài khoản API tương thích OpenAI"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容提供商名称"
+msgstr "Tên provider tương thích OpenAI"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容提供商已更新。"
+msgstr "Đã cập nhật provider tương thích OpenAI."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容提供商已添加。"
+msgstr "Đã thêm provider tương thích OpenAI."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容模型名称"
+msgstr "Tên model tương thích OpenAI"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "OpenAI 兼容模型展示名称"
+msgstr "Tên hiển thị của model tương thích OpenAI"
 
 #: src/renderer/components/providers/opencode/manifest.ts
 msgid "OpenCode"
 msgstr "OpenCode"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "OpenCode 模型选择"
+msgstr "Chọn model OpenCode"
 
 #. placeholder {0}: request.receivedAt
 #. placeholder {1}: index + 1
@@ -8652,23 +9031,23 @@ msgstr "Ghi đè cài đặt chung cho dự án này."
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentOverlay.tsx
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Own subagent"
-msgstr ""
+msgstr "Subagent riêng"
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Own subagent ({subagent}): {description}"
-msgstr ""
+msgstr "Subagent riêng ({subagent}): {description}"
 
 #: src/renderer/components/thread/ChatPane/parts/items/SubAgentToolCall.tsx
 msgid "Own Subagent Result"
-msgstr ""
+msgstr "Kết quả Own Subagent"
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Own subagent: {description}"
-msgstr ""
+msgstr "Subagent riêng: {description}"
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Own subagent: {subagent}"
-msgstr ""
+msgstr "Subagent riêng: {subagent}"
 
 #: src/mobile/ComposerInfoChips.tsx
 #: src/renderer/components/composer/composerMcpServers.ts
@@ -8678,27 +9057,27 @@ msgstr ""
 #: src/renderer/views/SettingsOverlay/parts/McpServersSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/OpenCodeProviderSettings.tsx
 msgid "Own Subagents"
-msgstr ""
+msgstr "Own Subagents"
 
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsProviderModelFilter.tsx
 msgid "Own Subagents auto-selection"
-msgstr ""
+msgstr "Tự động chọn Own Subagents"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "Own Subagents enabled for this thread"
-msgstr ""
+msgstr "Đã bật Own Subagents cho thread này"
 
 #: src/renderer/views/SettingsOverlay/parts/McpServersSettings.tsx
 msgid "Own Subagents routing and ranking"
-msgstr ""
+msgstr "Định tuyến và xếp hạng Own Subagents"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Own Subagents routing guide"
-msgstr ""
+msgstr "Hướng dẫn định tuyến Own Subagents"
 
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsRankedRow.tsx
 msgid "Own Subagents usage"
-msgstr ""
+msgstr "Mức sử dụng Own Subagents"
 
 #: src/renderer/views/SettingsOverlay/parts/CursorSdkRuntimeSetup.tsx
 msgid "Package"
@@ -8820,11 +9199,11 @@ msgstr "Dán khóa API {label}"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "Paste {label} Cookie"
-msgstr ""
+msgstr "Dán cookie {label}"
 
 #: src/renderer/views/SettingsOverlay/parts/UsageProviderRow.tsx
 msgid "Paste {label} session cookie"
-msgstr ""
+msgstr "Dán cookie phiên của {label}"
 
 #. placeholder {0}: activeDeviceCode.code
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
@@ -8866,11 +9245,15 @@ msgstr "Đã tạm dừng"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 msgid "Paused after {elapsed}"
-msgstr ""
+msgstr "Đã tạm dừng sau {elapsed}"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #~ msgid "paused until you send"
-#~ msgstr ""
+#~ msgstr "tạm dừng đến khi bạn gửi"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "PDF"
+msgstr "PDF"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "PDF preview opens in the browser."
@@ -8903,7 +9286,7 @@ msgstr "Đang chờ chỉ đạo"
 
 #: src/renderer/views/ProfileOverlay/parts/ProfileStatsBody.tsx
 msgid "per prompt"
-msgstr ""
+msgstr "mỗi prompt"
 
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/parts/PermissionDetailsLine.tsx
 msgid "permission"
@@ -8915,11 +9298,11 @@ msgstr "Cá nhân"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Personal prompt appended to every conversation, like a global AGENTS.md. Leave blank to disable."
-msgstr ""
+msgstr "Prompt cá nhân được thêm vào mọi hội thoại, giống AGENTS.md toàn cục. Để trống để tắt."
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 msgid "Personal prompt appended to every conversation, like a global AGENTS.md. Leave blank to disable. Always visible here — nothing is injected implicitly."
-msgstr ""
+msgstr "Prompt cá nhân được thêm vào mọi hội thoại, giống AGENTS.md toàn cục. Để trống để tắt. Luôn hiển thị tại đây — không có gì được chèn ngầm."
 
 #: src/renderer/components/providers/pi/manifest.ts
 msgid "Pi"
@@ -8959,7 +9342,7 @@ msgstr "Bộ chọn không trả về tệp đính kèm nào"
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Pin {0}"
-msgstr ""
+msgstr "Ghim {0}"
 
 #: src/mobile/ThreadTitleRow.tsx
 #: src/mobile/views/threadActionSurfaces.tsx
@@ -9002,15 +9385,15 @@ msgstr "kế hoạch"
 #. placeholder {1}: todoState.steps.length
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #~ msgid "Plan {0}/{1}. Show task."
-#~ msgstr ""
+#~ msgstr "Plan {0}/{1}. Hiển thị tác vụ."
 
 #: src/renderer/components/thread/ComposerStatusRow.tsx
 #~ msgid "Plan progress"
-#~ msgstr ""
+#~ msgstr "Tiến độ kế hoạch"
 
 #: src/renderer/components/thread/ComposerStatusRow.tsx
 #~ msgid "Plan progress {completed}/{total}"
-#~ msgstr ""
+#~ msgstr "Tiến độ kế hoạch {completed}/{total}"
 
 #: src/renderer/components/thread/ThreadDraftComposerArea.tsx
 msgid "Plan, ask, build…"
@@ -9018,7 +9401,7 @@ msgstr "Lên kế hoạch, đặt câu hỏi, xây dựng…"
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Plans, monitoring, daily routines, and timed tasks. Create a schedule instead of polling while waiting."
-msgstr ""
+msgstr "Kế hoạch, giám sát, công việc hằng ngày và tác vụ hẹn giờ. Tạo lịch thay vì thăm dò trong lúc chờ."
 
 #: src/renderer/views/SettingsOverlay/parts/NotificationSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -9178,19 +9561,19 @@ msgstr "Xem trước {0}"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/NotebookPreview.tsx
 msgid "Preview truncated — open the file for all cells."
-msgstr ""
+msgstr "Đã cắt bớt bản xem trước — mở tệp để xem tất cả ô."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/CsvPreview.tsx
 msgid "Preview truncated — open the file for the full table."
-msgstr ""
+msgstr "Đã cắt bớt bản xem trước — mở tệp để xem toàn bộ bảng."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
 msgid "Preview truncated — open the file for the full text."
-msgstr ""
+msgstr "Đã cắt bớt bản xem trước — mở tệp để xem toàn bộ văn bản."
 
 #: src/renderer/components/composer/AttachmentBar.tsx
 msgid "Previewable here, but models may not accept this image format (use png, jpg, gif or webp)"
-msgstr ""
+msgstr "Có thể xem trước tại đây, nhưng model có thể không chấp nhận định dạng ảnh này (dùng png, jpg, gif hoặc webp)"
 
 #: src/renderer/commands/registry.ts
 msgid "Previous chat"
@@ -9257,7 +9640,7 @@ msgstr "Hồ sơ"
 
 #: src/renderer/components/thread/ComposerStatusRow.tsx
 #~ msgid "Progress"
-#~ msgstr ""
+#~ msgstr "Tiến độ"
 
 #: src/mobile/views/ThreadsView.tsx
 #: src/renderer/commands/registry.ts
@@ -9273,7 +9656,7 @@ msgstr "dự án"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 msgid "Project actions"
-msgstr ""
+msgstr "Thao tác dự án"
 
 #. placeholder {0}: props.project.name
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectFilter.tsx
@@ -9282,11 +9665,11 @@ msgstr "Hành động dự án cho {0}"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Project and task status"
-msgstr ""
+msgstr "Trạng thái dự án và tác vụ"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Project default branch"
-msgstr ""
+msgstr "Nhánh mặc định của dự án"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/GeneralSection.tsx
 msgid "Project folder"
@@ -9324,7 +9707,7 @@ msgstr "ghi chú dự án"
 
 #: src/renderer/views/MainView/parts/AuxiliaryPanelLauncher.tsx
 msgid "Project scope"
-msgstr ""
+msgstr "Phạm vi dự án"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Project Settings"
@@ -9338,11 +9721,11 @@ msgstr "Skill của dự án chỉ khả dụng khi agent chạy trong dự án 
 #. placeholder {1}: open ? "Hide" : "Show"
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "Project status: {0}. {1} details."
-msgstr ""
+msgstr "Trạng thái dự án: {0}. Chi tiết {1}."
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Project worktree"
-msgstr ""
+msgstr "Worktree của dự án"
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/SearchSection.tsx
 msgid "Project-specific overrides on top of the global search settings."
@@ -9380,7 +9763,7 @@ msgstr "Lời nhắc"
 #. placeholder {0}: index + 1
 #: src/renderer/components/thread/ChatPane/ChatNavRail.tsx
 msgid "Prompt #{0}"
-msgstr ""
+msgstr "Prompt #{0}"
 
 #: src/renderer/components/providers/codex/index.tsx
 #: src/renderer/views/ProfileOverlay/parts/ActivitySection.tsx
@@ -9407,11 +9790,11 @@ msgstr "nhà cung cấp"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
 msgid "Provider accounts"
-msgstr ""
+msgstr "Tài khoản provider"
 
 #: src/renderer/components/thread/threadContextUsage.ts
 msgid "Provider anchored"
-msgstr ""
+msgstr "Provider đã neo"
 
 #: src/renderer/components/thread/ThreadContextDock.tsx
 #: src/renderer/components/thread/threadContextUsage.ts
@@ -9424,7 +9807,7 @@ msgstr "Cấu hình nhà cung cấp"
 
 #: src/renderer/components/thread/threadContextUsage.ts
 msgid "Provider reported"
-msgstr ""
+msgstr "Do provider báo cáo"
 
 #. Settings section: provider usage and quota dashboard
 #: src/mobile/settingsSections.ts
@@ -9576,11 +9959,11 @@ msgstr "Câu hỏi"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Queue after the current turn"
-msgstr ""
+msgstr "Xếp hàng sau lượt hiện tại"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Queue request"
-msgstr ""
+msgstr "Xếp yêu cầu vào hàng"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 #: src/renderer/views/GitHubActionsView/GitHubActionsRunList.tsx
@@ -9589,7 +9972,7 @@ msgstr "Đã xếp hàng"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #~ msgid "Queued prompt"
-#~ msgstr ""
+#~ msgstr "Prompt trong hàng đợi"
 
 #: src/renderer/components/providers/ProviderUsageRail.tsx
 #: src/renderer/components/providers/usageFormat.ts
@@ -9692,11 +10075,11 @@ msgstr "Luồng gần đây"
 #: src/renderer/views/SchedulesView/parts/ScheduleRow.tsx
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Recipe"
-msgstr ""
+msgstr "Recipe"
 
 #: src/renderer/components/crafting/CraftingRegistrySections.tsx
 msgid "Recipes"
-msgstr ""
+msgstr "Recipes"
 
 #: src/mobile/components.tsx
 msgid "Reconnect"
@@ -9757,7 +10140,7 @@ msgstr "Làm mới {label}"
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 msgid "Refresh component status"
-msgstr ""
+msgstr "Làm mới trạng thái component"
 
 #: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
 msgid "Refresh detected agents"
@@ -9803,7 +10186,7 @@ msgstr "Đang làm mới…"
 
 #: src/renderer/components/crafting/CraftingRegistrySections.tsx
 msgid "Registry"
-msgstr ""
+msgstr "Registry"
 
 #: src/mobile/TerminalAccessory.tsx
 #: src/mobile/views/BrowserView.tsx
@@ -9883,7 +10266,7 @@ msgstr "Đã thu hồi phiên từ xa."
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/BranchSyncGraph.tsx
 msgid "Remote tracking branch"
-msgstr ""
+msgstr "Nhánh theo dõi từ xa"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/GitReviewSidebar.tsx
 msgid "Remote URL"
@@ -10047,7 +10430,7 @@ msgstr "Đổi tên nhóm"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 msgid "Rename project"
-msgstr ""
+msgstr "Đổi tên dự án"
 
 #: src/renderer/commands/registry.ts
 msgid "Rename the current chat"
@@ -10131,7 +10514,7 @@ msgstr "URL kho lưu trữ"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Request"
-msgstr ""
+msgstr "Yêu cầu"
 
 #: src/renderer/views/PrReviewOverlay/parts/SubmitReviewPopover.tsx
 msgid "Request changes"
@@ -10178,7 +10561,7 @@ msgstr "Đặt lại về mặc định"
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
 msgid "Reset zoom"
-msgstr ""
+msgstr "Đặt lại thu phóng"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserHost.tsx
 msgid "Resize browser drawer"
@@ -10190,7 +10573,7 @@ msgstr "Thay đổi kích thước cột"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectFilesPanel.tsx
 msgid "Resize file list"
-msgstr ""
+msgstr "Đổi kích thước danh sách tệp"
 
 #: src/renderer/views/MainView/parts/AppShell/AppShell.tsx
 msgid "Resize git panel"
@@ -10239,7 +10622,7 @@ msgstr "Khởi động lại CraftStation"
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Restart to install"
-msgstr ""
+msgstr "Khởi động lại để cài đặt"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel.tsx
 msgid "Restore"
@@ -10259,11 +10642,11 @@ msgstr "Khôi phục hoặc xóa"
 
 #: src/renderer/components/layout/UnifiedRightPanel.tsx
 msgid "Restore side panel"
-msgstr ""
+msgstr "Khôi phục bảng bên"
 
 #: src/renderer/commands/registry.ts
 msgid "Restore the whole app UI to 100%"
-msgstr ""
+msgstr "Khôi phục toàn bộ giao diện ứng dụng về 100%"
 
 #: src/mobile/views/SettingsView.tsx
 #: src/renderer/views/SettingsOverlay/parts/ArchivedThreadsSettings.tsx
@@ -10272,7 +10655,7 @@ msgstr "Khôi phục luồng"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/HarnessPanel/HarnessPanel.tsx
 msgid "Result Item"
-msgstr ""
+msgstr "Result Item"
 
 #: src/renderer/views/ExperimentView/ExperimentView.tsx
 msgid "Results"
@@ -10374,11 +10757,11 @@ msgstr "Quay lại điểm kiểm tra này"
 #: src/renderer/components/layout/PanelDock/panelTabMeta.ts
 #: src/renderer/views/MainView/parts/AuxiliaryPanelLauncher.tsx
 msgid "Review"
-msgstr ""
+msgstr "Xem xét"
 
 #: src/renderer/views/MainView/parts/AuxiliaryPanelLauncher.tsx
 msgid "Review and Files need a project scope."
-msgstr ""
+msgstr "Xem xét và Tệp cần phạm vi dự án."
 
 #: src/renderer/views/PullRequestsView/PullRequestsView.tsx
 msgid "Review and track work across your GitHub accounts."
@@ -10401,7 +10784,7 @@ msgstr "Xem lại các thay đổi"
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
 #~ msgid "Review code and suggest changes"
-#~ msgstr ""
+#~ msgstr "Review mã và đề xuất thay đổi"
 
 #: src/renderer/views/GitReviewOverlay/parts/DiffAnnotationView.tsx
 #: src/renderer/views/PrReviewOverlay/parts/SubmitReviewPopover.tsx
@@ -10414,7 +10797,7 @@ msgstr "Xem xét lại quyết định"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Review interrupt"
-msgstr ""
+msgstr "Xem xét yêu cầu ngắt"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Review my recent work and summarize today's priorities and next steps."
@@ -10585,11 +10968,11 @@ msgstr "Tùy chọn thời gian chạy"
 #. placeholder {0}: payload.ordinal + 1
 #: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
 msgid "Runtime segment {0}"
-msgstr ""
+msgstr "Runtime segment {0}"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Same Model and Harness as this thread — not selectable for cross-thread dialogue."
-msgstr ""
+msgstr "Cùng Model và Harness với thread này — không thể chọn cho hội thoại liên thread."
 
 #: src/renderer/views/ProjectSettingsOverlay/parts/ProjectIconSources.tsx
 msgid "Saturation and brightness"
@@ -10656,7 +11039,7 @@ msgstr "Shell đã lưu"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "Saving…"
-msgstr ""
+msgstr "Đang lưu…"
 
 #: src/mobile/QrScanner.tsx
 msgid "Scan pairing QR code"
@@ -10689,11 +11072,11 @@ msgstr "Đang quét hệ thống của bạn để tìm CLI đã cài đặt. Vi
 #: src/renderer/components/composer/composerMcpServers.ts
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Schedule"
-msgstr ""
+msgstr "Lịch trình"
 
 #: src/renderer/components/composer/composerMcpServers.ts
 msgid "Schedule MCP enabled for this thread"
-msgstr ""
+msgstr "Đã bật Schedule MCP cho thread này"
 
 #: src/renderer/views/SchedulesView/ScheduleEditor.tsx
 msgid "Schedule name"
@@ -10711,7 +11094,7 @@ msgstr "Lịch: {0}. {1}"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Scheduled"
-msgstr ""
+msgstr "Đã lên lịch"
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "Scheduled tasks"
@@ -10892,7 +11275,7 @@ msgstr "Tìm kiếm luồng"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Search title, Model, Harness, status, or worktree"
-msgstr ""
+msgstr "Tìm tiêu đề, Model, Harness, trạng thái hoặc worktree"
 
 #: src/renderer/views/ThreadSearchOverlay/ThreadSearchOverlay.tsx
 msgid "Search…"
@@ -10908,7 +11291,7 @@ msgstr "Đang tìm kiếm…"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 msgid "Seconds Craft-Harness waits between automatic turn retry attempts."
-msgstr ""
+msgstr "Số giây Craft-Harness chờ giữa các lần thử lại lượt tự động."
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarThreadRow.tsx
 msgid "See more"
@@ -10930,7 +11313,7 @@ msgstr "Chọn {serverName} từ {providerLabel}"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitDiffContent/GitDiffContent.tsx
 msgid "Select a changed file to review its diff."
-msgstr ""
+msgstr "Chọn một tệp đã thay đổi để xem diff."
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorModal.tsx
 msgid "Select a file from the tree"
@@ -10938,7 +11321,7 @@ msgstr "Chọn một tập tin từ cây"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/FileEditorPane.tsx
 msgid "Select a file from the workspace tree to preview"
-msgstr ""
+msgstr "Chọn tệp trong cây workspace để xem trước"
 
 #: src/renderer/views/MainView/parts/CreateProject/CloneProjectModal.tsx
 msgid "Select a repository."
@@ -11022,11 +11405,11 @@ msgstr "Gửi tin nhắn"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 msgid "Send now"
-msgstr ""
+msgstr "Gửi ngay"
 
 #: src/renderer/components/thread/ThreadQueuedFollowUpStrip.tsx
 #~ msgid "sends when this turn finishes"
-#~ msgstr ""
+#~ msgstr "gửi khi lượt này kết thúc"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/hooks/useElementPicker.ts
 msgid "Sent selection to terminal."
@@ -11058,12 +11441,12 @@ msgstr "Các máy chủ mà plugin này khai báo trong mcp.json. CraftStation c
 
 #: src/renderer/components/thread/ThreadContextDock.tsx
 msgid "Session"
-msgstr ""
+msgstr "Phiên"
 
 #. placeholder {0}: shortId(payload.runtimeSessionId)
 #: src/renderer/components/thread/ChatPane/parts/items/RuntimeSegmentMarker.tsx
 msgid "Session {0}"
-msgstr ""
+msgstr "Phiên {0}"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserTabGroupMenu.tsx
 msgid "Set group color"
@@ -11079,11 +11462,11 @@ msgstr "Đặt phím tắt"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Set the starting permission level for every supported model and harness."
-msgstr ""
+msgstr "Đặt mức quyền ban đầu cho mọi model và harness được hỗ trợ."
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 msgid "Set the starting permission level for every supported model and harness. You can still change it in the composer before starting a thread."
-msgstr ""
+msgstr "Đặt mức quyền ban đầu cho mọi model và harness được hỗ trợ. Bạn vẫn có thể thay đổi trong ô soạn trước khi bắt đầu thread."
 
 #: src/renderer/components/composer/ComposerAddMenu.tsx
 msgid "Set when this session started — start a new thread to change servers"
@@ -11187,7 +11570,7 @@ msgstr "Hiển thị chi tiết sử dụng ngữ cảnh"
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectFilesPanel.tsx
 msgid "Show directory"
-msgstr ""
+msgstr "Hiển thị thư mục"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/UsageSettings.tsx
@@ -11246,7 +11629,7 @@ msgstr "Hiển thị bảng gỡ lỗi thời gian chạy"
 
 #: src/renderer/views/MainView/parts/MainContentHeaderControls.tsx
 msgid "Show side panel"
-msgstr ""
+msgstr "Hiển thị bảng bên"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsSidebar.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/GitReviewSidebar.tsx
@@ -11299,12 +11682,12 @@ msgstr "Hiển thị cạnh tên dự án."
 
 #: src/renderer/commands/registry.ts
 msgid "Shrink the whole app UI"
-msgstr ""
+msgstr "Thu nhỏ toàn bộ giao diện ứng dụng"
 
 #: src/renderer/components/layout/PanelDock/panelTabMeta.ts
 #: src/renderer/views/MainView/parts/AuxiliaryPanelLauncher.tsx
 msgid "Side Chat"
-msgstr ""
+msgstr "Side Chat"
 
 #: src/renderer/views/SettingsOverlay/parts/UsageProviderRow.tsx
 msgid "Sidebar circles are turned off globally above"
@@ -11394,7 +11777,7 @@ msgstr "Đang đăng xuất. Các tác nhân được phát hiện sẽ làm m�
 
 #: src/renderer/views/SettingsOverlay/parts/CodexProviderSettings.tsx
 msgid "Sizes shown in the Codex composer. Compaction starts automatically at 95% of the selected window. New chats default to 272k when that size is in the list."
-msgstr ""
+msgstr "Kích thước hiển thị trong ô soạn của Codex. Nén gọn tự động bắt đầu ở 95% cửa sổ đã chọn. Chat mới mặc định dùng 272k khi kích thước đó có trong danh sách."
 
 #: src/renderer/components/plugins/PluginDetail.tsx
 msgid "Skill"
@@ -11484,7 +11867,7 @@ msgstr "Đã bỏ qua một tệp vì nó trỏ ra ngoài thư mục plugin."
 #. placeholder {0}: skippedProviderNames.join(", ")
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Skipped by Own Subagents: {0}"
-msgstr ""
+msgstr "Bị Own Subagents bỏ qua: {0}"
 
 #: src/renderer/components/thread/ThreadCommandPanel.tsx
 msgid "Slash commands"
@@ -11540,7 +11923,7 @@ msgstr "Nhánh nguồn {branch} đã di chuyển trước khi cây làm việc �
 
 #: src/renderer/components/thread/threadContextUsage.ts
 msgid "Source unknown"
-msgstr ""
+msgstr "Nguồn không rõ"
 
 #: src/renderer/components/skills/SkillMarketplaceModal.tsx
 msgid "Sources"
@@ -11630,7 +12013,7 @@ msgstr "Đã stage ({0})"
 
 #: src/renderer/components/thread/ThreadContextDock.tsx
 msgid "Stale"
-msgstr ""
+msgstr "Cũ"
 
 #: src/renderer/commands/registry.ts
 msgid "Star or unstar the current chat or model"
@@ -11669,7 +12052,7 @@ msgstr "Bắt đầu một luồng mới để cho agent làm việc từ thiế
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 msgid "Start bridge"
-msgstr ""
+msgstr "Bắt đầu bridge"
 
 #: src/renderer/commands/composerCommands.ts
 msgid "Start dictation"
@@ -11741,7 +12124,7 @@ msgstr "Đang khởi động phản chiếu…"
 
 #: src/renderer/views/WelcomeOverlay.tsx
 msgid "Starting up"
-msgstr ""
+msgstr "Đang khởi động"
 
 #: src/renderer/components/composer/VoiceInputButton.tsx
 msgid "Starting voice input"
@@ -11754,7 +12137,7 @@ msgstr "bắt đầu…"
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 msgid "Starting…"
-msgstr ""
+msgstr "Đang khởi động…"
 
 #: src/renderer/components/startup/StartupRecoveryScreen.tsx
 msgid "Startup is taking longer than expected"
@@ -11797,11 +12180,11 @@ msgstr "stdio (lệnh cục bộ)"
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
 msgid "Step {done}/{total}"
-msgstr ""
+msgstr "Bước {done}/{total}"
 
 #: src/renderer/components/providers/stepcode/manifest.ts
 msgid "Step Code"
-msgstr ""
+msgstr "Step Code"
 
 #. Button: stop the microphone level test
 #: src/renderer/views/SettingsOverlay/parts/AudioSettings.tsx
@@ -11817,7 +12200,7 @@ msgstr "Dừng {0}"
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 msgid "Stop bridge"
-msgstr ""
+msgstr "Dừng bridge"
 
 #: src/mobile/views/PortsView.tsx
 msgid "Stop forwarding"
@@ -11846,11 +12229,11 @@ msgstr "Dừng nhập bằng giọng nói"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Stop waiting for reply"
-msgstr ""
+msgstr "Dừng chờ phản hồi"
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 msgid "Stopping…"
-msgstr ""
+msgstr "Đang dừng…"
 
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 #: src/renderer/views/SettingsOverlay/parts/WorktreeSettings.tsx
@@ -11875,7 +12258,7 @@ msgstr "Môi trường chạy có cấu trúc"
 
 #: src/renderer/views/SettingsOverlay/parts/OwnSubagentsRoutingSection.tsx
 msgid "Sub-agent route order"
-msgstr ""
+msgstr "Thứ tự route của subagent"
 
 #: src/mobile/views/DesktopWorkspacePanel.tsx
 #: src/renderer/components/layout/PanelDock/panelTabMeta.ts
@@ -11977,7 +12360,7 @@ msgstr "Chuyển nhánh"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Switch in this conversation"
-msgstr ""
+msgstr "Chuyển trong hội thoại này"
 
 #: src/renderer/components/thread/ChatPane/parts/items/toolDisplay.ts
 msgid "Switch mode"
@@ -12001,7 +12384,7 @@ msgstr "Chuyển cuộc trò chuyện này sang chế độ lập kế hoạch"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Switch timing"
-msgstr ""
+msgstr "Thời điểm chuyển"
 
 #: src/renderer/commands/registry.ts
 msgid "Switch to the next chat"
@@ -12116,12 +12499,12 @@ msgstr "Nhà cung cấp mục tiêu"
 
 #: src/renderer/components/thread/threadCollaborationUi.tsx
 msgid "Target working"
-msgstr ""
+msgstr "Đích đang làm việc"
 
 #. placeholder {0}: targetConfig.model
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Target: {0} · {selectedKind}"
-msgstr ""
+msgstr "Đích: {0} · {selectedKind}"
 
 #: src/renderer/components/providers/qwen/index.tsx
 msgid "Task"
@@ -12137,7 +12520,7 @@ msgstr "Đầu ra nhiệm vụ"
 
 #: src/renderer/components/thread/ThreadComposerSection.tsx
 msgid "Task paused. Click continue or send a new message."
-msgstr ""
+msgstr "Tác vụ đã tạm dừng. Nhấp tiếp tục hoặc gửi tin nhắn mới."
 
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsMemorySection.tsx
 msgid "Task tags"
@@ -12158,7 +12541,7 @@ msgstr "Cho nhà cung cấp mục tiêu biết phải làm gì tiếp theo..."
 
 #: src/renderer/components/mcp/McpServersManager.tsx
 msgid "Temporary subagents. Prefers this harness's own native subagent, or delegates to another harness."
-msgstr ""
+msgstr "Subagent tạm thời. Ưu tiên subagent native của harness này, hoặc ủy quyền cho harness khác."
 
 #: src/mobile/settingsSections.ts
 #: src/mobile/views/DesktopWorkspacePanel.tsx
@@ -12228,7 +12611,7 @@ msgstr "Kiểm tra micrô"
 
 #: src/renderer/views/FileEditorOverlay/parts/FileEditorPane/parts/OfficePreview.tsx
 msgid "Text-only preview — formatting and images are omitted."
-msgstr ""
+msgstr "Xem trước chỉ văn bản — định dạng và hình ảnh bị lược bỏ."
 
 #: src/renderer/views/SchedulesView/SchedulesView.tsx
 msgid "That conversation is no longer available."
@@ -12248,7 +12631,7 @@ msgstr "Phiên từ xa đó đã không còn."
 
 #: src/renderer/views/MainView/parts/AppContent/ConversationErrorBoundary.tsx
 msgid "The active session is still available. Retry this view or open another session."
-msgstr ""
+msgstr "Phiên đang hoạt động vẫn còn khả dụng. Thử lại chế độ xem này hoặc mở phiên khác."
 
 #: src/renderer/components/thread/ThreadRuntimeRequestPanel/ThreadRuntimeRequestPanel.tsx
 msgid "The agent"
@@ -12398,11 +12781,11 @@ msgstr "Đường hầm SSH đã kết nối đến một máy chủ CraftStatio
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "The target is never silently steered or interrupted."
-msgstr ""
+msgstr "Đích không bao giờ bị điều khiển hoặc gián đoạn âm thầm."
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "The target keeps its own Model, Harness, native session, and timeline."
-msgstr ""
+msgstr "Đích giữ nguyên Model, Harness, phiên native và timeline của riêng nó."
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "the target provider"
@@ -12530,7 +12913,7 @@ msgstr "dự án này"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsView.tsx
 msgid "This project is not a Git repository."
-msgstr ""
+msgstr "Dự án này không phải là repository Git."
 
 #: src/renderer/actions/threadLaunchActions.ts
 #: src/renderer/components/thread/ThreadDraftView.tsx
@@ -12573,15 +12956,15 @@ msgstr "Phím tắt toàn hệ thống này không khả dụng. Hãy chọn t�
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "This target uses another worktree. Messages do not synchronize files between worktrees."
-msgstr ""
+msgstr "Đích này dùng một worktree khác. Tin nhắn không đồng bộ tệp giữa các worktree."
 
 #: src/renderer/actions/threadActions.ts
 msgid "This thread already has a session and cannot be moved to another project."
-msgstr ""
+msgstr "Thread này đã có phiên và không thể chuyển sang dự án khác."
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "This transfers portable conversation context; it does not resume another provider's native Session. Attachments are not copied into the checkpoint."
-msgstr ""
+msgstr "Thao tác này chuyển ngữ cảnh hội thoại di động; nó không tiếp tục Session native của provider khác. Tệp đính kèm không được sao chép vào checkpoint."
 
 #. placeholder {0}: props.worktreeBranch
 #: src/renderer/views/MainView/parts/Sidebar/parts/DeleteThreadPopover.tsx
@@ -12619,7 +13002,7 @@ msgstr "Hành động luồng"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Thread collaboration is not available on this host."
-msgstr ""
+msgstr "Cộng tác thread không khả dụng trên host này."
 
 #: src/renderer/components/thread/ThreadContextDock.tsx
 msgid "Thread context usage"
@@ -12631,7 +13014,7 @@ msgstr "Mặc định luồng và phạm vi Home"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Thread details"
-msgstr ""
+msgstr "Chi tiết thread"
 
 #: src/renderer/components/thread/ThreadDockUI.tsx
 msgid "Thread dock"
@@ -12652,7 +13035,7 @@ msgstr "Dock mục tiêu luồng"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/ThreadContextMenu.tsx
 msgid "Thread ID"
-msgstr ""
+msgstr "ID thread"
 
 #: src/renderer/views/MainView/parts/SidebarHeaderControls.tsx
 msgid "Thread list options"
@@ -12661,7 +13044,7 @@ msgstr "Tùy chọn danh sách luồng"
 #. placeholder {0}: project.name
 #: src/renderer/actions/threadActions.ts
 msgid "Thread moved to project \"{0}\"."
-msgstr ""
+msgstr "Đã chuyển thread sang dự án \"{0}\"."
 
 #: src/renderer/components/thread/ThreadTodoDock.tsx
 msgid "Thread todo dock"
@@ -12715,7 +13098,7 @@ msgstr "Mô hình tiêu đề, commit và xung đột"
 #: src/renderer/components/thread/ThreadCollaborationActivity.tsx
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "To"
-msgstr ""
+msgstr "Đến"
 
 #: src/mobile/TodoActionsSheet.tsx
 #: src/renderer/views/MainView/parts/RightPanel/parts/NotesPanel/TodoList.tsx
@@ -12724,7 +13107,7 @@ msgstr "Việc cần làm"
 
 #: src/renderer/commands/registry.ts
 msgid "Toggle auxiliary panel"
-msgstr ""
+msgstr "Bật/tắt bảng phụ"
 
 #: src/renderer/commands/registry.ts
 msgid "Toggle browser panel"
@@ -12874,7 +13257,7 @@ msgstr "Dùng thử"
 
 #: src/renderer/components/thread/ThreadContextDock.tsx
 msgid "Turn"
-msgstr ""
+msgstr "Lượt"
 
 #: src/renderer/views/SettingsOverlay/parts/RemoteAccessSettings.tsx
 msgid "Turn on remote access to show a pairing code."
@@ -12883,16 +13266,16 @@ msgstr "Bật quyền truy cập từ xa để hiển thị mã ghép nối."
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Turn retry attempts"
-msgstr ""
+msgstr "Số lần thử lại lượt"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "Turn retry interval"
-msgstr ""
+msgstr "Khoảng thời gian thử lại lượt"
 
 #: src/renderer/views/SettingsOverlay/parts/GeneralSettings.tsx
 msgid "Turn retry interval (seconds)"
-msgstr ""
+msgstr "Khoảng thời gian thử lại lượt (giây)"
 
 #: src/renderer/views/SettingsOverlay/parts/UsageSettings.tsx
 msgid "Turn tracking on or off per provider. Disabled providers are skipped by the auto-refresh."
@@ -12913,6 +13296,10 @@ msgstr "Nhập vào trang"
 #: src/mobile/views/BrowserView.tsx
 msgid "Type into the page (tap a field first)"
 msgstr "Nhập vào trang (chạm vào trường trước)"
+
+#: src/renderer/uiPreview.tsx
+msgid "UI Preview v0.2.0 · 纯界面预览，不含功能"
+msgstr "UI Preview v0.2.0 · chỉ xem trước giao diện, không có chức năng"
 
 #. placeholder {0}: agent.label
 #. placeholder {0}: agentStatus.label
@@ -12948,15 +13335,15 @@ msgstr "Không thể sao chép URL Tailscale."
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "Unable to create a Codex account."
-msgstr ""
+msgstr "Không thể tạo tài khoản Codex."
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "Unable to create a Grok account."
-msgstr ""
+msgstr "Không thể tạo tài khoản Grok."
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "Unable to create a Kimi account."
-msgstr ""
+msgstr "Không thể tạo tài khoản Kimi."
 
 #: src/renderer/actions/experimentActions.ts
 msgid "Unable to create the candidate worktree."
@@ -13023,7 +13410,7 @@ msgstr "Không thể mở đăng nhập {0}."
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "Unable to open Codex login."
-msgstr ""
+msgstr "Không thể mở đăng nhập Codex."
 
 #: src/mobile/views/useOpenFile.ts
 #: src/renderer/commands/registry.ts
@@ -13032,11 +13419,11 @@ msgstr "Không thể mở tập tin"
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "Unable to open Grok login."
-msgstr ""
+msgstr "Không thể mở đăng nhập Grok."
 
 #: src/renderer/actions/agentLoginActions.ts
 msgid "Unable to open Kimi login."
-msgstr ""
+msgstr "Không thể mở đăng nhập Kimi."
 
 #: src/mobile/routeComponents.tsx
 #: src/mobile/useRemoteDesktop.ts
@@ -13066,7 +13453,7 @@ msgstr "Không thể đọc tệp chưa được theo dõi của ứng viên: {p
 
 #: src/renderer/views/FileEditorOverlay/parts/ProjectTreeView/ProjectTreeView.tsx
 msgid "Unable to read workspace"
-msgstr ""
+msgstr "Không thể đọc workspace"
 
 #. placeholder {0}: agentStatus.label
 #. placeholder {0}: status.label
@@ -13238,7 +13625,7 @@ msgstr "Bỏ chọn"
 
 #: src/renderer/views/SettingsOverlay/parts/ownSubagents/OwnSubagentsProviderModelFilter.tsx
 msgid "Unchecked providers and models are excluded from automatic Own Subagents routing, but remain available for manual agent threads."
-msgstr ""
+msgstr "Provider và model bị bỏ chọn sẽ bị loại khỏi định tuyến tự động của Own Subagents, nhưng vẫn dùng được trong thread agent thủ công."
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/BrowserPanel/parts/BrowserTabGroupMenu.tsx
 msgid "Ungroup"
@@ -13269,7 +13656,7 @@ msgstr "Không xác định"
 
 #: src/renderer/components/thread/ThreadCollaborationDialog.tsx
 msgid "Unknown collaboration error"
-msgstr ""
+msgstr "Lỗi cộng tác không xác định"
 
 #: src/renderer/notifications.ts
 msgid "Unknown project"
@@ -13325,11 +13712,11 @@ msgstr "Bỏ ghim"
 #: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProjectHeader.tsx
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Unpin {0}"
-msgstr ""
+msgstr "Bỏ ghim {0}"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/useProjectMenu.tsx
 msgid "Unpin project"
-msgstr ""
+msgstr "Bỏ ghim dự án"
 
 #: src/renderer/views/GitHubActionsView/GitHubActionsSidebar.tsx
 msgid "Unpin workflow"
@@ -13337,7 +13724,7 @@ msgstr "Bỏ ghim quy trình làm việc"
 
 #: src/renderer/views/MainView/parts/Sidebar/parts/SortableThreadItem/parts/ThreadItemSuffix.tsx
 msgid "Unread notification"
-msgstr ""
+msgstr "Thông báo chưa đọc"
 
 #: src/mobile/views/GitActionSheet.tsx
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/FileRow.tsx
@@ -13377,7 +13764,7 @@ msgstr "cập nhật"
 #. placeholder {0}: entry.descriptor.label || entry.descriptor.harnessKind
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
 msgid "Update {0} now"
-msgstr ""
+msgstr "Cập nhật {0} ngay"
 
 #. placeholder {0}: props.agentLabel
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/AgentEnvironmentRow.tsx
@@ -13393,7 +13780,7 @@ msgstr "Đã có bản cập nhật"
 #. placeholder {1}: availableUpdate.latest
 #: src/renderer/components/crafting/workbench/HarnessInventory.tsx
 #~ msgid "Update available: v{0} → v{1}"
-#~ msgstr ""
+#~ msgstr "Có bản cập nhật: v{0} → v{1}"
 
 #: src/renderer/views/GitReviewOverlay/parts/GitReviewSidebar/parts/PrSection.tsx
 msgid "Update branch"
@@ -13490,7 +13877,7 @@ msgstr "Đang cập nhật {0} ({env})"
 #. placeholder {0}: entry.label
 #: src/renderer/views/MainView/parts/Sidebar/parts/UpdateButtons.tsx
 msgid "Updating {0}…"
-msgstr ""
+msgstr "Đang cập nhật {0}…"
 
 #: src/renderer/views/LoginTerminalOverlay/LoginTerminalOverlay.tsx
 msgid "Updating in this terminal. Closes when finished."
@@ -13498,7 +13885,7 @@ msgstr "Đang cập nhật trong terminal này. Sẽ đóng khi hoàn tất."
 
 #: src/renderer/views/MainView/parts/MainTitlebar.tsx
 msgid "Updating…"
-msgstr ""
+msgstr "Đang cập nhật…"
 
 #: src/renderer/components/mcp/McpServerEditor.tsx
 msgid "URL"
@@ -13649,7 +14036,7 @@ msgstr "Phiên bản"
 
 #: src/renderer/i18n/sharedMessages.ts
 msgid "Version {version} is available. Portable builds cannot auto-install — download it from GitHub Releases."
-msgstr ""
+msgstr "Phiên bản {version} đã có sẵn. Bản portable không tự cài đặt — hãy tải từ GitHub Releases."
 
 #. placeholder {0}: metadata.authMethod
 #: src/renderer/views/SettingsOverlay/parts/SingleAgentSettings/parts/authHelpers.ts
@@ -13740,7 +14127,7 @@ msgstr "Mô hình nhập liệu bằng giọng nói"
 
 #: src/renderer/components/thread/ContinueInProviderDialog.tsx
 msgid "Wait for a completed-turn boundary, then create a portable checkpoint and a new native Session."
-msgstr ""
+msgstr "Chờ đến ranh giới lượt hoàn tất, rồi tạo checkpoint di động và một Session native mới."
 
 #: src/renderer/actions/experimentDecisionActions.ts
 msgid "Wait for every candidate to finish before cleaning up."
@@ -13864,7 +14251,7 @@ msgstr "Đánh giá hằng tuần"
 
 #: src/renderer/components/thread/DraftHomeHero.tsx
 msgid "What shall we build in CraftStation?"
-msgstr ""
+msgstr "Chúng ta sẽ xây dựng gì trong CraftStation?"
 
 #: src/renderer/views/SettingsOverlay/parts/GitSettings.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
@@ -13888,7 +14275,7 @@ msgstr "Có gì mới trong CraftStation, mới nhất trước."
 #: src/renderer/views/SettingsOverlay/parts/AgentCliAutoUpdateSection.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsSearchIndex.ts
 msgid "When a version check finds a newer release, update each agent CLI automatically — including account-pool managed binaries. Manual update stays available either way."
-msgstr ""
+msgstr "Khi kiểm tra phiên bản phát hiện bản phát hành mới hơn, tự động cập nhật mọi CLI agent — bao gồm cả binary do pool tài khoản quản lý. Cập nhật thủ công vẫn luôn khả dụng."
 
 #: src/renderer/views/SettingsOverlay/parts/SearchSettings.tsx
 msgid "When enabled, search respects <0>.gitignore</0> entries."
@@ -14050,7 +14437,7 @@ msgstr "Đang làm việc"
 
 #: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
 msgid "Working {elapsed}"
-msgstr ""
+msgstr "Đang làm việc {elapsed}"
 
 #: src/renderer/components/thread/ChatPane/ChatTurnElapsed.tsx
 msgid "Working for {elapsed}"
@@ -14206,7 +14593,7 @@ msgstr "z.ai"
 
 #: src/renderer/components/providers/zcode/manifest.ts
 msgid "ZCode"
-msgstr ""
+msgstr "ZCode"
 
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
@@ -14220,233 +14607,1910 @@ msgstr "Phóng to"
 msgid "Zoom out"
 msgstr "Thu nhỏ"
 
+#. placeholder {0}: recipe.compatibilityStatus
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "一键填充 Ingredients · {0}"
+msgstr "Điền nguyên liệu một chạm · {0}"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "上一轮耗时"
+msgstr "Thời gian lượt trước"
+
+#. placeholder {0}: model.contextSize
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "上下文 · {0}"
+msgstr "Ngữ cảnh · {0}"
+
+#. placeholder {0}: typeof record.contextWindow === "number" ? `${Math.round(record.contextWindow / 1000)}k` : "-"
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "上下文 {0}"
+msgstr "Ngữ cảnh {0}"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "上下文与额度详情"
+msgstr "Chi tiết ngữ cảnh và hạn mức"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "上下文容量"
+msgstr "Dung lượng ngữ cảnh"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "上下文窗口"
+msgstr "Cửa sổ ngữ cảnh"
+
+#. placeholder {0}: model.contextSize
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "上下文窗口 {0}"
+msgstr "Cửa sổ ngữ cảnh {0}"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "上下文窗口大小"
+msgstr "Kích thước cửa sổ ngữ cảnh"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "上下文管理策略"
+msgstr "Chính sách quản lý ngữ cảnh"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "上游暂无可用模型，点击「获取模型」直接从上游拉取最新列表。"
+msgstr "Chưa có model khả dụng ở upstream; bấm \"Lấy model\" để kéo danh sách mới nhất trực tiếp."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "上游模型（精确 id，避免手写错位）"
+msgstr "Model upstream (id chính xác, tránh sai khi gõ tay)"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "下载并安装"
+msgstr "Tải xuống và cài đặt"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "不可合成"
+msgstr "Không thể craft"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "不可用"
+msgstr "Không khả dụng"
+
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "不是 Git 仓库"
-msgstr ""
+msgstr "Không phải repository Git"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "临时分支"
-msgstr ""
+msgstr "Nhánh tạm thời"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "今日 输入 / 输出 / 缓存"
+msgstr "Hôm nay input / output / cache"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "从上游拉取"
+msgstr "Kéo từ upstream"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "从名单取消全部渠道模型"
+msgstr "Bỏ chọn tất cả model của kênh khỏi danh sách"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "从当前线程分支"
-msgstr ""
+msgstr "Tạo nhánh từ thread này"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "从首页移除该自定义模型"
+msgstr "Xóa model tùy chỉnh này khỏi trang chủ"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "从首页移除该配方"
+msgstr "Xóa công thức này khỏi trang chủ"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "余额 {remaining}{limit}"
+msgstr "Số dư {remaining}{limit}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "使用 API Key 添加账号"
+msgstr "Thêm tài khoản bằng API Key"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "使用 Devin API Key 授权"
+msgstr "Ủy quyền bằng Devin API Key"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "使用 Kimi API Key 授权"
+msgstr "Ủy quyền bằng Kimi API Key"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "使用重置卡"
+msgstr "Dùng thẻ reset"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "例如 GPT-5.6"
+msgstr "vd. GPT-5.6"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "例如 gpt-5.6-sol"
+msgstr "vd. gpt-5.6-sol"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "例如 My Relay"
+msgstr "vd. My Relay"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "例如：日常编码组合"
+msgstr "vd.: combo code hằng ngày"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存"
+msgstr "Lưu"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存中…"
+msgstr "Đang lưu…"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "保存为正式线程"
-msgstr ""
+msgstr "Lưu thành thread chính thức"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存前会验证 API Key 并导入账号。"
+msgstr "Trước khi lưu sẽ xác minh API Key và nhập tài khoản."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存前会验证 API Key。"
+msgstr "Trước khi lưu sẽ xác minh API Key."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存前会验证 Ark Key / AK/SK。"
+msgstr "Trước khi lưu sẽ xác minh Ark Key / AK/SK."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存前会验证会话 Cookie。"
+msgstr "Trước khi lưu sẽ xác minh cookie phiên."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "保存提供商"
+msgstr "Lưu provider"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "保存配方"
+msgstr "Lưu công thức"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "停止 Goal"
-#~ msgstr ""
+#~ msgstr "Dừng Goal"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "停止 Goal（终止底层任务）"
-#~ msgstr ""
+#~ msgstr "Dừng Goal (kết thúc tác vụ nền)"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "允许自动读写工作区并执行命令"
+msgstr "Cho phép tự động đọc/ghi workspace và thực thi lệnh"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全不选"
+msgstr "Bỏ chọn tất cả"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全选"
+msgstr "Chọn tất cả"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全选 {0} 渠道全部模型"
+msgstr "Chọn tất cả model của kênh {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全选全部渠道模型"
+msgstr "Chọn tất cả model của mọi kênh"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "全部"
+msgstr "Tất cả"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全部取消"
+msgstr "Bỏ hết"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "全部选中"
+msgstr "Đã chọn tất cả"
+
+#. placeholder {0}: channels.length
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "共 {0} 个渠道 · {totalVisible} 个模型在首页可选"
+msgstr "Tổng {0} kênh · {totalVisible} model chọn được ở trang chủ"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "关闭"
+msgstr "Đóng"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "关闭模型与用量"
+msgstr "Đóng model & mức dùng"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "其他"
+msgstr "Khác"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "兼容性解析失败"
+msgstr "Phân giải tương thích thất bại"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "兼容桥可合成"
+msgstr "Craft được qua cầu tương thích"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "兼容模式"
-msgstr ""
+msgstr "Chế độ tương thích"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "兼容默认"
+msgstr "Mặc định tương thích"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "兼容默认 Harness"
+msgstr "Harness mặc định tương thích"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "兼容默认 Harness（无原生 Harness 的渠道与第三方模型回退到此；上图连线已按该设置实时路由）"
+msgstr "Harness mặc định tương thích (kênh không có Harness gốc và model bên thứ ba sẽ quay về đây; các đường nối phía trên được định tuyến trực tiếp theo cài đặt này)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "最大输出 Token"
+msgstr "Token đầu ra tối đa"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "最终 Harness / CLI"
+msgstr "Harness / CLI cuối"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "凭证不可用或已失效，请重新填写 AK/SK 或 API Key。"
+msgstr "Thông tin xác thực không khả dụng hoặc đã hết hạn; vui lòng nhập lại AK/SK hoặc API Key."
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "切换执行模式与权限"
+msgstr "Chuyển chế độ thực thi và quyền"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "切换默认"
+msgstr "Chuyển mặc định"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "创建临时分支，不会出现在左侧列表"
-msgstr ""
+msgstr "Tạo nhánh tạm thời, không xuất hiện trong thanh bên"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "初始任务描述（可选）"
+msgstr "Mô tả tác vụ ban đầu (tùy chọn)"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "初始化 Git 仓库"
-msgstr ""
+msgstr "Khởi tạo repository Git"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "删除"
+msgstr "Xóa"
+
+#. placeholder {0}: account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "删除失效的 {0} 缓存"
+msgstr "Xóa cache {0} đã hết hạn"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "删除渠道"
+msgstr "Xóa kênh"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "删除渠道 {0}"
+msgstr "Xóa kênh {0}"
+
+#. placeholder {0}: confirmRemoveChannel?.label ?? ""
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "删除渠道「{0}」将同时移除其账号凭证与该渠道下已添加的自定义模型，此操作无法撤销。"
+msgstr "Xóa kênh「{0}」sẽ đồng thời xóa thông tin xác thực tài khoản và tất cả model tùy chỉnh đã thêm trong kênh. Thao tác này không thể hoàn tác."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "删除该渠道账号及其凭证，并移除该渠道下已添加的自定义模型"
+msgstr "Xóa tài khoản và thông tin xác thực của kênh này, đồng thời xóa tất cả model tùy chỉnh đã thêm trong kênh"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "删除配方"
+msgstr "Xóa công thức"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "别名（可选）"
+msgstr "Bí danh (tùy chọn)"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "刷新状态"
-msgstr ""
+msgstr "Làm mới trạng thái"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "刷新账号配额"
+msgstr "Làm mới hạn mức tài khoản"
+
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+msgid "前往 Harness/CLI 面板"
+msgstr "Đi tới bảng Harness/CLI"
+
+#: src/renderer/components/crafting/workbench/ModelsInventory.tsx
+msgid "前往管理模型"
+msgstr "Đi tới quản lý model"
+
+#: src/renderer/components/crafting/workbench/RecipeLoadConfirmDialog.tsx
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "加载"
+msgstr "Tải"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "加载中…"
+msgstr "Đang tải…"
+
+#: src/renderer/components/crafting/workbench/RecipeLoadConfirmDialog.tsx
+msgid "加载该配方将替换当前合成内容"
+msgstr "Tải công thức này sẽ thay thế nội dung chế tạo hiện tại"
+
+#: src/renderer/components/crafting/workbench/RecipeLoadConfirmDialog.tsx
+msgid "加载配方"
+msgstr "Tải công thức"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "勾选的模型会显示在首页模型选择器"
+msgstr "Model được chọn sẽ hiển thị trong bộ chọn model ở trang chủ"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "包含未暂存的更改"
-msgstr ""
+msgstr "Chứa các thay đổi chưa stage"
 
+#. placeholder {0}: props.item.metadata.vendor
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "厂商：{0}"
+msgstr "Nhà cung cấp: {0}"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "原料"
+msgstr "Nguyên liệu"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "原料 → Recipe → 产物 Item → Entity"
+msgstr "Nguyên liệu → Recipe → Item kết quả → Entity"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "原料栏"
+msgstr "Thanh nguyên liệu"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "原料清单"
+msgstr "Danh sách nguyên liệu"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "原生"
-msgstr ""
+msgstr "Native"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "原生兼容"
+msgstr "Tương thích gốc"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "原生可合成"
+msgstr "Craft được nguyên bản"
+
+#: src/renderer/uiPreview.tsx
+msgid "发送消息…"
+msgstr "Đang gửi tin nhắn…"
+
+#: src/renderer/components/crafting/workbench/RecipeLoadConfirmDialog.tsx
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "取消"
+msgstr "Hủy"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "取消 {0} 渠道全部模型"
+msgstr "Bỏ chọn tất cả model của kênh {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "取消全部渠道模型"
+msgstr "Bỏ chọn model của tất cả kênh"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "取消配方"
-#~ msgstr ""
+#~ msgstr "Hủy công thức"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
+msgid "另有 {overflowCount} 个已授权模型"
+msgstr "Thêm {overflowCount} model đã ủy quyền nữa"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "只生成计划，不执行写入或命令"
+msgstr "Chỉ tạo kế hoạch, không thực thi ghi hoặc lệnh"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "可合成"
+msgstr "Có thể craft"
+
+#: src/renderer/uiPreview.tsx
+msgid "可用更新"
+msgstr "Bản cập nhật khả dụng"
+
+#. placeholder {0}: version ? ` v${version}` : ""
+#: src/renderer/views/SettingsOverlay/parts/SettingsTitlebar.tsx
+msgid "可用更新{0}"
+msgstr "Bản cập nhật khả dụng {0}"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "合成"
+msgstr "Craft"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "合成台"
+msgstr "Bàn craft"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "合成台与配方"
-msgstr ""
+msgstr "Crafting và recipe"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "合成并启动 Agent"
+msgstr "Craft và khởi động Agent"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "合成结果"
+msgstr "Kết quả craft"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "合成结果详情"
+msgstr "Chi tiết kết quả craft"
+
+#: src/renderer/actions/sessionHandoffActions.ts
+msgid "同一线程跨模型切换可能导致一定程度的性能下降"
+msgstr "Chuyển model trong cùng một thread có thể gây giảm hiệu năng ở mức nhất định"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "启用账号"
+msgstr "Bật tài khoản"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "周"
+msgstr "Tuần"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "周/月"
+msgstr "Tuần/Tháng"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "周/月限额"
+msgstr "Giới hạn tuần/tháng"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "周已用"
+msgstr "Đã dùng tuần"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "图片"
+msgstr "Hình ảnh"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "在 Git 面板中打开"
-msgstr ""
+msgstr "Mở trong bảng Git"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "在 OpenCode TUI 内选择模型（/models）；退出后 CraftStation 自动获取模型目录"
+msgstr "Chọn model trong OpenCode TUI (/models); sau khi thoát, CraftStation tự động lấy danh mục model"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "在 OpenCode 中选择模型"
+msgstr "Chọn model trong OpenCode"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "在你自己的浏览器中登录后，从开发者工具（F12 → 应用/网络）复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面："
+msgstr "Sau khi đăng nhập trong trình duyệt của bạn, sao chép session cookie từ DevTools (F12 → Application/Network) — toàn bộ Cookie request header hoặc name=value của session cookie — rồi dán xuống dưới:"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "在聊天中使用"
+msgstr "Dùng trong chat"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "在聊天中使用该配方"
+msgstr "Dùng công thức này trong chat"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "填写 AK/SK 时必须同时填写 Ark API Key；该 Key 用于调用模型。"
+msgstr "Khi điền AK/SK phải điền cả Ark API Key; key này dùng để gọi model."
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "处理中…"
-msgstr ""
+msgstr "Đang xử lý…"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "失败，耗时 {elapsed}"
+msgstr "Thất bại, mất {elapsed}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "套餐未知"
+msgstr "Gói không rõ"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "如 high"
+msgstr "vd. high"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "子Agent调度策略"
+msgstr "Chính sách lập lịch sub-agent"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "安装 CLIProxyAPI"
+msgstr "Cài CLIProxyAPI"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "安装中…"
+msgstr "Đang cài…"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "安装并合成"
+msgstr "Cài và craft"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "完全访问权限"
+msgstr "Quyền truy cập đầy đủ"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "完成时间"
+msgstr "Thời điểm hoàn thành"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "实验线程不支持侧边分支。"
-msgstr ""
+msgstr "Thread thử nghiệm không hỗ trợ nhánh phụ."
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "实验线程不支持在 Side Chat 中打开。"
-msgstr ""
+msgstr "Thread thử nghiệm không thể mở trong Side Chat."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "导入"
+msgstr "Nhập"
+
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "导入未通过"
+msgstr "Nhập không thành công"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "导入本机 Codex 登录"
+msgstr "Nhập đăng nhập Codex cục bộ"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "导入本机登录"
+msgstr "Nhập đăng nhập cục bộ"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "将该账号设为本机 agy 登录（会替换本机当前登录）"
+msgstr "Đặt tài khoản này làm đăng nhập agy cục bộ (sẽ thay thế đăng nhập cục bộ hiện tại)"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "尚未放入模型与 Harness"
+msgstr "Chưa đặt model và Harness"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "尚未添加 {badgeLabel} 账号"
+msgstr "Chưa thêm tài khoản {badgeLabel}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "尚未绑定账号"
+msgstr "Chưa liên kết tài khoản"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "就绪"
+msgstr "Sẵn sàng"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "展开 Git 面板"
-msgstr ""
+msgstr "Mở rộng bảng Git"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "展示名称（可选）"
+msgstr "Tên hiển thị (tùy chọn)"
+
+#: src/renderer/uiPreview.tsx
+msgid "工作"
+msgstr "Làm việc"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 #~ msgid "工作中"
-#~ msgstr ""
+#~ msgstr "Đang làm"
 
 #: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "工作区干净"
-msgstr ""
+msgstr "Working tree sạch"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "工具调用"
+msgstr "Gọi công cụ"
+
+#. placeholder {0}: record.supportsToolCalling === false ? i18n._(linguiMsg`关闭`) : i18n._(linguiMsg`开启`)
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "工具调用 {0}"
+msgstr "Gọi công cụ {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已从上游获取 {channelName} 模型列表，暂无可用模型"
+msgstr "Đã lấy danh sách model của {channelName}; hiện chưa có model khả dụng"
+
+#. placeholder {0}: delta.length > 0 ? `（${delta.length} 个新模型已加入首页）` : ""
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已从上游获取 {channelName} 的 {modelCount} 个可用模型{0}"
+msgstr "Đã lấy {modelCount} model khả dụng của {channelName} từ upstream{0}"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "已从当前线程创建临时分支（不会出现在左侧列表）。"
-msgstr ""
+msgstr "Đã tạo nhánh tạm thời từ thread này (sẽ không xuất hiện trong thanh bên)."
 
 #: src/renderer/actions/forkThreadActions.ts
 msgid "已从该轮分叉为新对话"
-msgstr ""
+msgstr "Đã fork sang hội thoại mới từ lượt đó"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "已保存为正式线程。"
-msgstr ""
+msgstr "Đã lưu thành thread chính thức."
+
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "已切换到{toAccount}继续作答"
+msgstr "Đã chuyển sang {toAccount} để tiếp tục trả lời"
+
+#. placeholder {0}: targetConfig.model
+#: src/renderer/actions/sessionHandoffActions.ts
+msgid "已切换至 {0}"
+msgstr "Đã chuyển sang {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已创建账号，但本机 ~/.codex/auth.json 无法解析"
+msgstr "Đã tạo tài khoản nhưng không phân tích được ~/.codex/auth.json cục bộ"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已在你的默认浏览器打开登录页。登录完成后，从浏览器开发者工具（F12 → 应用/网络） 复制会话 Cookie（完整 Cookie 请求头或会话 Cookie 的 name=value）粘贴到下面："
+msgstr "Trang đăng nhập đã được mở trong trình duyệt mặc định của bạn. Sau khi đăng nhập, sao chép session cookie từ DevTools (F12 → Application/Network) — toàn bộ Cookie request header hoặc name=value của session cookie — rồi dán xuống dưới:"
+
+#: src/renderer/components/providers/useUsageProviderLogin.ts
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已在默认浏览器打开登录页面。登录完成后请返回粘贴 Cookie。"
+msgstr "Trang đăng nhập đã mở trong trình duyệt mặc định. Sau khi đăng nhập, hãy quay lại và dán cookie."
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "已复制"
+msgstr "Đã sao chép"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "已安装 · 未运行"
+msgstr "Đã cài · chưa chạy"
+
+#: src/renderer/components/common/ProviderModelMenu/ProviderModelMenu.tsx
+msgid "已安装但尚未登录/配置，登录后即可正常使用"
+msgstr "Đã cài nhưng chưa đăng nhập/cấu hình; đăng nhập xong sẽ dùng được"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "已完成 {elapsed}"
+msgstr "Hoàn thành trong {elapsed}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已导入本机 Codex / ChatGPT 登录"
+msgstr "Đã nhập đăng nhập Codex / ChatGPT cục bộ"
+
+#. placeholder {0}: result.email ?? account.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已将 {0} 设为本机 agy 登录（本机原登录已被替换）。"
+msgstr "Đã đặt {0} làm đăng nhập agy cục bộ (đăng nhập cục bộ cũ đã bị thay thế)."
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "已工作"
+msgstr "Đã làm"
+
+#: src/renderer/components/thread/ChatPane/parts/MessageList.tsx
+msgid "已暂停，耗时 {elapsed}"
+msgstr "Đã tạm dừng, mất {elapsed}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已暂停跟踪，点击恢复"
+msgstr "Đã tạm dừng theo dõi, nhấp để tiếp tục"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "已有 {duplicateCount} 个使用相同组件的配方"
+msgstr "Đã có {duplicateCount} công thức dùng cùng thành phần"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已用 API Key 添加 Kimi Code 账号"
+msgstr "Đã thêm tài khoản Kimi Code bằng API Key"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "已用额度 --"
+msgstr "Hạn mức đã dùng --"
+
+#. placeholder {0}: Math.round(usedPercent)
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "已用额度 {0}%"
+msgstr "Đã dùng hạn mức {0}%"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "已登录"
+msgstr "Đã đăng nhập"
+
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "已自动添加火山方舟模型渠道，可在「管理模型」中获取并勾选模型。"
+msgstr "Đã tự động thêm kênh model Volcengine Ark; bạn có thể lấy và chọn model trong mục \"Quản lý model\"."
+
+#. placeholder {0}: roster.length
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已选模型名单 · {0} 个"
+msgstr "Danh sách model đã chọn · {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已验证 · Chat Completions，已加入首页。"
+msgstr "Đã xác minh · Chat Completions; đã thêm vào trang chủ."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "已验证 · Responses API，已加入首页。"
+msgstr "Đã xác minh · Responses API; đã thêm vào trang chủ."
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "平均缓存命中率"
+msgstr "Tỷ lệ trúng cache trung bình"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "应用"
+msgstr "Áp dụng"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "开启"
+msgstr "Bật"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "开始时间"
+msgstr "Thời điểm bắt đầu"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "异常"
+msgstr "Bất thường"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "当前不可运行"
+msgstr "Hiện không chạy được"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "当前会话 Token"
+msgstr "Token phiên hiện tại"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "当前会话占用"
+msgstr "Mức dùng phiên hiện tại"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "当前没有可分支的正式会话。"
-msgstr ""
+msgstr "Không có hội thoại chính thức nào để tạo nhánh."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "当前版本不支持删除渠道账号。"
+msgstr "Phiên bản hiện tại không hỗ trợ xóa tài khoản kênh."
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "当前线程还没有可分支的上下文。"
-msgstr ""
+msgstr "Thread này chưa có ngữ cảnh để tạo nhánh."
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "当前账号"
+msgstr "Tài khoản hiện tại"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "当前账号额度"
+msgstr "Hạn mức tài khoản hiện tại"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "待放入材料"
+msgstr "Chờ đặt nguyên liệu"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "循环轮换"
+msgstr "Xoay vòng tuần hoàn"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "快速模式"
+msgstr "Chế độ nhanh"
+
+#. placeholder {0}: fastControl.disabledReason
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "快速模式 {0}"
+msgstr "Chế độ nhanh {0}"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "思考强度"
+msgstr "Mức suy nghĩ"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "思考强度档位"
+msgstr "Các mức suy nghĩ"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "思考强度档位（逗号分隔，手写）"
+msgstr "Các mức suy nghĩ (phân tách bằng dấu phẩy, viết tay)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "恢复使用"
+msgstr "Tiếp tục sử dụng"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "我的配方"
+msgstr "Công thức của tôi"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "手写档位"
+msgstr "Mức viết tay"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "手写档位直接透传给模型（如 low / high / xhigh，以各厂商文档为准）。"
+msgstr "Mức viết tay được truyền thẳng cho model (vd. low / high / xhigh, theo tài liệu từng hãng)."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "手动添加模型"
+msgstr "Thêm model thủ công"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "打开官方 OpenCode TUI，用它自己的模型选择器选择模型"
+msgstr "Mở OpenCode TUI chính thức và chọn model bằng bộ chọn riêng của nó"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "打开添加模型对话框"
+msgstr "Mở hộp thoại thêm model"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "打开添加模型对话框，可设置上下文窗口与输入输出类型"
+msgstr "Mở hộp thoại thêm model, có thể thiết lập cửa sổ ngữ cảnh và kiểu input/output"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "打开设置"
+msgstr "Mở cài đặt"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
+msgid "打开设置页面"
+msgstr "Mở trang cài đặt"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "执行模式与权限"
+msgstr "Chế độ thực thi & quyền"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "技能"
+msgstr "Kỹ năng"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "拉取失败"
+msgstr "Kéo thất bại"
+
+#: src/renderer/uiPreview.tsx
+msgid "拉取请求"
+msgstr "Pull request"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "拖动调整渠道栏宽度"
+msgstr "Kéo để điều chỉnh độ rộng thanh kênh"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "拖拽排序"
+msgstr "Kéo để sắp xếp lại"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "按优先级（排前优先）"
+msgstr "Theo độ ưu tiên (xếp trước ưu tiên trước)"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "按模型路由"
+msgstr "Định tuyến theo model"
+
+#: src/renderer/actions/agentLoginActions.ts
+msgid "授权已完成，但额度刷新失败；稍后可再次刷新。"
+msgstr "Ủy quyền đã hoàn tất nhưng làm mới hạn mức thất bại; có thể thử lại sau."
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "接管"
+msgstr "Tiếp quản"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "推理"
+msgstr "Suy luận"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "推理强度"
+msgstr "Mức suy luận"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "推送"
-msgstr ""
+msgstr "Push"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "推送 {ahead} 个提交"
-msgstr ""
+msgstr "Push {ahead} commit"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "推送中…"
-msgstr ""
+msgstr "Đang push…"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "提交"
-msgstr ""
+msgstr "Commit"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "提交 (Ctrl+Enter)"
-msgstr ""
+msgstr "Commit (Ctrl+Enter)"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "提交信息"
-msgstr ""
+msgstr "Thông điệp commit"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "提交并推送"
-msgstr ""
+msgstr "Commit và push"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "提交或推送"
-msgstr ""
+msgstr "Commit hoặc push"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "提供商名称（卡片显示）"
+msgstr "Tên provider (hiển thị trên thẻ)"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "插件清单读取失败，去插件页重试"
+msgstr "Không đọc được danh sách plugin; thử lại ở trang Plugin"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "搜索 {0} 渠道模型"
+msgstr "Tìm model của kênh {0}"
 
 #: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "搜索分支"
-msgstr ""
+msgstr "Tìm nhánh"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "搜索模型 ID 或名称…"
+msgstr "Tìm theo ID hoặc tên model…"
+
+#. placeholder {0}: Array.isArray(record.supportedVendors) ? record.supportedVendors.join(", ") : "-"
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "支持厂商 {0}"
+msgstr "Hãng được hỗ trợ {0}"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "收起 Git 面板"
-msgstr ""
+msgstr "Thu gọn bảng Git"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "改用粘贴 Cookie"
+msgstr "Chuyển sang dán cookie"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "敏感操作、写文件与命令需要确认"
+msgstr "Thao tác nhạy cảm, ghi file và lệnh cần xác nhận"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "文本"
+msgstr "Văn bản"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "文本输入恒选"
+msgstr "Input văn bản luôn được chọn"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "新会话按账号池规则调度"
+msgstr "Phiên mới được lập lịch theo quy tắc pool tài khoản"
+
+#: src/renderer/uiPreview.tsx
+msgid "新线程"
+msgstr "Thread mới"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "无原生 Harness · 兼容默认"
+msgstr "Không có Harness gốc · mặc định tương thích"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法保存 Kimi API Key。"
+msgstr "Không lưu được Kimi API Key."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法保存火山方舟凭据。"
+msgstr "Không lưu được thông tin xác thực Volcengine Ark."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "无法删除渠道。"
+msgstr "Không xóa được kênh."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法删除账号。"
+msgstr "Không xóa được tài khoản."
+
+#. placeholder {0}: getBasename(ref.path)
+#. placeholder {1}: friendlyError(error)
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
+msgid "无法打开 {0}：{1}"
+msgstr "Không mở được {0}: {1}"
+
+#. placeholder {0}: friendlyError(error)
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+msgid "无法打开 {basename}：{0}"
+msgstr "Không mở được {basename}: {0}"
+
+#. placeholder {0}: input.label
+#: src/renderer/actions/runCliUpdate.ts
+msgid "无法更新 {0}。"
+msgstr "Không cập nhật được {0}."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "无法精确归因"
+msgstr "Không quy kết chính xác được"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法读取该提供商配置。"
+msgstr "Không đọc được cấu hình của provider này."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "无法选择账号。"
+msgstr "Không chọn được tài khoản."
+
+#: src/renderer/i18n/locales.ts
+#~ msgid "日本語"
+#~ msgstr "Tiếng Nhật"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "暂停使用"
+msgstr "Tạm dừng sử dụng"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "暂无可用额度数据，请先登录/授权。"
+msgstr "Chưa có dữ liệu hạn mức; vui lòng đăng nhập / ủy quyền trước."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "暂无可用额度数据。"
+msgstr "Chưa có dữ liệu hạn mức."
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "暂无已安装插件 Skills"
+msgstr "Chưa có Skill plugin nào được cài đặt"
 
 #: src/renderer/components/common/ProviderModelMenu/parts/buildItems.ts
 msgid "暂无已配置渠道 — 去「渠道与额度」登录后即可使用"
-msgstr ""
+msgstr "Chưa có kênh nào được cấu hình — đăng nhập trong Kênh & hạn ngạch để sử dụng"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "暂无正式线程。"
-msgstr ""
+msgstr "Chưa có thread chính thức nào."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "暂无精确 Token 用量"
+msgstr "Chưa có số liệu token chính xác"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "暂无精确用量"
+msgstr "Chưa có số liệu sử dụng chính xác"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "暂无额度窗口"
+msgstr "Chưa có cửa sổ hạn mức"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "暂未开放"
+msgstr "Chưa mở"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "更多操作"
-msgstr ""
+msgstr "Thêm thao tác"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "更多组件槽 · 暂未开放"
+msgstr "Thêm ô component · chưa mở"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "更改"
-msgstr ""
+msgstr "Thay đổi"
+
+#: src/renderer/uiPreview.tsx
+msgid "更新"
+msgstr "Cập nhật"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "更新中"
+msgstr "Đang cập nhật"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "月"
+msgstr "Tháng"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "未关联"
+msgstr "Chưa liên kết"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "未安装"
+msgstr "Chưa cài"
 
 #: src/renderer/components/thread/CapsuleBranchView.tsx
 msgid "未提交的更改：{changedFiles} 个文件（{stagedCount} staged · {unstagedCount} unstaged）"
-msgstr ""
+msgstr "Thay đổi chưa commit: {changedFiles} tệp ({stagedCount} đã stage · {unstagedCount} chưa stage)"
 
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "未提供"
+msgstr "Chưa cung cấp"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "未知"
+msgstr "Không rõ"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "未知错误"
+msgstr "Lỗi không rõ"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+#~ msgid "未知错误t"
+#~ msgstr ""
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "未运行"
+msgstr "Chưa chạy"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "未选择 Harness"
+msgstr "Chưa chọn Harness"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "未选择模型"
+msgstr "Chưa chọn model"
+
+#: src/renderer/components/common/ProviderModelMenu/ProviderModelMenu.tsx
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "未配置"
+msgstr "Chưa cấu hình"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "未验证"
+msgstr "Chưa xác minh"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "未验证：保存前必须先验证 Base URL + Key + Model。"
+msgstr "Chưa xác minh: phải xác minh Base URL + Key + Model trước khi lưu."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "未验证（上次已验证 · {lastVerifiedLabel}，修改后需重新验证）。"
+msgstr "Chưa xác minh (lần xác minh trước · {lastVerifiedLabel}; sau khi sửa cần xác minh lại)."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "本机 Codex"
+msgstr "Codex cục bộ"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+#~ msgid "本机 Kimi"
+#~ msgstr "Kimi cục bộ"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "本轮 Token"
+msgstr "Token lượt này"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "本轮耗时"
+msgstr "Thời gian lượt này"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "查询失败"
+msgstr "Truy vấn thất bại"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "标准"
+msgstr "Tiêu chuẩn"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+#: src/renderer/components/crafting/workbench/ModelsInventory.tsx
+msgid "模型"
+msgstr "Model"
+
+#. placeholder {0}: selectedModel.displayName
+#. placeholder {1}: selectedModel.modelId
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "模型 · {0}（{1}）"
+msgstr "Model · {0} ({1})"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "模型 ID"
+msgstr "Model ID"
+
+#. placeholder {0}: model.modelId
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "模型 ID · {0}"
+msgstr "Model ID · {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "模型 ID，如 gpt-5.3"
+msgstr "Model ID, vd. gpt-5.3"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "模型与用量视图"
+msgstr "Chế độ xem model & mức dùng"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/SidebarProviderAccounts.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "模型与管理"
-msgstr ""
+msgstr "Model và quản lý"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "模型与运行参数"
+msgstr "Tham số model & chạy"
+
+#. placeholder {0}: payload.fromModel
+#. placeholder {1}: payload.toModel
+#. placeholder {2}: payload.error ? `：${payload.error}` : ""
+#: src/renderer/components/thread/ChatPane/parts/items/ModelSwitchMarker.tsx
+msgid "模型切换失败 {0} → {1}{2}"
+msgstr "Chuyển model thất bại {0} → {1}{2}"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "模型列表"
+msgstr "Danh sách model"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "模型名称"
+msgstr "Tên model"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "模型展示名称"
+msgstr "Tên hiển thị của model"
+
+#. placeholder {0}: payload.fromModel
+#. placeholder {1}: payload.toModel
+#: src/renderer/components/thread/ChatPane/parts/items/ModelSwitchMarker.tsx
+msgid "模型已切换 {0} → {1}"
+msgstr "Đã chuyển model {0} → {1}"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "模型槽"
+msgstr "Ô model"
+
+#: src/renderer/components/crafting/workbench/ModelsInventory.tsx
+msgid "模型背包"
+msgstr "Túi đồ model"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "模型验证失败，未加入首页。"
+msgstr "Xác minh model thất bại; chưa thêm vào trang chủ."
+
+#. placeholder {0}: Math.round(percent)
+#: src/renderer/views/SettingsOverlay/parts/SettingsTitlebar.tsx
+msgid "正在下载 {0}%"
+msgstr "Đang tải {0}%"
+
+#. placeholder {0}: payload.fromModel
+#. placeholder {1}: payload.toModel
+#: src/renderer/components/thread/ChatPane/parts/items/ModelSwitchMarker.tsx
+msgid "正在交接上下文 {0} → {1}"
+msgstr "Đang bàn giao ngữ cảnh {0} → {1}"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "正在初始化…"
-msgstr ""
+msgstr "Đang khởi tạo…"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "正在加载 Git 状态…"
-msgstr ""
+msgstr "Đang tải trạng thái Git…"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "正在右侧查看正式线程，关闭不影响原线程"
-msgstr ""
+msgstr "Đang xem thread chính thức ở bên phải — đóng không ảnh hưởng đến thread gốc"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "正在合成 Agent..."
+msgstr "Đang craft Agent..."
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "正在安装…"
+msgstr "Đang cài…"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "正在获取模型列表…"
+msgstr "Đang lấy danh sách model…"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "此配方通过兼容桥运行；启动时会再次检查运行环境与模型可用性。"
+msgstr "Công thức này chạy qua cầu tương thích; môi trường chạy và khả dụng model sẽ được kiểm tra lại khi khởi động."
+
+#. placeholder {0}: modelQuery.trim()
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "没有匹配「{0}」的模型。"
+msgstr "Không có model khớp「{0}」."
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "没有可分支的正式会话"
-msgstr ""
+msgstr "Không có hội thoại chính thức nào có thể tạo nhánh"
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "没有可推送的提交"
-msgstr ""
+msgstr "Không có commit nào để push"
 
+#: src/renderer/components/crafting/workbench/HarnessCliPanel.tsx
+msgid "没有检测到 Harness"
+msgstr "Không phát hiện Harness"
+
+#. placeholder {0}: record.supportsStreaming === false ? i18n._(linguiMsg`关闭`) : i18n._(linguiMsg`开启`)
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "流式输出 {0}"
+msgstr "Output streaming {0}"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "消息"
+msgstr "Tin nhắn"
+
+#: src/renderer/components/crafting/workbench/HarnessInventory.tsx
+#: src/renderer/components/crafting/workbench/ModelsInventory.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加"
+msgstr "Thêm"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 Antigravity 账号"
+msgstr "Thêm tài khoản Antigravity"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 ChatGPT 账号"
+msgstr "Thêm tài khoản ChatGPT"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 Grok 账号"
+msgstr "Thêm tài khoản Grok"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 Kimi Code 账号"
+msgstr "Thêm tài khoản Kimi Code"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 OpenAI 兼容 API 账号"
+msgstr "Thêm tài khoản API tương thích OpenAI"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加 OpenAI 兼容提供商"
+msgstr "Thêm provider tương thích OpenAI"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加提供商"
+msgstr "Thêm provider"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "添加模型"
+msgstr "Thêm model"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "添加账号"
+msgstr "Thêm tài khoản"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "清空"
+msgstr "Xóa hết"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "渠道"
+msgstr "Kênh"
+
+#. placeholder {0}: model.providerLabel
+#. placeholder {1}: model.channelLabel
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "渠道 · {0} / {1}"
+msgstr "Kênh · {0} / {1}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "渠道与额度"
-msgstr ""
+msgstr "Kênh & hạn ngạch"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "渠道余额"
+msgstr "Số dư kênh"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "渠道模型"
+msgstr "Model của kênh"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "火山方舟 Volcengine Ark"
+msgstr "Volcengine Ark"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "火山方舟凭据已保存。"
+msgstr "Đã lưu thông tin xác thực Volcengine Ark."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "火山额度已登录；如需在「管理模型」中使用火山方舟模型，请再填写 Ark API Key（将自动创建模型渠道）。"
+msgstr "Đã đăng nhập hạn mức Volcano; để dùng model Volcengine Ark trong \"Quản lý model\", hãy điền thêm Ark API Key (kênh model sẽ được tạo tự động)."
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "点击下载并安装"
+msgstr "Nhấp để tải và cài"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "点击查看并修复"
+msgstr "Nhấp để xem và sửa"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "点击行首勾选可移出首页"
+msgstr "Nhấp ô chọn đầu dòng để gỡ khỏi trang chủ"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "点击装配并 Spawn Agent Entity"
+msgstr "Nhấp để lắp ráp và spawn Agent Entity"
+
+#: src/renderer/components/crafting/workbench/HarnessCliRow.tsx
+msgid "点击配置"
+msgstr "Nhấp để cấu hình"
+
+#. placeholder {0}: props.item.metadata.version
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "版本：{0}"
+msgstr "Phiên bản: {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "状态"
+msgstr "Trạng thái"
+
+#. placeholder {0}: harness.status
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "状态 · {0}"
+msgstr "Trạng thái · {0}"
 
 #: src/renderer/components/thread/DraftContextBar.tsx
 #~ msgid "状态：进行中"
-#~ msgstr ""
+#~ msgstr "Trạng thái: đang chạy"
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
 #~ msgid "璁″垝杩涘害"
 #~ msgstr ""
 
+#. placeholder {0}: props.providerKind || t`通用`
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "用 {0} 预设"
+msgstr "Dùng preset {0}"
+
+#: src/renderer/components/thread/threadComposerSubmit.ts
+#: src/renderer/components/thread/ThreadDraftComposerArea.tsx
+msgid "用法：/goal + Prompt（Prompt 不能为空）"
+msgstr "Cách dùng: /goal + Prompt (Prompt không được để trống)"
+
+#: src/renderer/uiPreview.tsx
+msgid "用量"
+msgstr "Mức sử dụng"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "用量统计"
-msgstr ""
+msgstr "Thống kê sử dụng"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "留空则跟随渠道默认；各厂商档位以其文档为准。"
+msgstr "Để trống sẽ theo mặc định của kênh; mức của từng hãng theo tài liệu của hãng đó."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "登录/授权"
+msgstr "Đăng nhập / Ủy quyền"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "登录中…"
+msgstr "Đang đăng nhập…"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/UsagePanel/parts/UsageProviderCard.tsx
 msgid "登录完成后，将完整 Cookie 请求头粘贴到这里。"
-msgstr ""
+msgstr "Sau khi đăng nhập, dán toàn bộ header Cookie của request vào đây."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "登录授权"
+msgstr "Ủy quyền đăng nhập"
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "目标"
-msgstr ""
+msgstr "Mục tiêu"
 
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "直接从上游获取该渠道当前可用的模型列表"
+msgstr "Lấy trực tiếp danh sách model hiện khả dụng của kênh này từ upstream"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "视频"
+msgstr "Video"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "禁用账号"
+msgstr "Vô hiệu tài khoản"
+
+#. placeholder {0}: item.displayName
+#. placeholder {0}: item.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "移出 {0}"
+msgstr "Gỡ {0}"
+
+#. placeholder {0}: model.displayName
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "移除 {0}"
+msgstr "Xóa {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "移除账号"
+msgstr "Xóa tài khoản"
+
+#. placeholder {0}: props.priorityRank
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "第 {0} 优先"
+msgstr "Ưu tiên thứ {0}"
+
+#. placeholder {0}: props.priorityRank
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "第 {0} 优先级：排在前面的账号优先调度，可拖拽调整顺序"
+msgstr "Ưu tiên thứ {0}: tài khoản xếp trước được lập lịch trước; kéo để sắp xếp lại"
+
+#: src/renderer/components/thread/ThreadDraftView.tsx
+#: src/renderer/components/thread/useManagedComposerProviders.ts
+msgid "第三方 API"
+msgstr "API bên thứ ba"
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "第三方渠道 · 按模型路由"
+msgstr "Kênh bên thứ ba · định tuyến theo model"
+
+#: src/renderer/i18n/locales.ts
+#~ msgid "简体中文"
+#~ msgstr "Tiếng Trung giản thể"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "管理"
+msgstr "Quản lý"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "管理模型"
-msgstr ""
+msgstr "Quản lý model"
 
-#: src/renderer/components/thread/ThreadStatusCapsule.tsx
-#~ msgid "计划"
-#~ msgstr ""
+#. placeholder {0}: props.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "粘贴 {0} API Key"
+msgstr "Dán {0} API Key"
+
+#. placeholder {0}: props.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "粘贴 {0} 的 Cookie"
+msgstr "Dán cookie của {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "粘贴 Kimi Code API Key"
+msgstr "Dán Kimi Code API Key"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "精确用量暂不可用。"
+msgstr "Số liệu chính xác tạm thời không khả dụng."
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "系统工具"
+msgstr "Công cụ hệ thống"
+
+#: src/renderer/components/thread/threadContextUsage.ts
+msgid "系统提示词"
+msgstr "System prompt"
+
+#: src/renderer/components/crafting/workbench/RecipeSaveDialog.tsx
+msgid "系统组合名"
+msgstr "Tên tổ hợp hệ thống"
+
+#: src/renderer/actions/threadActions.ts
+msgid "线程不存在"
+msgstr "Thread không tồn tại"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "组件"
+msgstr "Component"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "组件背包"
+msgstr "Túi đồ component"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "组合无效"
+msgstr "Tổ hợp không hợp lệ"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "缓存"
+msgstr "Cache"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "缓存残留：未解析到账号身份"
+msgstr "Dư cache: không phân giải được định danh tài khoản"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "缓存读取"
+msgstr "Đọc cache"
+
+#. placeholder {0}: account.providerAccountId ?? account.label
+#. placeholder {0}: model.displayName
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "编辑 {0}"
+msgstr "Sửa {0}"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "编辑 OpenAI 兼容提供商"
+msgstr "Sửa provider tương thích OpenAI"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "编辑 Volcengine Ark Token Plan"
+msgstr "Sửa Volcengine Ark Token Plan"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "编辑上下文 / 模态 / 思考强度 / 展示名"
+msgstr "Sửa context / modality / mức suy nghĩ / tên hiển thị"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "编辑别名"
+msgstr "Sửa bí danh"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "编辑模型"
+msgstr "Sửa model"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "编辑阿里 Token Plan"
+msgstr "Sửa Ali Token Plan"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "缺少模型或 Harness 组件"
+msgstr "Thiếu component model hoặc Harness"
+
+#: src/renderer/components/ui/topStatusToast.ts
+msgid "网络/连接中断，{delaySeconds} 秒后自动重试（第 {attempt}/{maxAttempts} 次）"
+msgstr "Mạng/kết nối bị gián đoạn, tự thử lại sau {delaySeconds} giây (lần {attempt}/{maxAttempts})"
+
+#: src/renderer/uiPreview.tsx
+msgid "聊天"
+msgstr "Chat"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义"
+msgstr "Tùy chỉnh"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "自定义 API 渠道的模型列表"
+msgstr "Danh sách model cho kênh API tùy chỉnh"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义，如 200K / 500000，回车应用"
+msgstr "Tùy chỉnh, vd. 200K / 500000, Enter để áp dụng"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义…"
+msgstr "Tùy chỉnh…"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义上下文窗口大小"
+msgstr "Kích thước cửa sổ ngữ cảnh tùy chỉnh"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "自定义思考强度"
+msgstr "Mức suy nghĩ tùy chỉnh"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "自定义提供商 · 支持添加多个"
+msgstr "Provider tùy chỉnh · hỗ trợ thêm nhiều"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "自定义模型（已加入首页）"
+msgstr "Model tùy chỉnh (đã thêm vào trang chủ)"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取 {0} 上游可用模型列表"
+msgstr "Lấy danh sách model khả dụng của {0} từ upstream"
+
+#. placeholder {0}: selected.label
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取 {0} 渠道上游可用模型列表"
+msgstr "Lấy danh sách model khả dụng của kênh {0} từ upstream"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取模型"
+msgstr "Lấy model"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取模型列表失败"
+msgstr "Lấy danh sách model thất bại"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取模型列表失败，请重试"
+msgstr "Lấy danh sách model thất bại; vui lòng thử lại"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "获取模型列表超时（30s），请重试。"
+msgstr "Lấy danh sách model quá thời gian (30s); vui lòng thử lại."
+
+#: src/renderer/uiPreview.tsx
+msgid "计划"
+msgstr "Kế hoạch"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "计划模式"
+msgstr "Chế độ plan"
 
 #: src/renderer/components/thread/ComposerPlanChip.tsx
 msgid "计划进度"
-msgstr ""
+msgstr "Tiến độ kế hoạch"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "设为本机"
+msgstr "Đặt làm cục bộ"
+
+#: src/renderer/uiPreview.tsx
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "设置"
+msgstr "Cài đặt"
+
+#: src/renderer/views/SettingsOverlay/parts/SettingsSidebar.tsx
+msgid "设置已同步"
+msgstr "Đã đồng bộ cài đặt"
+
+#: src/renderer/components/thread/ThreadCollaborationDialog.tsx
+msgid "该 Provider 跨线程消息"
+msgstr "Tin nhắn xuyên thread của provider này"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "该渠道暂无可用模型。点击右上「获取模型」直接从上游拉取，或在下方手动添加模型 ID。"
+msgstr "Kênh này chưa có model khả dụng. Bấm \"Lấy model\" ở góc phải trên để kéo từ upstream, hoặc thêm thủ công model ID ở dưới."
+
+#: src/renderer/actions/threadLaunchActions.ts
+msgid "该配方当前不可执行"
+msgstr "Công thức này hiện không thực thi được"
+
+#: src/renderer/components/thread/pausedTurn.ts
+msgid "请从刚才被打断的地方继续任务，不要从头开始。"
+msgstr "Hãy tiếp tục tác vụ từ chỗ vừa bị gián đoạn, đừng bắt đầu lại từ đầu."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "请先添加一个项目，再打开 OpenCode 模型选择器。"
+msgstr "Hãy thêm một project trước, rồi mở bộ chọn model OpenCode."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "请先验证通过（Base URL + API Key + Model），验证通过后才能保存。"
+msgstr "Hãy xác minh trước (Base URL + API Key + Model); chỉ lưu được sau khi xác minh thành công."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "请填写 Model Name，验证通过后才能添加。"
+msgstr "Hãy điền Model Name; chỉ thêm được sau khi xác minh thành công."
 
 #: src/renderer/components/thread/CapsuleCommitView.tsx
 msgid "请填写提交信息"
-msgstr ""
+msgstr "Nhập thông điệp commit"
+
+#: src/renderer/components/crafting/CraftingWorkbenchPage.tsx
+msgid "请安装/配置所选 Harness，或更换可用的模型/Harness 组合"
+msgstr "Hãy cài/cấu hình Harness đã chọn, hoặc đổi sang tổ hợp model/Harness khả dụng"
+
+#: src/renderer/components/thread/ThreadComposer.tsx
+msgid "请求批准"
+msgstr "Yêu cầu phê duyệt"
+
+#: src/renderer/components/crafting/workbench/ComponentsRail.tsx
+msgid "读取插件清单中…"
+msgstr "Đang đọc danh sách plugin…"
+
+#. placeholder {0}: model.accountId
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "账号 · {0}"
+msgstr "Tài khoản · {0}"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "账号余额"
+msgstr "Số dư tài khoản"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "账号名称"
+msgstr "Tên tài khoản"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "账号已禁用。"
+msgstr "Tài khoản đã bị vô hiệu."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "账号授权已过期，需要重新授权。"
+msgstr "Ủy quyền tài khoản đã hết hạn; cần ủy quyền lại."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "账号身份未知"
+msgstr "Không rõ danh tính tài khoản"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "账号身份未知（已失效）"
+msgstr "Không rõ danh tính tài khoản (đã hết hạn)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "跟随渠道默认"
+msgstr "Theo mặc định của kênh"
+
+#: src/renderer/components/thread/threadCollaborationUi.tsx
+msgid "跨线程对话"
+msgstr "Hội thoại xuyên thread"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "输入"
+msgstr "Input"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "输入类型"
+msgstr "Kiểu input"
+
+#: src/renderer/components/thread/ComposerStatusRow.tsx
+msgid "输出"
+msgstr "Output"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "输出类型"
+msgstr "Kiểu output"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "输出速度"
+msgstr "Tốc độ output"
+
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "运行中"
+msgstr "Đang chạy"
+
+#. placeholder {0}: bridge.endpoint ?? ""
+#: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
+msgid "运行中 {0}"
+msgstr "Đang chạy {0}"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "还没有保存的配方"
+msgstr "Chưa có công thức nào được lưu"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "还没有保存的配方。去「合成台 / Harness」合成并保存后，可在这里勾选进首页模型选择器。"
+msgstr "Chưa có công thức đã lưu. Hãy craft và lưu một công thức trong \"Bàn craft / Harness\", sau đó có thể chọn ở đây để đưa vào bộ chọn model trang chủ."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "还没有可用渠道。请先在「渠道与额度」页添加并登录渠道账号。"
+msgstr "Chưa có kênh khả dụng. Hãy thêm và đăng nhập tài khoản kênh ở trang \"Kênh & hạn mức\" trước."
+
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "还没有在「管理模型」中选定任何模型"
+msgstr "Chưa chọn model nào trong \"Quản lý model\""
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelManagementPage.tsx
+msgid "还没有已选模型。在中间列勾选渠道模型即可加入首页选择器。"
+msgstr "Chưa có model nào được chọn. Tick model của kênh ở cột giữa để thêm vào bộ chọn trang chủ."
 
 #: src/renderer/components/thread/ThreadStatusCapsule.tsx
 msgid "进程"
@@ -14454,16 +16518,161 @@ msgstr "Các bước"
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "远程线程不支持侧边分支。"
-msgstr ""
+msgstr "Thread từ xa không hỗ trợ nhánh phụ."
 
 #: src/renderer/actions/sideChatActions.ts
 msgid "远程线程不支持在 Side Chat 中打开。"
-msgstr ""
+msgstr "Thread từ xa không thể mở trong Side Chat."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "连接 {label} 显示额度"
+msgstr "Kết nối {label} để hiển thị hạn mức"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "连接会话显示额度"
+msgstr "Kết nối phiên để hiển thị hạn mức"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "连接额度"
+msgstr "Kết nối hạn mức"
+
+#: src/renderer/components/crafting/workbench/SharedInspector.tsx
+msgid "选择一件物品查看详情"
+msgstr "Chọn một mục để xem chi tiết"
 
 #: src/renderer/views/MainView/parts/RightPanel/parts/SideChatPanel.tsx
 msgid "选择已有线程（右侧并行打开，原线程不受影响）"
-msgstr ""
+msgstr "Chọn một thread hiện có (mở song song bên phải; thread gốc không bị ảnh hưởng)"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "通用"
+msgstr "Chung"
+
+#: src/renderer/components/crafting/CraftingGrid.tsx
+msgid "配方"
+msgstr "Công thức"
+
+#. placeholder {0}: recipes.length
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "配方 · {0}"
+msgstr "Công thức · {0}"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "配方列表"
+msgstr "Danh sách công thức"
+
+#: src/renderer/components/crafting/workbench/RecipesRail.tsx
+msgid "配方别名"
+msgstr "Bí danh công thức"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "重命名账号"
+msgstr "Đổi tên tài khoản"
 
 #: src/renderer/components/common/ZoomIndicator.tsx
 msgid "重置"
-msgstr ""
+msgstr "Đặt lại"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountQuotaCard.tsx
+msgid "重置卡 {resetCreditCount} 张未使用。额度要等核销后才会下降。"
+msgstr "{resetCreditCount} thẻ reset chưa dùng. Hạn mức chỉ giảm sau khi thanh toán."
+
+#: src/renderer/actions/installNativeAgent.ts
+msgid "重试"
+msgstr "Thử lại"
+
+#: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
+msgid "错误原因"
+msgstr "Nguyên nhân lỗi"
+
+#: src/renderer/uiPreview.tsx
+msgid "隐藏侧边栏"
+msgstr "Ẩn thanh bên"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "随机"
+msgstr "Ngẫu nhiên"
+
+#: src/renderer/components/crafting/workbench/EfficientWorkbench.tsx
+msgid "预留"
+msgstr "Dự phòng"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "额度"
+msgstr "Hạn mức"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "额度低"
+msgstr "Hạn mức thấp"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/quotaStatus.ts
+msgid "额度充足"
+msgstr "Hạn mức đủ"
+
+#. placeholder {0}: error instanceof Error ? error.message : i18n._(linguiMsg`导入未通过`)
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "额度已登录；火山方舟模型渠道导入失败（{0}），可在「OpenAI 兼容 API」手动添加。"
+msgstr "Đã đăng nhập hạn mức; nhập kênh model Volcengine Ark thất bại ({0}) — có thể thêm thủ công trong mục \"OpenAI-compatible API\"."
+
+#. placeholder {0}: error instanceof Error ? error.message : t`未知错误`
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "额度已登录；火山方舟模型渠道自动创建失败（{0}），可在「OpenAI 兼容 API」手动添加。"
+msgstr "Đã đăng nhập hạn mức; tự động tạo kênh model Volcengine Ark thất bại ({0}) — có thể thêm thủ công trong mục \"OpenAI-compatible API\"."
+
+#. placeholder {0}: error instanceof Error ? error.message : i18n._(linguiMsg`验证未通过`)
+#. placeholder {0}: staged.error ?? i18n._(linguiMsg`验证未通过`)
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "额度已登录；自动创建火山方舟模型渠道失败（{0}），可在「OpenAI 兼容 API」手动添加。"
+msgstr "Đã đăng nhập hạn mức; không tự động tạo được kênh model Volcengine Ark ({0}) — có thể thêm thủ công trong mục \"OpenAI-compatible API\"."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "额度已耗尽。"
+msgstr "Hạn mức đã cạn."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "额度暂不可用。"
+msgstr "Hạn mức tạm thời không khả dụng."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/AccountUsageGrid.tsx
+msgid "额度查询失败。"
+msgstr "Truy vấn hạn mức thất bại."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证"
+msgstr "Xác minh"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证 Base URL 与模型"
+msgstr "Xác minh Base URL và model"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证中…"
+msgstr "Đang xác minh…"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证中…正在做最小真实请求探测。"
+msgstr "Đang xác minh… đang thực hiện probe request thật tối thiểu."
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证失败，请检查后重试。"
+msgstr "Xác minh thất bại; vui lòng kiểm tra rồi thử lại."
+
+#: src/renderer/actions/volcengineArkChannel.ts
+msgid "验证未通过"
+msgstr "Xác minh không đạt"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
+msgid "验证通过后才能保存"
+msgstr "Chỉ lưu sau khi xác minh thành công"
+
+#: src/renderer/components/thread/DraftParameterMenu.tsx
+msgid "默认"
+msgstr "Mặc định"
+
+#: src/renderer/components/thread/customModelCatalog.ts
+msgid "默认最高"
+msgstr "Cao nhất mặc định"
+
+#: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
+msgid "默认思考强度"
+msgstr "Mức suy nghĩ mặc định"

@@ -2,6 +2,8 @@ import { switcherDisplayWindow } from "@craftstation/agents-usage/switcherQuota"
 import type { AccountStatus } from "@/shared/contracts/accounts";
 import type { TokenUsageSummary } from "@/shared/contracts";
 import type { UsageStatus } from "@/shared/contracts/usage";
+import { msg as linguiMsg } from "@lingui/core/macro";
+import { i18n } from "@/renderer/i18n/i18n";
 
 export type QuotaDisplayState = "sufficient" | "low" | "unavailable";
 
@@ -75,11 +77,11 @@ function resolveMeasuredQuotaState(usedPercent: number | null): QuotaDisplayStat
 export function quotaDisplayStateLabel(state: QuotaDisplayState): string {
   switch (state) {
     case "sufficient":
-      return "额度充足";
+      return i18n._(linguiMsg`额度充足`);
     case "low":
-      return "额度低";
+      return i18n._(linguiMsg`额度低`);
     case "unavailable":
-      return "不可用";
+      return i18n._(linguiMsg`不可用`);
   }
 }
 
@@ -95,14 +97,16 @@ export function quotaDisplayStateClass(state: QuotaDisplayState): string {
 }
 
 export function formatUsedQuota(usedPercent: number | null): string {
-  return usedPercent === null ? "已用额度 --" : `已用额度 ${Math.round(usedPercent)}%`;
+  return usedPercent === null
+    ? i18n._(linguiMsg`已用额度 --`)
+    : i18n._(linguiMsg`已用额度 ${Math.round(usedPercent)}%`);
 }
 
 /** Convert implementation/provenance text into a stable user-facing message. */
 export function userFacingTokenMessage(reason: string | undefined): string | undefined {
   if (!reason) return undefined;
   if (/runtime ledger|\bledger\b|exact (account )?usage|精确.*用量/iu.test(reason)) {
-    return "暂无精确 Token 用量";
+    return i18n._(linguiMsg`暂无精确 Token 用量`);
   }
   return reason;
 }
@@ -127,7 +131,7 @@ export type AccountTokenAttribution =
  * (or derived) `byAccount` entry keyed by this account id is real per-account
  * usage. When the response carries token totals but nothing for this account,
  * the usage genuinely cannot be attributed — report that instead of the
- * blanket "暂无精确 Token 用量", which is reserved for having no data at all.
+ * blanket 暂无精确 Token 用量, which is reserved for having no data at all.
  */
 export function resolveAccountTokenAttribution(
   summaries: readonly TokenUsageSummary[] | undefined,

@@ -113,7 +113,7 @@ describe("forkThreadFromTurn", () => {
     expect(fork.projectId).toBe(source.projectId);
     expect(fork.agentKind).toBe(source.agentKind);
     expect(fork.status).toBe("idle");
-    expect(fork.title).toContain("（分叉）");
+    expect(fork.title).toContain("(fork)");
     expect(fork.parentThreadId).toBe(source.id);
     // Grouped with the source so the sidebar renders them as one branch.
     expect(fork.groupId).toBeTruthy();

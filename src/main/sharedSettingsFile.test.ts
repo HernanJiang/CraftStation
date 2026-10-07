@@ -2,6 +2,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
+import iconv from "iconv-lite";
 import { allUsageProviderDescriptors } from "@craftstation/agents-usage";
 import type { AgentInstanceConfig } from "@/shared/contracts";
 import { decryptSecret, isEncryptedSecret } from "@/shared/secretStorage";
@@ -892,5 +893,62 @@ describe("applyProfileEnvironment (free-form environment provider)", () => {
     expect(() =>
       applyProfileEnvironment(acpSettings, { instanceId: "droid", environment: {} }, makeTempDir()),
     ).toThrow(/not found/i);
+  });
+});
+
+describe("customGlobalPrompt mojibake self-heal", () => {
+  const original =
+    "默认使用中文；面向我的说明和新建可读文档默认使用中文。\n默认优先简单、直接、足够完成当前目标的方案，非必要不检查SHA，不主动扩大任务范围。\n数学公式要用Markdown渲染出来，要同时给出直观解释和各个变量的详细解释.";
+  // Real-world corruption observed in a live settings.json: the UTF-8 bytes of
+  // the prompt were decoded as GBK and re-saved. GBK pair-boundary corruption
+  // eats a byte at each CJK→ASCII transition, so a few chars are unrecoverable
+  // (show up as '?'/replacement residue) — repair restores the readable body.
+  const corrupted = iconv.decode(Buffer.from(original, "utf8"), "gbk");
+
+  it("repairs a GBK-mojibake customGlobalPrompt on read", () => {
+    const settingsPath = join(makeTempDir(), "settings.json");
+    writeFileSync(
+      settingsPath,
+      JSON.stringify({ ...defaultSharedSettings, customGlobalPrompt: corrupted }),
+      "utf8",
+    );
+    const healed = readSharedSettingsFile(settingsPath).customGlobalPrompt;
+    expect(healed).not.toBe(corrupted);
+    expect(healed).toContain("默认使用中文；面向我的说明和新建可读文档默认使用中文");
+    expect(healed).toContain("默认优先简单、直接、足够完成当前目标的方案");
+    expect(healed).toContain("数学公式要用Markdown渲染出来");
+    expect(healed).toContain("各个变量的详细解释");
+    expect(healed).not.toMatch(/[榛樿涓]/);
+    expect(healed.length).toBeLessThan(corrupted.length);
+  });
+
+  it("leaves a healthy UTF-8 prompt untouched", () => {
+    const settingsPath = join(makeTempDir(), "settings.json");
+    writeSharedSettingsFile(settingsPath, {
+      ...defaultSharedSettings,
+      customGlobalPrompt: original,
+    });
+    expect(readSharedSettingsFile(settingsPath).customGlobalPrompt).toBe(original);
+  });
+
+  it("leaves normal English prompts untouched", () => {
+    const settingsPath = join(makeTempDir(), "settings.json");
+    writeSharedSettingsFile(settingsPath, {
+      ...defaultSharedSettings,
+      customGlobalPrompt: "Always reply briefly. Prefer code first.",
+    });
+    expect(readSharedSettingsFile(settingsPath).customGlobalPrompt).toBe(
+      "Always reply briefly. Prefer code first.",
+    );
+  });
+
+  it("does not corrupt mixed-language text containing a single marker-like char", () => {
+    const tricky = "Use ″ for inches and 中 characters where natural.";
+    const settingsPath = join(makeTempDir(), "settings.json");
+    writeSharedSettingsFile(settingsPath, {
+      ...defaultSharedSettings,
+      customGlobalPrompt: tricky,
+    });
+    expect(readSharedSettingsFile(settingsPath).customGlobalPrompt).toBe(tricky);
   });
 });

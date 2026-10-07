@@ -22,6 +22,7 @@ import {
   brandEdgeColor,
 } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
 import { HarnessCliRow, harnessStatusMeta } from "./workbench/HarnessCliRow";
+import { useLingui } from "@lingui/react/macro";
 
 /**
  * Provider → default Harness/CLI mapping. Provider ids already equal their
@@ -109,6 +110,7 @@ export function HarnessMapPage(props: {
   configuredProviderIds: readonly string[];
   providerOrder: readonly string[];
 }) {
+  const { t } = useLingui();
   const {
     visibleEntries,
     loading,
@@ -201,17 +203,17 @@ export function HarnessMapPage(props: {
         let reasonShort: string;
         if (!harnessByKind.has(finalKind)) {
           finalKind = compatKind;
-          reason = "无原生 Harness · 兼容默认";
-          reasonShort = "兼容默认";
+          reason = t`无原生 Harness · 兼容默认`;
+          reasonShort = t`兼容默认`;
         } else if (isThirdPartyAccountId(entry.accountId)) {
-          reason = "第三方渠道 · 按模型路由";
-          reasonShort = "按模型路由";
+          reason = t`第三方渠道 · 按模型路由`;
+          reasonShort = t`按模型路由`;
         } else if (finalKind !== nativeKind) {
-          reason = `Auto 接管（${nativeKind} → ${finalKind}）`;
-          reasonShort = "接管";
+          reason = t`Auto 接管（${nativeKind} → ${finalKind}）`;
+          reasonShort = t`接管`;
         } else {
-          reason = "原生";
-          reasonShort = "原生";
+          reason = t`原生`;
+          reasonShort = t`原生`;
         }
         return {
           entry,
@@ -239,6 +241,7 @@ export function HarnessMapPage(props: {
     props.providerOrder,
     compatKind,
     harnessByKind,
+    t,
   ]);
 
   // Layer-1 nodes: one per channel, in first-appearance order.
@@ -450,30 +453,30 @@ export function HarnessMapPage(props: {
           <div className="relative">
             <div className={`grid min-w-0 ${GRAPH_GRID_COLS} items-center gap-2`}>
               <h2 className="text-sm font-semibold text-foreground">
-                渠道{" "}
+                {t`渠道`}{" "}
                 <span className="ml-1 text-[10px] font-normal text-neutral-500">
-                  {channels.length} 个
+                  {t`${channels.length} 个`}
                 </span>
               </h2>
               <span />
               <h2 className="text-sm font-semibold text-foreground">
-                模型{" "}
+                {t`模型`}{" "}
                 <span className="ml-1 text-[10px] font-normal text-neutral-500">
-                  {modelRows.length} 个
+                  {t`${modelRows.length} 个`}
                 </span>
               </h2>
               <span />
               <h2 className="truncate pr-10 text-sm font-semibold text-foreground">
-                最终 Harness / CLI{" "}
+                {t`最终 Harness / CLI`}{" "}
                 <span className="ml-1 text-[10px] font-normal text-neutral-500">
-                  {harnessNodes.length} 个
+                  {t`${harnessNodes.length} 个`}
                 </span>
               </h2>
             </div>
             <button
               type="button"
               onClick={() => void refresh()}
-              title="刷新状态"
+              title={t`刷新状态`}
               className="absolute right-0 top-1/2 -translate-y-1/2 rounded-md p-1.5 text-neutral-400 hover:bg-white/10 hover:text-white"
             >
               <RefreshCw className={`size-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -483,7 +486,7 @@ export function HarnessMapPage(props: {
 
         {modelRows.length === 0 ? (
           <p className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-6 text-center text-sm text-muted">
-            还没有在「管理模型」中选定任何模型
+            {t`还没有在「管理模型」中选定任何模型`}
           </p>
         ) : (
           <div ref={contentRef} className="relative">
@@ -557,7 +560,7 @@ export function HarnessMapPage(props: {
                         {channel.label}
                       </span>
                       <span className="mt-0.5 block text-[10px] text-neutral-500">
-                        {channel.accountCount} 账号 · {channel.rows.length} 模型
+                        {t`${channel.accountCount} 账号 · ${channel.rows.length} 模型`}
                       </span>
                     </span>
                   </div>
@@ -611,7 +614,7 @@ export function HarnessMapPage(props: {
                       entry={node.entry}
                       highlighted={highlightedKind === node.kind}
                       installing={installingKinds.has(node.kind)}
-                      metaSuffix={`${node.rows.length} 个模型`}
+                      metaSuffix={t`${node.rows.length} 个模型`}
                       onInstall={install}
                       onShowDetail={handleShowDetail}
                     />
@@ -619,7 +622,7 @@ export function HarnessMapPage(props: {
                 ))}
                 {orphanEntries.length > 0 ? (
                   <>
-                    <p className="pt-1 text-[10px] font-medium text-neutral-500">未关联</p>
+                    <p className="pt-1 text-[10px] font-medium text-neutral-500">{t`未关联`}</p>
                     {orphanEntries.map((entry) => (
                       <div
                         key={entry.descriptor.id}
@@ -654,8 +657,7 @@ export function HarnessMapPage(props: {
         >
           <p className="flex items-center gap-1 text-[10px] font-medium text-neutral-500">
             <Workflow className="size-3" />
-            兼容默认 Harness（无原生 Harness
-            的渠道与第三方模型回退到此；上图连线已按该设置实时路由）
+            {t`兼容默认 Harness（无原生 Harness 的渠道与第三方模型回退到此；上图连线已按该设置实时路由）`}
           </p>
           {trunkEntry
             ? (() => {
@@ -666,16 +668,17 @@ export function HarnessMapPage(props: {
                       className={`size-3.5 ${harnessStatusMeta[trunkEntry.status].class}`}
                     />
                     <span className="truncate">
-                      {trunkEntry.descriptor.label} · {harnessStatusMeta[trunkEntry.status].label}
+                      {trunkEntry.descriptor.label} ·{" "}
+                      {t(harnessStatusMeta[trunkEntry.status].label)}
                     </span>
                   </span>
                 );
               })()
             : null}
           <label className="mt-auto flex items-center gap-1.5 text-[10px] text-neutral-500">
-            <span className="shrink-0">切换默认</span>
+            <span className="shrink-0">{t`切换默认`}</span>
             <select
-              aria-label="兼容默认 Harness"
+              aria-label={t`兼容默认 Harness`}
               value={compatKind}
               onChange={(event) => setCompatDefaultHarness(event.target.value)}
               className="min-w-0 flex-1 rounded-md border border-white/10 bg-black/30 px-1.5 py-1 text-[10px] text-foreground outline-none focus:border-white/25"

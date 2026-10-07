@@ -39,7 +39,7 @@ export function ActivityInsights(props: {
   split?: boolean;
 }) {
   // NOTE: rows must be built inline with this scope's `t`: the Lingui macro
-  // only transforms `t` tagged templates bound to useLingui(). Passing `t`
+  // only transforms ` tagged templates bound to useLingui(). Passing t`
   // into a helper shadows the binding, the macro skips it, and every label
   // renders empty at runtime.
   const { t } = useLingui();

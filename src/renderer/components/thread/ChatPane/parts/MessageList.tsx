@@ -834,11 +834,11 @@ function TurnStatusText({
   const elapsed = formatDuration(Math.max(0, Math.floor((bar.endedAtMs - bar.startedAtMs) / 1000)));
   const label = useZhUnits ? (
     bar.state === "completed" ? (
-      `已完成 ${elapsed}`
+      t`已完成 ${elapsed}`
     ) : bar.state === "failed" ? (
-      `失败，耗时 ${elapsed}`
+      t`失败，耗时 ${elapsed}`
     ) : (
-      `已暂停，耗时 ${elapsed}`
+      t`已暂停，耗时 ${elapsed}`
     )
   ) : bar.state === "completed" ? (
     <Trans>Completed in {elapsed}</Trans>
@@ -856,7 +856,7 @@ function TurnStatusText({
         onClick={() => {
           void submitThreadInput(
             threadId,
-            CONTINUE_INTERRUPTED_TASK_PROMPT,
+            t(CONTINUE_INTERRUPTED_TASK_PROMPT),
             continueInterruptedTaskSegments(),
           );
         }}
