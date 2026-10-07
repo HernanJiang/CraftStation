@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.8.0",
+      "date": "2026-10-07",
+      "title": "Every language covered & skills that stick",
+      "summary": "All UI text is now translated across every supported language, and agents keep the skills you invoke for the whole session instead of forgetting them after the next message.",
+      "changes": [
+        {
+          "kind": "improved",
+          "label": "Languages",
+          "text": "Model pickers, account panels, settings, the crafting grid, and status surfaces are now translated in all 13 supported locales — non-Chinese languages no longer show leftover Chinese labels."
+        },
+        {
+          "kind": "fixed",
+          "label": "Skills",
+          "text": "Agents no longer forget a skill you invoked once the conversation moves on — invoked skills are pinned to the thread and re-sent with every message on every harness, including Antigravity, mid-flight steers, restarts, and crafted threads."
+        }
+      ]
+    },
+    {
       "version": "1.7.19",
       "date": "2026-10-06",
       "title": "Popup-free startup & a steadier composer caret",
