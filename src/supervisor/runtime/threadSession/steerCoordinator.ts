@@ -8,6 +8,7 @@ import type {
 import type { SupervisorEvent } from "@/shared/ipc";
 import { defaultFormatPromptSegments } from "../../agents/base";
 import { captureSupervisorException } from "../../diagnostics/sentry";
+import { pinSkillSegments } from "../../skills/skillPromptInjection";
 import { rewriteSegmentsForWsl } from "../threadAttachments";
 import type { PendingSteerSlot, QueuedStructuredTurn, SessionRuntime } from "../sessionTypes";
 
@@ -60,6 +61,11 @@ export interface SteerCoordinatorContext {
   interruptStructuredTurn(session: SessionRuntime): Promise<void>;
   startStructuredTurn(session: SessionRuntime, turn: QueuedStructuredTurn): void;
   failStructuredSession(session: SessionRuntime, error: unknown): void;
+  /** Enforce plugin skill policy before a steer segment reaches a provider. */
+  filterPluginSkillSegments(
+    session: SessionRuntime,
+    segments: PromptSegment[] | undefined,
+  ): Promise<PromptSegment[] | undefined>;
   /** Portable-skills fallback for a steer turn (see managerOptions). */
   resolveSkillTurnInjection(
     session: SessionRuntime,
@@ -197,18 +203,30 @@ export class SteerCoordinator {
     if (!usesStructuredFlow || !session.structuredSession?.startTurn) {
       throw new Error("Thread does not support structured turns.");
     }
-    const effectiveSegments = payload.segments
-      ? await rewriteSegmentsForWsl(payload.segments, session.projectLocation, {
-          preserveImageAttachments: true,
-          preservePdfAttachments: session.adapter.capabilities.readsPdfAttachmentsFromHost === true,
-        })
-      : undefined;
+    const effectiveSegments = await this.ctx.filterPluginSkillSegments(
+      session,
+      payload.segments
+        ? await rewriteSegmentsForWsl(payload.segments, session.projectLocation, {
+            preserveImageAttachments: true,
+            preservePdfAttachments:
+              session.adapter.capabilities.readsPdfAttachmentsFromHost === true,
+          })
+        : undefined,
+    );
+    // Same Codex-style permanence as sendThreadInput: pin steer-invoked skills
+    // and re-inline the whole pinned set so a mid-flight redirect never drops
+    // skills the running session already received.
+    const pinnedSkills = pinSkillSegments(session.stickySkillSegments, effectiveSegments);
+    if (pinnedSkills) session.stickySkillSegments = pinnedSkills.sticky;
     const prompt =
       effectiveSegments && effectiveSegments.length > 0
         ? (session.adapter.formatPromptSegments?.(effectiveSegments) ??
           defaultFormatPromptSegments(effectiveSegments))
         : payload.prompt;
-    const inlineInstructions = await this.ctx.resolveSkillTurnInjection(session, effectiveSegments);
+    const inlineInstructions = await this.ctx.resolveSkillTurnInjection(
+      session,
+      pinnedSkills?.pinned ?? effectiveSegments,
+    );
     const turn: QueuedStructuredTurn = {
       prompt,
       config: payload.config,

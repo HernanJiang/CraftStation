@@ -36,6 +36,7 @@ function createHarness(
     launchOptions: {},
     prepareSteerInterrupt,
     interruptTurn,
+    startTurn: vi.fn<NonNullable<StructuredSessionHandle["startTurn"]>>(async () => undefined),
     setListener: vi.fn<StructuredSessionHandle["setListener"]>(),
     dispose: vi.fn<StructuredSessionHandle["dispose"]>(async () => undefined),
   } as StructuredSessionHandle;
@@ -69,18 +70,25 @@ function createHarness(
       order.push("start");
     },
   );
+  const resolveSkillTurnInjection = vi.fn<
+    (
+      session: SessionRuntime,
+      segments: readonly import("@/shared/contracts").PromptSegment[] | undefined,
+    ) => Promise<string | undefined>
+  >(async () => undefined);
   const coordinator = new SteerCoordinator({
     emit: (event) => events.push(event),
     sessions,
     interruptStructuredTurn,
     startStructuredTurn,
     failStructuredSession: vi.fn<(session: SessionRuntime, error: unknown) => void>(),
-    resolveSkillTurnInjection: vi.fn<
+    filterPluginSkillSegments: vi.fn<
       (
         session: SessionRuntime,
-        segments: readonly import("@/shared/contracts").PromptSegment[] | undefined,
-      ) => Promise<string | undefined>
-    >(async () => undefined),
+        segments: import("@/shared/contracts").PromptSegment[] | undefined,
+      ) => Promise<import("@/shared/contracts").PromptSegment[] | undefined>
+    >(async (_session, segments) => segments),
+    resolveSkillTurnInjection,
   });
   const turn: QueuedStructuredTurn = {
     prompt: "replacement",
@@ -94,6 +102,7 @@ function createHarness(
     interruptStructuredTurn,
     order,
     prepareSteerInterrupt,
+    resolveSkillTurnInjection,
     session,
     startStructuredTurn,
     turn,
@@ -161,6 +170,38 @@ describe("SteerCoordinator interrupt-backed steering", () => {
       consoleError.mockRestore();
       vi.useRealTimers();
     }
+  });
+
+  it("pins steer-invoked skills and re-resolves them on a later steer", async () => {
+    const harness = createHarness();
+    harness.session.status = "idle";
+    const skill: import("@/shared/contracts").PromptSegment = {
+      kind: "skill",
+      name: "probe",
+      path: "/repo/.agents/skills/probe/SKILL.md",
+      invocation: "/probe",
+      provider: "agents",
+      scope: "project",
+    };
+
+    await harness.coordinator.setPendingSteer(harness.session, {
+      threadId: harness.session.threadId,
+      prompt: "first",
+      config: { model: "model-2" },
+      segments: [skill],
+    });
+    expect(harness.session.stickySkillSegments?.size).toBe(1);
+
+    await harness.coordinator.setPendingSteer(harness.session, {
+      threadId: harness.session.threadId,
+      prompt: "second",
+      config: { model: "model-2" },
+    });
+
+    const calls = harness.resolveSkillTurnInjection.mock.calls;
+    const secondCallSegments = calls.at(-1)?.[1];
+    expect(secondCallSegments).toHaveLength(1);
+    expect(secondCallSegments?.[0]).toMatchObject({ kind: "skill", name: "probe" });
   });
 
   it("does not interrupt a replacement that starts while preparation settles", async () => {

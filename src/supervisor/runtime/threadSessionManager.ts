@@ -205,6 +205,8 @@ export class ThreadSessionManager {
         this.structuredInterruptWatchdog.interruptStructuredTurn(session),
       startStructuredTurn: (session, turn) => this.structuredTurnQueue.start(session, turn),
       failStructuredSession: (session, error) => this.failStructuredSession(session, error),
+      filterPluginSkillSegments: (session, segments) =>
+        this.filterPluginSkillSegments(session, segments),
       resolveSkillTurnInjection: (session, segments) =>
         this.resolveSkillTurnInjection(session, segments),
     });
