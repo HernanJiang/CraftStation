@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.8.3",
+      "date": "2026-10-07",
+      "title": "Roomier dialogue and reliable preview controls",
+      "summary": "Cross-thread dialogue has a wider, responsive layout with visible actions. Expanded images, code blocks, and Mermaid diagrams close reliably at different interface zoom levels.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Previews",
+          "text": "The close button in an expanded preview no longer loses most of its clickable area to the window's underlying drag region."
+        },
+        {
+          "kind": "fixed",
+          "label": "Cross-thread dialogue",
+          "text": "The request form no longer gets squeezed into a narrow column. The dialog switches to a single column in smaller windows, scrolls long content internally, and keeps its action buttons visible when the interface is zoomed."
+        }
+      ]
+    },
+    {
       "version": "1.8.2",
       "date": "2026-10-07",
       "title": "Steadier formula editing",

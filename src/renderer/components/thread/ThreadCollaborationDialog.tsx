@@ -203,11 +203,15 @@ export function ThreadCollaborationDialog(props: {
   }
 
   return (
-    <Modal.Backdrop isOpen={props.isOpen} onOpenChange={(open) => !open && props.onClose()}>
-      <Modal.Container size="lg" scroll="inside">
-        <Modal.Dialog>
+    <Modal.Backdrop
+      className="craftstation-collaboration-backdrop"
+      isOpen={props.isOpen}
+      onOpenChange={(open) => !open && props.onClose()}
+    >
+      <Modal.Container size="lg" placement="center" scroll="inside" className="sm:w-full">
+        <Modal.Dialog className="craftstation-collaboration-dialog overflow-hidden p-0">
           <Modal.CloseTrigger />
-          <Modal.Header>
+          <Modal.Header className="mb-0 shrink-0 border-b border-border px-5 py-4 pr-12">
             <Modal.Icon className="bg-accent-soft text-accent-soft-foreground">
               <MessagesSquare className="size-5" />
             </Modal.Icon>
@@ -218,9 +222,14 @@ export function ThreadCollaborationDialog(props: {
               <Trans>The target keeps its own Model, Harness, native session, and timeline.</Trans>
             </p>
           </Modal.Header>
-          <Modal.Body className="grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.8fr)]">
-            <div className="flex min-w-0 flex-col gap-4">
-              <TextField name="thread-target-search" value={query} onChange={setQuery}>
+          <Modal.Body className="craftstation-collaboration-body m-0 grid min-h-0 gap-6 overflow-y-auto px-5 py-4">
+            <div className="craftstation-collaboration-form flex min-w-0 flex-col gap-4">
+              <TextField
+                className="w-full"
+                name="thread-target-search"
+                value={query}
+                onChange={setQuery}
+              >
                 <Label>
                   <Trans>Find a target thread</Trans>
                 </Label>
@@ -238,7 +247,7 @@ export function ThreadCollaborationDialog(props: {
 
               <div
                 aria-label={t`Available target threads`}
-                className="flex max-h-64 flex-col gap-2 overflow-y-auto rounded-xl border border-border p-2"
+                className="flex max-h-48 flex-col gap-2 overflow-y-auto rounded-xl border border-border p-2"
                 role="listbox"
               >
                 {loadingTargets ? (
@@ -272,19 +281,17 @@ export function ThreadCollaborationDialog(props: {
                             <span className="min-w-0 flex-1 truncate font-medium">
                               {target.title}
                             </span>
-                            <Chip size="sm" variant="soft">
+                            <Chip className="shrink-0" size="sm" variant="soft">
                               <Chip.Label>{threadTargetStatusLabel(target.status)}</Chip.Label>
                             </Chip>
                           </span>
                           <span className="truncate text-xs text-muted">
                             {compositionLabel(target.provenance)}
                           </span>
-                          {target.provenance.nativeSessionId ? (
-                            <span className="truncate font-mono text-xs text-muted">
-                              {target.provenance.harnessId}:{target.provenance.nativeSessionId}
-                            </span>
-                          ) : null}
-                          <span className="truncate text-xs text-muted">
+                          <span
+                            className="truncate text-xs text-muted"
+                            title={target.provenance.worktreePath}
+                          >
                             {target.provenance.worktreePath ?? t`Project worktree`}
                           </span>
                           {target.sameComposition ? (
@@ -318,6 +325,7 @@ export function ThreadCollaborationDialog(props: {
               ) : null}
 
               <TextField
+                className="w-full"
                 isRequired
                 name="thread-collaboration-request"
                 value={request}
@@ -336,46 +344,50 @@ export function ThreadCollaborationDialog(props: {
                 <legend className="text-sm font-medium">
                   <Trans>Delivery</Trans>
                 </legend>
-                <label
-                  aria-label={t`Queue after the current turn`}
-                  className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-3"
-                >
-                  <input
-                    checked={deliveryMode === "after-current-turn"}
-                    name="thread-delivery-mode"
-                    type="radio"
-                    value="after-current-turn"
-                    onChange={() => setDeliveryMode("after-current-turn")}
-                  />
-                  <span className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium">
-                      <Trans>Queue after the current turn</Trans>
+                <div className="craftstation-collaboration-delivery grid gap-2">
+                  <label
+                    aria-label={t`Queue after the current turn`}
+                    className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 transition-colors ${deliveryMode === "after-current-turn" ? "border-accent/40 bg-accent-soft/50" : "border-border hover:bg-surface-secondary"}`}
+                  >
+                    <input
+                      checked={deliveryMode === "after-current-turn"}
+                      className="mt-1 size-3.5 shrink-0 accent-accent"
+                      name="thread-delivery-mode"
+                      type="radio"
+                      value="after-current-turn"
+                      onChange={() => setDeliveryMode("after-current-turn")}
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className="text-sm font-medium">
+                        <Trans>Queue after the current turn</Trans>
+                      </span>
+                      <span className="text-xs text-muted">
+                        <Trans>The target is never silently steered or interrupted.</Trans>
+                      </span>
                     </span>
-                    <span className="text-xs text-muted">
-                      <Trans>The target is never silently steered or interrupted.</Trans>
+                  </label>
+                  <label
+                    aria-label={t`Interrupt the target, then send`}
+                    className={`flex cursor-pointer items-start gap-2 rounded-xl border p-3 transition-colors ${deliveryMode === "interrupt-and-send" ? "border-accent/40 bg-accent-soft/50" : "border-border hover:bg-surface-secondary"}`}
+                  >
+                    <input
+                      checked={deliveryMode === "interrupt-and-send"}
+                      className="mt-1 size-3.5 shrink-0 accent-accent"
+                      name="thread-delivery-mode"
+                      type="radio"
+                      value="interrupt-and-send"
+                      onChange={() => setDeliveryMode("interrupt-and-send")}
+                    />
+                    <span className="flex min-w-0 flex-1 flex-col gap-1">
+                      <span className="text-sm font-medium">
+                        <Trans>Interrupt the target, then send</Trans>
+                      </span>
+                      <span className="text-xs text-muted">
+                        <Trans>Delivery waits for the target to confirm it has stopped.</Trans>
+                      </span>
                     </span>
-                  </span>
-                </label>
-                <label
-                  aria-label={t`Interrupt the target, then send`}
-                  className="flex cursor-pointer items-start gap-2 rounded-lg border border-border p-3"
-                >
-                  <input
-                    checked={deliveryMode === "interrupt-and-send"}
-                    name="thread-delivery-mode"
-                    type="radio"
-                    value="interrupt-and-send"
-                    onChange={() => setDeliveryMode("interrupt-and-send")}
-                  />
-                  <span className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium">
-                      <Trans>Interrupt the target, then send</Trans>
-                    </span>
-                    <span className="text-xs text-muted">
-                      <Trans>Delivery waits for the target to confirm it has stopped.</Trans>
-                    </span>
-                  </span>
-                </label>
+                  </label>
+                </div>
               </fieldset>
 
               <label
@@ -384,6 +396,7 @@ export function ThreadCollaborationDialog(props: {
               >
                 <input
                   checked={attachContext}
+                  className="mt-1 size-3.5 shrink-0 accent-accent"
                   type="checkbox"
                   onChange={(event) => setAttachContext(event.currentTarget.checked)}
                 />
@@ -393,6 +406,7 @@ export function ThreadCollaborationDialog(props: {
               </label>
               {attachContext ? (
                 <TextField
+                  className="w-full"
                   name="thread-context-summary"
                   value={contextSummary}
                   onChange={setContextSummary}
@@ -433,7 +447,7 @@ export function ThreadCollaborationDialog(props: {
               ) : null}
             </div>
 
-            <section aria-label={t`Dialogue exchanges`} className="flex min-w-0 flex-col gap-2">
+            <section aria-label={t`Dialogue exchanges`} className="flex min-w-0 flex-col gap-3">
               <h3 className="text-sm font-semibold">
                 <Trans>Dialogue exchanges</Trans>
               </h3>
@@ -537,7 +551,7 @@ export function ThreadCollaborationDialog(props: {
               )}
             </section>
           </Modal.Body>
-          <Modal.Footer>
+          <Modal.Footer className="mt-0 shrink-0 border-t border-border px-5 py-3">
             <Button slot="close" variant="secondary">
               <Trans>Close</Trans>
             </Button>

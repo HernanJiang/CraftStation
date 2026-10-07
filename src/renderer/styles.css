@@ -47,9 +47,42 @@
   zoom: var(--app-zoom, 1);
 }
 
+/* Electron's native drag map ignores DOM stacking: a covered title row can
+   still swallow clicks on a preview's close button. Exclude the entire open
+   overlay so all of its controls receive real mouse input at any UI zoom. */
+.modal__backdrop,
+.alert-dialog__backdrop,
+.craftstation-image-lightbox {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 .modal__dialog:not(.modal__dialog--cover):not(.modal__dialog--full),
 .alert-dialog__dialog:not(.alert-dialog__dialog--cover) {
   border-radius: var(--craftstation-modal-radius);
+}
+
+/* Collaboration columns follow the dialog's usable width, including UI zoom,
+   rather than the wider window behind it. Keep actions outside the scroller. */
+.craftstation-collaboration-backdrop,
+.craftstation-collaboration-backdrop > .modal__container {
+  height: calc(100dvh / var(--app-zoom, 1));
+}
+
+.craftstation-collaboration-dialog {
+  container-type: inline-size;
+  max-width: 64rem;
+  max-height: calc(100dvh / var(--app-zoom, 1) - 5rem);
+}
+
+@container (min-width: 48rem) {
+  .craftstation-collaboration-body {
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
+  }
+
+  .craftstation-collaboration-delivery {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* Icon + title on the same row for every Modal/AlertDialog header that leads

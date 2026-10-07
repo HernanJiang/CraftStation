@@ -225,6 +225,12 @@ async function runSmoke(plan) {
     if (plan.automated.includes("composer-caret")) {
       await runScenario(report, "composer-caret", () => composerCaretScenario(client));
     }
+    if (plan.automated.includes("preview-close")) {
+      await runScenario(report, "preview-close", () => previewCloseScenario(client));
+    }
+    if (plan.automated.includes("collaboration-layout")) {
+      await runScenario(report, "collaboration-layout", () => collaborationLayoutScenario(client));
+    }
     const collected = await evaluate(client, "window.__smokeErrors ?? []");
     report.errors = [...new Set([...runtimeErrors, ...collected].filter(Boolean))];
     if (report.errors.length > 0) {
@@ -1514,6 +1520,332 @@ async function composerCaretScenario(client) {
   })()`,
   );
   return { cases: results, screenshotPath };
+}
+
+async function previewCloseScenario(client) {
+  const previousZoom = await evaluate(
+    client,
+    "window.__craftstationDev.stores.sharedSettings.getState().zoomFactor",
+  );
+  const cases = [];
+  const screenshots = [];
+  await evaluate(
+    client,
+    `(async () => {
+      const react = await import('/node_modules/.vite/deps/react.js');
+      const dom = await import('/node_modules/.vite/deps/react-dom_client.js');
+      const { AppProvider } = await import('/src/renderer/components/ui/provider.tsx');
+      const { default: Markdown } = await import('/src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx');
+      const { ImageCard } = await import('/src/renderer/components/thread/ChatPane/parts/items/ImageCard.tsx');
+      const { closeImageLightbox } = await import('/src/renderer/components/composer/ImageLightbox.tsx');
+      const createElement = react.createElement ?? react.default.createElement;
+      const host = document.createElement('div');
+      host.id = 'craftstation-preview-close-smoke';
+      host.style.cssText = 'position:fixed;inset:140px 200px;z-index:40;overflow:auto;background:var(--background)';
+      document.body.append(host);
+      const root = (dom.createRoot ?? dom.default.createRoot)(host);
+      window.__previewCloseSmoke = {
+        render: kind => {
+          const text = kind === 'mermaid' ? '~~~mermaid\\nflowchart LR\\n A[开始] --> B[检查关闭按钮]\\n~~~' : '~~~text\\n关闭按钮点击检查\\n~~~';
+          const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240"><rect width="400" height="240" fill="#80b8e0"/></svg>';
+          const content = kind === 'image'
+            ? createElement(ImageCard, {source:{src:'data:image/svg+xml,' + encodeURIComponent(svg),mime:'image/svg+xml',extension:'svg',fileName:'preview.svg',alt:'预览检查',width:400,height:240}})
+            : createElement(Markdown, {text, key:kind});
+          root.render(createElement(AppProvider, {syncWindowChrome:false}, content));
+        },
+        cleanup: () => {closeImageLightbox(); root.unmount(); host.remove(); delete window.__previewCloseSmoke;}
+      };
+    })()`,
+    true,
+  );
+  try {
+    for (const zoom of [1, 1.3, 1.5]) {
+      await evaluate(
+        client,
+        `window.__craftstationDev.stores.sharedSettings.getState().setZoomFactor(${zoom})`,
+      );
+      for (const kind of ["code", "mermaid", "image"]) {
+        await evaluate(client, `window.__previewCloseSmoke.render(${JSON.stringify(kind)})`);
+        const opener =
+          kind === "image"
+            ? "#craftstation-preview-close-smoke [data-craftstation-image-card] > button"
+            : "#craftstation-preview-close-smoke .lc-md-code-header button[aria-label]";
+        const closer =
+          kind === "image" ? ".craftstation-image-lightbox__close" : ".modal__close-trigger";
+        await waitForValue(
+          () => evaluate(client, `Boolean(document.querySelector(${JSON.stringify(opener)}))`),
+          Boolean,
+          `waiting for ${kind} preview fixture`,
+        );
+        for (const fraction of [0.15, 0.5, 0.85]) {
+          await evaluate(client, `document.querySelector(${JSON.stringify(opener)}).click()`);
+          await waitForValue(
+            () => evaluate(client, `Boolean(document.querySelector(${JSON.stringify(closer)}))`),
+            Boolean,
+            `waiting for ${kind} preview`,
+          );
+          await evaluate(
+            client,
+            `(async () => {
+              await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+              const button = document.querySelector(${JSON.stringify(closer)});
+              const overlay = button.closest('.modal__backdrop') ?? button.closest('[role="dialog"]');
+              await Promise.all(overlay.getAnimations({subtree:true}).map(a => a.finished.catch(() => {})));
+            })()`,
+            true,
+          );
+          const geometry = await evaluate(
+            client,
+            `(() => {
+              const button = document.querySelector(${JSON.stringify(closer)});
+              const r = button.getBoundingClientRect();
+              // Keep corner samples inside the visible round button.
+              const points = [.25,.5,.75].flatMap(x => [.25,.5,.75].map(y => ({x:r.left+r.width*x,y:r.top+r.height*y})));
+              return {w:innerWidth,h:innerHeight,points,domReachable:points.every(p => button.contains(document.elementFromPoint(p.x,p.y))),click:{x:r.left+r.width*${fraction},y:r.top+r.height/2}};
+            })()`,
+          );
+          assert(geometry.domReachable, `${kind} close button is covered at zoom ${zoom}`);
+          if (process.platform === "win32" && fraction === 0.15) {
+            await bridgeInvoke(client, "focusWindow");
+            const result = spawnSync(
+              "powershell.exe",
+              [
+                "-NoProfile",
+                "-File",
+                join(scriptDir, "craftstation-native-hit-test.ps1"),
+                "-CdpPort",
+                String(port),
+                "-ViewportWidth",
+                String(geometry.w),
+                "-ViewportHeight",
+                String(geometry.h),
+                "-PointsJson",
+                JSON.stringify(geometry.points),
+              ],
+              { encoding: "utf8", windowsHide: true, timeout: 15_000 },
+            );
+            assert(
+              result.status === 0,
+              `native preview hit test failed: ${result.stderr || result.error}`,
+            );
+            const native = JSON.parse(result.stdout);
+            assert(
+              native.samples.every((p) => p.hit === 1),
+              `${kind} close button hits native drag/frame region at zoom ${zoom}: ${JSON.stringify(native.samples)}`,
+            );
+          }
+          if (zoom === 1.3 && fraction === 0.15) {
+            const path = join(outDir, `smoke-preview-close-${kind}.png`);
+            await screenshot(client, path);
+            screenshots.push(path);
+          }
+          await client.send("Input.dispatchMouseEvent", {
+            type: "mousePressed",
+            button: "left",
+            clickCount: 1,
+            ...geometry.click,
+          });
+          await client.send("Input.dispatchMouseEvent", {
+            type: "mouseReleased",
+            button: "left",
+            clickCount: 1,
+            ...geometry.click,
+          });
+          await waitForValue(
+            () => evaluate(client, `!document.querySelector(${JSON.stringify(closer)})`),
+            Boolean,
+            `${kind} preview did not close at zoom ${zoom}, fraction ${fraction}`,
+          );
+        }
+        cases.push({
+          kind,
+          zoom,
+          domSamples: 9,
+          clicks: 3,
+          nativeHitTest: process.platform === "win32" ? "pass" : "not-applicable",
+        });
+      }
+    }
+  } finally {
+    await evaluate(
+      client,
+      `window.__previewCloseSmoke?.cleanup(); window.__craftstationDev.stores.sharedSettings.getState().setZoomFactor(${JSON.stringify(previousZoom)})`,
+    );
+  }
+  return { cases, screenshots };
+}
+
+async function collaborationLayoutScenario(client) {
+  const previousZoom = await evaluate(
+    client,
+    "window.__craftstationDev.stores.sharedSettings.getState().zoomFactor",
+  );
+  const cases = [];
+  await evaluate(
+    client,
+    `(async () => {
+    const react = await import('/node_modules/.vite/deps/react.js');
+    const dom = await import('/node_modules/.vite/deps/react-dom_client.js');
+    const { AppProvider } = await import('/src/renderer/components/ui/provider.tsx');
+    const { ThreadCollaborationDialog } = await import('/src/renderer/components/thread/ThreadCollaborationDialog.tsx');
+    const { registerRemoteProcedureHost } = await import('/src/renderer/remoteProcedureRouter.ts');
+    const { remoteOwner, remoteThreadId } = await import('/src/renderer/state/remoteProjection.ts');
+    const { useRemoteServersStore } = await import('/src/renderer/state/remoteServersStore.ts');
+    const app = window.__craftstationDev.stores.app;
+    const originalHost = {
+      resolveThreadOwner: id => remoteOwner(app.getState().threads.find(t => t.id === id)),
+      resolveProjectOwner: id => remoteOwner(app.getState().projects.find(p => p.id === id)),
+      withClient: (id, invoke) => useRemoteServersStore.getState().withClient(id, invoke)
+    };
+    const desktopId = 'collaboration-layout-fixture';
+    const sourceThreadId = remoteThreadId(desktopId, 'source');
+    const provenance = id => ({threadId:id,projectId:'fixture-project',title:'讨论架构与实现方案 ' + id,modelId:'gpt-6.1-sol',harnessId:'codex',agentMcpSupported:false,worktreePath:'D:\\Work\\CraftStation'});
+    const targets = Array.from({length:5}, (_,i) => ({threadId:'target-'+i,projectId:'fixture-project',title:'讨论架构与实现方案 '+i,status:'idle',attention:'none',provenance:provenance('target-'+i),sameWorktree:true,available:true,sameComposition:false}));
+    const exchanges = Array.from({length:6}, (_,i) => ({id:'exchange-'+i,linkId:'link-'+i,projectId:'fixture-project',sourceThreadId:'source',targetThreadId:'target-'+i,sequence:i+1,deliveryMode:'after-current-turn',status:'replied',sourceProvenance:provenance('source'),targetProvenance:provenance('target-'+i),requestItemId:'request-'+i,deliveryBaselineTurnIndex:null,deliveryAnchorItemId:null,replyTurnIndex:null,replyAnchorItemId:null,replyExcerpt:'需要检查布局、输入区与底部操作按钮。长记录应在弹窗内部滚动，输入区保持足够的宽度。'.repeat(5),causalParentExchangeId:null,hopDepth:0,error:null,createdAt:'2026-10-07T00:00:00Z',updatedAt:'2026-10-07T00:00:00Z',deliveredAt:null,repliedAt:null}));
+    // Use the public remote routing seam with an in-memory client. No request
+    // reaches a provider or another thread; restore the normal store host below.
+    registerRemoteProcedureHost({
+      ...originalHost,
+      resolveThreadOwner: id => id === sourceThreadId ? {desktopId,remoteId:'source'} : originalHost.resolveThreadOwner(id),
+      withClient: (id, invoke) => id === desktopId ? invoke({listThreadCollaborationTargets:async () => targets,listThreadExchanges:async () => exchanges}) : originalHost.withClient(id, invoke)
+    });
+    const host = document.createElement('div'); document.body.append(host);
+    const root = (dom.createRoot ?? dom.default.createRoot)(host);
+    const h = react.createElement ?? react.default.createElement;
+    window.__collaborationLayoutSmoke = {cleanup: () => {root.unmount();host.remove();registerRemoteProcedureHost(originalHost);delete window.__collaborationLayoutSmoke;}};
+    root.render(h(AppProvider,{syncWindowChrome:false},h(ThreadCollaborationDialog,{isOpen:true,sourceThreadId,onClose:()=>root.render(null)})));
+  })()`,
+    true,
+  );
+  try {
+    await waitForValue(
+      () =>
+        evaluate(
+          client,
+          "document.querySelectorAll('.craftstation-collaboration-dialog [role=option]').length",
+        ),
+      (n) => n === 5,
+      "waiting for collaboration fixture targets",
+    );
+    await evaluate(
+      client,
+      "document.querySelector('.craftstation-collaboration-form input[type=checkbox]').click()",
+    );
+    await waitForValue(
+      () =>
+        evaluate(
+          client,
+          "document.querySelectorAll('.craftstation-collaboration-form textarea').length",
+        ),
+      (n) => n === 2,
+      "waiting for the portable context field",
+    );
+    for (const [width, height, zoom] of [
+      [1460, 900, 1],
+      [1460, 900, 1.3],
+      [1460, 900, 1.5],
+      [900, 700, 1.3],
+      [560, 720, 1.3],
+    ]) {
+      await client.send("Emulation.setDeviceMetricsOverride", {
+        width,
+        height,
+        deviceScaleFactor: 1,
+        mobile: false,
+      });
+      await evaluate(
+        client,
+        `window.__craftstationDev.stores.sharedSettings.getState().setZoomFactor(${zoom})`,
+      );
+      await evaluate(
+        client,
+        `new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))`,
+        true,
+      );
+      const geometry = await evaluate(
+        client,
+        `(() => {
+        const dialog = document.querySelector('.craftstation-collaboration-dialog');
+        const body = dialog.querySelector('.craftstation-collaboration-body');
+        const form = dialog.querySelector('.craftstation-collaboration-form');
+        const request = dialog.querySelector('textarea[name="thread-collaboration-request"]') ?? dialog.querySelector('textarea');
+        const records = dialog.querySelector('section');
+        const footer = dialog.querySelector('.modal__footer');
+        const box = e => {const r=e.getBoundingClientRect();return {left:r.left,top:r.top,right:r.right,bottom:r.bottom,width:r.width,height:r.height};};
+        return {dialog:box(dialog),form:box(form),request:box(request),records:box(records),footer:box(footer),bodyWidth:body.clientWidth,bodyScrollWidth:body.scrollWidth,bodyHeight:body.clientHeight,bodyScrollHeight:body.scrollHeight,columns:getComputedStyle(body).gridTemplateColumns.split(' ').length};
+      })()`,
+      );
+      assert(
+        geometry.dialog.left >= -1 &&
+          geometry.dialog.right <= width + 1 &&
+          geometry.dialog.top >= -1 &&
+          geometry.dialog.bottom <= height + 1,
+        `collaboration dialog exceeds viewport: ${JSON.stringify({ width, height, zoom, geometry })}`,
+      );
+      assert(
+        geometry.footer.bottom <= height + 1 && geometry.footer.height > 20,
+        "collaboration actions are clipped",
+      );
+      assert(
+        geometry.request.width >= geometry.form.width - 4,
+        "request does not fill its form column",
+      );
+      assert(
+        geometry.bodyScrollWidth <= geometry.bodyWidth + 1,
+        "collaboration body scrolls horizontally",
+      );
+      const expectedColumns = width / zoom >= 900 ? 2 : 1;
+      assert(
+        geometry.columns === expectedColumns,
+        `collaboration columns do not follow usable dialog width at ${width}, zoom ${zoom}`,
+      );
+      if (expectedColumns === 2)
+        assert(geometry.form.width >= 420, "collaboration input column is too narrow");
+      assert(
+        geometry.bodyScrollHeight > geometry.bodyHeight,
+        "long collaboration content does not scroll inside the dialog",
+      );
+      await evaluate(
+        client,
+        "document.querySelector('.craftstation-collaboration-body').scrollTop = 10000",
+      );
+      const footerVisible = await evaluate(
+        client,
+        "(() => {const f=document.querySelector('.craftstation-collaboration-dialog .modal__footer');const r=f.getBoundingClientRect();return f.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2));})()",
+      );
+      assert(footerVisible, "collaboration content covers the footer after scrolling");
+      await evaluate(
+        client,
+        "document.querySelector('.craftstation-collaboration-body').scrollTop = 0",
+      );
+      const path = join(outDir, `smoke-collaboration-${width}-${zoom}.png`);
+      await screenshot(client, path);
+      cases.push({
+        width,
+        height,
+        zoom,
+        columns: geometry.columns,
+        inputWidth: Math.round(geometry.request.width),
+        screenshot: path,
+      });
+    }
+    await evaluate(
+      client,
+      "document.querySelector('.craftstation-collaboration-dialog .modal__close-trigger').click()",
+    );
+    await waitForValue(
+      () => evaluate(client, "!document.querySelector('.craftstation-collaboration-dialog')"),
+      Boolean,
+      "collaboration close button did not close the dialog",
+    );
+  } finally {
+    await evaluate(
+      client,
+      `window.__collaborationLayoutSmoke?.cleanup();window.__craftstationDev.stores.sharedSettings.getState().setZoomFactor(${JSON.stringify(previousZoom)})`,
+    );
+    await client.send("Emulation.clearDeviceMetricsOverride");
+  }
+  return { cases };
 }
 
 async function browserScenario(client) {

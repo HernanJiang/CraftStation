@@ -46,6 +46,23 @@ export const functionalAreas = [
     manual: ["provider-live", "runtime-requests"],
   },
   {
+    id: "preview-overlays",
+    title: "Expanded code, Mermaid, and image preview mouse targets",
+    patterns: [
+      /^src\/renderer\/styles\.css$/,
+      /(?:ItemMarkdownInner|ImageLightbox|ComposerExpandDialog)\.tsx$/,
+    ],
+    automated: ["preview-close"],
+    manual: [],
+  },
+  {
+    id: "thread-collaboration-layout",
+    title: "Cross-thread dialogue layout and scrolling",
+    patterns: [/ThreadCollaborationDialog\.tsx$/, /^src\/renderer\/styles\.css$/],
+    automated: ["collaboration-layout"],
+    manual: [],
+  },
+  {
     id: "terminal-pty",
     title: "Terminal presentation and PTY lifecycle",
     patterns: [/terminal/i, /pty/i, /osc/i],
@@ -201,7 +218,7 @@ export const manualGates = {
 
 export function isProductionFile(file) {
   if (!productionRoots.some((root) => file.startsWith(root))) return false;
-  if (!/\.(?:[cm]?[jt]sx?)$/.test(file)) return false;
+  if (!/\.(?:[cm]?[jt]sx?|css)$/.test(file)) return false;
   return !/(?:^|\/)(?:__tests__|fixtures)(?:\/|$)|\.(?:test|spec)\.[cm]?[jt]sx?$/.test(file);
 }
 
