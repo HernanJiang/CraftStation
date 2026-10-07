@@ -1,6 +1,6 @@
 import type { JsonRpcNotification } from "./types";
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
-import { createCodexTokenUsageEvent } from "@/supervisor/agents/codex/canonicalMapping/usage";
+import { createCodexTokenUsageEvent } from "./tokenUsage";
 function pushNativeDelta(
   events: RuntimeEvent[],
   context: EventMappingContext,

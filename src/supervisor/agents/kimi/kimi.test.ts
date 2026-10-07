@@ -43,6 +43,7 @@ describe("createKimiAdapter shape", () => {
       binary: "sh",
       args: ["-c", "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"],
       strategy: "installer",
+      timeoutMs: 30 * 60 * 1000,
     });
     expect(
       resolveSharedUpdateCommand({
@@ -60,6 +61,7 @@ describe("createKimiAdapter shape", () => {
         "irm https://code.kimi.com/kimi-code/install.ps1 | iex",
       ],
       strategy: "installer",
+      timeoutMs: 30 * 60 * 1000,
     });
   });
 

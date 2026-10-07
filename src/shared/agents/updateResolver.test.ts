@@ -80,6 +80,7 @@ describe("resolveSharedUpdateCommand", () => {
       binary: "pnpm",
       args: ["add", "-g", "@openai/codex@latest"],
       strategy: "pnpm-global",
+      timeoutMs: 30 * 60 * 1000,
     });
   });
 
@@ -95,6 +96,7 @@ describe("resolveSharedUpdateCommand", () => {
         binary: "sh",
         args: ["-c", "curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash"],
         strategy: "installer",
+        timeoutMs: 30 * 60 * 1000,
       });
     }
   });
@@ -116,6 +118,7 @@ describe("resolveSharedUpdateCommand", () => {
         "irm https://code.kimi.com/kimi-code/install.ps1 | iex",
       ],
       strategy: "installer",
+      timeoutMs: 30 * 60 * 1000,
     });
   });
 
@@ -131,6 +134,7 @@ describe("resolveSharedUpdateCommand", () => {
       binary: "pnpm",
       args: ["add", "-g", "@moonshot-ai/kimi-code@latest"],
       strategy: "pnpm-global",
+      timeoutMs: 30 * 60 * 1000,
     });
   });
 
@@ -155,6 +159,7 @@ describe("resolveSharedUpdateCommand", () => {
       binary: "pnpm",
       args: ["add", "-g", "@google/gemini-cli@latest"],
       strategy: "pnpm-global",
+      timeoutMs: 30 * 60 * 1000,
     });
   });
 
@@ -169,6 +174,7 @@ describe("resolveSharedUpdateCommand", () => {
       binary: "bun",
       args: ["i", "-g", "@google/gemini-cli@latest"],
       strategy: "bun-global",
+      timeoutMs: 30 * 60 * 1000,
     });
   });
 
@@ -183,6 +189,7 @@ describe("resolveSharedUpdateCommand", () => {
       binary: "npm",
       args: ["install", "-g", "@google/gemini-cli@latest"],
       strategy: "npm-global",
+      timeoutMs: 30 * 60 * 1000,
     });
   });
 
@@ -237,6 +244,7 @@ describe("resolveSharedUpdateCommand", () => {
       binary: "npm",
       args: ["install", "-g", "@google/gemini-cli@latest"],
       strategy: "npm-global",
+      timeoutMs: 30 * 60 * 1000,
     });
   });
 

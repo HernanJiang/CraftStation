@@ -648,6 +648,7 @@ describe("ThreadSessionManager start guards", () => {
       status: "inactive",
       attention: "none",
       canResumeWithConfig: false,
+      errorMessage: "",
       forceCloseActiveTurn: true,
     });
   });

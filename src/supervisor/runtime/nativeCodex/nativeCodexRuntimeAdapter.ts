@@ -27,7 +27,7 @@ import {
   type PromptSegment,
   type ResolvedMcpServer,
 } from "@/shared/contracts";
-import { codexRateLimitsToQuotaWindows } from "@/supervisor/agents/codex/acp";
+import { codexRateLimitsToQuotaWindows } from "@/shared/agents/codexQuotaWindows";
 import type { RuntimeEvent } from "@/shared/contracts/runtimeEvent";
 import { buildCodexMcp } from "@/supervisor/agents/userMcp";
 import { explainNativeNetworkError } from "@/supervisor/agents/nativeNetworkError";

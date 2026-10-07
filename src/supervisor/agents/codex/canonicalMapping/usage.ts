@@ -8,8 +8,12 @@ import {
   readNonNegativeInteger,
   usageFromProviderRecord,
 } from "../../contextUsage";
-import type { ThreadTokenUsage } from "../protocol";
 import { readRecord } from "./readers";
+
+// Canonical implementation lives with the native Codex runtime so the new
+// path stays inside its module boundary; legacy callers keep importing it
+// through this module.
+export { createCodexTokenUsageEvent } from "@/supervisor/runtime/nativeCodex/tokenUsage";
 
 export function createCodexContextUsageEvent(
   threadId: string,
@@ -98,53 +102,6 @@ function readTotalTokens(total: Record<string, unknown> | undefined): number | u
   ].map(readNonNegativeInteger);
   if (!components.some((value) => value !== undefined)) return undefined;
   return components.reduce<number>((sum, value) => sum + (value ?? 0), 0);
-}
-
-export function createCodexTokenUsageEvent(
-  threadId: string,
-  params: Record<string, unknown> | undefined,
-): RuntimeEvent | undefined {
-  const currentTokenUsageRecord = readRecord(params?.tokenUsage);
-  const currentLastUsage = readRecord(currentTokenUsageRecord?.last);
-  if (currentTokenUsageRecord && currentLastUsage) {
-    const currentTokenUsage = currentTokenUsageRecord as ThreadTokenUsage;
-    return createCodexUsageEvent(threadId, currentLastUsage, {
-      maxTokens: readNonNegativeInteger(currentTokenUsage.modelContextWindow),
-    });
-  }
-
-  const legacyTokenUsage = readRecord(params?.token_usage) ?? currentTokenUsageRecord;
-  if (legacyTokenUsage) {
-    const usage =
-      readRecord(legacyTokenUsage.last) ??
-      readRecord(legacyTokenUsage.lastTokenUsage) ??
-      readRecord(legacyTokenUsage.last_token_usage) ??
-      readRecord(legacyTokenUsage.total) ??
-      readRecord(legacyTokenUsage.totalTokenUsage) ??
-      readRecord(legacyTokenUsage.total_token_usage);
-    if (!usage) return undefined;
-    return createCodexUsageEvent(threadId, usage, {
-      maxTokens:
-        readNonNegativeInteger(legacyTokenUsage.modelContextWindow) ??
-        readNonNegativeInteger(legacyTokenUsage.model_context_window),
-    });
-  }
-
-  const info = params?.info;
-  if (!info || typeof info !== "object") return undefined;
-  const obj = info as Record<string, unknown>;
-  const usage =
-    readRecord(obj.last_token_usage) ??
-    readRecord(obj.lastTokenUsage) ??
-    readRecord(obj.total_token_usage) ??
-    readRecord(obj.totalTokenUsage);
-  if (!usage) return undefined;
-
-  return createCodexUsageEvent(threadId, usage, {
-    maxTokens:
-      readNonNegativeInteger(obj.model_context_window) ??
-      readNonNegativeInteger(obj.modelContextWindow),
-  });
 }
 
 function createCodexUsageEvent(
