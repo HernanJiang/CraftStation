@@ -42,7 +42,7 @@ export const functionalAreas = [
     id: "threads-chat",
     title: "Thread draft, composer, chat, history, and runtime requests",
     patterns: [/thread/i, /ChatPane/, /composer/i, /runtimeEvent/i, /session/i],
-    automated: ["baseline", "thread-search"],
+    automated: ["baseline", "thread-search", "composer-caret"],
     manual: ["provider-live", "runtime-requests"],
   },
   {

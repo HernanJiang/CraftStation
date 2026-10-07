@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "1.8.2",
+      "date": "2026-10-07",
+      "title": "Steadier formula editing",
+      "summary": "You can keep typing after pasting text with multiple formulas without the cursor jumping back into the middle of your message.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "After you paste multiple inline or display formulas, the next character stays at the paste position instead of jumping before a later formula."
+        }
+      ]
+    },
+    {
       "version": "1.8.1",
       "date": "2026-10-07",
       "title": "Roomier diagram previews",

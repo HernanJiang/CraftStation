@@ -222,6 +222,9 @@ async function runSmoke(plan) {
     if (mode === "mock" && plan.manual.length > 0) {
       await runMockIntegrations(report, client, plan.manual);
     }
+    if (plan.automated.includes("composer-caret")) {
+      await runScenario(report, "composer-caret", () => composerCaretScenario(client));
+    }
     const collected = await evaluate(client, "window.__smokeErrors ?? []");
     report.errors = [...new Set([...runtimeErrors, ...collected].filter(Boolean))];
     if (report.errors.length > 0) {
@@ -1438,6 +1441,79 @@ async function threadSearchScenario(client) {
     "window.__craftstationDev.stores.panel.setState({ threadSearchOpen: false })",
   );
   return { ...state, screenshotPath };
+}
+
+async function composerCaretScenario(client) {
+  await evaluate(
+    client,
+    'window.__craftstationDev.stores.app.getState().openDraft("smoke-project")',
+  );
+  await waitForValue(
+    () =>
+      evaluate(
+        client,
+        'Boolean(document.querySelector(".craftstation-mention-input[contenteditable=true]"))',
+      ),
+    Boolean,
+    "composer caret fixture",
+  );
+  const results = [];
+  for (const text of ["$x$ $y$", "before $x$ then $y^2$ after", "before $x$ then $$y^2$$ after"]) {
+    await evaluate(
+      client,
+      `(() => {
+      const editor = document.querySelector('.craftstation-mention-input[contenteditable="true"]');
+      editor.replaceChildren();
+      editor.focus();
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      const clipboardData = new DataTransfer();
+      clipboardData.setData("text/plain", ${JSON.stringify(text)});
+      editor.dispatchEvent(new ClipboardEvent("paste", { clipboardData, bubbles: true, cancelable: true }));
+    })()`,
+    );
+    // Native Chromium editing must follow the paste. DOM Range checks alone
+    // miss stale browser selection state after earlier formula nodes change.
+    await client.send("Input.insertText", { text: "!" });
+    const state = await evaluate(
+      client,
+      `(() => {
+      const editor = document.querySelector('.craftstation-mention-input[contenteditable="true"]');
+      const selection = window.getSelection();
+      const remainder = document.createRange();
+      remainder.selectNodeContents(editor);
+      remainder.setStart(selection.anchorNode, selection.anchorOffset);
+      const source = [...editor.childNodes].map(node => {
+        if (node.nodeType === Node.TEXT_NODE) return node.textContent;
+        const delimiter = node.dataset.mathDisplay === "true" ? "$$" : "$";
+        return delimiter + node.dataset.mathTex + delimiter;
+      }).join("");
+      return { source, remaining: remainder.toString(), chips: editor.querySelectorAll("[data-math-tex]").length };
+    })()`,
+    );
+    assert(
+      state.source === `${text}!`,
+      `typing after pasted formulas inserted at the wrong position: ${JSON.stringify(state.source)}`,
+    );
+    assert(state.remaining === "", "composer caret jumped before the final formula");
+    assert(state.chips === 2, "composer formula fixture did not render both formulas");
+    results.push({ text, status: "pass" });
+  }
+  const screenshotPath = join(outDir, "smoke-composer-caret.png");
+  await screenshot(client, screenshotPath);
+  await evaluate(
+    client,
+    `(() => {
+    const editor = document.querySelector('.craftstation-mention-input[contenteditable="true"]');
+    editor.replaceChildren();
+    editor.dispatchEvent(new InputEvent("input", { bubbles: true }));
+  })()`,
+  );
+  return { cases: results, screenshotPath };
 }
 
 async function browserScenario(client) {

@@ -111,7 +111,8 @@ function editableTextNodes(root: HTMLElement): Text[] {
   return nodes;
 }
 
-function transformPass(root: HTMLElement, display: boolean): void {
+function transformPass(root: HTMLElement, display: boolean): boolean {
+  let changed = false;
   const sel = window.getSelection();
   const caretNode = sel?.isCollapsed === true ? sel.anchorNode : null;
   const caretOffset = sel?.anchorOffset ?? -1;
@@ -137,6 +138,7 @@ function transformPass(root: HTMLElement, display: boolean): void {
       const mid = node.splitText(start);
       const chip = createMathChipElement(tex, display);
       mid.replaceWith(chip);
+      changed = true;
       if (caretAtMatchEnd && sel) {
         const range = document.createRange();
         range.setStartAfter(chip);
@@ -154,10 +156,20 @@ function transformPass(root: HTMLElement, display: boolean): void {
       }
     }
   }
+  return changed;
 }
 
 /** Scan `root`'s editable text and replace complete TeX spans with chips. */
 export function transformMathChips(root: HTMLElement): void {
-  transformPass(root, true);
-  transformPass(root, false);
+  const displayChanged = transformPass(root, true);
+  const inlineChanged = transformPass(root, false);
+  if (!displayChanged && !inlineChanged) return;
+  const sel = window.getSelection();
+  if (sel?.isCollapsed && sel.rangeCount > 0 && root.contains(sel.anchorNode)) {
+    // Earlier replacements update the live Range but leave Chromium's native
+    // editing position stale. Resync after both passes, once DOM edits finish.
+    const range = sel.getRangeAt(0).cloneRange();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }
 }

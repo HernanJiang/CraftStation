@@ -534,6 +534,38 @@ describe("math chips", () => {
     onSubmit: vi.fn<(segments: PromptSegment[]) => void>(),
   };
 
+  it.each([
+    ["inline formula", "before $x^2$ after"],
+    ["multiple formulas", "before $x$ then $y^2$ after"],
+    ["mixed display and inline formulas", "before $x$ then $$y^2$$ after"],
+  ])("keeps the caret after pasted %s", (_label, pastedText) => {
+    const ref = createRef<MentionInputHandle>();
+    render(createElement(MentionInput, { ref, ...baseProps }));
+    const editor = screen.getByRole("textbox");
+    const prefix = document.createTextNode("note ");
+    editor.appendChild(prefix);
+    const range = document.createRange();
+    range.setStart(prefix, prefix.length);
+    range.collapse(true);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    fireEvent.paste(editor, {
+      clipboardData: {
+        files: [],
+        items: [],
+        getData: (type: string) => (type === "text/plain" ? pastedText : ""),
+      },
+    });
+
+    expect(ref.current?.serialize()).toBe(`note ${pastedText}`);
+    const remainder = document.createRange();
+    remainder.selectNodeContents(editor);
+    remainder.setStart(selection.anchorNode!, selection.anchorOffset);
+    expect(remainder.toString()).toBe("");
+  });
+
   it("renders a typed $...$ formula as a chip and serializes back to TeX", () => {
     const ref = createRef<MentionInputHandle>();
     render(createElement(MentionInput, { ref, ...baseProps }));
