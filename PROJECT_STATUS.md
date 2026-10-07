@@ -1,3 +1,11 @@
+## Mermaid 放大预览修复 + v1.8.1 发布（2026-10-07）
+
+- **原因**：普通 `lg` 弹窗固定宽度为 512px，可视区域仅 470px，小于聊天卡片的 896px；放大视图还沿用了聊天内 512px 高度上限与滚动区域。
+- **修复**：图形和代码预览使用接近全窗口的 `cover` 弹窗；Mermaid 放大视图移除聊天高度限制，保留自然图形尺寸和一层滚动区域，提供关闭按钮。修复提交 `d93bda66`。
+- **验证**：类型检查、普通与类型感知 lint、56 项 Markdown 测试及 16 项 changelog 校验通过；隔离 Electron 验证宽图、高图、小图及关闭操作，宽图可视宽度 470px → 1379px，高图可视高度 512px → 804px，文字未缩小；相关聊天冒烟和确定性 mock 门禁通过，控制台/运行时错误为 0。
+- **发布**：`main` 与 `v1.8.1` tag 已推送；[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.8.1) 已正式发布 Windows x64 NSIS、blockmap、`latest.yml` 与便携版，使用本版双语发布说明。四个远端资产大小与 SHA-256 均匹配本地，更新清单的 SHA-512 与 NSIS 匹配；安装包和便携版的 renderer 均已检查包含修复。
+- **本地清理限制**：自动批准审核拒绝删除 `release/win-unpacked`、`release/builder-debug.yml` 与旧便携包 `CraftStation-Portable-1.7.19-x64.exe`（返回 `blocked by policy`），均保留；当前便携版为 1.7.19、1.8.0、1.8.1 三份。
+
 ## Antigravity/Gemini 提前截断修复（2026-10-01）
 
 - **现象（用户反馈）**：Gemini 回复在「三、投递前建议检查的最后两件小事 1. *」处戛然而止，看似提前截断。
