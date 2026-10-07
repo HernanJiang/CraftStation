@@ -119,6 +119,13 @@ export interface SessionRuntime {
   mcpLaunchSnapshot: McpLaunchSnapshot;
   /** Provider-native plugin packages that replace matching CraftStation contributions. */
   nativePlugins?: readonly AgentNativePlugin[];
+  /**
+   * Skill segments invoked so far on this thread, pinned so every later
+   * structured turn re-inlines their SKILL.md (Codex-style permanence for
+   * providers that compact history). Keyed by normalized SKILL.md path;
+   * carried across session restarts via `SpawnThreadInput`.
+   */
+  stickySkillSegments?: Map<string, PromptSegment>;
   sessionRef?: SessionRef;
   slashCommands?: AgentSlashCommand[];
   status: ThreadStatus;

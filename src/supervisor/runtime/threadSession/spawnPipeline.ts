@@ -89,6 +89,7 @@ import {
   resolveLaunchSpec,
   mergeSpawnEnv,
 } from "../../agents/base";
+import { pinSkillSegments } from "../../skills/skillPromptInjection";
 import { captureSupervisorException } from "../../diagnostics/sentry";
 import { wrapHeaderBearingHttpMcpAsStdio } from "../../mcp/McpToolFilterService";
 import { ensureThreadWorkspace } from "../threadWorkspace";
@@ -183,6 +184,8 @@ export interface SpawnThreadInput {
    */
   poolAccountId?: string;
   poolProvider?: string;
+  /** Pinned skill segments carried over on structured restart (see SessionRuntime). */
+  stickySkillSegments?: Map<string, PromptSegment>;
 }
 
 /**
@@ -737,6 +740,9 @@ export class SpawnPipeline {
         launchConfig,
         nativePlugins,
       });
+      // Pin launch-turn skills so every later turn re-inlines their SKILL.md.
+      const pinnedSkills = pinSkillSegments(undefined, effectiveSegments);
+      if (pinnedSkills) session.stickySkillSegments = pinnedSkills.sticky;
       if (
         !startInterrupted &&
         !payload.sessionRef &&
@@ -1147,6 +1153,9 @@ export class SpawnPipeline {
             }
           : {}),
         ...(session.nativePlugins ? { nativePlugins: session.nativePlugins } : {}),
+        ...(session.stickySkillSegments?.size
+          ? { stickySkillSegments: session.stickySkillSegments }
+          : {}),
         ...(session.presentationMode ? { presentationMode: session.presentationMode } : {}),
       });
       if (prompt.trim().length > 0 && structuredSession.startTurn) {
@@ -1286,6 +1295,9 @@ export class SpawnPipeline {
       mcpLaunchSnapshot,
       launchConfig,
       ...(session.nativePlugins ? { nativePlugins: session.nativePlugins } : {}),
+      ...(session.stickySkillSegments?.size
+        ? { stickySkillSegments: session.stickySkillSegments }
+        : {}),
       ...(session.presentationMode ? { presentationMode: session.presentationMode } : {}),
     });
   }
@@ -1426,6 +1438,9 @@ export class SpawnPipeline {
             ? { poolAccountId: poolAccount.accountId, poolProvider: poolAccount.provider }
             : {}),
           ...(session.nativePlugins ? { nativePlugins: session.nativePlugins } : {}),
+          ...(session.stickySkillSegments?.size
+            ? { stickySkillSegments: session.stickySkillSegments }
+            : {}),
           ...(session.presentationMode ? { presentationMode: session.presentationMode } : {}),
         });
       } catch (error) {
@@ -1548,6 +1563,7 @@ export class SpawnPipeline {
       config: input.config,
       mcpLaunchSnapshot,
       ...(input.nativePlugins ? { nativePlugins: input.nativePlugins } : {}),
+      ...(input.stickySkillSegments ? { stickySkillSegments: input.stickySkillSegments } : {}),
       launchConfig:
         input.launchConfig ??
         workspaceLaunchConfig(

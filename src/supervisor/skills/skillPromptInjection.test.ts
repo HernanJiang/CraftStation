@@ -4,6 +4,7 @@ import {
   MAX_INLINE_SKILL_CONTENT_CHARS,
   buildInlineSkillInstructions,
   isPathUnderAny,
+  pinSkillSegments,
   selectSkillSegmentsForInjection,
 } from "./skillPromptInjection";
 
@@ -55,6 +56,40 @@ describe("selectSkillSegmentsForInjection", () => {
     ];
     const selected = selectSkillSegmentsForInjection(segments, ["/home/dev/.claude/skills"]);
     expect(selected.map((segment) => segment.name)).toEqual(["portable"]);
+  });
+});
+
+describe("pinSkillSegments", () => {
+  it("returns undefined when neither the turn nor the session has skills", () => {
+    expect(pinSkillSegments(undefined, undefined)).toBeUndefined();
+    expect(pinSkillSegments(undefined, [{ kind: "text", content: "hi" }])).toBeUndefined();
+  });
+
+  it("accumulates invoked skills and re-pins them on later turns", () => {
+    const names = (pinned: PromptSegment[] | undefined) =>
+      (pinned ?? []).flatMap((s) => (s.kind === "skill" ? [s.name] : []));
+    const first = skillSegment("review", "/skills/review/SKILL.md");
+    const pinned = pinSkillSegments(undefined, [first]);
+    expect(names(pinned?.pinned)).toEqual(["review"]);
+
+    // A later turn with no skill segment still re-sends the pinned skill.
+    const replay = pinSkillSegments(pinned?.sticky, [{ kind: "text", content: "next" }]);
+    expect(names(replay?.pinned)).toEqual(["review"]);
+
+    // A second skill joins the pinned set alongside the first.
+    const second = skillSegment("lint", "/skills/lint/SKILL.md");
+    const merged = pinSkillSegments(replay?.sticky, [second]);
+    expect(names(merged?.pinned)).toEqual(["review", "lint"]);
+  });
+
+  it("deduplicates by normalized path and ignores pathless (provider-native) segments", () => {
+    const skill = skillSegment("review", "C:\\skills\\review\\SKILL.md");
+    const sameSkill = skillSegment("review", "c:/skills/review/SKILL.md");
+    const native = skillSegment("native", "");
+    delete (native as { path?: string }).path;
+    const pinned = pinSkillSegments(undefined, [skill, sameSkill, native]);
+    expect(pinned?.pinned).toHaveLength(1);
+    expect(pinned?.pinned[0]).toMatchObject({ name: "review" });
   });
 });
 

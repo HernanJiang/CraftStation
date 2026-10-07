@@ -90,6 +90,7 @@ import {
 import { StructuredTurnQueue } from "./threadSession/structuredTurnQueue";
 import { TurnRetryCoordinator } from "./threadSession/turnRetryCoordinator";
 import { buildHistoryPreface, ThreadTranscriptTracker } from "./threadSession/threadTranscript";
+import { pinSkillSegments } from "../skills/skillPromptInjection";
 import { StructuredFailureReporter } from "./threadSession/structuredFailureReporter";
 import { readSupervisorSharedSettings } from "./supervisorSharedSettings";
 
@@ -1107,6 +1108,11 @@ export class ThreadSessionManager {
         })
       : undefined;
     const effectiveSegments = await this.filterPluginSkillSegments(session, wslSegments);
+    // Codex-style permanence: once invoked, a skill stays pinned on the
+    // session so every later structured turn re-inlines its SKILL.md —
+    // providers that compact earlier user messages cannot drop it.
+    const pinnedSkills = pinSkillSegments(session.stickySkillSegments, effectiveSegments);
+    if (pinnedSkills) session.stickySkillSegments = pinnedSkills.sticky;
     const prompt = this.formatSegmentsForPrompt(session, effectiveSegments, payload.prompt);
 
     const turnConfig =
@@ -1123,7 +1129,7 @@ export class ThreadSessionManager {
 
     session.config = effectiveConfig;
     const inlineInstructions = usesStructuredFlow
-      ? await this.resolveSkillTurnInjection(session, effectiveSegments)
+      ? await this.resolveSkillTurnInjection(session, pinnedSkills?.pinned ?? effectiveSegments)
       : undefined;
     const turn: QueuedStructuredTurn = {
       prompt,

@@ -75,6 +75,27 @@ export function buildSkillPathHintText(name: string, skillFilePath: string): str
 }
 
 /**
+ * Pin invoked skills on the session: once a path-bearing skill segment has
+ * been seen, it stays pinned so every later turn re-inlines its SKILL.md.
+ * Codex gets this permanence from append-only context items; providers that
+ * compact or rewrite earlier user messages (e.g. Antigravity) would
+ * otherwise drop the one-shot inline block and "forget" the skill. Pathless
+ * segments are provider-native and never need pinning.
+ */
+export function pinSkillSegments(
+  sticky: Map<string, PromptSegment> | undefined,
+  segments: readonly PromptSegment[] | undefined,
+): { sticky: Map<string, PromptSegment>; pinned: PromptSegment[] } | undefined {
+  const next = sticky ?? new Map<string, PromptSegment>();
+  for (const segment of segments ?? []) {
+    if (segment.kind !== "skill" || segment.path === undefined) continue;
+    next.set(normalizeForPrefix(segment.path), segment);
+  }
+  if (next.size === 0) return undefined;
+  return { sticky: next, pinned: [...next.values()] };
+}
+
+/**
  * Render the inline `<skill>` blocks appended to the provider payload. Skills
  * that would overflow `maxChars` are dropped (keeping what already fits)
  * rather than overflowing the provider turn budget.
