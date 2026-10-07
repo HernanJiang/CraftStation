@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "1.8.1",
+      "date": "2026-10-07",
+      "title": "Roomier diagram previews",
+      "summary": "Expanded Mermaid diagrams and code blocks now use the available window space, so opening a preview gives you a larger view instead of squeezing it into a narrow dialog.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "Expanding a Mermaid diagram now opens a nearly full-window preview without the chat card's height limit, with one scrollable canvas and a visible close button."
+        }
+      ]
+    },
+    {
       "version": "1.8.0",
       "date": "2026-10-07",
       "title": "Every language covered & skills that stick",

@@ -270,7 +270,11 @@ const MD_COMPONENTS: StreamdownComponents = {
       if (rawLang === "mermaid") {
         const text = flattenMdChildren(codeProps?.children).replace(/\r?\n$/, "");
         return (
-          <MdCodeBlockFrame text={text} lang="mermaid">
+          <MdCodeBlockFrame
+            text={text}
+            lang="mermaid"
+            expandedChildren={<MdMermaidDiagram code={text} expanded />}
+          >
             <MdMermaidDiagram code={text} />
           </MdCodeBlockFrame>
         );
@@ -448,10 +452,12 @@ function MdCodeBlockFrame({
   text,
   lang,
   children,
+  expandedChildren,
 }: {
   text: string;
   lang?: string | undefined;
   children?: ReactNode;
+  expandedChildren?: ReactNode;
 }) {
   const { t } = useLingui();
   const [expanded, setExpanded] = useState(false);
@@ -497,14 +503,15 @@ function MdCodeBlockFrame({
           if (!open) setExpanded(false);
         }}
       >
-        <Modal.Container placement="center" size="lg" scroll="inside">
-          <Modal.Dialog className="overflow-hidden">
-            <Modal.Body className="p-0">
-              <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <Modal.Container placement="center" size="cover" scroll="inside" className="sm:w-full">
+          <Modal.Dialog className="overflow-hidden p-0">
+            <Modal.CloseTrigger className="right-2 top-1" />
+            <Modal.Body className="m-0 flex min-h-0 flex-col overflow-hidden p-0">
+              <div className="flex shrink-0 items-center justify-between gap-2 px-3 py-2 pr-12">
                 {headerLabel}
                 <CopyTextButton text={text} label={t`Copy code`} />
               </div>
-              <div className="max-h-[75vh] overflow-auto">{children}</div>
+              <div className="min-h-0 flex-1 overflow-auto">{expandedChildren ?? children}</div>
             </Modal.Body>
           </Modal.Dialog>
         </Modal.Container>
@@ -537,7 +544,7 @@ function normalizeMermaidSvgSize(svg: string): string {
  * replace — so mermaid fences would otherwise fall back to raw source. On
  * render failure the source is shown like any other code block body.
  */
-function MdMermaidDiagram({ code }: { code: string }) {
+function MdMermaidDiagram({ code, expanded = false }: { code: string; expanded?: boolean }) {
   const [svg, setSvg] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
   useEffect(() => {
@@ -573,7 +580,7 @@ function MdMermaidDiagram({ code }: { code: string }) {
   if (svg) {
     return (
       <div
-        className="lc-md-mermaid max-h-[min(60vh,32rem)] overflow-auto px-[0.75em] py-[0.5em] [&_svg]:mx-auto [&_svg]:max-w-full [&_svg]:h-auto"
+        className={`lc-md-mermaid px-[0.75em] py-[0.5em] [&_svg]:mx-auto [&_svg]:max-w-full [&_svg]:h-auto${expanded ? "" : " max-h-[min(60vh,32rem)] overflow-auto"}`}
         dangerouslySetInnerHTML={{ __html: svg }}
       />
     );
