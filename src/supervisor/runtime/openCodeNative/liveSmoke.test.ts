@@ -1,14 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { mkdtempSync } from "node:fs";
+import { rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { OpenCodeNativeTransport } from "./transport";
 import { OpenCodeNativeSession } from "./session";
 import type { CraftPlan } from "@/shared/crafting";
 
 describe("OpenCode real binary live smoke", () => {
+  let workspace: string;
+  beforeAll(() => {
+    workspace = mkdtempSync(join(tmpdir(), "craftstation-opencode-live-smoke-"));
+  });
+  afterAll(async () => {
+    if (workspace) {
+      await rm(workspace, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
+    }
+  });
+
   it("probes real opencode server provider list and session lifecycle", async () => {
     const transport = new OpenCodeNativeTransport({
       projectLocation: {
         kind: "windows",
-        path: "D:/Work/CraftStation/craftstation/.worktrees/v0.8",
+        path: workspace,
       },
       readyTimeoutMs: 15_000,
     });
@@ -20,26 +34,26 @@ describe("OpenCode real binary live smoke", () => {
       expect(providers).toBeDefined();
 
       const session = await conn.client.session.create({
-        directory: "D:/Work/CraftStation/craftstation/.worktrees/v0.8",
+        directory: workspace,
         title: "craftstation-live-smoke",
       });
       const sessionId = (session.data as { id?: string } | undefined)?.id;
       expect(sessionId).toBeDefined();
 
       const sessionGet = await conn.client.session.get({
-        directory: "D:/Work/CraftStation/craftstation/.worktrees/v0.8",
+        directory: workspace,
         sessionID: sessionId!,
       });
       expect((sessionGet.data as { id?: string } | undefined)?.id).toBe(sessionId);
 
       const messages = await conn.client.session.messages({
-        directory: "D:/Work/CraftStation/craftstation/.worktrees/v0.8",
+        directory: workspace,
         sessionID: sessionId!,
       });
       expect(Array.isArray(messages.data)).toBe(true);
 
       const del = await conn.client.session.delete({
-        directory: "D:/Work/CraftStation/craftstation/.worktrees/v0.8",
+        directory: workspace,
         sessionID: sessionId!,
       });
       expect(del).toBeDefined();
@@ -52,7 +66,7 @@ describe("OpenCode real binary live smoke", () => {
     const transport = new OpenCodeNativeTransport({
       projectLocation: {
         kind: "windows",
-        path: "D:/Work/CraftStation/craftstation/.worktrees/v0.8",
+        path: workspace,
       },
       readyTimeoutMs: 15_000,
     });
@@ -84,7 +98,7 @@ describe("OpenCode real binary live smoke", () => {
           providerID: "deepseek",
           runtimeAdapterId: "native-harness:opencode",
         },
-        workspace: "D:/Work/CraftStation/craftstation/.worktrees/v0.8",
+        workspace,
         threadId: "thread:live:smoke",
         createdAt: new Date().toISOString(),
       };
@@ -94,7 +108,7 @@ describe("OpenCode real binary live smoke", () => {
         threadId: "thread:live:smoke",
         projectLocation: {
           kind: "windows",
-          path: "D:/Work/CraftStation/craftstation/.worktrees/v0.8",
+          path: workspace,
         },
         plan,
         transport,

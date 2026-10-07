@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync } from "node:fs";
+import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve as resolvePath, sep } from "node:path";
 import type { ProjectLocation } from "@/shared/contracts";
@@ -398,10 +399,10 @@ export class OpenCodeNativeTransport {
         child.kill("SIGTERM");
       }
     }
-    this.cleanupTemporaryRuntimeRoot();
+    await this.cleanupTemporaryRuntimeRoot();
   }
 
-  private cleanupTemporaryRuntimeRoot(): void {
+  private async cleanupTemporaryRuntimeRoot(): Promise<void> {
     const root = this.temporaryRuntimeRoot;
     this.temporaryRuntimeRoot = undefined;
     if (!root) return;
@@ -414,7 +415,10 @@ export class OpenCodeNativeTransport {
       childPath !== ".." &&
       !childPath.startsWith(`..${sep}`)
     ) {
-      rmSync(resolvedRoot, { recursive: true, force: true });
+      // Windows process-tree termination is asynchronous: OpenCode can still
+      // hold its SQLite files briefly after the kill request. Yield between
+      // attempts so the child can exit and release those handles.
+      await rm(resolvedRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     }
   }
 }

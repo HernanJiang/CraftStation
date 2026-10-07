@@ -15,6 +15,16 @@
           "kind": "fixed",
           "label": "Skills",
           "text": "Agents no longer forget a skill you invoked once the conversation moves on — invoked skills are pinned to the thread and re-sent with every message on every harness, including Antigravity, mid-flight steers, restarts, and crafted threads."
+        },
+        {
+          "kind": "fixed",
+          "label": "Settings",
+          "text": "Saved global instructions recover correctly when older settings contain text corrupted by a character encoding mismatch."
+        },
+        {
+          "kind": "fixed",
+          "label": "OpenCode",
+          "text": "Closing an OpenCode session on Windows no longer fails when the server briefly holds its temporary files during shutdown."
         }
       ]
     },
