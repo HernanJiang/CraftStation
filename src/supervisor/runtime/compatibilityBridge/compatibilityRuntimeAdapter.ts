@@ -317,7 +317,11 @@ class CompatibilitySession implements CraftSession {
     this.status = "busy";
     this.emit({ type: "turn.started", threadId: this.threadId ?? "", turnId });
 
-    const launch = await this.prepareTurnLaunch(command.prompt);
+    const launch = await this.prepareTurnLaunch(
+      command.inlineInstructions
+        ? `${command.prompt}\n\n${command.inlineInstructions}`
+        : command.prompt,
+    );
     const spawnFn = this.options.spawnFn ?? ((cmd, args_, opts) => spawn(cmd, args_, opts));
     const spawnOptions: SpawnOptions = {
       // stdin MUST be ignored: an open stdin pipe makes the headless CLI block

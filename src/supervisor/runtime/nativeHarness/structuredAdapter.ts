@@ -348,6 +348,7 @@ class StructuredNativeCraftSession implements CraftSession {
           : {}),
         ...command.overrides?.permissionConfig,
       });
+      const turnInlineInstructions = command.inlineInstructions ?? this.inlineSkillInstructions;
       await this.handle.startTurn(
         command.prompt,
         this.config,
@@ -357,9 +358,7 @@ class StructuredNativeCraftSession implements CraftSession {
         {
           turnId,
           ...(command.userMessageItemId ? { userMessageItemId: command.userMessageItemId } : {}),
-          ...(this.inlineSkillInstructions
-            ? { inlineInstructions: this.inlineSkillInstructions }
-            : {}),
+          ...(turnInlineInstructions ? { inlineInstructions: turnInlineInstructions } : {}),
         },
       );
       if (completion) await completion;

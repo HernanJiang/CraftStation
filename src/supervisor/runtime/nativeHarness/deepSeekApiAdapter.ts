@@ -193,11 +193,12 @@ class DeepSeekApiCraftSession implements CraftSession {
   private requestBody(
     messages: readonly JsonRecord[],
     tools: readonly DeepSeekApiToolDefinition[],
+    inlineSkillInstructions = this.options.inlineSkillInstructions,
   ): JsonRecord {
     return {
       model: this.options.plan.overrides?.model ?? this.options.plan.runtimeBinding.modelId,
-      messages: this.options.inlineSkillInstructions
-        ? [{ role: "system", content: this.options.inlineSkillInstructions }, ...messages]
+      messages: inlineSkillInstructions
+        ? [{ role: "system", content: inlineSkillInstructions }, ...messages]
         : messages,
       stream: true,
       stream_options: { include_usage: true },
@@ -397,6 +398,8 @@ class DeepSeekApiCraftSession implements CraftSession {
     command.signal?.addEventListener("abort", abortFromCaller, { once: true });
     try {
       const tools = (await this.options.mcpRuntime?.listTools(controller.signal)) ?? [];
+      const turnInlineInstructions =
+        command.inlineInstructions ?? this.options.inlineSkillInstructions;
       const turnMessages: JsonRecord[] = [{ role: "user", content: command.prompt }];
       let finalReasoning = "";
       let promptTokens: number | undefined;
@@ -417,7 +420,9 @@ class DeepSeekApiCraftSession implements CraftSession {
             authorization: `Bearer ${process.env[this.options.apiKeyEnv] ?? ""}`,
             "content-type": "application/json",
           },
-          body: JSON.stringify(this.requestBody([...this._messages, ...turnMessages], tools)),
+          body: JSON.stringify(
+            this.requestBody([...this._messages, ...turnMessages], tools, turnInlineInstructions),
+          ),
           signal: requestSignal,
         });
         if (!response.ok) {

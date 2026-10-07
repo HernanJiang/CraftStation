@@ -115,6 +115,7 @@ import { resolveCraftStationBaseDir, resolveCraftStationPaths } from "@/shared/c
 import { joinProjectPosixPath } from "@/shared/wsl";
 import { prefetchNativeNodeRuntime } from "./runtime/prefetchNativeNode";
 import {
+  defaultFormatPromptSegments,
   setSessionFsBridgeClient,
   setWslProcessBridgeClient,
   type AgentAdapter,
@@ -129,7 +130,7 @@ import {
   installCliProxyApiBinary,
   isHostNativeCliProxyBinary,
 } from "./runtime/compatibilityBridge/install";
-import { setWslAttachmentBridgeClient } from "./runtime/threadAttachments";
+import { rewriteSegmentsForWsl, setWslAttachmentBridgeClient } from "./runtime/threadAttachments";
 import { FileIndexService } from "./fileIndex";
 import { GitService, resolveBuiltInWorktreeRoot, type CapturedExperimentSnapshot } from "./git";
 import { resolveThreadWorkspace } from "@/shared/homeScope";
@@ -188,6 +189,7 @@ import {
 } from "@/supervisor/agents/computerUseMcp";
 import { ExternalMcpDiscoveryService } from "./mcp/ExternalMcpDiscoveryService";
 import { SkillsService } from "./skills/SkillsService";
+import { pinSkillSegments } from "./skills/skillPromptInjection";
 import { dropSkillSegmentsOnPolicyFailure } from "./skills/pluginSkillPolicy";
 import { PluginRegistry, resolvePluginMcpServers } from "./plugins";
 import { captureExperimentResponseSnapshot } from "./experimentResponseSnapshot";
@@ -622,6 +624,17 @@ export class SupervisorRuntime {
    * but `sendThreadInput` carries neither.
    */
   private readonly craftProjectLocationByThread = new Map<string, ProjectLocation>();
+  /**
+   * Per-crafted-thread skill state for Codex-style permanence:
+   * `pinned` accumulates every skill invoked mid-thread (keyed by normalized
+   * SKILL.md path) so each turn re-inlines them; `baseAvailable` keeps the
+   * spawn-time auto-discovery preamble so it is never lost once a turn-level
+   * injection replaces the session's constructor-pinned text.
+   */
+  private readonly craftedSkillStateByThread = new Map<
+    string,
+    { pinned: Map<string, PromptSegment>; baseAvailable: string | undefined }
+  >();
   /**
    * Pool accounts a crafted turn already proved dead, per thread. Lets a
    * post-failover resume tolerate the renderer's stale stored binding (the
@@ -1534,9 +1547,13 @@ export class SupervisorRuntime {
     const failoverPlan = this.craftedPlansByThread.get(payload.threadId);
     const failoverLocation = this.craftProjectLocationByThread.get(payload.threadId);
     const failoverBinding = this.craftedSessionBindings.get(payload.threadId);
-    if (payload.config || payload.userMessageItemId) {
+    const turnInput = await this.resolveCraftedTurnInput(payload, failoverPlan);
+    if (payload.config || payload.userMessageItemId || turnInput.inlineInstructions) {
       const command = {
-        prompt: payload.prompt,
+        prompt: turnInput.prompt,
+        ...(turnInput.inlineInstructions
+          ? { inlineInstructions: turnInput.inlineInstructions }
+          : {}),
         ...(payload.userMessageItemId ? { userMessageItemId: payload.userMessageItemId } : {}),
         ...(payload.config
           ? {
@@ -1583,11 +1600,11 @@ export class SupervisorRuntime {
           projectLocation: failoverLocation,
           provider: failoverBinding.provider,
           failedAccountId: failoverBinding.accountId,
-          runTurn: (target) => target.sendPrompt(payload.prompt),
+          runTurn: (target) => target.sendPrompt(turnInput.prompt),
         });
         return;
       }
-      await session.sendPrompt(payload.prompt);
+      await session.sendPrompt(turnInput.prompt);
     }
   }
 
@@ -3719,6 +3736,80 @@ export class SupervisorRuntime {
     ];
   }
 
+  /**
+   * Crafted-lane counterpart of the chat lane's skill turn injection.
+   * Terminal-presentation harnesses get short path hints baked into the
+   * prompt (no pin — the TUI scrollback is the memory); structured
+   * harnesses pin invoked skills on the thread and re-inline the whole
+   * pinned set every turn so compacted history can never drop a SKILL.md.
+   */
+  private async resolveCraftedTurnInput(
+    payload: SendThreadInputPayload,
+    plan: CraftAgentPayload["craftPlan"] | undefined,
+  ): Promise<{ prompt: string; inlineInstructions?: string }> {
+    const threadId = payload.threadId;
+    const projectLocation = this.craftProjectLocationByThread.get(threadId);
+    const harnessKind = plan?.runtimeBinding.harnessKind;
+    const adapter = harnessKind ? this.adapters.get(harnessKind as AgentKind) : undefined;
+    let segments = payload.segments;
+    if (segments?.length && projectLocation?.kind === "wsl") {
+      segments = await rewriteSegmentsForWsl(segments, projectLocation, {
+        preserveImageAttachments: true,
+      });
+    }
+    const formatPrompt = (segs: readonly PromptSegment[] | undefined): string =>
+      segs?.length
+        ? (adapter?.formatPromptSegments?.([...segs]) ?? defaultFormatPromptSegments([...segs]))
+        : payload.prompt;
+    if (!projectLocation || !harnessKind) {
+      return { prompt: formatPrompt(segments) };
+    }
+    if (adapter?.capabilities.presentationMode === "terminal") {
+      let terminalSegments = segments;
+      if (segments?.some((segment) => segment.kind === "skill")) {
+        terminalSegments = await this.skillsService
+          .rewriteTerminalSkillSegments({ agentKind: harnessKind, projectLocation, segments })
+          .catch(() => segments);
+      }
+      return { prompt: formatPrompt(terminalSegments) };
+    }
+    if (segments?.some((segment) => segment.kind === "skill")) {
+      try {
+        segments = await this.skillsService.filterPluginSkillSegments(segments, {
+          agentKind: harnessKind,
+          projectLocation,
+          presentationMode: "gui",
+        });
+      } catch {
+        segments = dropSkillSegmentsOnPolicyFailure(segments);
+      }
+    }
+    const state = this.craftedSkillStateByThread.get(threadId) ?? {
+      pinned: new Map<string, PromptSegment>(),
+      baseAvailable: undefined,
+    };
+    this.craftedSkillStateByThread.set(threadId, state);
+    const pinnedSkills = pinSkillSegments(state.pinned, segments);
+    if (pinnedSkills) state.pinned = pinnedSkills.sticky;
+    const injectable = pinnedSkills?.pinned ?? segments;
+    const invokedText = injectable?.some((segment) => segment.kind === "skill")
+      ? await this.skillsService
+          .buildTurnSkillInjection({
+            agentKind: harnessKind,
+            projectLocation,
+            segments: injectable,
+            intent: "invoked",
+          })
+          .catch(() => undefined)
+      : undefined;
+    const inlineInstructions =
+      [state.baseAvailable, invokedText].filter(Boolean).join("\n\n") || undefined;
+    return {
+      prompt: formatPrompt(segments),
+      ...(inlineInstructions ? { inlineInstructions } : {}),
+    };
+  }
+
   private async resolveCraftingSkills(
     plan: CraftAgentPayload["craftPlan"],
     projectLocation: ProjectLocation,
@@ -3769,7 +3860,18 @@ export class SupervisorRuntime {
       }
     }
 
-    if (resolution.skills.length === 0) return { segments: [] };
+    if (resolution.skills.length === 0) {
+      if (plan.threadId) {
+        this.craftedSkillStateByThread.set(plan.threadId, {
+          // Keep mid-thread pins across failover/handoff rebuilds: this
+          // resolver re-runs for every rebuilt plan, but only the new plan's
+          // discovery preamble is re-seeded.
+          pinned: this.craftedSkillStateByThread.get(plan.threadId)?.pinned ?? new Map(),
+          baseAvailable: undefined,
+        });
+      }
+      return { segments: [] };
+    }
 
     const selected = resolution.skills;
     const invocationFor = (name: string): string => {
@@ -3801,6 +3903,21 @@ export class SupervisorRuntime {
     });
     // Auto exposes enabled skills for discovery; it must not manufacture a
     // user invocation of every installed skill on every turn.
+    if (plan.threadId) {
+      this.craftedSkillStateByThread.set(plan.threadId, {
+        // Explicitly-selected skills are already invoked — pin them so later
+        // turns keep re-inlining their SKILL.md; auto-mode keeps only the
+        // discovery preamble, which must not look like an invocation. Merge
+        // into any prior pin map: failover/handoff rebuilds re-run this
+        // resolver and must not drop skills invoked mid-thread.
+        pinned:
+          pinSkillSegments(
+            this.craftedSkillStateByThread.get(plan.threadId)?.pinned,
+            explicitInvocation ? segments : [],
+          )?.sticky ?? new Map(),
+        baseAvailable: explicitInvocation ? undefined : inlineInstructions,
+      });
+    }
     return {
       segments: explicitInvocation ? segments : [],
       ...(inlineInstructions ? { inlineInstructions } : {}),
@@ -4106,6 +4223,7 @@ export class SupervisorRuntime {
     this.craftedRequestsByThread.delete(threadId);
     this.craftMcpCandidatesByThread.delete(threadId);
     this.craftProjectLocationByThread.delete(threadId);
+    this.craftedSkillStateByThread.delete(threadId);
     this.craftedFailoverTriedByThread.delete(threadId);
     this.craftedFailoverEpochByThread.delete(threadId);
     for (const [harnessKind, candidate] of this.nativeHarnessSessions) {

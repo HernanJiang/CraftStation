@@ -591,7 +591,9 @@ class NativeProcessCraftSession implements CraftSession {
     }
     const skillPrompt = [
       ...(this.skillSegments ?? []).map(inlinePromptSegmentText),
-      ...(this.inlineSkillInstructions ? [this.inlineSkillInstructions] : []),
+      ...((command.inlineInstructions ?? this.inlineSkillInstructions)
+        ? [command.inlineInstructions ?? this.inlineSkillInstructions]
+        : []),
     ]
       .filter(Boolean)
       .join("\n\n");

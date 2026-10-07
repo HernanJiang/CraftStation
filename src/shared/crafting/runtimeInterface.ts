@@ -54,6 +54,14 @@ export interface StartTurnCommand {
   /** Reconcile the provider echo with the already visible optimistic row. */
   readonly userMessageItemId?: string | undefined;
   readonly turnId?: string | undefined;
+  /**
+   * Per-turn inlined instructions (skill bodies, etc.) resolved by the
+   * supervisor for THIS turn — including skills pinned earlier on the thread.
+   * When present it replaces the session's spawn-time inlineSkillInstructions
+   * so mid-thread skill invocations persist Codex-style; spawn-time
+   * auto-discovery text is folded in by the resolver.
+   */
+  readonly inlineInstructions?: string | undefined;
   readonly overrides?: RuntimeOverrides | undefined;
   readonly signal?: AbortSignal | undefined;
 }

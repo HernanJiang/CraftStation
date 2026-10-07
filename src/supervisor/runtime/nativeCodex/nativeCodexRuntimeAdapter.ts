@@ -481,6 +481,7 @@ export class NativeCodexCraftSession implements CraftSession {
         command.signal.addEventListener("abort", onAbort, { once: true });
       }
 
+      const turnInlineInstructions = command.inlineInstructions ?? this.inlineSkillInstructions;
       this.client
         .startTurn({
           threadId: this.threadId,
@@ -492,8 +493,8 @@ export class NativeCodexCraftSession implements CraftSession {
                 : [],
             ),
             { type: "text", text: command.prompt },
-            ...(this.inlineSkillInstructions
-              ? [{ type: "text" as const, text: this.inlineSkillInstructions }]
+            ...(turnInlineInstructions
+              ? [{ type: "text" as const, text: turnInlineInstructions }]
               : []),
           ],
           model: this._effectiveOverrides?.model,

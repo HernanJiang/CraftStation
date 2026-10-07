@@ -440,7 +440,12 @@ export class OpenCodeNativeSession implements CraftSession {
                   this.options.plan.overrides?.reasoningEffort,
               }
             : {}),
-          parts: [{ type: "text", text: command.prompt }],
+          parts: [
+            { type: "text", text: command.prompt },
+            ...(command.inlineInstructions
+              ? [{ type: "text", text: command.inlineInstructions }]
+              : []),
+          ],
         }),
       );
       await pending;
