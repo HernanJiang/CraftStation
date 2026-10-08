@@ -503,7 +503,9 @@ async function waitForTarget(timeoutMs) {
       const viteError = lastCandidateStates.find((state) => state.viteError)?.viteError;
       if (viteError) throw new Error(`renderer Vite error: ${viteError}`);
       if (lastCandidateStates.some((state) => state.crashScreen)) {
-        throw new Error("renderer crash screen is mounted");
+        throw new Error(
+          `renderer crash screen is mounted: ${await evaluate(client, "document.body.innerText.slice(0, 4000)")}`,
+        );
       }
 
       const clearlyBroken = lastCandidateStates.some(

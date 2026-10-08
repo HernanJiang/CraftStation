@@ -16687,3 +16687,60 @@ msgstr "Highest by default"
 #: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
 msgid "默认思考强度"
 msgstr "Default thinking effort"
+
+msgid "ChatGPT 网页"
+msgstr "ChatGPT Web"
+
+msgid "网页"
+msgstr "Web"
+
+msgid "实验"
+msgstr "Experimental"
+
+msgid "网页会话"
+msgstr "Web conversations"
+
+msgid "新对话"
+msgstr "New conversation"
+
+msgid "打开网页"
+msgstr "Open website"
+
+msgid "正在同步网页回复…"
+msgstr "Syncing the web reply…"
+
+msgid "请在网页中登录"
+msgstr "Sign in on the website"
+
+msgid "已连接"
+msgstr "Connected"
+
+msgid "同步中断"
+msgstr "Sync interrupted"
+
+msgid "正在连接网页…"
+msgstr "Connecting to the website…"
+
+msgid "在这里聊，由 ChatGPT 网页回答"
+msgstr "Chat here, answered by ChatGPT on the web"
+
+msgid "创建对话并在内置浏览器登录 ChatGPT。此处发送的文字会提交到网页，回复实时显示在这里；模型和网页工具沿用网页中的选择。"
+msgstr "Create a conversation and sign in to ChatGPT in the built-in browser. Messages sent here go to the website and replies appear here in real time. The model and web tools follow your selection on the website."
+
+msgid "连接 ChatGPT 网页"
+msgstr "Connect ChatGPT Web"
+
+msgid "你"
+msgstr "You"
+
+msgid "发送到 ChatGPT 网页…"
+msgstr "Send to ChatGPT Web…"
+
+msgid "跟随网页模型"
+msgstr "Use the model selected on the website"
+
+msgid "返回"
+msgstr "Back"
+
+msgid "发送"
+msgstr "Send"

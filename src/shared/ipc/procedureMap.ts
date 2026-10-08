@@ -1,5 +1,6 @@
 import { appProcedures } from "./procedures/app";
 import { browserProcedures } from "./procedures/browser";
+import { chatGptWebProcedures } from "./procedures/chatGptWeb";
 import { collaborationProcedures } from "./procedures/collaboration";
 import { dbProcedures } from "./procedures/db";
 import { experimentProcedures } from "./procedures/experiment";
@@ -35,6 +36,7 @@ export const groupedIpcProcedures = {
   lsp: lspProcedures,
   mcp: mcpProcedures,
   browser: browserProcedures,
+  chatGptWeb: chatGptWebProcedures,
   usage: usageProcedures,
   nativeHarness: nativeHarnessProcedures,
   profile: profileProcedures,
@@ -59,6 +61,7 @@ export const ipcProcedureMap = {
   ...lspProcedures,
   ...mcpProcedures,
   ...browserProcedures,
+  ...chatGptWebProcedures,
   ...usageProcedures,
   ...nativeHarnessProcedures,
   ...profileProcedures,
@@ -157,6 +160,12 @@ export const MAIN_LOCAL_PROCEDURE_NAMES = [
   "startUpdateDownload",
   "installUpdate",
   "browserGetState",
+  "webChatList",
+  "webChatCreate",
+  "webChatRead",
+  "webChatReveal",
+  "webChatSend",
+  "webChatStop",
   "browserCreateTab",
   "browserCloseTab",
   "browserActivateTab",

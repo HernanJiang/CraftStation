@@ -1,6 +1,6 @@
 {
   "name": "craftstation",
-  "version": "1.8.8",
+  "version": "1.9.0",
   "private": true,
   "description": "The universal desktop orchestrator for AI agents. Run terminal-native and structured chat agents side-by-side.",
   "homepage": "https://github.com/HernanJiang/CraftStation",
@@ -178,6 +178,7 @@
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/better-sqlite3": "^7.6.13",
+    "@types/jsdom": "^30.0.0",
     "@types/micromatch": "^4.0.10",
     "@types/node": "^26.1.2",
     "@types/qrcode": "^1.5.6",

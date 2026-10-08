@@ -115,6 +115,7 @@ import {
 import { headersToRecord, readBoundedResponseBody } from "@/shared/http";
 import type { CraftStationPaths } from "@/shared/craftstationPaths";
 import { UsageLoginManager } from "../usageLogin/UsageLoginManager";
+import { ChatGptWebRuntime, embeddedWebChatBrowser } from "../chatGptWeb/runtime";
 import type { SshConnectionManager } from "../ssh/SshConnectionManager";
 import type { ScheduleService } from "../schedules/ScheduleService";
 import type { PrWatchService } from "../prWatch";
@@ -225,6 +226,14 @@ export async function showAddFilesDialog(
 export function createLocalIpcHandlers(
   options: CreateLocalIpcHandlersOptions,
 ): MainLocalIpcHandlerMap {
+  let webChat: ChatGptWebRuntime | undefined;
+  const requireWebChat = () => {
+    webChat ??= new ChatGptWebRuntime(
+      embeddedWebChatBrowser(requireBrowserPanel(options.getBrowserPanelManager)),
+      join(options.requireCraftStationPaths().baseDir, "chatgpt-web-sessions.json"),
+    );
+    return webChat;
+  };
   const requireCollaboration = (): ThreadCollaborationService => {
     const service = options.getThreadCollaborationService?.();
     if (!service) throw new Error("Thread collaboration is not initialized.");
@@ -642,6 +651,13 @@ export function createLocalIpcHandlers(
     startUpdateDownload: () => options.autoUpdater.startUpdateDownload(),
     installUpdate: () => options.autoUpdater.installUpdate(),
     browserGetState: () => requireBrowserPanel(options.getBrowserPanelManager).snapshot(),
+    webChatList: () => requireWebChat().list(),
+    webChatCreate: () => requireWebChat().create(),
+    webChatRead: ({ sessionId }) => requireWebChat().read(sessionId),
+    webChatReveal: ({ sessionId }) => requireWebChat().reveal(sessionId),
+    webChatSend: ({ sessionId, prompt, requestId }) =>
+      requireWebChat().send(sessionId, prompt, requestId),
+    webChatStop: ({ sessionId }) => requireWebChat().stop(sessionId),
     browserCreateTab: (payload) =>
       requireBrowserPanel(options.getBrowserPanelManager).createTab({
         ...(payload.url !== undefined ? { url: payload.url } : {}),

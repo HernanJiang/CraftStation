@@ -6,6 +6,7 @@ import {
   Download,
   Gauge,
   GitPullRequest,
+  Globe,
   Hammer,
   PanelLeft,
   RefreshCw,
@@ -15,7 +16,8 @@ import { useLingui } from "@lingui/react/macro";
 import { ControlTooltip } from "@/renderer/components/common/ControlTooltip";
 import { cycleRecentThread } from "@/renderer/actions/recentThreadCycle";
 import { runCliUpdateBinary } from "@/renderer/actions/runCliUpdate";
-import { readBridge } from "@/renderer/bridge";
+import { readBridge, isRemoteSession } from "@/renderer/bridge";
+import { useWebChatStore } from "@/renderer/state/webChatStore";
 import { useAppStore } from "@/renderer/state/appStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { toggleSidebar } from "@/renderer/state/sidebarOverlayStore";
@@ -534,6 +536,19 @@ export function MainTitlebar() {
             <span>{t`Usage`}</span>
           </button>
         </ControlTooltip>
+        {!isRemoteSession() && (
+          <ControlTooltip label={t`ChatGPT 网页`}>
+            <button
+              type="button"
+              data-testid="titlebar-chatgpt-web"
+              className={buttonClass}
+              onClick={() => useWebChatStore.getState().setOpen(true)}
+            >
+              <Globe className="size-3.5" />
+              <span>{t`ChatGPT 网页`}</span>
+            </button>
+          </ControlTooltip>
+        )}
         <TopShortcutBar />
       </nav>
 

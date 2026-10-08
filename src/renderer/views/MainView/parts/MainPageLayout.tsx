@@ -1,4 +1,4 @@
-import { Suspense, type ReactNode, useEffect, useRef } from "react";
+import { lazy, Suspense, type ReactNode, useEffect, useRef } from "react";
 import { useDroppable } from "@dnd-kit/react";
 import { getAppName } from "@/shared/appName";
 import { readBridge } from "@/renderer/bridge";
@@ -18,8 +18,16 @@ import { useProjectIds } from "@/renderer/state/useThread";
 import { closeAllPanels, dismissRightOverlay } from "@/renderer/actions/panelActions";
 import { setMainPanelDropZoneElement, useIsMainPanelDropActive } from "@/renderer/dnd";
 import { DeferredFileEditorPanel } from "@/renderer/deferredFeatures";
+import { useWebChatStore } from "@/renderer/state/webChatStore";
+
+const ChatGptWebPage = lazy(() =>
+  import("@/renderer/components/webChat/ChatGptWebPage").then((module) => ({
+    default: module.ChatGptWebPage,
+  })),
+);
 
 export function MainPageLayout() {
+  const webChatOpen = useWebChatStore((s) => s.open);
   const channel = readBridge().channel;
   const isDev = import.meta.env.DEV;
   const auxiliaryPanelPlacement = usePanelStore((state) => state.auxiliaryPanelPlacement);
@@ -29,6 +37,9 @@ export function MainPageLayout() {
     if (view.kind !== "thread") return view.kind;
     return `thread:${view.panes.join("|")}`;
   });
+  useEffect(() => {
+    useWebChatStore.getState().setOpen(false);
+  }, [conversationResetKey]);
 
   return (
     <PageLayout
@@ -42,7 +53,13 @@ export function MainPageLayout() {
       content={
         <MainPanelDropZone>
           <ConversationErrorBoundary resetKey={conversationResetKey}>
-            <AppContent />
+            {webChatOpen ? (
+              <Suspense>
+                <ChatGptWebPage />
+              </Suspense>
+            ) : (
+              <AppContent />
+            )}
           </ConversationErrorBoundary>
           <Suspense>
             <DeferredFileEditorPanel />

@@ -219,6 +219,25 @@ async function runSmoke(plan) {
         true,
       ).catch(() => undefined);
     }
+    if (plan.automated.includes("webchat")) {
+      await runScenario(report, "webchat", () => {
+        const result = spawnSync(
+          process.execPath,
+          [
+            join(scriptDir, "craftstation-webchat-smoke.mjs"),
+            "--session",
+            sessionFile,
+            "--outDir",
+            join(outDir, "webchat"),
+          ],
+          { cwd: process.cwd(), encoding: "utf8", windowsHide: true },
+        );
+        if (result.stdout) process.stdout.write(result.stdout);
+        if (result.stderr) process.stderr.write(result.stderr);
+        assert(result.status === 0, `ChatGPT web smoke exited ${result.status}`);
+        return { outDir: join(outDir, "webchat"), mode: "fixture" };
+      });
+    }
     if (mode === "mock" && plan.manual.length > 0) {
       await runMockIntegrations(report, client, plan.manual);
     }

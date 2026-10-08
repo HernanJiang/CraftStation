@@ -16690,3 +16690,60 @@ msgstr "默认最高"
 #: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
 msgid "默认思考强度"
 msgstr "默认思考强度"
+
+msgid "ChatGPT 网页"
+msgstr "ChatGPT 网页"
+
+msgid "网页"
+msgstr "网页"
+
+msgid "实验"
+msgstr "实验"
+
+msgid "网页会话"
+msgstr "网页会话"
+
+msgid "新对话"
+msgstr "新对话"
+
+msgid "打开网页"
+msgstr "打开网页"
+
+msgid "正在同步网页回复…"
+msgstr "正在同步网页回复…"
+
+msgid "请在网页中登录"
+msgstr "请在网页中登录"
+
+msgid "已连接"
+msgstr "已连接"
+
+msgid "同步中断"
+msgstr "同步中断"
+
+msgid "正在连接网页…"
+msgstr "正在连接网页…"
+
+msgid "在这里聊，由 ChatGPT 网页回答"
+msgstr "在这里聊，由 ChatGPT 网页回答"
+
+msgid "创建对话并在内置浏览器登录 ChatGPT。此处发送的文字会提交到网页，回复实时显示在这里；模型和网页工具沿用网页中的选择。"
+msgstr "创建对话并在内置浏览器登录 ChatGPT。此处发送的文字会提交到网页，回复实时显示在这里；模型和网页工具沿用网页中的选择。"
+
+msgid "连接 ChatGPT 网页"
+msgstr "连接 ChatGPT 网页"
+
+msgid "你"
+msgstr "你"
+
+msgid "发送到 ChatGPT 网页…"
+msgstr "发送到 ChatGPT 网页…"
+
+msgid "跟随网页模型"
+msgstr "跟随网页模型"
+
+msgid "返回"
+msgstr "返回"
+
+msgid "发送"
+msgstr "发送"
