@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "1.8.6",
+      "date": "2026-10-08",
+      "title": "Wheel zoom for previews",
+      "summary": "Use the mouse wheel to inspect Mermaid diagrams and images, drag to view enlarged details, and reset the size with one click.",
+      "changes": [
+        {
+          "kind": "improved",
+          "label": "Previews",
+          "text": "Expanded Mermaid diagrams and images support pointer-centered wheel zoom from 25% to 400%, dragging, and a clickable percentage to reset the view without changing the app's zoom."
+        }
+      ]
+    },
+    {
       "version": "1.8.5",
       "date": "2026-10-08",
       "title": "Complete multiline formulas",

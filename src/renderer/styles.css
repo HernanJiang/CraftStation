@@ -3385,7 +3385,6 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
   cursor: default;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
   transform-origin: center;
-  transition: transform 120ms ease-out;
   user-select: none;
   will-change: transform;
 }

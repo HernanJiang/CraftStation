@@ -1,11 +1,9 @@
 import {
   memo,
   useEffect,
-  useRef,
   useState,
   useSyncExternalStore,
   type MouseEvent as ReactMouseEvent,
-  type PointerEvent as ReactPointerEvent,
 } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "@heroui/react";
@@ -14,6 +12,7 @@ import { useLingui } from "@lingui/react/macro";
 import { friendlyError } from "@/shared/messages";
 import { copyImageSourceToClipboard } from "../thread/ChatPane/parts/items/imageClipboard";
 import { attachmentImageUrl, type Attachment } from "./useAttachments";
+import { PREVIEW_MIN_SCALE, PREVIEW_MAX_SCALE, usePreviewZoom } from "../common/usePreviewZoom";
 
 /** A pre-resolved image for the lightbox: a renderable URL plus an accessible label. */
 export interface LightboxImage {
@@ -31,8 +30,6 @@ type LightboxState = {
 
 type Point = { x: number; y: number };
 
-const MIN_SCALE = 1;
-const MAX_SCALE = 4;
 const SCALE_STEP = 0.5;
 
 let lightboxState: LightboxState | null = null;
@@ -112,17 +109,10 @@ export function ImageLightboxView(props: {
   const { t } = useLingui();
   const { images, initialIndex, onClose } = props;
   const [index, setIndex] = useState(initialIndex);
-  const [scale, setScale] = useState(MIN_SCALE);
-  const [pan, setPan] = useState<Point>({ x: 0, y: 0 });
+  const zoom = usePreviewZoom<HTMLImageElement>(index);
+  const { scale, stageRef, contentRef: imageRef } = zoom;
   const [copied, setCopied] = useState(false);
   const [menu, setMenu] = useState<Point | null>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
-  const imageRef = useRef<HTMLImageElement>(null);
-  const dragRef = useRef<{
-    pointerId: number;
-    pointerStart: Point;
-    panStart: Point;
-  } | null>(null);
   const current = images[index];
 
   // Reset index if initialIndex changes (new lightbox open)
@@ -131,11 +121,8 @@ export function ImageLightboxView(props: {
   }, [initialIndex]);
 
   useEffect(() => {
-    setScale(MIN_SCALE);
-    setPan({ x: 0, y: 0 });
     setCopied(false);
     setMenu(null);
-    dragRef.current = null;
   }, [index]);
 
   useEffect(() => {
@@ -157,14 +144,6 @@ export function ImageLightboxView(props: {
   }, [onClose, images.length, menu]);
 
   useEffect(() => {
-    function handleResize() {
-      setPan((currentPan) => clampPan(currentPan, scale, stageRef.current, imageRef.current));
-    }
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, [scale]);
-
-  useEffect(() => {
     if (!menu) return;
     function dismiss() {
       setMenu(null);
@@ -174,48 +153,6 @@ export function ImageLightboxView(props: {
   }, [menu]);
 
   if (!current) return null;
-
-  function zoomBy(delta: number) {
-    const nextScale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale + delta));
-    setScale(nextScale);
-    setPan((currentPan) => clampPan(currentPan, nextScale, stageRef.current, imageRef.current));
-  }
-
-  function handlePointerDown(event: ReactPointerEvent<HTMLImageElement>) {
-    if (scale <= MIN_SCALE || event.button !== 0) return;
-    event.preventDefault();
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = {
-      pointerId: event.pointerId,
-      pointerStart: { x: event.clientX, y: event.clientY },
-      panStart: pan,
-    };
-  }
-
-  function handlePointerMove(event: ReactPointerEvent<HTMLImageElement>) {
-    const drag = dragRef.current;
-    if (!drag || drag.pointerId !== event.pointerId) return;
-    event.preventDefault();
-    setPan(
-      clampPan(
-        {
-          x: drag.panStart.x + event.clientX - drag.pointerStart.x,
-          y: drag.panStart.y + event.clientY - drag.pointerStart.y,
-        },
-        scale,
-        stageRef.current,
-        imageRef.current,
-      ),
-    );
-  }
-
-  function handlePointerEnd(event: ReactPointerEvent<HTMLImageElement>) {
-    if (dragRef.current?.pointerId !== event.pointerId) return;
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId);
-    }
-    dragRef.current = null;
-  }
 
   async function copyCurrentImage() {
     if (!current) return;
@@ -283,18 +220,15 @@ export function ImageLightboxView(props: {
         {/* eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- the image supports pointer-drag panning; keyboard image navigation remains on the dialog */}
         <img
           ref={imageRef}
-          className={`craftstation-image-lightbox__image${scale > MIN_SCALE ? " craftstation-image-lightbox__image--zoomed" : ""}`}
+          className={`craftstation-image-lightbox__image${scale > 1 ? " craftstation-image-lightbox__image--zoomed" : ""}`}
           src={current.src}
           alt={current.alt ?? ""}
           style={{
-            transform: `translate3d(${pan.x}px, ${pan.y}px, 0) scale(${scale})`,
+            transform: zoom.transform,
           }}
           onClick={(event) => event.stopPropagation()}
           onContextMenu={handleImageContextMenu}
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={handlePointerEnd}
-          onPointerCancel={handlePointerEnd}
+          {...zoom.pointerHandlers}
           decoding="async"
           draggable={false}
         />
@@ -326,35 +260,37 @@ export function ImageLightboxView(props: {
               void copyCurrentImage();
             }}
           >
-            {copied ? (
-              <Check className="size-4 text-success" />
-            ) : (
-              <Copy className="size-4" />
-            )}
+            {copied ? <Check className="size-4 text-success" /> : <Copy className="size-4" />}
           </button>
           <button
             type="button"
             className="craftstation-image-lightbox__zoom-button"
             aria-label={t`Zoom out`}
-            disabled={scale <= MIN_SCALE}
+            disabled={scale <= PREVIEW_MIN_SCALE}
             onClick={(event) => {
               event.stopPropagation();
-              zoomBy(-SCALE_STEP);
+              zoom.zoomBy(-SCALE_STEP);
             }}
           >
             <ZoomOut className="size-4" />
           </button>
-          <span className="craftstation-image-lightbox__zoom-value" aria-live="polite">
+          <button
+            type="button"
+            className="craftstation-image-lightbox__zoom-value"
+            aria-label={t`Reset zoom`}
+            title={t`Reset zoom`}
+            onClick={zoom.reset}
+          >
             {Math.round(scale * 100)}%
-          </span>
+          </button>
           <button
             type="button"
             className="craftstation-image-lightbox__zoom-button"
             aria-label={t`Zoom in`}
-            disabled={scale >= MAX_SCALE}
+            disabled={scale >= PREVIEW_MAX_SCALE}
             onClick={(event) => {
               event.stopPropagation();
-              zoomBy(SCALE_STEP);
+              zoom.zoomBy(SCALE_STEP);
             }}
           >
             <ZoomIn className="size-4" />
@@ -392,19 +328,4 @@ export function ImageLightboxView(props: {
     </div>,
     document.body,
   );
-}
-
-function clampPan(
-  point: Point,
-  scale: number,
-  stage: HTMLDivElement | null,
-  image: HTMLImageElement | null,
-): Point {
-  if (!stage || !image || scale <= MIN_SCALE) return { x: 0, y: 0 };
-  const maxX = Math.max(0, (image.clientWidth * scale - stage.clientWidth) / 2);
-  const maxY = Math.max(0, (image.clientHeight * scale - stage.clientHeight) / 2);
-  return {
-    x: Math.min(maxX, Math.max(-maxX, point.x)),
-    y: Math.min(maxY, Math.max(-maxY, point.y)),
-  };
 }

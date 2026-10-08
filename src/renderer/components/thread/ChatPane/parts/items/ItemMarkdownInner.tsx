@@ -1,6 +1,6 @@
 import { Link, Modal, Tooltip, toast } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
-import { CodeXml, ExternalLink, Maximize2 } from "lucide-react";
+import { CodeXml, ExternalLink, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import {
   Children,
   cloneElement,
@@ -24,6 +24,11 @@ import { createMathPlugin } from "@streamdown/math";
 import { createMermaidPlugin } from "@streamdown/mermaid";
 import "katex/dist/katex.min.css";
 import { openExternalWithFeedback } from "@/renderer/utils/openExternal";
+import {
+  PREVIEW_MIN_SCALE,
+  PREVIEW_MAX_SCALE,
+  usePreviewZoom,
+} from "@/renderer/components/common/usePreviewZoom";
 import { htmlClipboardToText } from "@/renderer/components/composer/htmlClipboardText";
 import {
   resolveMarkdownImageUrl,
@@ -511,7 +516,11 @@ function MdCodeBlockFrame({
                 {headerLabel}
                 <CopyTextButton text={text} label={t`Copy code`} />
               </div>
-              <div className="min-h-0 flex-1 overflow-auto">{expandedChildren ?? children}</div>
+              <div
+                className={`min-h-0 flex-1 ${expandedChildren ? "flex flex-col overflow-hidden" : "overflow-auto"}`}
+              >
+                {expandedChildren ?? children}
+              </div>
             </Modal.Body>
           </Modal.Dialog>
         </Modal.Container>
@@ -578,6 +587,7 @@ function MdMermaidDiagram({ code, expanded = false }: { code: string; expanded?:
   }, [code]);
 
   if (svg) {
+    if (expanded) return <MdMermaidPreview svg={svg} />;
     return (
       <div
         className={`lc-md-mermaid px-[0.75em] py-[0.5em] [&_svg]:mx-auto [&_svg]:max-w-full [&_svg]:h-auto${expanded ? "" : " max-h-[min(60vh,32rem)] overflow-auto"}`}
@@ -593,6 +603,95 @@ function MdMermaidDiagram({ code, expanded = false }: { code: string; expanded?:
     );
   }
   return <div aria-hidden className="px-[0.75em] py-[0.5em]" />;
+}
+
+function MdMermaidPreview({ svg }: { svg: string }) {
+  const { t } = useLingui();
+  const zoom = usePreviewZoom<HTMLDivElement>(svg, true);
+  const [size, setSize] = useState<{ width: number; height: number } | null>(null);
+  useEffect(() => {
+    const stage = zoom.stageRef.current;
+    if (!stage) return;
+    const viewBox = /viewBox="([^"]+)"/
+      .exec(svg)?.[1]
+      ?.trim()
+      .split(/[\s,]+/u)
+      .map(Number);
+    const width = viewBox?.[2];
+    const height = viewBox?.[3];
+    if (
+      !width ||
+      !height ||
+      width <= 0 ||
+      height <= 0 ||
+      !Number.isFinite(width) ||
+      !Number.isFinite(height)
+    )
+      return;
+    function fit() {
+      if (!stage || !width || !height) return;
+      // Keep the existing preview's text size; tall diagrams can be panned.
+      const ratio = Math.min(1, stage.clientWidth / width);
+      setSize({ width: width * ratio, height: height * ratio });
+    }
+    fit();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
+    observer?.observe(stage);
+    window.addEventListener("resize", fit);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", fit);
+    };
+  }, [svg, zoom.stageRef]);
+
+  const buttonClass =
+    "flex size-7 items-center justify-center rounded text-muted hover:bg-foreground/5 hover:text-foreground disabled:opacity-35";
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div
+        ref={zoom.stageRef}
+        data-preview-zoom="mermaid"
+        className="flex min-h-0 flex-1 touch-none items-center justify-center overflow-hidden select-none"
+      >
+        <div
+          ref={zoom.contentRef}
+          className="lc-md-mermaid shrink-0 origin-center cursor-grab active:cursor-grabbing [&_svg]:block [&_svg]:size-full [&_svg]:max-w-none"
+          style={{ ...size, transform: zoom.transform }}
+          {...zoom.pointerHandlers}
+          dangerouslySetInnerHTML={{ __html: svg }}
+        />
+      </div>
+      <div className="flex shrink-0 items-center justify-center gap-1 border-t border-foreground/5 py-1.5">
+        <button
+          type="button"
+          className={buttonClass}
+          aria-label={t`Zoom out`}
+          disabled={zoom.scale <= PREVIEW_MIN_SCALE}
+          onClick={() => zoom.zoomBy(-0.5)}
+        >
+          <ZoomOut className="size-4" />
+        </button>
+        <button
+          type="button"
+          className="min-w-14 rounded px-1 py-1 text-xs text-muted hover:bg-foreground/5 hover:text-foreground"
+          aria-label={t`Reset zoom`}
+          title={t`Reset zoom`}
+          onClick={zoom.reset}
+        >
+          {Math.round(zoom.scale * 100)}%
+        </button>
+        <button
+          type="button"
+          className={buttonClass}
+          aria-label={t`Zoom in`}
+          disabled={zoom.scale >= PREVIEW_MAX_SCALE}
+          onClick={() => zoom.zoomBy(0.5)}
+        >
+          <ZoomIn className="size-4" />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function MdCode(props: { className: string; isBlock?: boolean; children?: ReactNode }) {

@@ -1523,6 +1523,7 @@ async function composerCaretScenario(client) {
 }
 
 async function previewCloseScenario(client) {
+  await bridgeInvoke(client, "focusWindow");
   const previousZoom = await evaluate(
     client,
     "window.__craftstationDev.stores.sharedSettings.getState().zoomFactor",
@@ -1546,7 +1547,7 @@ async function previewCloseScenario(client) {
       const root = (dom.createRoot ?? dom.default.createRoot)(host);
       window.__previewCloseSmoke = {
         render: kind => {
-          const text = kind === 'mermaid' ? '~~~mermaid\\nflowchart LR\\n A[开始] --> B[检查关闭按钮]\\n~~~' : '~~~text\\n关闭按钮点击检查\\n~~~';
+          const text = kind === 'mermaid' ? '~~~mermaid\\nflowchart LR\\n A[开始] --> B[检查滚轮缩放与关闭按钮] --> C[放大] --> D[拖动] --> E[缩小] --> F[结束]\\n~~~' : '~~~text\\n关闭按钮点击检查\\n~~~';
           const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240"><rect width="400" height="240" fill="#80b8e0"/></svg>';
           const content = kind === 'image'
             ? createElement(ImageCard, {source:{src:'data:image/svg+xml,' + encodeURIComponent(svg),mime:'image/svg+xml',extension:'svg',fileName:'preview.svg',alt:'预览检查',width:400,height:240}})
@@ -1605,6 +1606,10 @@ async function previewCloseScenario(client) {
             })()`,
           );
           assert(geometry.domReachable, `${kind} close button is covered at zoom ${zoom}`);
+          if (fraction === 0.15 && kind !== "code") {
+            const wheelZoom = await previewWheelZoom(client, kind, zoom);
+            cases.push({ kind, zoom, wheelZoom });
+          }
           if (process.platform === "win32" && fraction === 0.15) {
             await bridgeInvoke(client, "focusWindow");
             const result = spawnSync(
@@ -1673,6 +1678,155 @@ async function previewCloseScenario(client) {
     );
   }
   return { cases, screenshots };
+}
+
+async function previewWheelZoom(client, kind, appZoom) {
+  const stageSelector =
+    kind === "image" ? ".craftstation-image-lightbox__stage" : '[data-preview-zoom="mermaid"]';
+  const contentSelector =
+    kind === "image" ? ".craftstation-image-lightbox__image" : `${stageSelector} .lc-md-mermaid`;
+  await waitForValue(
+    () =>
+      evaluate(
+        client,
+        `Boolean(document.querySelector(${JSON.stringify(contentSelector)})?.clientWidth)`,
+      ),
+    Boolean,
+    `waiting for ${kind} zoom content`,
+  );
+  const geometry = await evaluate(
+    client,
+    `(() => {
+    const stage = document.querySelector(${JSON.stringify(stageSelector)});
+    const rect = stage.getBoundingClientRect();
+    return {x:rect.left + rect.width / 2, y:rect.top + rect.height / 2, before:document.querySelector(${JSON.stringify(contentSelector)}).getBoundingClientRect().width};
+  })()`,
+  );
+  const wheel = async (deltaY) => {
+    await client.send("Input.dispatchMouseEvent", {
+      type: "mouseWheel",
+      x: geometry.x,
+      y: geometry.y,
+      deltaX: 0,
+      deltaY,
+    });
+    await evaluate(
+      client,
+      "new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))",
+      true,
+    );
+  };
+  const scale = () =>
+    evaluate(
+      client,
+      `new DOMMatrix(getComputedStyle(document.querySelector(${JSON.stringify(contentSelector)})).transform).a`,
+    );
+  await wheel(-100);
+  await waitForValue(scale, (value) => value > 1.1, `${kind} wheel did not enlarge`);
+  const enlarged = await evaluate(
+    client,
+    `document.querySelector(${JSON.stringify(contentSelector)}).getBoundingClientRect().width`,
+  );
+  assert(enlarged > geometry.before * 1.1, `${kind} rendered size did not increase`);
+  await wheel(100);
+  await waitForValue(scale, (value) => Math.abs(value - 1) < 0.001, `${kind} wheel did not shrink`);
+  for (let i = 0; i < 9; i++) await wheel(-200);
+  await waitForValue(scale, (value) => Math.abs(value - 4) < 0.001, `${kind} upper zoom bound`);
+
+  // Check cursor anchoring on an overflowing axis, with screen/CSS coordinates
+  // differing under whole-app zoom. The local point under the cursor must stay put.
+  const anchor = await evaluate(
+    client,
+    `(() => {
+    const stage = document.querySelector(${JSON.stringify(stageSelector)}).getBoundingClientRect();
+    const content = document.querySelector(${JSON.stringify(contentSelector)}).getBoundingClientRect();
+    const horizontal = content.width > stage.width * 1.05;
+    const vertical = content.height > stage.height * 1.05;
+    const x = stage.left + stage.width / 2 + (horizontal ? stage.width * .05 : 0);
+    const y = stage.top + stage.height / 2 + (vertical ? stage.height * .05 : 0);
+    return {x,y,horizontal,vertical,localX:(x-content.left)/content.width,localY:(y-content.top)/content.height};
+  })()`,
+  );
+  await client.send("Input.dispatchMouseEvent", {
+    type: "mouseWheel",
+    x: anchor.x,
+    y: anchor.y,
+    deltaX: 0,
+    deltaY: 20,
+  });
+  await waitForValue(scale, (value) => value < 4, `${kind} anchored shrink`);
+  const after = await evaluate(
+    client,
+    `(() => {
+    const rect = document.querySelector(${JSON.stringify(contentSelector)}).getBoundingClientRect();
+    return {x:(${anchor.x}-rect.left)/rect.width,y:(${anchor.y}-rect.top)/rect.height};
+  })()`,
+  );
+  if (anchor.horizontal)
+    assert(
+      Math.abs(after.x - anchor.localX) < 0.002,
+      `${kind} horizontal cursor drift at ${appZoom}`,
+    );
+  if (anchor.vertical)
+    assert(
+      Math.abs(after.y - anchor.localY) < 0.002,
+      `${kind} vertical cursor drift at ${appZoom}`,
+    );
+  await client.send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    x: geometry.x,
+    y: geometry.y,
+    button: "left",
+    clickCount: 1,
+  });
+  await client.send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    x: geometry.x + 40,
+    y: geometry.y + 30,
+    button: "left",
+    buttons: 1,
+  });
+  await client.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    x: geometry.x + 40,
+    y: geometry.y + 30,
+    button: "left",
+    clickCount: 1,
+  });
+  const pan = await evaluate(
+    client,
+    `(() => {
+    const m = new DOMMatrix(getComputedStyle(document.querySelector(${JSON.stringify(contentSelector)})).transform);
+    return {x:m.e,y:m.f};
+  })()`,
+  );
+  if (anchor.horizontal || anchor.vertical)
+    assert(Math.abs(pan.x) + Math.abs(pan.y) > 1, `${kind} enlarged content did not pan`);
+  for (let i = 0; i < 10; i++) await wheel(200);
+  await waitForValue(scale, (value) => Math.abs(value - 0.25) < 0.001, `${kind} lower zoom bound`);
+  await evaluate(
+    client,
+    `Array.from(document.querySelector(${JSON.stringify(contentSelector)}).closest('[role="dialog"]').querySelectorAll('button')).find(button => button.textContent.trim().endsWith('%')).click()`,
+  );
+  await waitForValue(
+    scale,
+    (value) => Math.abs(value - 1) < 0.001,
+    `${kind} reset did not restore size`,
+  );
+  const finalZoom = await evaluate(
+    client,
+    "window.__craftstationDev.stores.sharedSettings.getState().zoomFactor",
+  );
+  assert(finalZoom === appZoom, `${kind} wheel changed whole-app zoom`);
+  return {
+    enlarged: true,
+    shrunk: true,
+    min: 0.25,
+    max: 4,
+    reset: true,
+    appZoomPreserved: true,
+    cursorAnchoring: anchor.horizontal || anchor.vertical,
+  };
 }
 
 async function collaborationLayoutScenario(client) {

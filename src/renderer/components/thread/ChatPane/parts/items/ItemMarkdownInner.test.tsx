@@ -425,6 +425,35 @@ flowchart TD
     expect(header?.nextElementSibling).toHaveClass("lc-md-mermaid");
   });
 
+  it("zooms only the expanded Mermaid preview with the wheel and resets on reopen", async () => {
+    render(
+      <AppProvider>
+        <ItemMarkdownInner text={"```mermaid\nflowchart LR\nA --> B\n```"} />
+      </AppProvider>,
+    );
+    await waitFor(() => expect(document.querySelector(".lc-md-mermaid svg")).not.toBeNull());
+    expect(document.querySelector("[data-preview-zoom]")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+    await waitFor(() =>
+      expect(document.querySelector("[data-preview-zoom] .lc-md-mermaid svg")).not.toBeNull(),
+    );
+    const stage = document.querySelector("[data-preview-zoom]")!;
+    const wheel = createEvent.wheel(stage, { deltaY: -100, cancelable: true });
+    fireEvent(stage, wheel);
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(screen.getByRole("button", { name: "Reset zoom" })).toHaveTextContent("122%");
+    fireEvent.click(screen.getByRole("button", { name: "Reset zoom" }));
+    expect(screen.getByRole("button", { name: "Reset zoom" })).toHaveTextContent("100%");
+    fireEvent.wheel(stage, { deltaY: 100 });
+    expect(screen.getByRole("button", { name: "Reset zoom" })).toHaveTextContent("82%");
+    fireEvent.keyDown(screen.getByRole("dialog"), { key: "Escape", code: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Expand" }));
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Reset zoom" })).toHaveTextContent("100%"),
+    );
+  });
+
   it("recovers when a mid-stream mermaid parse failure is followed by valid code", async () => {
     // Regression: while a fence streams in, `render()` throws on the partial
     // code — a sticky `failed` flag then kept showing raw source forever even

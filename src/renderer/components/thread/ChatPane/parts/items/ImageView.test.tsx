@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "@heroui/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProvider } from "@/renderer/components/ui/provider";
@@ -105,11 +105,36 @@ describe("ImageView", () => {
     expect(screen.queryByRole("dialog")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Open image preview" }));
     expect(screen.getByRole("dialog")).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Zoom out" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reset zoom" })).toHaveTextContent("100%");
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     expect(document.querySelector(".craftstation-image-lightbox__image")).toHaveStyle({
       transform: "translate3d(0px, 0px, 0) scale(1.5)",
     });
+  });
+
+  it("zooms with the wheel, cancels page scrolling, and resets the preview", () => {
+    render(
+      <AppProvider>
+        <ImageView item={imageItem({ name: "imageGeneration", result: PNG_BASE64 })} />
+        <ImageLightboxHost />
+      </AppProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Open image preview" }));
+    const stage = document.querySelector(".craftstation-image-lightbox__stage")!;
+    const wheel = createEvent.wheel(stage, { deltaY: -100, cancelable: true });
+    fireEvent(stage, wheel);
+    expect(wheel.defaultPrevented).toBe(true);
+    expect(screen.getByRole("button", { name: "Reset zoom" })).toHaveTextContent("122%");
+    fireEvent.wheel(stage, { deltaY: 100 });
+    expect(screen.getByRole("button", { name: "Reset zoom" })).toHaveTextContent("100%");
+    for (let i = 0; i < 10; i++) fireEvent.wheel(stage, { deltaY: -200 });
+    expect(screen.getByRole("button", { name: "Zoom in" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reset zoom" })).toHaveTextContent("400%");
+    for (let i = 0; i < 10; i++) fireEvent.wheel(stage, { deltaY: 200 });
+    expect(screen.getByRole("button", { name: "Zoom out" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Reset zoom" })).toHaveTextContent("25%");
+    fireEvent.click(screen.getByRole("button", { name: "Reset zoom" }));
+    expect(screen.getByRole("button", { name: "Reset zoom" })).toHaveTextContent("100%");
   });
 
   it("pans an enlarged lightbox image within the visible stage", () => {

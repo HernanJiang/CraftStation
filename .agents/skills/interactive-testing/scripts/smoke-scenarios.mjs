@@ -47,10 +47,11 @@ export const functionalAreas = [
   },
   {
     id: "preview-overlays",
-    title: "Expanded code, Mermaid, and image preview mouse targets",
+    title: "Expanded previews, wheel zoom, and mouse targets",
     patterns: [
       /^src\/renderer\/styles\.css$/,
       /(?:ItemMarkdownInner|ImageLightbox|ComposerExpandDialog)\.tsx$/,
+      /components\/common\/usePreviewZoom\.ts$/,
     ],
     automated: ["preview-close"],
     manual: [],
