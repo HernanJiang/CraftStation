@@ -1,4 +1,4 @@
-import { ExpectedStructuredRuntimeError } from "../../agents/base";
+import { ExpectedStructuredRuntimeError, StructuredTransportError } from "../../agents/base";
 import { captureSupervisorException } from "../../diagnostics/sentry";
 import type { SessionRuntime } from "../sessionTypes";
 import {
@@ -30,6 +30,7 @@ export function isExpectedStructuredFailure(error: unknown): boolean {
 }
 
 export function classifyStructuredFailure(error: unknown): StructuredRuntimeFailureClass {
+  if (error instanceof StructuredTransportError) return "transport";
   const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
   return /^(?:ACP connection closed unexpectedly\.|ACP agent exited unexpectedly \(code -?\d+\)\.)$/u.test(
     message,

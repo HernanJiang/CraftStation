@@ -6,6 +6,11 @@ import type { RuntimeEvent } from "@/shared/contracts";
 import type { CreateStructuredSessionInput, StructuredSessionListener } from "../base";
 import { AntigravityStructuredSession } from "./structuredSession";
 import { ANTIGRAVITY_PRINT_WAIT_TIMEOUT } from "./argv";
+import {
+  TurnRetryCoordinator,
+  type TurnRetryCoordinatorContext,
+} from "@/supervisor/runtime/threadSession/turnRetryCoordinator";
+import type { QueuedStructuredTurn, SessionRuntime } from "@/supervisor/runtime/sessionTypes";
 
 type EmitFrame = (frame: Record<string, unknown>) => void;
 
@@ -200,7 +205,7 @@ describe("AntigravityStructuredSession", () => {
     await session.dispose();
   });
 
-  it("warns when a success result leaves tool steps unfinished (print-mode cutoff)", async () => {
+  it("rejects a success result that leaves tools unfinished instead of marking the turn completed", async () => {
     const fixture = new AntigravityFixture((emit) => {
       emit({ event: "init", conversation_id: "agy-conversation-1" });
       emit({
@@ -226,19 +231,15 @@ describe("AntigravityStructuredSession", () => {
 
     await session.activate();
     await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
-    await session.startTurn("hello", { model: "Gemini 3.5 Flash" });
-
-    const warnings = events.filter((event) => event.type === "warning");
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toEqual(
-      expect.objectContaining({
-        type: "warning",
-        message: expect.stringContaining("still running"),
-      }),
+    await expect(session.startTurn("hello", { model: "Gemini 3.5 Flash" })).rejects.toThrow(
+      "尚未交付最终回复",
     );
-    // The provider-reported success is preserved; the warning only makes the
-    // silent truncation visible.
     expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "turn.completed", state: "failed" }),
+      ]),
+    );
+    expect(events).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: "turn.completed", state: "completed" }),
       ]),
@@ -606,6 +607,272 @@ describe("AntigravityStructuredSession", () => {
       ]),
     );
     expect(updates.at(-1)).toMatchObject({ status: "error", attention: "none" });
+  });
+
+  it.each([
+    ["ACTIVE", "ERROR"],
+    ["DONE", "ERROR"],
+    ["ACTIVE", "SUCCESS"],
+    ["DONE", "SUCCESS"],
+    ["ACTIVE", "exit"],
+    ["DONE", "exit"],
+    ["DONE_ONLY", "ERROR"],
+    ["DONE_ONLY", "SUCCESS"],
+    ["DONE_ONLY", "exit"],
+  ])(
+    "does not accept pre-tool narration after tool %s and termination %s",
+    async (toolState, termination) => {
+      const fixture = new AntigravityFixture((emit) => {
+        emit({ event: "init", conversation_id: "agy-conversation-1" });
+        emit({
+          event: "step_update",
+          step_update: {
+            step_type: "agent_response",
+            state: "DONE",
+            text_delta: "Let me check the file.",
+          },
+        });
+        if (toolState !== "DONE_ONLY") {
+          emit({
+            event: "step_update",
+            step_update: {
+              step_index: 2,
+              step_type: "tool",
+              tool_name: "run_command",
+              state: "ACTIVE",
+            },
+          });
+        }
+        if (toolState !== "ACTIVE") {
+          emit({
+            event: "step_update",
+            step_update: {
+              step_index: 2,
+              step_type: "tool",
+              tool_name: "run_command",
+              state: "DONE",
+              tool_info: { output: "file contents" },
+            },
+          });
+        }
+        if (termination !== "exit") {
+          emit({
+            event: "result",
+            result: {
+              status: termination,
+              response: "Let me check the file.",
+              ...(termination === "ERROR"
+                ? { error: "request failed: use of closed network connection" }
+                : {}),
+            },
+          });
+        }
+      });
+      const { session } = createFixtureSession(fixture);
+      const events: RuntimeEvent[] = [];
+      session.setListener({
+        onClose: vi.fn<() => void>(),
+        onError: vi.fn<(message: string) => void>(),
+        onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+        onRuntimeEvent: (event) => events.push(event),
+      });
+      await session.openThread({ model: "Gemini 3.5 Flash", approvalPolicy: "yolo" });
+      try {
+        const turn = session.startTurn("check the file", { model: "Gemini 3.5 Flash" });
+        if (termination === "exit") fixture.emit("exit", 1, null);
+        await expect(turn).rejects.toBeInstanceOf(Error);
+        expect(events).not.toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({ type: "turn.completed", state: "completed" }),
+          ]),
+        );
+      } finally {
+        await session.dispose();
+      }
+    },
+  );
+
+  it("resumes a tools-only success through Craft-Harness and delivers the reply after the tool", async () => {
+    let attempt = 0;
+    const emitTurn = (emit: EmitFrame) => {
+      emit({ event: "init", conversation_id: "agy-conversation-1" });
+      if (attempt++ === 0) {
+        emit({
+          event: "step_update",
+          step_update: {
+            step_type: "agent_response",
+            state: "DONE",
+            text_delta: "Let me check the file.",
+          },
+        });
+        emit({
+          event: "step_update",
+          step_update: {
+            step_index: 2,
+            step_type: "tool",
+            tool_name: "view_file",
+            state: "ACTIVE",
+          },
+        });
+        emit({
+          event: "result",
+          result: { status: "SUCCESS", response: "Let me check the file." },
+        });
+      } else {
+        emit({
+          event: "step_update",
+          step_update: {
+            step_index: 2,
+            step_type: "tool",
+            tool_name: "view_file",
+            state: "DONE",
+            tool_info: { output: "file contents" },
+          },
+        });
+        emit({
+          event: "step_update",
+          step_update: {
+            step_type: "agent_response",
+            state: "DONE",
+            text_delta: "The file was checked.",
+          },
+        });
+        emit({ event: "result", result: { status: "SUCCESS", response: "The file was checked." } });
+      }
+    };
+    const fixture = new AntigravityFixture(emitTurn);
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    const listener: StructuredSessionListener = {
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: (event) => events.push(event),
+    };
+    session.setListener(listener);
+    const resumedFixture = new AntigravityFixture(emitTurn);
+    const { session: resumedSession, spawnProcess: resumedSpawn } =
+      createFixtureSession(resumedFixture);
+    resumedSession.setListener(listener);
+    const config = { model: "Gemini 3.5 Flash" };
+    await session.openThread(config);
+    let resumed: Promise<void> | undefined;
+    const turn: QueuedStructuredTurn = {
+      prompt: "check the file",
+      config,
+      turnId: "turn-1",
+      userMessageItemId: "user-1",
+    };
+    const runtime = {
+      threadId: "thread-antigravity",
+      agentKind: "antigravity",
+      sessionRef: { providerSessionId: "agy-conversation-1" },
+    } as SessionRuntime;
+    const restartTurn = vi.fn<TurnRetryCoordinatorContext["restartTurn"]>(
+      async (_runtime, retry) => {
+        // The retained native conversation continues; the original task is not
+        // submitted as a new user instruction without its continuation context.
+        await session.dispose();
+        await resumedSession.openThread(config, runtime.sessionRef);
+        resumed = resumedSession.startTurn(`${retry.retryContext}\n${retry.prompt}`, config);
+      },
+    );
+    const coordinator = new TurnRetryCoordinator({
+      isDisposed: () => false,
+      isCurrentSession: () => true,
+      readPolicy: () => ({ maxAttempts: 1, intervalMs: 0 }),
+      emit: vi.fn<TurnRetryCoordinatorContext["emit"]>(),
+      attachHistoryPreface: vi.fn<TurnRetryCoordinatorContext["attachHistoryPreface"]>(),
+      startTurn: vi.fn<TurnRetryCoordinatorContext["startTurn"]>(),
+      restartTurn,
+      sleep: async () => undefined,
+    });
+    try {
+      const failure = await session.startTurn(turn.prompt, config).catch((error: unknown) => error);
+      expect(await coordinator.tryTurnRetry(runtime, turn, failure)).toBe(true);
+      expect(restartTurn).toHaveBeenCalledOnce();
+      await resumed;
+      expect(fixture.requests).toHaveLength(1);
+      expect(resumedFixture.requests).toHaveLength(1);
+      expect(JSON.stringify(resumedFixture.requests[0])).toContain("Craft-Harness auto-retry");
+      const resumedArgs = vi.mocked(resumedSpawn).mock.calls[0]?.[1];
+      expect(resumedArgs).toEqual(expect.arrayContaining(["--conversation", "agy-conversation-1"]));
+      const toolCompleted = events.findLastIndex(
+        (e) => e.type === "item.completed" && e.itemId.startsWith("tool:"),
+      );
+      const finalReply = events.findLastIndex(
+        (e) => e.type === "content.set" && e.text === "The file was checked.",
+      );
+      expect(finalReply).toBeGreaterThan(toolCompleted);
+      expect(
+        events.filter((e) => e.type === "turn.completed" && e.state === "completed"),
+      ).toHaveLength(1);
+      expect(events.at(-1)).toMatchObject({ type: "turn.completed", state: "completed" });
+      // The configured budget prevents a tools-only provider from looping.
+      expect(await coordinator.tryTurnRetry(runtime, turn, failure)).toBe(false);
+    } finally {
+      await session.dispose();
+      await resumedSession.dispose();
+    }
+  });
+
+  it("accepts a new final snapshot after a completed tool even without response deltas", async () => {
+    const fixture = new AntigravityFixture((emit) => {
+      emit({
+        event: "step_update",
+        step_update: {
+          step_type: "agent_response",
+          state: "DONE",
+          text_delta: "Checking the file.",
+        },
+      });
+      emit({
+        event: "step_update",
+        step_update: {
+          step_index: 2,
+          step_type: "tool",
+          tool_name: "view_file",
+          state: "ACTIVE",
+        },
+      });
+      emit({
+        event: "step_update",
+        step_update: {
+          step_index: 2,
+          step_type: "tool",
+          tool_name: "view_file",
+          state: "DONE",
+        },
+      });
+      emit({
+        event: "result",
+        result: {
+          status: "ERROR",
+          response: "The file was checked.",
+          error: "use of closed network connection",
+        },
+      });
+    });
+    const { session } = createFixtureSession(fixture);
+    const events: RuntimeEvent[] = [];
+    session.setListener({
+      onClose: vi.fn<() => void>(),
+      onError: vi.fn<(message: string) => void>(),
+      onUpdate: vi.fn<StructuredSessionListener["onUpdate"]>(),
+      onRuntimeEvent: (e) => events.push(e),
+    });
+    await session.openThread({ model: "Gemini 3.5 Flash" });
+    try {
+      await expect(
+        session.startTurn("check the file", { model: "Gemini 3.5 Flash" }),
+      ).resolves.toBeUndefined();
+      expect(finalAssistantText(events)).toBe("The file was checked.");
+      expect(events.filter((e) => e.type === "turn.completed")).toEqual([
+        expect.objectContaining({ state: "completed" }),
+      ]);
+    } finally {
+      await session.dispose();
+    }
   });
 
   it("completes with a warning when the result reports an error after the answer was delivered", async () => {

@@ -11,6 +11,7 @@ import type {
 import type { NativeHarnessDiagnostic } from "@/shared/crafting";
 import { isHomeScopeLocation } from "@/shared/homeScope";
 import { inlinePromptSegmentText } from "@/shared/promptContent";
+import { stripGeminiHarnessNoise } from "@/shared/geminiHarnessNoise";
 import {
   antigravitySessionEnvForLocation,
   ANTIGRAVITY_DISABLE_AUTO_UPDATE_ENV,
@@ -34,6 +35,7 @@ import { createAntigravityMcpProjection } from "@/supervisor/runtime/nativeHarne
 import {
   buildAgentCommand,
   createKnownSessionRef,
+  StructuredTransportError,
   type AgentLaunchOptions,
   type CreateStructuredSessionInput,
   type StartTurnOptions,
@@ -134,8 +136,9 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
   private pendingError: string | undefined;
   private pendingClose = false;
   /**
-   * Set when the turn's `agent_response` step reaches a DONE-family state —
-   * the provider finished generating the answer. A `result` frame that still
+   * Set when the latest `agent_response` reaches a DONE-family state, and
+   * cleared when a later tool starts. Narration before tools is not a final
+   * answer. A `result` frame that still
    * reports ERROR after that point failed *after* delivering the answer (e.g.
    * a trailing `streamGenerateContent` write hit a dead h2 connection), so the
    * turn is completed with a warning instead of failed-and-retried into a
@@ -156,9 +159,11 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
    * run_command steps, which transition when the task finishes. A SUCCESS
    * `result` with steps still ACTIVE means the print-mode wait was cut off
    * mid-task (its 5m default) and the leftover steps are never reported; the
-   * session surfaces that instead of accepting the silent truncation.
+   * session rejects that as a transport interruption so Craft-Harness can
+   * resume the retained conversation within the configured retry budget.
    */
   private activeToolSteps = new Set<number>();
+  private sawToolStep = false;
   /**
    * Thinking-run attribution state, reset per turn. Splits step-less thinking
    * frames into contiguous runs so thoughts interleave with tools in the UI
@@ -352,6 +357,7 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     this.streamedReasoningByItem.clear();
     this.openReasoningItemIds.clear();
     this.activeToolSteps.clear();
+    this.sawToolStep = false;
     this.thoughtRunState = createNativeCanonicalizerTurnState();
     const additionalInstructions = [
       ...(segments ?? []).map(inlinePromptSegmentText),
@@ -460,6 +466,19 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
     // `result` decides the turn — compute its failure and the delivered-answer
     // downgrade BEFORE emitting its canonical events, so the error /
     // turn.completed events can be rewritten rather than emitted then undone.
+    const incompleteResult =
+      event.type === "result" &&
+      String(resultPayload(event).status ?? "").toUpperCase() === "SUCCESS" &&
+      this.sawToolStep &&
+      !this.resultAnswerDelivered(event);
+    if (incompleteResult) {
+      this.finishTurn(
+        new StructuredTransportError(
+          "Antigravity 的原生回合在工具调用后提前结束，尚未交付最终回复。已完成的操作保留在原生会话中，可继续此任务。",
+        ),
+      );
+      return;
+    }
     const resultFailure = event.type === "result" ? resultFailureMessage(event) : undefined;
     const downgradeResult = Boolean(resultFailure) && this.resultAnswerDelivered(event);
     for (const runtimeEvent of canonicalEvents) {
@@ -546,17 +565,6 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
         this.emitRuntime({ type: "item.completed", threadId: this.input.threadId, itemId });
       }
       this.openReasoningItemIds.clear();
-      if (!resultFailure && this.activeToolSteps.size > 0) {
-        this.emitRuntime({
-          type: "warning",
-          threadId: this.input.threadId,
-          message:
-            `Antigravity reported success but ended the turn with ` +
-            `${this.activeToolSteps.size} tool step(s) still running — a long ` +
-            `background wait was likely cut off mid-task. Background work may ` +
-            `still finish; send a message to continue.`,
-        });
-      }
       this.activeToolSteps.clear();
       if (resultFailure && downgradeResult) {
         // The provider already delivered the answer and then reported a
@@ -582,9 +590,26 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
    * only regenerate a duplicate.
    */
   private resultAnswerDelivered(event: NativeWireEvent): boolean {
-    if (this.responseStepCompleted) return true;
+    if (this.activeToolSteps.size > 0) return false;
+    if (this.hasCompletedResponse()) return true;
     const payload = resultPayload(event);
-    return typeof payload.response === "string" && payload.response.trim().length > 0;
+    const response =
+      typeof payload.response === "string" ? (stripGeminiHarnessNoise(payload.response) ?? "") : "";
+    if (!response.trim()) return false;
+    // A non-empty snapshot may only echo narration from before the tools.
+    // It proves delivery after tools only when it adds a visible answer.
+    return (
+      !this.thoughtRunState.textInterrupted ||
+      Boolean(finalResponseRemainder(this.streamedAssistantText, response).trim())
+    );
+  }
+
+  private hasCompletedResponse(): boolean {
+    return (
+      this.responseStepCompleted &&
+      !this.thoughtRunState.textInterrupted &&
+      this.activeToolSteps.size === 0
+    );
   }
 
   private trackToolStep(event: NativeWireEvent): void {
@@ -600,6 +625,8 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       return;
     }
     if (record.step_type !== "tool" || typeof record.step_index !== "number") return;
+    this.sawToolStep = true;
+    this.responseStepCompleted = false;
     if (state === "ACTIVE") {
       this.activeToolSteps.add(record.step_index);
     } else if (state === "DONE" || state === "ERROR") {
@@ -614,7 +641,7 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       // Crash landing after a DONE response step is a post-answer failure —
       // same delivered-answer downgrade as the `result` and process-exit
       // paths.
-      if (this.responseStepCompleted) {
+      if (this.hasCompletedResponse()) {
         this.emitRuntime({
           type: "warning",
           threadId: this.input.threadId,
@@ -623,7 +650,11 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
         this.finishTurn();
         return;
       }
-      this.finishTurn(new Error(diagnostic.message));
+      this.finishTurn(
+        diagnostic.code === "NATIVE_PROCESS_CRASHED"
+          ? new StructuredTransportError(diagnostic.message)
+          : new Error(diagnostic.message),
+      );
       return;
     }
     if (diagnostic.code === "NATIVE_PROCESS_CRASHED") {
@@ -658,7 +689,7 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
       // between the finished answer and the result is a post-answer failure —
       // complete the turn instead of rejecting it into a duplicate-generating
       // retry.
-      if (this.responseStepCompleted) {
+      if (this.hasCompletedResponse()) {
         this.emitRuntime({
           type: "warning",
           threadId: this.input.threadId,
@@ -667,7 +698,7 @@ export class AntigravityStructuredSession implements StructuredSessionHandle {
         this.finishTurn();
       } else {
         this.finishTurn(
-          new Error(
+          new StructuredTransportError(
             `Antigravity process exited during a turn (${event.code ?? "null"}, ${event.signal ?? "none"}).`,
           ),
         );

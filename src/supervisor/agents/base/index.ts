@@ -34,6 +34,7 @@ import {
 import { detectPowerShell, type DetectedPowerShell } from "../../shellPreference";
 import { mergeSpawnEnv, withBaseSpawnEnv } from "./spawnEnv";
 import { agentProxySpawnEnv } from "./proxyEnv";
+export { StructuredTransportError } from "./structuredTransportError";
 import type {
   AgentArgvSpec,
   AgentEnvContext,

@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "1.8.7",
+      "date": "2026-10-08",
+      "title": "Antigravity replies after tools",
+      "summary": "Antigravity no longer marks unfinished tool work as a completed answer. Interrupted turns can resume through the configured retry policy.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Antigravity",
+          "text": "Narration before tools and repeated response snapshots no longer hide a later failure or premature success; unfinished turns resume within your retry settings, while delivered final answers retain protection against duplicate replies."
+        }
+      ]
+    },
+    {
       "version": "1.8.6",
       "date": "2026-10-08",
       "title": "Wheel zoom for previews",
