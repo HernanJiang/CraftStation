@@ -3,7 +3,7 @@
 - **复现与原因**：只读获取“实习”线程截图对应的实际输出，公式包含完整定界符和嵌套 `cases`。Markdown 将开头 `$$` 后同一行的等式及 `\begin{cases}` 当作元信息而丢弃；KaTeX 接收到没有外层环境的正文，在 `&` 处报错，回退显示源码。实际输出与简化公式均已通过真实渲染回归复现失败。
 - **修复**：扩展现有定界符预处理，把多行公式中带有数学内容的起始行拆开；结束定界符在没有末尾换行时也拆成独立一行，保留单行公式、元信息和代码块行为。
 - **验证**：98 项相关 Markdown 测试、20 项 changelog 相关测试通过；隔离 Electron 使用实际持久化公式，验证完整渲染、流式更新结束后的显示、代码块及行内公式。相关聊天冒烟和三个 mock 门禁通过，公式、控制台和运行时错误为 0；类型检查及两种 lint 通过。证据位于 `C:/Users/Haona/.craftstation-smoke/gemini-math-20261008-1337/artifacts/`，测试窗口已重置并停止。
-- **发布**：版本号及双语说明已更新为 1.8.5，待构建 Windows x64 NSIS 与便携版并发布。
+- **发布**：修复提交 `878eb22b`、`main` 与 `v1.8.5` tag 已推送；Windows x64 NSIS 与便携版均已构建，[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.8.5) 已正式发布并设为最新版本。安装包、blockmap、`latest.yml` 与便携版四个资产均上传完成，大小与本地一致，更新清单指向 1.8.5，正文为本版中英双语说明。`release/` 仅保留 1.8.4 与 1.8.5 两份便携包，旧便携包和打包中间文件已安全归档到 `D:/Work/CraftStation-release-archive/before-1.8.5/`。
 
 ## 重启后 Supervisor 与账号池统一恢复 + v1.8.4（2026-10-08）
 
