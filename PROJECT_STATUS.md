@@ -4,7 +4,7 @@
 - **数据恢复**：从真实界面缓存恢复全部 21 个账号，利用有效历史元数据匹配原凭据目录；未更换账号 ID、凭据或登录。五个池为 Grok 8、Antigravity 8、第三方兼容 1、Kimi 2、Codex 2；18 份凭据 JSON 均可解析。损坏原件保存在 `C:/Users/Haona/tmp/craftstation-recovery-20261008/`。
 - **统一修复**：共享原子写入在替换前 `fsync`；账号备份改用校验后的原子写入并维护最新有效 `.last-good` 快照；迁移及 provider 启动清理统一隔离账号数据错误，无法恢复时禁止写入空默认值；Supervisor 意外退出、断连或进程错误时重启，新请求等待恢复，关闭应用取消重启，不重放已在执行的变更请求。
 - **验证**：117 个相关文件、1234 项测试通过，完整启动与既有合成技能回归 3 项通过；类型检查及普通/类型感知 lint 通过。最终打包程序验证主文件与备份同时全零时恢复全部 21 个账号，全部副本全零时账号 RPC 明确失败但会话快照 RPC 仍成功。实际安装 1.8.4 后及再次冷启动，五个池的列表/调度 RPC 和会话快照 RPC 全部成功，Supervisor 错误为 0。截图与隔离证据在上述恢复目录及 `C:/Users/Haona/.craftstation-smoke/supervisor-recovery-20261008/`。
-- **产物**：Windows x64 NSIS 与便携版均已完成；已安装新版并打开 GUI。Release notes 为中英双语，源码及远端发布收口中。
+- **发布**：修复提交 `168d84a1`、`main` 与 `v1.8.4` tag 已推送；[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.8.4) 已发布，四个资产均上传完成、大小与本地一致，正文为中英双语。Windows x64 NSIS 与便携版均已完成；已安装新版并以正常启动参数打开 GUI，Supervisor 持续运行，临时调试端口已关闭。`release/` 仅保留 1.8.4 与 1.8.3 两份便携包；旧便携包和打包中间文件已安全归档到 `D:/Work/CraftStation-release-archive/before-1.8.4/`。
 
 ## 放大预览关闭按钮与跨线程对话布局修复 + v1.8.3（2026-10-07）
 
