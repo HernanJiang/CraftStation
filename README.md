@@ -5,15 +5,15 @@
 <h1 align="center">CraftStation</h1>
 
 <p align="center">
-  <strong>Agent Runtime Composition System</strong><br />
-  Compose a Model × Harness into a running Session.<br />
-  Not a multi-model chat GUI, not a CLI launcher, not a reskin of any single harness.
+  <strong>Your model. Your harness. Your agent.</strong><br />
+  Agent Runtime Composition System<br />
+  Choose a model, craft a runtime, and get to work.
 </p>
 
 <p align="center">
   <a href="./README.zh-CN.md">中文</a>
   ·
-  <a href="https://github.com/HernanJiang/CraftStation/releases">Download</a>
+  <a href="https://github.com/HernanJiang/CraftStation/releases/latest">Download</a>
   ·
   <a href="./LICENSE">Apache 2.0</a>
 </p>
@@ -22,81 +22,85 @@
 
 ---
 
-CraftStation treats an agent run as a **craft**: pick Items (model, harness, tools, accounts), form a Recipe, let the Crafter compile a plan, spawn an Entity, and keep working inside a Session.
+**Build the agent you want to work with.** CraftStation brings models, Harnesses, accounts, MCP servers, and Skills into one desktop workspace. Use **Auto** to follow a model's native runtime path, or craft a **Recipe** with an explicit Model × Harness combination and reuse it across your projects.
 
-**Auto** chooses the native Harness for that model family so the model keeps its full runtime.  
-A Recipe you save on the workbench is an explicit composition: launch should be _that_ Harness + _that_ model.
-
-<p align="center">
-  <img src="docs/screenshots/home-composer.png" alt="CraftStation home: model picker with recipes and many harnesses" width="960" />
-</p>
-
-<p align="center"><em>One window for Codex, Kimi Code, Antigravity, OpenCode, Command Code, and more. Saved recipes sit at the top of the model list.</em></p>
-
-## Capabilities
-
-### Many CLIs and harnesses, one scheduler
-
-Codex, OpenCode, Kimi Code, Antigravity / Gemini, Grok, DeepSeek, Muse, Claude, Cursor, Command Code, Copilot, and ACP agents all start, stop, switch models, and stream thinking/tools in the same desktop. You do not keep a separate terminal and shortcut set for each CLI.
-
-### Native Model × Harness matching (maximum capability)
-
-When the model vendor and harness vendor match, CraftStation uses the official runtime (Gemini → Antigravity, Kimi → Kimi Code, GPT → Codex, and so on). The agent loop, context compression, tools, MCP, and skills stay owned by that runtime. Native matching is the default path and the highest-capability path.
-
-### Custom Harness + model recipes
-
-The workbench lets you compose explicitly — for example **Gemini 3.8 Flash × Codex Native**, or **Kimi K3-256k × Codex Native**. Same-vendor pairs stay native. Cross-vendor pairs go through the compatibility bridge (CLIProxyAPI), projecting a subscription or key into an API the target harness can consume.
+Inspired by Minecraft's crafting system, CraftStation turns composition into an executable workflow: select Items, form a Recipe, let the Crafter compile a plan, and spawn an Entity that works inside a continuous Session. The Harness is the runtime that drives the agent: its execution loop, context, and tools.
 
 <p align="center">
-  <img src="docs/screenshots/workbench-craft.png" alt="Workbench: Gemini 3.8 Flash with Codex Native Harness via compatibility bridge" width="960" />
+  <img src="docs/screenshots/home-composer.png" alt="CraftStation home with projects, recent threads, and the unified agent composer" width="960" />
 </p>
 
-<p align="center"><em>Workbench: pick a model, pick a harness, inspect components (including CLIProxyAPI). A craftable result can be saved as a recipe and reused from the home picker.</em></p>
+<p align="center"><em>Your projects, recent threads, environment, permissions, and agent selection—all within reach when you start a task.</em></p>
 
-### Account pools with priority scheduling
+## What makes CraftStation different
 
-Each provider can hold multiple accounts (Grok, Kimi Code, ChatGPT, Command Code, …) with priority, enable/disable, and quota bars. New sessions follow the pool: higher priority first, then the next account when quota or availability fails — no manual account swapping every turn.
+### One model menu, a whole workspace of agents
+
+Choose from models across **Codex, Grok Build, Kimi Code, Antigravity, OpenCode, Devin, Step Code**, and other integrated Harnesses. Saved Recipes appear alongside models, so a combination you crafted becomes an everyday choice in the same composer.
+
+Stay in your project while switching agents, following their output, and inspecting tool activity. Your workspace stays familiar as you choose the runtime that suits the task.
 
 <p align="center">
-  <img src="docs/screenshots/account-pool.png" alt="Provider usage: Grok / Kimi Code / Command Code / ChatGPT account pools and priority" width="960" />
+  <img src="docs/screenshots/model-picker.png" alt="Unified model picker showing saved Recipes and models from multiple Harnesses" width="960" />
 </p>
 
-<p align="center"><em>Channels & quota: several accounts per provider, weekly/session usage visible, drag to reorder 1st / 2nd / … priority.</em></p>
+<p align="center"><em>Native models and your own Recipes share one entry point. The menu shows the Harness behind each choice.</em></p>
 
-### Native MCP: cross-thread tasks, Schedule, Computer Use
+### Craft a combination. Save it. Use it again.
 
-CraftStation exposes MCP so an agent can:
+The workbench makes **Model × Harness** composition visible. Pick your ingredients, inspect compatibility, and save a craftable result as a Recipe. The inventory beside the grid shows available MCP servers and Skills, with shortcuts to manage them.
 
-- **Dispatch across threads** — hand work to another live session (or spawn one) instead of stuffing everything into the current context
-- **Schedule** — wake a thread on a timer or interval
-- **Computer Use** — click, type, and screenshot the host desktop (Windows)
+The screenshots show Recipes such as **Gemini 3.8 Flash × Codex Native Harness** and **K3-256k × Codex Native Harness**. Supported cross-vendor combinations use a compatibility bridge where needed; CLIProxyAPI handles provider/API compatibility while the selected Harness continues to run the agent.
 
-These inject like any other MCP, filtered by harness compatibility at launch.
+Save a useful combination once, then select it from the home model menu when you need it again.
 
-### Unified Skills, Git, and MCP
+<p align="center">
+  <img src="docs/screenshots/workbench-craft.png" alt="Crafting workbench with Model and Harness inventories, saved Recipes, MCP servers, and Skills" width="960" />
+</p>
 
-Skills, Git / worktrees, and MCP servers are not scattered across each CLI’s config folder. CraftStation is the management plane: enable, disable, scope, and project binding live in one place. Each harness only receives the resolved capability set.
+<p align="center"><em>A crafting grid for your agent: Model and Harness inventories, reusable Recipes, and a visible MCP and Skills inventory.</em></p>
 
-### CLI updates that actually reach your sessions
+### See the runtime behind the model
 
-The titlebar’s update menu checks every installed CLI against upstream and updates it in place. **Settings → Agents → General → Auto-update CLIs** (on by default) applies discovered updates automatically through the same pipeline — turn it off to keep checks read-only and update manually.
+The Harness overview connects **Channel → Model → Final Harness / CLI**. See where a model comes from, which runtime executes it, and whether that runtime is ready or still needs installation.
 
-Version reporting reflects the binary your sessions really launch: for providers with account-pool homes (e.g. Grok’s per-account `GROK_HOME`), CraftStation detects the managed copy inside each profile — not just the global PATH install — and propagates a successful update into every managed profile, so a pool account can’t stay pinned to an old build.
+**Auto** follows the model's default native path—for example, GPT → Codex, Kimi → Kimi Code, and Gemini → Antigravity. The official runtime retains ownership of its agent loop, context management, tool execution, MCP, and Skills. An explicit **Recipe** lets you choose a supported composition yourself.
 
-## Install
+<p align="center">
+  <img src="docs/screenshots/harness-overview.png" alt="Harness overview connecting provider channels, models, and the final Harness or CLI, with readiness states" width="960" />
+</p>
 
-Download the installer or the portable build from GitHub Releases, not from the source tree.
+<p align="center"><em>Follow the connections from account channel to model to execution runtime, and see availability in the same view.</em></p>
 
-**Current build: 1.7.13**
+### Put your accounts and quotas to work
 
-- Installer: [CraftStation-Setup-1.7.13-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.7.13/CraftStation-Setup-1.7.13-x64.exe)
-- Portable: [CraftStation-Portable-1.7.13-x64.exe](https://github.com/HernanJiang/CraftStation/releases/download/v1.7.13/CraftStation-Portable-1.7.13-x64.exe)
+Manage multiple accounts in supported provider pools, including **Grok, Kimi Code, and ChatGPT**. View session or weekly usage, reset times, account priorities, and enable/disable controls together.
 
-([GitHub Releases](https://github.com/HernanJiang/CraftStation/releases))
+New sessions follow the pool's scheduling rules. Order accounts by priority, and let pool failover select another eligible account when quota or availability prevents the current one from continuing. You can see which accounts still have capacity before starting the next task.
 
-1. Download either exe. The installer uses NSIS; the portable build runs with a double-click. No extra Electron / Node setup.
-2. Runtime dependencies are inside the package: Chromium, native modules (`better-sqlite3` / `node-pty`), the peripheral sidecar, and the official Windows **CLIProxyAPI** sidecar (so cross-vendor recipes can start the compatibility bridge).
-3. Sign in to the agents you already use (Codex / Kimi Code / Antigravity / Grok CLIs still come from your local official installs and subscriptions).
+<p align="center">
+  <img src="docs/screenshots/account-pool.png" alt="Channels and quotas showing Grok, Kimi Code, and ChatGPT account pools, priorities, usage, and reset times" width="960" />
+</p>
+
+<p align="center"><em>Multiple accounts, visible capacity, and clear priorities—managed from one Channels &amp; quotas page.</em></p>
+
+## Tools that keep work moving
+
+- **Cross-thread collaboration:** agents can hand tasks to other Sessions or create a new one through built-in MCP tools.
+- **Schedule:** wake a thread at a scheduled time or interval to continue working.
+- **Browser and Computer Use:** give compatible Harnesses browser tools and Windows desktop actions, including clicks, typing, and screenshots.
+- **Skills, MCP, and Git / worktrees:** manage capabilities and project workflows from the same desktop, with project bindings and compatible tool injection.
+- **CLI updates:** check and update installed CLIs from the titlebar. Automatic updates can be controlled in **Settings → Agents → General → Auto-update CLIs**; managed account-profile copies are updated too.
+
+## Get started
+
+**[Download the latest release →](https://github.com/HernanJiang/CraftStation/releases/latest)**
+
+1. Choose the **Windows x64 installer** (`CraftStation-Setup-…-x64.exe`) or **portable build** (`CraftStation-Portable-…-x64.exe`). Run the installer for a regular installation, or double-click the portable executable.
+2. Open CraftStation and connect your accounts. Agent CLIs use their official tools and your existing subscriptions; install or authorize the Harnesses you want to use.
+3. Open a project, select a model with **Auto** or a saved **Recipe**, and send your first task.
+
+The Windows package includes the desktop runtime and the CLIProxyAPI compatibility sidecar. No separate Electron or Node.js setup is required to run the packaged app. Available platforms and artifacts are listed on each release page.
 
 ## License
 
