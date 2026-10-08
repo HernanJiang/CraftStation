@@ -32,6 +32,7 @@ export const NATIVE_HARNESS_AGENT_KINDS: readonly string[] = [
   "devin",
   "zcode",
   "stepcode",
+  "pi",
 ];
 
 /**

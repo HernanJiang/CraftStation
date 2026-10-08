@@ -447,6 +447,11 @@ msgid "{0} 安装失败（退出码 {exitCode}）。常见原因是缺少 curl�
 msgstr "{0} 安装失败（退出码 {exitCode}）。常见原因是缺少 curl、PowerShell 或 WSL。请查看安装终端输出后重试。"
 
 #. placeholder {0}: input.label
+#: src/renderer/actions/runCliUpdate.ts
+msgid "{0} 已更新。"
+msgstr "{0} 已更新。"
+
+#. placeholder {0}: input.label
 #. placeholder {1}: input.latest
 #: src/renderer/actions/runCliUpdate.ts
 msgid "{0} 已更新到 v{1}。"
@@ -6131,6 +6136,10 @@ msgstr "Harness 材料"
 msgid "Harness Library"
 msgstr "Harness 库"
 
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "Harness 市场"
+msgstr "Harness 市场"
+
 #: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Harness 总览"
@@ -10567,6 +10576,8 @@ msgstr "重置为默认"
 
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
+#: src/renderer/components/composer/ImageLightbox.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 msgid "Reset zoom"
 msgstr "重置缩放"
 
@@ -14605,12 +14616,14 @@ msgstr "ZCode"
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
 #: src/renderer/components/composer/ImageLightbox.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 msgid "Zoom in"
 msgstr "放大"
 
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
 #: src/renderer/components/composer/ImageLightbox.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 msgid "Zoom out"
 msgstr "缩小"
 
@@ -14618,8 +14631,6 @@ msgstr "缩小"
 #: src/renderer/components/crafting/CraftingGrid.tsx
 msgid "一键填充 Ingredients · {0}"
 msgstr "一键填充 Ingredients · {0}"
-
-#: src/renderer/components/crafting/CraftingGrid.tsx
 
 #: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 msgid "上一轮耗时"
@@ -15752,8 +15763,8 @@ msgid "月"
 msgstr "月"
 
 #: src/renderer/components/crafting/HarnessMapPage.tsx
-msgid "未关联"
-msgstr "未关联"
+#~ msgid "未关联"
+#~ msgstr "未关联"
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx

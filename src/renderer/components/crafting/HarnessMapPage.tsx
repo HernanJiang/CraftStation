@@ -443,6 +443,30 @@ export function HarnessMapPage(props: {
     );
   };
 
+  const marketplace =
+    orphanEntries.length > 0 ? (
+      <section className="space-y-2" data-testid="harness-marketplace">
+        <h3 className="pt-1 text-[10px] font-medium text-neutral-500">{t`Harness 市场`}</h3>
+        {orphanEntries.map((entry) => (
+          <div
+            key={entry.descriptor.id}
+            data-testid={`harness-map-orphan-${entry.descriptor.harnessKind}`}
+            onMouseEnter={() => setHover({ type: "harness", id: entry.descriptor.harnessKind })}
+            onMouseLeave={() => setHover(null)}
+            className={`min-w-0 transition-opacity ${isHarnessActive(entry.descriptor.harnessKind) ? "" : "opacity-30"}`}
+          >
+            <HarnessCliRow
+              entry={entry}
+              highlighted={highlightedKind === entry.descriptor.harnessKind}
+              installing={installingKinds.has(entry.descriptor.harnessKind)}
+              onInstall={install}
+              onShowDetail={handleShowDetail}
+            />
+          </div>
+        ))}
+      </section>
+    ) : null;
+
   return (
     <div
       className="flex min-h-0 flex-1 flex-col overflow-hidden p-3"
@@ -485,9 +509,12 @@ export function HarnessMapPage(props: {
         </header>
 
         {modelRows.length === 0 ? (
-          <p className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-6 text-center text-sm text-muted">
-            {t`还没有在「管理模型」中选定任何模型`}
-          </p>
+          <>
+            <p className="rounded-xl border border-[color:var(--hairline)] bg-[var(--surface)] p-6 text-center text-sm text-muted">
+              {t`还没有在「管理模型」中选定任何模型`}
+            </p>
+            {marketplace}
+          </>
         ) : (
           <div ref={contentRef} className="relative">
             <svg
@@ -620,32 +647,7 @@ export function HarnessMapPage(props: {
                     />
                   </div>
                 ))}
-                {orphanEntries.length > 0 ? (
-                  <>
-                    <p className="pt-1 text-[10px] font-medium text-neutral-500">{t`未关联`}</p>
-                    {orphanEntries.map((entry) => (
-                      <div
-                        key={entry.descriptor.id}
-                        data-testid={`harness-map-orphan-${entry.descriptor.harnessKind}`}
-                        onMouseEnter={() =>
-                          setHover({ type: "harness", id: entry.descriptor.harnessKind })
-                        }
-                        onMouseLeave={() => setHover(null)}
-                        className={`min-w-0 transition-opacity ${
-                          isHarnessActive(entry.descriptor.harnessKind) ? "" : "opacity-30"
-                        }`}
-                      >
-                        <HarnessCliRow
-                          entry={entry}
-                          highlighted={highlightedKind === entry.descriptor.harnessKind}
-                          installing={installingKinds.has(entry.descriptor.harnessKind)}
-                          onInstall={install}
-                          onShowDetail={handleShowDetail}
-                        />
-                      </div>
-                    ))}
-                  </>
-                ) : null}
+                {marketplace}
               </div>
             </div>
           </div>

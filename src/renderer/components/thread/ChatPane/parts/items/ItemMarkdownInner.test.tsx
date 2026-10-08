@@ -425,6 +425,45 @@ flowchart TD
     expect(header?.nextElementSibling).toHaveClass("lc-md-mermaid");
   });
 
+  it("recovers Gemini subgraph titles with unquoted parentheses before falling back to source", async () => {
+    const source = "flowchart TD\nsubgraph 最终收拢 (Supervisor)\nA --> B\nend";
+    const renderDiagram = vi.fn<(id: string, code: string) => Promise<{ svg: string }>>(
+      (_id, code) =>
+        code.includes('subgraph "最终收拢 (Supervisor)"')
+          ? Promise.resolve({ svg: '<svg data-mermaid-mock="true"></svg>' })
+          : Promise.reject(new Error("Parse error: unexpected PS in subgraph title")),
+    );
+    mermaidRenderImpl.value = renderDiagram;
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={`\`\`\`mermaid\n${source}\n\`\`\``} />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelector(".lc-md-mermaid svg")).not.toBeNull());
+    expect(container.querySelector("pre")).toBeNull();
+    expect(renderDiagram).toHaveBeenCalledTimes(2);
+    expect(renderDiagram.mock.calls[0]?.[1]).toBe(source);
+    expect(renderDiagram.mock.calls[1]?.[1]).toContain('subgraph "最终收拢 (Supervisor)"');
+    expect(renderDiagram.mock.calls[1]?.[0]).not.toBe(renderDiagram.mock.calls[0]?.[0]);
+  });
+
+  it("keeps original Mermaid source when a repaired diagram still cannot render", async () => {
+    const source = "flowchart TD\nsubgraph 最终收拢 (Supervisor)\nA -->\nend";
+    const renderDiagram = vi.fn<(id: string, code: string) => Promise<{ svg: string }>>(() =>
+      Promise.reject(new Error("incomplete diagram")),
+    );
+    mermaidRenderImpl.value = renderDiagram;
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={`\`\`\`mermaid\n${source}\n\`\`\``} />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelector("pre code")?.textContent).toBe(source));
+    expect(renderDiagram).toHaveBeenCalledTimes(2);
+  });
+
   it("zooms only the expanded Mermaid preview with the wheel and resets on reopen", async () => {
     render(
       <AppProvider>

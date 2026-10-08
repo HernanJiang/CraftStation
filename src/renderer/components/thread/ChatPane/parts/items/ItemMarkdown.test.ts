@@ -6,10 +6,43 @@ import {
   normalizeLatexMathDelimiters,
   normalizeMathDollarRuns,
   normalizeMermaidFenceLanguages,
+  normalizeMermaidSubgraphTitles,
   normalizeShortCodeFenceClosers,
   protectMathSpans,
   repairMathSyntax,
 } from "./ItemMarkdown";
+
+describe("normalizeMermaidSubgraphTitles", () => {
+  it("quotes the unescaped title from Gemini without changing nodes or links", () => {
+    const source = "flowchart TD\n    subgraph 最终收拢 (Supervisor)\nA --> B\nend";
+    expect(normalizeMermaidSubgraphTitles(source)).toBe(
+      'flowchart TD\n    subgraph "最终收拢 (Supervisor)"\nA --> B\nend',
+    );
+  });
+
+  it("preserves an explicit group id and CRLF line endings", () => {
+    expect(
+      normalizeMermaidSubgraphTitles("graph LR\r\nsubgraph stage[最终收拢 (Supervisor)];\r\nend"),
+    ).toBe('graph LR\r\nsubgraph stage["最终收拢 (Supervisor)"];\r\nend');
+  });
+
+  it("leaves quoted titles and ordinary group declarations alone", () => {
+    for (const declaration of [
+      'subgraph "最终收拢 (Supervisor)"',
+      'subgraph stage["最终收拢 (Supervisor)"]',
+      "subgraph stage[最终收拢]",
+      "subgraph stage %% description (comment)",
+    ]) {
+      const source = `flowchart TD\n${declaration}\nA --> B\nend`;
+      expect(normalizeMermaidSubgraphTitles(source)).toBe(source);
+    }
+  });
+
+  it("does not treat another diagram's text as a flowchart declaration", () => {
+    const source = "sequenceDiagram\nNote over A: subgraph 最终收拢 (Supervisor)";
+    expect(normalizeMermaidSubgraphTitles(source)).toBe(source);
+  });
+});
 
 describe("normalizeLatexMathDelimiters", () => {
   it("rewrites classic display delimiters to a $$ block", () => {

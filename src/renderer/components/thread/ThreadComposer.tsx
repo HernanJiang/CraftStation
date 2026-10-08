@@ -286,11 +286,13 @@ function DraftExecutionModeControl(props: { controls: ComposerControl[] }) {
       <Dropdown.Trigger
         aria-label={t`切换执行模式与权限`}
         isDisabled={modeControl?.isDisabled === true && permissionControl?.isDisabled === true}
-        className={`inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium transition-colors hover:bg-[var(--row-active)] ${tone}`}
+        className={`craftstation-composer-execution-mode inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium transition-colors hover:bg-[var(--row-active)] ${tone}`}
       >
-        <Icon className="size-4" />
-        <span>{label}</span>
-        <ChevronDown className="size-3.5 text-muted" />
+        <span className="flex shrink-0" title={label}>
+          <Icon className="size-4" />
+        </span>
+        <span className="craftstation-composer-execution-label">{label}</span>
+        <ChevronDown className="craftstation-composer-execution-chevron size-3.5 text-muted" />
       </Dropdown.Trigger>
       <Dropdown.Popover
         placement="top start"
@@ -601,9 +603,13 @@ export function ThreadComposer(props: {
   const customInputClassName = compact
     ? "craftstation-composer-custom-input craftstation-composer-custom-input--compact"
     : "craftstation-composer-custom-input";
-  const toolbarClassName = compact
-    ? "craftstation-composer-toolbar craftstation-composer-toolbar--compact relative flex items-end justify-between gap-3"
-    : "craftstation-composer-toolbar relative flex items-end justify-between gap-3";
+  const toolbarClassName = [
+    "craftstation-composer-toolbar relative flex items-end justify-between gap-3",
+    compact && "craftstation-composer-toolbar--compact",
+    controlsDisplay === "menu" && "craftstation-composer-toolbar--menu",
+  ]
+    .filter(Boolean)
+    .join(" ");
   const shellClassName = [
     "craftstation-composer-shell",
     variant === "draft" && "craftstation-composer-shell--draft",
@@ -972,7 +978,7 @@ export function ThreadComposer(props: {
       <Button
         isIconOnly={!submitContent}
         aria-label={submitLabel}
-        className={submitContent ? "h-9 px-3" : "craftstation-composer-send"}
+        className={submitContent ? "h-9 shrink-0 px-3" : "craftstation-composer-send"}
         isDisabled={submitDisabled || promptDisabled}
         isPending={submitPending}
         onPress={onSubmit}
@@ -1045,8 +1051,14 @@ export function ThreadComposer(props: {
         </div>
       )}
       {controlsDisplay === "menu" ? <DraftExecutionModeControl controls={controls} /> : null}
-      {renderControls()}
-      <div className="flex shrink-0 items-end gap-1">
+      {controlsDisplay === "inline" ? renderControls() : null}
+      <div
+        className={
+          controlsDisplay === "menu"
+            ? "craftstation-composer-actions flex min-w-0 flex-1 items-end justify-end gap-1"
+            : "flex shrink-0 items-end gap-1"
+        }
+      >
         {beforeEndControls}
         {controlsDisplay === "menu" ? (
           <DraftParameterMenu controls={controls} />

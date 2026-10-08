@@ -7,7 +7,7 @@
 <p align="center">
   <strong>Your model. Your harness. Your agent.</strong><br />
   Agent Runtime Composition System<br />
-  Choose a model, craft a runtime, and get to work.
+  Native power by default. Model × Harness customization by choice.
 </p>
 
 <p align="center">
@@ -22,7 +22,9 @@
 
 ---
 
-**Build the agent you want to work with.** CraftStation brings models, Harnesses, accounts, MCP servers, and Skills into one desktop workspace. Use **Auto** to follow a model's native runtime path, or craft a **Recipe** with an explicit Model × Harness combination and reuse it across your projects.
+**Native by default. Personalized by you.** CraftStation defaults to a model's native Harness to bring out its full capabilities, preserving the official runtime's agent loop, context management, and tools. It also respects your preferences: customize **Model × Harness** around your task, workflow, and preferred runtime, then save the combination as a reusable **Recipe**.
+
+Models, Harnesses, accounts, MCP servers, and Skills live in one desktop workspace. Start with **Auto**, or select your own **Recipe** and put your chosen combination to work across projects.
 
 Inspired by Minecraft's crafting system, CraftStation turns composition into an executable workflow: select Items, form a Recipe, let the Crafter compile a plan, and spawn an Entity that works inside a continuous Session. The Harness is the runtime that drives the agent: its execution loop, context, and tools.
 
@@ -46,21 +48,23 @@ Stay in your project while switching agents, following their output, and inspect
 
 <p align="center"><em>Native models and your own Recipes share one entry point. The menu shows the Harness behind each choice.</em></p>
 
-### Craft a combination. Save it. Use it again.
+### Unlock the potential of your own Model × Harness combination
 
 The workbench makes **Model × Harness** composition visible. Pick your ingredients, inspect compatibility, and save a craftable result as a Recipe. The inventory beside the grid shows available MCP servers and Skills, with shortcuts to manage them.
 
 The screenshots show Recipes such as **Gemini 3.8 Flash × Codex Native Harness** and **K3-256k × Codex Native Harness**. Supported cross-vendor combinations use a compatibility bridge where needed; CLIProxyAPI handles provider/API compatibility while the selected Harness continues to run the agent.
 
-Save a useful combination once, then select it from the home model menu when you need it again.
+Choose the model you trust and the Harness whose tools and workflow you prefer. Save a useful combination once, then select it from the home model menu when you need it again.
+
+**The Harness is part of the result.** [Artificial Analysis's Coding Agent Index](https://artificialanalysis.ai/agents/coding-agents) compares specific model, Harness, and settings combinations. Use those configurations as a reference for your tasks, then make the combination your own. The workbench below shows personalized Recipes; the Harness overview in the next section shows the default native paths.
 
 <p align="center">
   <img src="docs/screenshots/workbench-craft.png" alt="Crafting workbench with Model and Harness inventories, saved Recipes, MCP servers, and Skills" width="960" />
 </p>
 
-<p align="center"><em>A crafting grid for your agent: Model and Harness inventories, reusable Recipes, and a visible MCP and Skills inventory.</em></p>
+<p align="center"><em>Your Recipe: choose the Model × Harness combination, inspect compatibility, and save it for everyday use.</em></p>
 
-### See the runtime behind the model
+### Native Harnesses by default, with the execution path in view
 
 The Harness overview connects **Channel → Model → Final Harness / CLI**. See where a model comes from, which runtime executes it, and whether that runtime is ready or still needs installation.
 

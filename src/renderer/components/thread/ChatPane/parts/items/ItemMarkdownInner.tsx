@@ -53,6 +53,7 @@ import {
   normalizeLatexMathDelimiters,
   normalizeMathDollarRuns,
   normalizeMermaidFenceLanguages,
+  normalizeMermaidSubgraphTitles,
   normalizeShortCodeFenceClosers,
   protectMathSpans,
   repairMathSyntax,
@@ -568,9 +569,18 @@ function MdMermaidDiagram({ code, expanded = false }: { code: string; expanded?:
       const fontsReady = document.fonts?.ready ?? Promise.resolve();
       void fontsReady
         .catch(() => undefined)
-        .then(() =>
-          cancelled ? Promise.reject() : markdownMermaidPlugin.getMermaid().render(id, code),
-        )
+        .then(async () => {
+          if (cancelled) return;
+          const mermaid = markdownMermaidPlugin.getMermaid();
+          try {
+            return await mermaid.render(id, code);
+          } catch (error) {
+            const repaired = normalizeMermaidSubgraphTitles(code);
+            if (cancelled || repaired === code) throw error;
+            // Retry once with a new SVG id; copying still uses the original source.
+            return mermaid.render(`lc-mermaid-${mermaidRenderSeq++}`, repaired);
+          }
+        })
         .then((result) => {
           if (cancelled || !result) return;
           setSvg(normalizeMermaidSvgSize(result.svg));

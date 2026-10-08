@@ -447,6 +447,11 @@ msgid "{0} 安装失败（退出码 {exitCode}）。常见原因是缺少 curl�
 msgstr "La instalación de {0} falló (código {exitCode}). Suele deberse a que falta curl, PowerShell o WSL. Revisa la salida del terminal e inténtalo de nuevo."
 
 #. placeholder {0}: input.label
+#: src/renderer/actions/runCliUpdate.ts
+msgid "{0} 已更新。"
+msgstr "{0} se ha actualizado."
+
+#. placeholder {0}: input.label
 #. placeholder {1}: input.latest
 #: src/renderer/actions/runCliUpdate.ts
 msgid "{0} 已更新到 v{1}。"
@@ -6127,6 +6132,10 @@ msgstr "Ingrediente de Harness"
 msgid "Harness Library"
 msgstr "Biblioteca de Harness"
 
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "Harness 市场"
+msgstr "Mercado de Harness"
+
 #: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Harness 总览"
@@ -10560,6 +10569,8 @@ msgstr "Restablecer valores predeterminados"
 
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
+#: src/renderer/components/composer/ImageLightbox.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 msgid "Reset zoom"
 msgstr "Restablecer zoom"
 
@@ -14598,12 +14609,14 @@ msgstr "ZCode"
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
 #: src/renderer/components/composer/ImageLightbox.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 msgid "Zoom in"
 msgstr "Acercar"
 
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
 #: src/renderer/components/composer/ImageLightbox.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 msgid "Zoom out"
 msgstr "Alejar"
 
@@ -14611,8 +14624,6 @@ msgstr "Alejar"
 #: src/renderer/components/crafting/CraftingGrid.tsx
 msgid "一键填充 Ingredients · {0}"
 msgstr "Rellenar ingredientes con un clic · {0}"
-
-#: src/renderer/components/crafting/CraftingGrid.tsx
 
 #: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 msgid "上一轮耗时"
@@ -15745,8 +15756,8 @@ msgid "月"
 msgstr "Mes"
 
 #: src/renderer/components/crafting/HarnessMapPage.tsx
-msgid "未关联"
-msgstr "No vinculado"
+#~ msgid "未关联"
+#~ msgstr "No vinculado"
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx

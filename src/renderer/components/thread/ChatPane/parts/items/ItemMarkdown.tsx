@@ -291,6 +291,27 @@ function isMermaidFenceLanguage(language: string | undefined): boolean {
   );
 }
 
+/** Quote unescaped parentheses in flowchart group titles after Mermaid rejects them. */
+export function normalizeMermaidSubgraphTitles(code: string): string {
+  if (!/^\s*(?:flowchart|graph)\b/u.test(code)) return code;
+  return code.replace(
+    /^([\t ]*subgraph[\t ]+)([^\r\n]+)/gmu,
+    (line, prefix: string, body: string) => {
+      const title = body.trim();
+      if (!/[()]/u.test(title) || title.startsWith('"') || title.includes("%%")) return line;
+      const explicit = /^([^\s[\]"]+)\s*\[(.*)\]([\t ]*;?[\t ]*)$/u.exec(title);
+      if (explicit) {
+        const label = explicit[2] ?? "";
+        if (label.startsWith('"')) return line;
+        return `${prefix}${explicit[1]}["${label.replaceAll('"', "#quot;")}"]${explicit[3]}`;
+      }
+      const suffix = title.endsWith(";") ? ";" : "";
+      const label = suffix ? title.slice(0, -1).trimEnd() : title;
+      return `${prefix}"${label.replaceAll('"', "#quot;")}"${suffix}`;
+    },
+  );
+}
+
 /**
  * Models frequently emit LaTeX with the classic `\[ … \]` / `\( … \)`
  * delimiters, but remark-math only recognizes `$$ … $$` / `$ … $`. Rewrite the

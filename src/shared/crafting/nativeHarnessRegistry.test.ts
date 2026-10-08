@@ -31,9 +31,10 @@ describe("Native Harness registry", () => {
         "harness:muse",
         "harness:devin",
         "harness:stepcode",
+        "harness:pi",
       ]),
     );
-    expect(BUILTIN_NATIVE_HARNESS_ITEMS).toHaveLength(10);
+    expect(BUILTIN_NATIVE_HARNESS_ITEMS).toHaveLength(11);
     expect(BUILTIN_NATIVE_HARNESS_MODEL_ITEMS.map((item) => item.metadata.vendor)).toEqual(
       expect.arrayContaining([
         "xai",

@@ -13,6 +13,7 @@ import {
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
   MUSE_NATIVE_HARNESS_DESCRIPTOR,
   OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
+  PI_NATIVE_HARNESS_DESCRIPTOR,
 } from "./descriptors";
 import { projectNativeHarnessControlPlane } from "./controlPlane";
 
@@ -28,6 +29,23 @@ function status(overrides: Partial<AgentStatus>): AgentStatus {
 }
 
 describe("Native Harness control-plane projection", () => {
+  it("projects Pi install and authentication state through the shared catalog", () => {
+    for (const [installed, authState, expected] of [
+      [false, "missing", "unavailable"],
+      [true, "missing", "not-configured"],
+      [true, "authenticated", "ready"],
+    ] as const) {
+      const result = projectNativeHarnessControlPlane({
+        descriptors: [PI_NATIVE_HARNESS_DESCRIPTOR],
+        statuses: [status({ kind: "pi", installed, authState })],
+        profileConfigured: new Set(),
+        environmentKind: "windows",
+      });
+      expect(result[0]?.status).toBe(expected);
+      expect(result[0]?.descriptor.harnessKind).toBe("pi");
+    }
+  });
+
   it("is exposed through the typed Supervisor IPC seam with a bounded payload", () => {
     const procedure = ipcProcedureMap.getNativeHarnessControlPlane;
     expect(procedure.transport).toBe("supervisor");

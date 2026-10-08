@@ -104,6 +104,7 @@ describe("HarnessMapPage", () => {
   beforeEach(() => {
     resetStores();
     vi.clearAllMocks();
+    installMock.runNativeAgentInstall.mockReset();
     bridgeMock.onSupervisorEvent.mockReturnValue(() => undefined);
     bridgeMock.refreshAgentStatuses.mockResolvedValue({ windows: [], wsl: [], fromCache: false });
     bridgeMock.getNativeHarnessControlPlane.mockResolvedValue([
@@ -112,11 +113,36 @@ describe("HarnessMapPage", () => {
       entry("antigravity", "Antigravity Harness", "unavailable"),
       entry("opencode", "OpenCode Harness", "ready"),
       entry("stepcode", "Step Code Harness", "ready"),
+      entry("pi", "Pi Harness", "unavailable"),
       entry("deepseek-api", "DeepSeek API Runtime", "not-configured"),
     ]);
   });
 
   afterEach(resetStores);
+
+  it("offers Pi in the Harness marketplace and opens its shared installer", async () => {
+    installMock.runNativeAgentInstall.mockReturnValueOnce(true);
+    renderPage();
+    await screen.findByText("Harness Marketplace");
+    expect(screen.getByTestId("harness-map-orphan-pi")).toHaveTextContent("Pi Harness");
+    fireEvent.click(screen.getByTestId("harness-cli-install-pi"));
+    expect(installMock.runNativeAgentInstall).toHaveBeenCalledWith(
+      expect.objectContaining({ agentKind: "pi", label: "Pi Harness" }),
+    );
+  });
+
+  it("keeps the marketplace available before the user selects any models", async () => {
+    render(
+      <HarnessMapPage
+        accounts={[]}
+        customModels={[]}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+    await screen.findByTestId("harness-cli-install-pi");
+    expect(screen.getByTestId("harness-marketplace")).toBeInTheDocument();
+  });
 
   it("draws channel → model → harness layers with crossing edges", async () => {
     renderPage();

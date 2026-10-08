@@ -7,7 +7,7 @@
 <p align="center">
   <strong>选模型，配运行时，合成你的 Agent。</strong><br />
   Agent Runtime Composition System<br />
-  把喜欢的模型与 Harness 组合起来，让配方真正开始干活。
+  默认发挥原生能力，也支持 Model × Harness 个性化定制。
 </p>
 
 <p align="center">
@@ -22,7 +22,9 @@
 
 ---
 
-**把你想用的 Agent 组合出来。** CraftStation 将模型、Harness、账号、MCP 服务器和 Skills 带进同一个桌面工作区。用 **Auto** 沿模型的原生运行路径直接开工，也可以在合成台指定 **Model × Harness**，保存为 **Recipe（配方）**，在不同项目中反复使用。
+**默认原生，尊重你的偏好。** CraftStation 默认让模型使用原生 Harness，尽可能发挥模型的完整能力，保留官方运行时的 Agent Loop、上下文管理与工具。也支持按你的任务、工作习惯和运行时偏好，定制 **Model × Harness** 个性化方案，保存为可复用的 **Recipe（配方）**。
+
+模型、Harness、账号、MCP 服务器和 Skills 都在同一个桌面工作区。用 **Auto** 直接开工，或选用自己的 **Recipe**，让喜欢的组合在不同项目中持续工作。
 
 借鉴 Minecraft 的合成系统，CraftStation 把组合变成可执行的流程：选择 Item，形成 Recipe，由 Crafter 编译计划，再启动为 Entity，在连续的 Session 中工作。Harness 就是驱动 Agent 的运行时，负责执行循环、上下文和工具。
 
@@ -46,21 +48,23 @@
 
 <p align="center"><em>原生模型与自己的 Recipe 共用一个入口，每个选项背后的 Harness 清晰可见。</em></p>
 
-### 合成一个好用的组合，保存后随时再用
+### 用 Model × Harness，释放个性化组合的潜力
 
 合成台把 **Model × Harness** 的组合过程摆到眼前：选择原料、查看兼容状态，把可合成的结果保存为 Recipe。旁边的原料清单展示可用的 MCP 服务器和 Skills，并提供管理入口。
 
 截图中展示了 **Gemini 3.8 Flash × Codex Native Harness** 和 **K3-256k × Codex Native Harness** 等配方。在支持的跨厂商组合中，需要时通过兼容桥连接；CLIProxyAPI 负责渠道与 API 兼容，选定的 Harness 继续负责运行 Agent。
 
-把适合自己的组合保存一次，下次直接从首页模型菜单选用。
+选择你信任的模型，搭配你喜欢的 Harness 工具与工作流。把适合自己的组合保存一次，下次直接从首页模型菜单选用。
+
+**Harness 也是结果的一部分。** [Artificial Analysis 的 Coding Agent Index](https://artificialanalysis.ai/agents/coding-agents) 按具体模型、Harness 与设置组合进行评测。用这些配置作为任务选择的参考，再合成适合自己的方案。下方合成台展示个性化 Recipe，下一节的 Harness 总览则展示默认原生路径，两种选择都由你掌握。
 
 <p align="center">
   <img src="docs/screenshots/workbench-craft.png" alt="合成台：Model 与 Harness 清单、保存的 Recipe、MCP 服务器和 Skills" width="960" />
 </p>
 
-<p align="center"><em>给 Agent 的合成方格：模型与 Harness 原料、可复用的配方，以及一目了然的 MCP 和 Skills 清单。</em></p>
+<p align="center"><em>你的 Recipe：选择 Model × Harness 组合，查看兼容状态，保存后随时使用。</em></p>
 
-### 模型背后，谁在真正执行，一眼看清
+### 默认使用原生 Harness，执行路径一眼看清
 
 Harness 总览把 **渠道 → 模型 → 最终 Harness / CLI** 连成可视路径。模型来自哪里、实际由哪个运行时执行、运行时已就绪还是需要安装，都能在同一张图中看清。
 

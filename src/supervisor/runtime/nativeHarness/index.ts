@@ -5,6 +5,7 @@ import { createGrokAdapter } from "@/supervisor/agents/grok";
 import { createKimiAdapter } from "@/supervisor/agents/kimi";
 import { createMiniMaxAdapter } from "@/supervisor/agents/minimax";
 import { createMuseAdapter } from "@/supervisor/agents/muse";
+import { createPiAdapter } from "@/supervisor/agents/pi";
 import { createStepCodeAdapter } from "@/supervisor/agents/stepcode";
 import { createZCodeAdapter } from "@/supervisor/agents/zcode";
 import {
@@ -25,6 +26,7 @@ import {
   MINIMAX_NATIVE_HARNESS_DESCRIPTOR,
   MUSE_NATIVE_HARNESS_DESCRIPTOR,
   OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
+  PI_NATIVE_HARNESS_DESCRIPTOR,
   STEPCODE_NATIVE_HARNESS_DESCRIPTOR,
   ZCODE_NATIVE_HARNESS_DESCRIPTOR,
   NATIVE_HARNESS_DESCRIPTORS,
@@ -57,6 +59,7 @@ export {
   MINIMAX_NATIVE_HARNESS_DESCRIPTOR,
   MUSE_NATIVE_HARNESS_DESCRIPTOR,
   OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
+  PI_NATIVE_HARNESS_DESCRIPTOR,
   STEPCODE_NATIVE_HARNESS_DESCRIPTOR,
   ZCODE_NATIVE_HARNESS_DESCRIPTOR,
   NATIVE_HARNESS_DESCRIPTORS,
@@ -342,6 +345,27 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
         : {}),
       ...(openCodeServerPool ? { serverPool: openCodeServerPool } : {}),
     }),
+  pi: ({
+    projectLocation,
+    accountBinding,
+    profileRef,
+    baseSpawnEnv,
+    mcpServers,
+    onPromptError,
+    skillSegments,
+    inlineSkillInstructions,
+  }) =>
+    new StructuredNativeHarnessRuntimeAdapter({
+      adapter: withBaseSpawnEnv(createPiAdapter(), baseSpawnEnv),
+      descriptor: PI_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation,
+      ...(accountBinding ? { accountBinding } : {}),
+      ...(profileRef ? { profileRef } : {}),
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
+      ...(onPromptError ? { onPromptError } : {}),
+      ...(skillSegments ? { skillSegments } : {}),
+      ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
+    } satisfies StructuredNativeHarnessRuntimeAdapterOptions),
   stepcode: ({
     projectLocation,
     accountBinding,

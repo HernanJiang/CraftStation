@@ -4,6 +4,7 @@ import {
   createNativeHarnessRuntimeAdapter,
   MINIMAX_NATIVE_HARNESS_DESCRIPTOR,
   PtyNativeHarnessRuntimeAdapter,
+  PI_NATIVE_HARNESS_DESCRIPTOR,
   STEPCODE_NATIVE_HARNESS_DESCRIPTOR,
   StructuredNativeHarnessRuntimeAdapter,
   ZCODE_NATIVE_HARNESS_DESCRIPTOR,
@@ -12,6 +13,14 @@ import {
 const location: ProjectLocation = { kind: "windows", path: "D:\\repo" };
 
 describe("MiniMax Code and ZCode native harness integration", () => {
+  it("uses the installed Pi RPC adapter for the marketplace entry", () => {
+    const adapter = createNativeHarnessRuntimeAdapter("pi", { projectLocation: location });
+    expect(adapter).toBeInstanceOf(StructuredNativeHarnessRuntimeAdapter);
+    expect(adapter?.descriptor).toBe(PI_NATIVE_HARNESS_DESCRIPTOR);
+    expect(adapter?.harnessKind).toBe("pi");
+    expect(adapter?.descriptor?.transport).toBe("pi-jsonl-rpc-stdio");
+  });
+
   it("routes MiniMax Code through its official ACP carrier", () => {
     const adapter = createNativeHarnessRuntimeAdapter("minimax", { projectLocation: location });
     if (!adapter?.descriptor) throw new Error("expected MiniMax native runtime adapter");

@@ -2693,7 +2693,19 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
 }
 
 .craftstation-composer-toolbar {
+  container: craftstation-composer / inline-size;
   padding: 0.25rem 0.85rem 0.85rem;
+}
+
+.craftstation-composer-actions > :not(.craftstation-composer-parameters) {
+  flex-shrink: 0;
+}
+
+@container craftstation-composer (max-width: 42rem) {
+  .craftstation-composer-execution-label,
+  .craftstation-composer-execution-chevron {
+    display: none;
+  }
 }
 
 .craftstation-composer-toolbar--compact {
@@ -2853,6 +2865,7 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
 }
 
 .craftstation-composer-send {
+  flex-shrink: 0;
   height: 2.25rem;
   width: 2.25rem;
   background: color-mix(in oklab, var(--accent) 18%, var(--surface));

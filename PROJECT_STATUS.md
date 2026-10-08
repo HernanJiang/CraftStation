@@ -812,3 +812,11 @@ Model Item + Harness Item
 5. v0.10 Coder 只在 `D:\Work\CraftStation\.worktrees\v0.10-cross-thread-collaboration` / `dev/v0.10-cross-thread-collaboration` 继续 focused tests、typecheck 与 Feature-level self-check。
 6. v1.2.0 Coder 自检后创建一对一 `Debugger-1.2-MCP Skills Capability`（`gpt-5.6-sol / high`）；其他 Feature 的 Coder 完成后分别创建一对一 Debugger。Debugger 在各自版本开发分支完成候选收口并通知 Manager，不合入共享 Dev。
 7. 用户验收并明确授权后，Manager 才将指定 `dev/<version-feature>` 分支收口到 `main`。未经授权不得 merge main、创建正式 tag 或 push；v0.6 F35/F36、v0.5 F29/F33 与 v0.4 F04 的证据门保持原判。
+
+## Harness 市场、Gemini 流程图与窄输入区修复 + v1.8.8（2026-10-08）
+
+- **Harness 市场**：“未关联”改为市场，未选模型也能查看；加入 Pi 的注册、检测与已有原生运行接口。缺少 CLI 时沿用一键安装，安装后保留更新入口，未登录也可更新；按 native / WSL 环境执行共享更新流程。Pi 组合能力保持 `EXPERIMENTAL`，未更改 Auto 默认组合。
+- **流程图**：截图中的 Gemini 输出包含未引用的分组标题括号，Mermaid 解析失败后只针对该语法补引号并重试一次；复制与失败回退保留原始代码。真实 Electron 验证流程图及两种 Markdown 表格正常。
+- **输入区**：按容器自身宽度收起权限文字，长模型摘要可缩短，发送与停止按钮不收缩。100%、130%、150% 缩放与 300–960px 宽度共 15 组边界及命中检查通过，发送与权限菜单真实点击成功。
+- **文档**：五张截图已进入中英文 README；补充默认原生 Harness 与 Model × Harness 个性化 Recipe 的主张及 Artificial Analysis 官方评测方法说明。未找到用户所指原始同模型对比图，未写未经证实的具体胜负。
+- **验证**：247 项相关测试通过，1 项外部集成跳过，类型检查及普通/类型感知 lint 通过。市场按钮与模拟安装后的更新入口已在隔离 Electron 检查；未实际下载或更新 CLI。最终相关冒烟的 9 个自动场景与 5 个模拟门禁通过，控制台/运行时错误为 0。报告在 `C:/Users/Haona/.craftstation-smoke/debug-1791449982637-38748/artifacts/final/`；此前流程图和 15 组窄输入区证据在 `C:/Users/Haona/.craftstation-smoke/debug-1791448815652-40452/artifacts/`。Windows 双包发布进行中。

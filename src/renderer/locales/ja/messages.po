@@ -447,6 +447,11 @@ msgid "{0} 安装失败（退出码 {exitCode}）。常见原因是缺少 curl�
 msgstr "{0} のインストールに失敗しました（終了コード {exitCode}）。curl・PowerShell・WSL の不足が主な原因です。インストール端末の出力を確認して再試行してください。"
 
 #. placeholder {0}: input.label
+#: src/renderer/actions/runCliUpdate.ts
+msgid "{0} 已更新。"
+msgstr "{0} を更新しました。"
+
+#. placeholder {0}: input.label
 #. placeholder {1}: input.latest
 #: src/renderer/actions/runCliUpdate.ts
 msgid "{0} 已更新到 v{1}。"
@@ -6126,6 +6131,10 @@ msgstr "Harness の材料"
 msgid "Harness Library"
 msgstr "Harness ライブラリ"
 
+#: src/renderer/components/crafting/HarnessMapPage.tsx
+msgid "Harness 市场"
+msgstr "Harness マーケット"
+
 #: src/renderer/views/MainView/parts/Sidebar/parts/ModelUsageWorkspace.tsx
 #: src/renderer/views/SettingsOverlay/parts/settingsNavigationRegistry.tsx
 msgid "Harness 总览"
@@ -10558,6 +10567,8 @@ msgstr "デフォルトに戻す"
 
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
+#: src/renderer/components/composer/ImageLightbox.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 msgid "Reset zoom"
 msgstr "ズームをリセット"
 
@@ -14596,12 +14607,14 @@ msgstr "ZCode"
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
 #: src/renderer/components/composer/ImageLightbox.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 msgid "Zoom in"
 msgstr "ズームイン"
 
 #: src/renderer/commands/registry.ts
 #: src/renderer/components/common/ZoomIndicator.tsx
 #: src/renderer/components/composer/ImageLightbox.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/ItemMarkdownInner.tsx
 msgid "Zoom out"
 msgstr "ズームアウト"
 
@@ -14609,8 +14622,6 @@ msgstr "ズームアウト"
 #: src/renderer/components/crafting/CraftingGrid.tsx
 msgid "一键填充 Ingredients · {0}"
 msgstr "ワンクリックで材料を投入 · {0}"
-
-#: src/renderer/components/crafting/CraftingGrid.tsx
 
 #: src/renderer/components/thread/ThreadRuntimeStatusBar.tsx
 msgid "上一轮耗时"
@@ -15743,8 +15754,8 @@ msgid "月"
 msgstr "月"
 
 #: src/renderer/components/crafting/HarnessMapPage.tsx
-msgid "未关联"
-msgstr "未関連付け"
+#~ msgid "未关联"
+#~ msgstr "未関連付け"
 
 #: src/renderer/components/crafting/workbench/ComponentsInventory.tsx
 #: src/renderer/components/crafting/workbench/HarnessCliRow.tsx

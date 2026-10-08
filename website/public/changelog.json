@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.8.8",
+      "date": "2026-10-08",
+      "title": "A Harness Marketplace and smoother chat",
+      "summary": "Discover Pi and other Harnesses with install and update actions, render Gemini flowcharts, and keep Send accessible in narrow composers.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Harnesses",
+          "text": "The Harness overview now includes a Harness Marketplace with Pi. Missing CLIs offer one-click installation; installed Harnesses provide an update action even before a version check, including those awaiting sign-in."
+        },
+        {
+          "kind": "improved",
+          "label": "Composer",
+          "text": "Narrow composers show execution permissions as an icon and shorten long model names, leaving room for the Send and Stop buttons while keeping both menus available."
+        },
+        {
+          "kind": "fixed",
+          "label": "Diagrams",
+          "text": "Flowcharts with unquoted parentheses in group titles can render after a single syntax repair, while diagrams with other unresolved errors retain their original source."
+        }
+      ]
+    },
+    {
       "version": "1.8.7",
       "date": "2026-10-08",
       "title": "Antigravity replies after tools",

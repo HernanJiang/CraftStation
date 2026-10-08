@@ -1,8 +1,10 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import type { NativeHarnessControlPlaneEntry } from "@/shared/crafting/nativeHarness";
 import { useUpdateStore } from "@/renderer/state/updateStore";
+import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
+import type { AgentStatus } from "@/shared/contracts";
 import { HarnessCliPanel } from "./HarnessCliPanel";
 
 function entry(harnessKind: string, status: NativeHarnessControlPlaneEntry["status"]) {
@@ -27,6 +29,68 @@ function renderPanel(
 }
 
 describe("HarnessCliPanel update progress", () => {
+  afterEach(() => {
+    useUpdateStore.setState({ agentUpdates: {}, availableCliUpdates: [] });
+    useAgentStatusesStore.setState({ agentStatuses: [], wslAgentStatuses: [] });
+  });
+
+  it("updates an installed but unauthenticated WSL Harness in its own distro", async () => {
+    const updateAgentBinary = vi
+      .fn<() => Promise<{ ok: boolean }>>()
+      .mockResolvedValue({ ok: true });
+    Object.assign(window, {
+      craftstation: {
+        ...(window.craftstation ?? {}),
+        updateAgentBinary,
+        refreshAgentStatuses: vi.fn<() => Promise<unknown>>().mockResolvedValue({}),
+      },
+    });
+    useAgentStatusesStore.setState({
+      wslAgentStatuses: [
+        {
+          kind: "pi",
+          label: "Pi",
+          installed: true,
+          authState: "missing",
+          envKind: "wsl",
+          envDistro: "Ubuntu",
+          capabilities: {},
+        } as AgentStatus,
+      ],
+    });
+    useUpdateStore.setState({ agentUpdates: {}, availableCliUpdates: [] });
+    renderPanel([{ ...entry("pi", "not-configured"), environmentKind: "wsl" }]);
+    fireEvent.click(screen.getByTestId("harness-cli-update-pi"));
+    await waitFor(() =>
+      expect(updateAgentBinary).toHaveBeenCalledWith({
+        agentKind: "pi",
+        envKind: "wsl",
+        wslDistro: "Ubuntu",
+      }),
+    );
+    await waitFor(() => expect(useUpdateStore.getState().agentUpdates).toEqual({}));
+  });
+
+  it("provides an update action before the titlebar has checked for new releases", async () => {
+    const updateAgentBinary = vi
+      .fn<() => Promise<{ ok: boolean }>>()
+      .mockResolvedValue({ ok: true });
+    Object.assign(window, {
+      craftstation: {
+        ...(window.craftstation ?? {}),
+        updateAgentBinary,
+        refreshAgentStatuses: vi.fn<() => Promise<unknown>>().mockResolvedValue({}),
+      },
+    });
+    useUpdateStore.setState({ agentUpdates: {}, availableCliUpdates: [] });
+    renderPanel([entry("pi", "ready")]);
+    fireEvent.click(screen.getByTestId("harness-cli-update-pi"));
+    await waitFor(() =>
+      expect(updateAgentBinary).toHaveBeenCalledWith({ agentKind: "pi", envKind: "windows" }),
+    );
+    expect(screen.queryByTestId("harness-cli-install-pi")).not.toBeInTheDocument();
+  });
+
   it("marks the row updating while its agent binary update is in flight", () => {
     useUpdateStore.setState({
       agentUpdates: { "grok:windows:": { label: "Grok", startedAt: Date.now() } },
@@ -69,7 +133,7 @@ describe("HarnessCliPanel update progress", () => {
     });
     renderPanel();
 
-    expect(screen.getByText("Update")).toBeInTheDocument();
+    expect(screen.getByTestId("harness-cli-update-grok")).toHaveTextContent("Update");
     useUpdateStore.setState({ availableCliUpdates: [] });
   });
 
@@ -122,7 +186,9 @@ describe("HarnessCliPanel update progress", () => {
     });
     renderPanel();
 
-    expect(screen.queryByText("Update")).not.toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("harness-cli-row-grok")).queryByText("Update"),
+    ).not.toBeInTheDocument();
     expect(screen.getByText("Updating")).toBeInTheDocument();
     useUpdateStore.setState({ agentUpdates: {}, availableCliUpdates: [] });
   });

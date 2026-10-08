@@ -221,10 +221,10 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
   return (
     <>
       <Dropdown>
-        <Dropdown.Trigger className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-[var(--row-active)]">
+        <Dropdown.Trigger className="craftstation-composer-parameters inline-flex h-9 min-w-0 max-w-full items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-[var(--row-active)]">
           {modelControl ? (
             <span
-              className="flex items-center gap-1 whitespace-nowrap leading-tight"
+              className="flex min-w-0 items-center gap-1 overflow-hidden whitespace-nowrap leading-tight"
               data-testid="auto-harness-model"
               {...(autoTitle ? { title: autoTitle } : {})}
             >
@@ -236,7 +236,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                     tone="active"
                     className="size-3.5 shrink-0"
                   />
-                  <span className="shrink-0" data-testid="auto-harness-name">
+                  <span className="min-w-0 max-w-[7rem] truncate" data-testid="auto-harness-name">
                     {autoHarnessName}
                   </span>
                   <span className="shrink-0 text-muted" aria-hidden="true">
@@ -252,7 +252,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   className="size-3.5 shrink-0"
                 />
               ) : null}
-              <span className="whitespace-nowrap" data-testid="auto-model-name">
+              <span className="min-w-0 truncate" data-testid="auto-model-name" title={label}>
                 {label}
               </span>
             </span>

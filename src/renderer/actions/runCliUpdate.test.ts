@@ -70,4 +70,12 @@ describe("runCliUpdateBinary", () => {
     expect(ok).toBe(false);
     expect(useUpdateStore.getState().availableCliUpdates).toHaveLength(1);
   });
+
+  it("updates an installed Harness without a prior version lookup", async () => {
+    expect(
+      await runCliUpdateBinary({ key: "pi:windows:", agentKind: "pi", label: "Pi Harness" }),
+    ).toBe(true);
+    expect(updateAgentBinary).toHaveBeenCalledWith({ agentKind: "pi", envKind: "windows" });
+    expect(useUpdateStore.getState().agentUpdates).toEqual({});
+  });
 });

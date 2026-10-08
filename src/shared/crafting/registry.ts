@@ -670,6 +670,15 @@ export const BUILTIN_STEPCODE_HARNESS_ITEM = createNativeHarnessItem({
   executionMode: "structured_session",
 });
 
+export const BUILTIN_PI_HARNESS_ITEM = createNativeHarnessItem({
+  id: "harness:pi",
+  name: "Pi Harness",
+  vendor: "pi",
+  description: "Official Pi CLI runtime through its JSONL RPC boundary (`pi --mode rpc`).",
+  compatibilityStatus: "EXPERIMENTAL",
+  executionMode: "structured_session",
+});
+
 export const BUILTIN_NATIVE_HARNESS_ITEMS: Item[] = [
   BUILTIN_GROK_HARNESS_ITEM,
   BUILTIN_KIMI_HARNESS_ITEM,
@@ -680,6 +689,7 @@ export const BUILTIN_NATIVE_HARNESS_ITEMS: Item[] = [
   BUILTIN_DEEPSEEK_API_HARNESS_ITEM,
   BUILTIN_MUSE_HARNESS_ITEM,
   BUILTIN_STEPCODE_HARNESS_ITEM,
+  BUILTIN_PI_HARNESS_ITEM,
   BUILTIN_DEVIN_HARNESS_ITEM,
 ];
 

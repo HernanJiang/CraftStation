@@ -20,7 +20,7 @@ export async function runCliUpdateBinary(input: {
   key: string;
   agentKind: string;
   label: string;
-  latest: string;
+  latest?: string | undefined;
 }): Promise<boolean> {
   const [, envKindRaw, distro] = input.key.split(":");
   const envKind = envKindRaw === "wsl" ? "wsl" : envKindRaw === "windows" ? "windows" : "posix";
@@ -37,7 +37,11 @@ export async function runCliUpdateBinary(input: {
       toast.danger(result.output?.trim() || i18n._(linguiMsg`无法更新 ${input.label}。`));
       return false;
     }
-    toast.success(i18n._(linguiMsg`${input.label} 已更新到 v${input.latest}。`));
+    toast.success(
+      input.latest
+        ? i18n._(linguiMsg`${input.label} 已更新到 v${input.latest}。`)
+        : i18n._(linguiMsg`${input.label} 已更新。`),
+    );
     const refreshed = await readBridge().refreshAgentStatuses(currentWslDistros(), {
       agentKinds: [input.agentKind],
       envs: [envKind === "wsl" && distro ? { kind: "wsl", distro } : { kind: "native" }],

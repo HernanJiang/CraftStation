@@ -441,6 +441,21 @@ export const STEPCODE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   ),
 };
 
+export const PI_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
+  id: "native-harness:pi",
+  harnessKind: "pi",
+  label: "Pi Harness",
+  vendor: "pi",
+  official: true,
+  transport: "pi-jsonl-rpc-stdio",
+  machineFacingBoundary: "pi --mode rpc (JSONL RPC)",
+  capabilities: capabilityMap(
+    [...COMMON_STRUCTURED_CAPABILITIES, "mcp", "context", "compaction"],
+    ["permission", "subagents"],
+    ["discovery", "auth"],
+  ),
+};
+
 export const NATIVE_HARNESS_DESCRIPTORS = {
   codex: CODEX_NATIVE_HARNESS_DESCRIPTOR,
   grok: GROK_NATIVE_HARNESS_DESCRIPTOR,
@@ -454,4 +469,5 @@ export const NATIVE_HARNESS_DESCRIPTORS = {
   devin: DEVIN_NATIVE_HARNESS_DESCRIPTOR,
   zcode: ZCODE_NATIVE_HARNESS_DESCRIPTOR,
   stepcode: STEPCODE_NATIVE_HARNESS_DESCRIPTOR,
+  pi: PI_NATIVE_HARNESS_DESCRIPTOR,
 } as const;

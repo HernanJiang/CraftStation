@@ -5,7 +5,8 @@ import {
   brandIdForVendorKind,
   ProviderBrandBadge,
 } from "@/renderer/views/MainView/parts/Sidebar/parts/providerBrands";
-import { findCliUpdateForAgentKind, useUpdateStore } from "@/renderer/state/updateStore";
+import { useUpdateStore } from "@/renderer/state/updateStore";
+import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { runCliUpdateBinary } from "@/renderer/actions/runCliUpdate";
 import { msg as linguiMsg } from "@lingui/core/macro";
 import type { MessageDescriptor } from "@lingui/core";
@@ -52,6 +53,13 @@ export function HarnessCliRow(props: {
   // indeterminate state rather than a fabricated percentage.
   const agentUpdates = useUpdateStore((s) => s.agentUpdates);
   const availableCliUpdates = useUpdateStore((s) => s.availableCliUpdates);
+  const agentStatuses = useAgentStatusesStore((s) => s.agentStatuses);
+  const wslAgentStatuses = useAgentStatusesStore((s) => s.wslAgentStatuses);
+  const installedStatus = (entry.environmentKind === "wsl" ? wslAgentStatuses : agentStatuses).find(
+    (status) => status.kind === entry.descriptor.harnessKind && status.installed,
+  );
+  const envKind = installedStatus?.envKind ?? entry.environmentKind ?? "windows";
+  const updateKey = `${entry.descriptor.harnessKind}:${envKind}:${installedStatus?.envDistro ?? ""}`;
   const updating = Object.keys(agentUpdates).some(
     (key) => key.split(":")[0] === entry.descriptor.harnessKind,
   );
@@ -61,7 +69,24 @@ export function HarnessCliRow(props: {
   const availableUpdate =
     updating || installing
       ? undefined
-      : findCliUpdateForAgentKind(availableCliUpdates, entry.descriptor.harnessKind);
+      : availableCliUpdates.find((update) => update.key === updateKey);
+  const canUpdate =
+    entry.status !== "unavailable" &&
+    entry.descriptor.transport !== "openai-compatible-http" &&
+    !updating &&
+    !installing &&
+    (entry.status === "ready" ||
+      installedStatus?.installed === true ||
+      availableUpdate !== undefined) &&
+    (envKind !== "wsl" || Boolean(installedStatus?.envDistro));
+  const update = () => {
+    void runCliUpdateBinary({
+      key: updateKey,
+      agentKind: entry.descriptor.harnessKind,
+      label: entry.descriptor.label,
+      ...(availableUpdate ? { latest: availableUpdate.latest } : {}),
+    });
+  };
   const canInstall = entry.status === "unavailable" && onInstall !== undefined && !installing;
   return (
     <button
@@ -111,37 +136,32 @@ export function HarnessCliRow(props: {
         <Icon className="size-3" />
         {t(meta.label)}
       </span>
-      {availableUpdate ? (
+      {canUpdate ? (
         // Span, not button: the row itself is a <button>, and nested
         // buttons are invalid HTML (React hydration error).
         <span
           role="button"
           tabIndex={0}
+          data-testid={`harness-cli-update-${entry.descriptor.harnessKind}`}
           aria-label={t`Update ${entry.descriptor.label || entry.descriptor.harnessKind} now`}
           onClick={(event) => {
             // Don't select the harness row underneath: the pill updates
             // the CLI in place through the same path as the titlebar.
             event.stopPropagation();
-            void runCliUpdateBinary({
-              key: availableUpdate.key,
-              agentKind: availableUpdate.agentKind,
-              label: availableUpdate.label,
-              latest: availableUpdate.latest,
-            });
+            update();
           }}
           onKeyDown={(event) => {
             if (event.key !== "Enter" && event.key !== " ") return;
             event.preventDefault();
             event.stopPropagation();
-            void runCliUpdateBinary({
-              key: availableUpdate.key,
-              agentKind: availableUpdate.agentKind,
-              label: availableUpdate.label,
-              latest: availableUpdate.latest,
-            });
+            update();
           }}
           className="flex shrink-0 cursor-pointer items-center gap-1 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 transition-colors hover:bg-amber-500/25 focus-visible:outline-2 focus-visible:outline-amber-600 dark:bg-amber-400/15 dark:text-amber-300 dark:hover:bg-amber-400/30 dark:focus-visible:outline-amber-300"
-          title={t`New version available: v${availableUpdate.version} → v${availableUpdate.latest}. Click to update now.`}
+          title={
+            availableUpdate
+              ? t`New version available: v${availableUpdate.version} → v${availableUpdate.latest}. Click to update now.`
+              : t`Update ${entry.descriptor.label || entry.descriptor.harnessKind} now`
+          }
         >
           <Download className="size-3" />
           {t`Update`}
