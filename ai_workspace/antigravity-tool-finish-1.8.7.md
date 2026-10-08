@@ -2,13 +2,13 @@
 
 ## 发布范围审计
 
-上一版基线为 `v1.8.6`，发布边界为本次待提交的修复与版本元数据。
+上一版基线为 `v1.8.6`，发布边界为 `v1.8.7`，对应修复提交 `6cf2ef26`。
 
-| 提交或改动                              | 处理                       | 原因                               |
-| --------------------------------------- | -------------------------- | ---------------------------------- |
-| `46c398e6`：记录 1.8.6 验证及发布       | omit                       | 已发布版本的验证记录，无新产品行为 |
-| 本次 Antigravity 完成判定及传输续接修复 | include                    | 修复工具收尾却显示已完成的用户问题 |
-| 本次测试、版本号及验证记录              | fold into Antigravity 修复 | 对应同一修复的验证及发布元数据     |
+| 提交或改动                                     | 处理                       | 原因                               |
+| ---------------------------------------------- | -------------------------- | ---------------------------------- |
+| `46c398e6`：记录 1.8.6 验证及发布              | omit                       | 已发布版本的验证记录，无新产品行为 |
+| `6cf2ef26`：Antigravity 完成判定及传输续接修复 | include                    | 修复工具收尾却显示已完成的用户问题 |
+| 本次测试、版本号及验证记录                     | fold into Antigravity 修复 | 对应同一修复的验证及发布元数据     |
 
 ## 复现与判定
 
@@ -23,3 +23,7 @@
 - 104 项相关测试、类型检查及两种 lint 通过。
 - 隔离 Electron mock 冒烟：`C:/Users/Haona/.craftstation-smoke/antigravity-final-20261008-1520/artifacts/smoke-report.json`；自动检查与三个 mock 门禁通过，控制台及运行时错误为 0，窗口已停止。
 - 真实服务尝试：`C:/Users/Haona/.craftstation-smoke/antigravity-live-20261008-1523/artifacts/provider-model-blocked.png`。`agy 1.3.1` 已检测安装且认证可用，但拒绝 `Gemini 3.8 Flash` 的模型参数，直接查询模型列表也超时。真实工具回合验证记为 BLOCKED，不与 mock 通过混淆。隔离窗口已 reset 和 stop；未改用户真实对话。
+
+## 构建与发布
+
+Windows x64 NSIS 与便携版均构建通过，日志位于 `C:/Users/Haona/.craftstation-smoke/antigravity-final-20261008-1520/artifacts/build-nsis-1.8.7.log` 与同目录 `build-portable-1.8.7.log`。生产编译、17 项运行依赖及原生二进制检查通过；更新清单指向 1.8.7。`main`、`v1.8.7` tag 与四个资产已推送并核验大小，双语 [GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.8.7) 已正式发布且确认为最新版本。便携包保留 1.8.6 和 1.8.7，旧包与中间文件已安全归档。
