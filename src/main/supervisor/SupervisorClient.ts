@@ -101,6 +101,9 @@ export class SupervisorClient {
   private child: ChildProcess | null = null;
   private baseDir: string | null = null;
   private disposed = false;
+  private restartTimer: ReturnType<typeof setTimeout> | null = null;
+  private restartGate: Promise<void> | null = null;
+  private resolveRestartGate: (() => void) | null = null;
   private readonly startedGate: Promise<void>;
   private resolveStartedGate!: () => void;
   private readonly pendingRequests = new Map<
@@ -130,6 +133,7 @@ export class SupervisorClient {
   }
 
   start(baseDir: string): void {
+    if (this.disposed) return;
     this.baseDir = baseDir;
     this.resolveStartedGate();
     this.stop(new Error("Supervisor restarting"));
@@ -178,6 +182,7 @@ export class SupervisorClient {
     }
 
     child.on("message", (message: SupervisorReply | SupervisorEvent) => {
+      if (this.child !== child) return;
       if (isSupervisorReply(message)) {
         const pending = this.pendingRequests.get(message.replyTo);
         if (!pending) {
@@ -195,28 +200,44 @@ export class SupervisorClient {
       this.options.onEvent(message);
     });
 
-    this.options.onStarted?.();
-
-    child.on("exit", (code) => {
+    const recover = (error: Error, terminate = false): void => {
       if (this.child !== child) {
         return;
       }
       this.child = null;
-      this.reset(new Error("Supervisor exited"));
-      if (!this.disposed && code !== 0 && this.baseDir) {
-        const error = new Error(`Supervisor exited with code ${code ?? "unknown"}`);
-        console.error(`[craftstation] ${error.message}, restarting…`);
-        this.options.reportError?.(error, { "craftstation.feature_area": "supervisor" });
-        setTimeout(() => {
-          if (!this.child && this.baseDir) {
-            this.start(this.baseDir);
-          }
+      if (terminate) terminateChildProcessTree(child);
+      if (!this.disposed && this.baseDir) {
+        // Only new calls wait for the replacement. In-flight mutations fail
+        // once and are never replayed (they may already have committed).
+        this.restartGate = new Promise<void>((resolve) => {
+          this.resolveRestartGate = resolve;
+        });
+        this.restartTimer = setTimeout(() => {
+          this.restartTimer = null;
+          if (!this.disposed && !this.child && this.baseDir) this.start(this.baseDir);
         }, 1000);
+        this.restartTimer.unref?.();
+        process.stderr.write(
+          `[craftstation] phase=recovery operation=supervisor-restart status=scheduled code=SUPERVISOR_UNAVAILABLE reason=${error.message}\n`,
+        );
+        this.options.reportError?.(error, { "craftstation.feature_area": "supervisor" });
       }
-    });
+      this.reset(new Error("Supervisor exited"));
+    };
+    child.on("exit", (code) =>
+      recover(new Error(`Supervisor exited with code ${code ?? "unknown"}`)),
+    );
+    child.on("disconnect", () => recover(new Error("Supervisor IPC disconnected"), true));
+    child.on("error", (error) => recover(error, true));
+    this.options.onStarted?.();
   }
 
   stop(error: Error): void {
+    if (this.restartTimer) clearTimeout(this.restartTimer);
+    this.restartTimer = null;
+    this.resolveRestartGate?.();
+    this.resolveRestartGate = null;
+    this.restartGate = null;
     const child = this.child;
     if (!child) {
       return;
@@ -237,6 +258,7 @@ export class SupervisorClient {
     payload: IpcProcedurePayload<Name>,
   ): Promise<IpcProcedureResult<Name>> {
     await this.startedGate;
+    if (this.restartGate) await this.restartGate;
     const child = this.child;
     if (!child || !child.connected) {
       return Promise.reject(new Error("Supervisor is not running."));

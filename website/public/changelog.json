@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.8.4",
+      "date": "2026-10-08",
+      "title": "Account recovery after restart",
+      "summary": "Account data is flushed to disk and backed up with a current recovery snapshot. Account metadata errors stay isolated, and Supervisor automatically recovers from unexpected exits or IPC disconnections.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Accounts",
+          "text": "Corrupt account metadata no longer prevents the Supervisor from starting. A validated current snapshot can restore the account list and pool settings when the main file and previous backup are damaged."
+        },
+        {
+          "kind": "fixed",
+          "label": "Runtime",
+          "text": "New requests wait through Supervisor recovery. Unexpected clean exits, spawn errors, and disconnected IPC channels trigger a restart; closing the app cancels pending restarts."
+        },
+        {
+          "kind": "improved",
+          "label": "Persistence",
+          "text": "Atomic file writes now flush their contents before replacing the original, reducing the risk of zero-filled data after sudden restarts."
+        }
+      ]
+    },
+    {
       "version": "1.8.3",
       "date": "2026-10-07",
       "title": "Roomier dialogue and reliable preview controls",

@@ -1,11 +1,19 @@
-import { mkdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import {
+  closeSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname } from "node:path";
 
 /**
  * Write a file atomically: serialize to a sibling temp file, then `rename` it
- * into place. A same-volume rename is atomic on POSIX and NTFS, so a crash or
- * power loss mid-write leaves either the old file or the new one intact —
- * never a truncated/partial file. Use for any file whose corruption would lose
+ * into place. Flush the content before publishing it: an atomic rename alone
+ * can still publish zero-filled cached pages after a sudden reboot. A
+ * same-volume rename is atomic on POSIX and NTFS. Use for files whose corruption would lose
  * user data or silently fall back to defaults (settings, registries, keys).
  *
  * The temp name includes the pid so concurrent writers in different processes
@@ -19,7 +27,13 @@ export function writeFileAtomic(
   mkdirSync(dirname(filePath), { recursive: true });
   const tmp = `${filePath}.${process.pid}.tmp`;
   try {
-    writeFileSync(tmp, data, options);
+    const fd = openSync(tmp, "w", options?.mode);
+    try {
+      writeFileSync(fd, data, options);
+      fsyncSync(fd);
+    } finally {
+      closeSync(fd);
+    }
     renameAtomic(filePath, tmp);
   } catch (error) {
     // Best-effort cleanup of the temp file; ignore if it never got created.

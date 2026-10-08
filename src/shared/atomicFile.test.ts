@@ -8,6 +8,7 @@ import {
   rmSync,
   statSync,
   writeFileSync,
+  fsyncSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -21,6 +22,7 @@ import { writeFileAtomic } from "./atomicFile";
  */
 const renameControl = vi.hoisted(() => ({
   failCodes: [] as string[],
+  failFlush: false,
   realRename: (() => {}) as (from: string, to: string) => void,
 }));
 
@@ -29,6 +31,10 @@ vi.mock("node:fs", async (importOriginal) => {
   renameControl.realRename = actual.renameSync;
   return {
     ...actual,
+    fsyncSync: vi.fn<(fd: number) => void>((fd) => {
+      if (renameControl.failFlush) throw new Error("disk flush failed");
+      actual.fsyncSync(fd);
+    }),
     renameSync: vi.fn<(from: string, to: string) => void>((from, to) => {
       const code = renameControl.failCodes.shift();
       if (code) {
@@ -44,7 +50,9 @@ describe("writeFileAtomic", () => {
 
   beforeEach(() => {
     renameControl.failCodes = [];
+    renameControl.failFlush = false;
     vi.mocked(renameSync).mockClear();
+    vi.mocked(fsyncSync).mockClear();
     dir = mkdtempSync(join(tmpdir(), "atomic-test-"));
   });
 
@@ -56,6 +64,24 @@ describe("writeFileAtomic", () => {
     const target = join(dir, "settings.json");
     writeFileAtomic(target, '{"a":1}', { encoding: "utf8" });
     expect(readFileSync(target, "utf8")).toBe('{"a":1}');
+  });
+
+  it("flushes file content to disk before publishing the replacement", () => {
+    writeFileAtomic(join(dir, "accounts.json"), '{"accounts":[]}', { encoding: "utf8" });
+    expect(fsyncSync).toHaveBeenCalledOnce();
+    expect(vi.mocked(fsyncSync).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(renameSync).mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("preserves the previous file if flushing the replacement fails", () => {
+    const target = join(dir, "accounts.json");
+    writeFileSync(target, "previous");
+    renameControl.failFlush = true;
+    expect(() => writeFileAtomic(target, "replacement")).toThrow("disk flush failed");
+    expect(readFileSync(target, "utf8")).toBe("previous");
+    expect(renameSync).not.toHaveBeenCalled();
+    expect(readdirSync(dir)).toEqual(["accounts.json"]);
   });
 
   it("creates parent directories", () => {

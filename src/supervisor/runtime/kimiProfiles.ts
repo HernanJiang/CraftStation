@@ -270,8 +270,7 @@ export class KimiProfileService {
   private readonly provider = "kimi";
 
   constructor(private readonly options: KimiProfileServiceOptions) {
-    this.options.store.cleanupOrphanedPendingAccounts(this.provider);
-    this.options.store.dedupeProviderIdentities(this.provider);
+    this.options.store.prepareProvider(this.provider);
   }
 
   managedKimiHome(accountId: string): string {

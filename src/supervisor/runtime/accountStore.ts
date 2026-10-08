@@ -161,7 +161,32 @@ export class AccountStore {
     this.metadataPath = join(this.managedRoot, "accounts.json");
     this.lockPath = join(this.managedRoot, "accounts.lock");
     mkdirSync(this.managedRoot, { recursive: true });
-    this.migrateLegacyMetadata();
+    this.runStartupMaintenance(() => this.migrateLegacyMetadata());
+  }
+
+  /** Shared boot boundary for provider cleanup; account operations remain fail-closed. */
+  prepareProvider(provider: string): void {
+    this.runStartupMaintenance(() => {
+      this.cleanupOrphanedPendingAccounts(provider);
+      this.dedupeProviderIdentities(provider);
+    });
+  }
+
+  private runStartupMaintenance(operation: () => void): void {
+    try {
+      operation();
+    } catch (error) {
+      if (
+        !(error instanceof AccountControlError) ||
+        (error.code !== "ACCOUNT_CORRUPT" && error.code !== "ACCOUNT_LOCKED")
+      )
+        throw error;
+      // Account failures must not prevent unrelated Supervisor procedures
+      // from starting. Reads/mutations still fail closed until repaired.
+      process.stderr.write(
+        `[account] phase=startup operation=metadata-load status=degraded code=${error.code} reason=${error.message}\n`,
+      );
+    }
   }
 
   list(provider?: string): AccountView[] {
@@ -961,65 +986,94 @@ export class AccountStore {
     }
   }
 
-  private read(): AccountFile {
-    if (!existsSync(this.metadataPath)) return { version: ACCOUNT_FILE_VERSION, accounts: [] };
-    try {
-      const parsed = JSON.parse(readFileSync(this.metadataPath, "utf8")) as AccountFile;
-      if (!parsed || !Array.isArray(parsed.accounts)) throw new Error("invalid account file");
-      // v0.5 migration: v1 files carry accounts only; promote to v2 with empty pools.
-      const migrated: AccountFile = {
-        version: ACCOUNT_FILE_VERSION,
-        accounts: parsed.accounts,
-        pools: parsed.pools ?? {},
-      };
-      return migrated;
-    } catch {
-      const backup = `${this.metadataPath}.bak`;
-      if (existsSync(backup)) {
-        try {
-          const recovered = JSON.parse(readFileSync(backup, "utf8")) as AccountFile;
-          if (recovered && Array.isArray(recovered.accounts)) {
-            const migrated: AccountFile = {
-              version: ACCOUNT_FILE_VERSION,
-              accounts: recovered.accounts,
-              pools: recovered.pools ?? {},
-            };
-            writeFileAtomic(this.metadataPath, JSON.stringify(migrated), {
-              encoding: "utf8",
-              mode: 0o600,
-            });
-            return migrated;
-          }
-        } catch {
-          // Report the stable corruption error below.
-        }
-      }
-      throw new AccountControlError(
-        "ACCOUNT_CORRUPT",
-        "Managed account metadata is corrupt and recovery failed.",
-      );
-    }
+  private readFile(path: string): AccountFile {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as AccountFile;
+    if (
+      !parsed ||
+      !Array.isArray(parsed.accounts) ||
+      parsed.accounts.some(
+        (account) =>
+          !account ||
+          typeof account.accountId !== "string" ||
+          typeof account.provider !== "string" ||
+          typeof account.label !== "string" ||
+          typeof account.credentialRoot !== "string",
+      )
+    )
+      throw new Error("invalid account file");
+    return { version: ACCOUNT_FILE_VERSION, accounts: parsed.accounts, pools: parsed.pools ?? {} };
   }
 
-  private writeUnlocked(file: AccountFile): void {
-    // Keep a backup without creating a window where readers see no metadata.
-    // `rename(metadata, metadata.bak)` is also not replace-safe on Windows
-    // when a previous backup exists.
-    if (existsSync(this.metadataPath)) {
-      copyFileSync(this.metadataPath, `${this.metadataPath}.bak`);
+  private read(): AccountFile {
+    const backups = [`${this.metadataPath}.last-good`, `${this.metadataPath}.bak`];
+    if (!existsSync(this.metadataPath) && backups.every((path) => !existsSync(path))) {
+      return { version: ACCOUNT_FILE_VERSION, accounts: [] };
     }
-    writeFileAtomic(
-      this.metadataPath,
-      JSON.stringify({ ...file, version: ACCOUNT_FILE_VERSION, pools: file.pools ?? {} }, null, 2),
-      {
+    try {
+      return this.readFile(this.metadataPath);
+    } catch {
+      // Use only validated metadata, never silently reset an existing pool.
+    }
+    for (const backup of backups) {
+      let recovered: AccountFile;
+      try {
+        recovered = this.readFile(backup);
+      } catch {
+        continue;
+      }
+      if (existsSync(this.metadataPath)) {
+        copyFileSync(
+          this.metadataPath,
+          `${this.metadataPath}.corrupt-${Date.now()}-${randomUUID()}`,
+        );
+      }
+      writeFileAtomic(this.metadataPath, JSON.stringify(recovered, null, 2), {
         encoding: "utf8",
         mode: 0o600,
-      },
+      });
+      process.stderr.write(
+        `[account] phase=recovery operation=metadata-restore status=success code=ACCOUNT_METADATA_RECOVERED source=${basename(backup)} accounts=${recovered.accounts.length}\n`,
+      );
+      return recovered;
+    }
+    throw new AccountControlError(
+      "ACCOUNT_CORRUPT",
+      "Managed account metadata is corrupt and recovery failed. Restore accounts.json from a valid backup; credential profiles are preserved.",
     );
   }
 
+  private writeUnlocked(file: AccountFile): void {
+    // Backups must be validated and flushed too. copyFileSync can replace a
+    // good backup with zero-filled cached pages after a sudden reboot.
+    if (existsSync(this.metadataPath)) {
+      const previous = this.readFile(this.metadataPath);
+      writeFileAtomic(`${this.metadataPath}.bak`, JSON.stringify(previous, null, 2), {
+        encoding: "utf8",
+        mode: 0o600,
+      });
+    }
+    const serialized = JSON.stringify(
+      { ...file, version: ACCOUNT_FILE_VERSION, pools: file.pools ?? {} },
+      null,
+      2,
+    );
+    writeFileAtomic(this.metadataPath, serialized, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+    writeFileAtomic(`${this.metadataPath}.last-good`, serialized, {
+      encoding: "utf8",
+      mode: 0o600,
+    });
+  }
+
   private migrateLegacyMetadata(): void {
-    if (!existsSync(this.metadataPath)) return;
+    if (
+      !existsSync(this.metadataPath) &&
+      !existsSync(`${this.metadataPath}.last-good`) &&
+      !existsSync(`${this.metadataPath}.bak`)
+    )
+      return;
     const lock = this.acquireLock(this.lockPath);
     try {
       // v0.5: promote v1 files to v2 and persist the pool map on disk so the
@@ -1047,6 +1101,13 @@ export class AccountStore {
         if (normalizeLegacyAccount(account)) changed = true;
       }
       if (changed) this.writeUnlocked(file);
+      else {
+        // Seed a current durable snapshot when upgrading an existing store.
+        writeFileAtomic(`${this.metadataPath}.last-good`, JSON.stringify(file, null, 2), {
+          encoding: "utf8",
+          mode: 0o600,
+        });
+      }
     } finally {
       this.releaseLock(lock);
     }

@@ -297,8 +297,7 @@ export class CodexProfileService {
     this.provider = options.provider ?? "codex";
     // Remove interrupted never-identified pending rows and collapse duplicate
     // ChatGPT identities so the usage list cannot accumulate "账号身份未知".
-    this.options.store.cleanupOrphanedPendingAccounts(this.provider);
-    this.options.store.dedupeProviderIdentities(this.provider);
+    this.options.store.prepareProvider(this.provider);
   }
 
   list(): AccountView[] {

@@ -202,4 +202,45 @@ describe("SupervisorClient lifecycle", () => {
     expect(terminateChildProcessTreeMock).toHaveBeenCalledExactlyOnceWith(child);
     expect(forkMock).toHaveBeenCalledOnce();
   });
+
+  it("waits for recovery before sending a new account request after an unexpected clean exit", async () => {
+    vi.useFakeTimers();
+    const { client, child } = makeClient();
+    const replacement = makeFakeChild();
+    forkMock.mockReturnValue(replacement);
+    child.connected = false;
+    child.emit("exit", 0);
+    const result = client.call("listAccounts", {}).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(forkMock).toHaveBeenCalledTimes(2);
+    expect(replacement.send).toHaveBeenCalledOnce();
+    const request = replacement.send.mock.calls[0]![0] as { id: string };
+    replacement.emit("message", { replyTo: request.id, ok: true, data: [] });
+    await expect(result).resolves.toEqual([]);
+    client.dispose();
+  });
+
+  it("does not respawn after disposal during a pending crash recovery", async () => {
+    vi.useFakeTimers();
+    const { client, child } = makeClient();
+    child.emit("exit", 1);
+    client.dispose();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(forkMock).toHaveBeenCalledOnce();
+  });
+
+  it("recovers a disconnected IPC channel and handles child spawn errors", async () => {
+    vi.useFakeTimers();
+    const { client, child } = makeClient();
+    const replacement = makeFakeChild();
+    forkMock.mockReturnValue(replacement);
+    child.connected = false;
+    expect(() => child.emit("error", new Error("spawn failed"))).not.toThrow();
+    child.emit("disconnect");
+    child.emit("exit", 1);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(forkMock).toHaveBeenCalledTimes(2);
+    expect(terminateChildProcessTreeMock).toHaveBeenCalledExactlyOnceWith(child);
+    client.dispose();
+  });
 });

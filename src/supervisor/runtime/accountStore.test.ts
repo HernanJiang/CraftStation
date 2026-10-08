@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { AccountControlError, type AccountQuotaWindow } from "@/shared/contracts";
 import { AccountResolver } from "./accountResolver";
+import { CodexProfileService } from "./codexProfiles";
+import { KimiProfileService } from "./kimiProfiles";
 import {
   AccountStore,
   effectiveQuotaStatus,
@@ -96,6 +98,7 @@ describe("AccountStore", () => {
     const account = store.add({ provider: "codex", label: "Personal" });
     const metadata = join(root, "accounts.json");
     writeFileSync(`${metadata}.bak`, readFileSync(metadata));
+    rmSync(`${metadata}.last-good`, { force: true });
     writeFileSync(metadata, "not-json");
     expect(store.get(account.accountId)?.label).toBe("Personal");
     const projected = store.projectCredential({
@@ -114,6 +117,78 @@ describe("AccountStore", () => {
         environment: { CODEX_HOME: "../../outside" },
       }),
     ).toThrow(/CODEX_HOME/);
+  });
+
+  it("recovers all accounts and pool settings when primary and previous backup are zero-filled", () => {
+    const store = createStore();
+    const first = store.add({ provider: "codex", label: "Personal" });
+    const second = store.add({ provider: "kimi", label: "Work" });
+    store.setPoolSchedulingMode("codex", "round-robin");
+    store.advanceRoundRobinCursor("codex", first.accountId);
+    const metadata = join(store.managedRoot, "accounts.json");
+    const expected = readFileSync(metadata, "utf8");
+    writeFileSync(metadata, Buffer.alloc(21057));
+    writeFileSync(`${metadata}.bak`, Buffer.alloc(21057));
+
+    const reopened = new AccountStore(store.managedRoot);
+    expect(reopened.list().map((a) => a.accountId)).toEqual([first.accountId, second.accountId]);
+    expect(reopened.poolConfig("codex")).toEqual({
+      scheduling: "round-robin",
+      roundRobinCursor: first.accountId,
+    });
+    expect(JSON.parse(readFileSync(metadata, "utf8"))).toEqual(JSON.parse(expected));
+  });
+
+  it("restores a missing primary from the last good snapshot instead of returning an empty pool", () => {
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "Personal" });
+    rmSync(join(store.managedRoot, "accounts.json"));
+    const reopened = new AccountStore(store.managedRoot);
+    expect(reopened.get(account.accountId)?.label).toBe("Personal");
+  });
+
+  it("keeps corruption scoped to account operations and never replaces lost accounts with defaults", () => {
+    const store = createStore();
+    store.add({ provider: "codex", label: "Personal" });
+    const metadata = join(store.managedRoot, "accounts.json");
+    for (const suffix of ["", ".bak", ".last-good"])
+      writeFileSync(`${metadata}${suffix}`, "broken");
+    let reopened!: AccountStore;
+    expect(() => {
+      reopened = new AccountStore(store.managedRoot);
+    }).not.toThrow();
+    expect(() => reopened.list()).toThrow(/ACCOUNT_CORRUPT|metadata is corrupt/);
+    expect(() => reopened.add({ provider: "kimi", label: "new" })).toThrow(AccountControlError);
+    expect(readFileSync(metadata, "utf8")).toBe("broken");
+    // An external repair becomes visible without restarting the supervisor.
+    writeFileSync(metadata, JSON.stringify({ version: 2, accounts: [], pools: {} }));
+    expect(reopened.list()).toEqual([]);
+  });
+
+  it("allows actual profile services to start with unrecoverable metadata", () => {
+    const store = createStore();
+    store.add({ provider: "codex", label: "Personal" });
+    const metadata = join(store.managedRoot, "accounts.json");
+    for (const suffix of ["", ".bak", ".last-good"])
+      writeFileSync(`${metadata}${suffix}`, Buffer.alloc(21057));
+    const reopened = new AccountStore(store.managedRoot);
+    expect(() => new CodexProfileService({ store: reopened })).not.toThrow();
+    expect(() => new KimiProfileService({ store: reopened })).not.toThrow();
+    expect(() => reopened.list()).toThrow(AccountControlError);
+  });
+
+  it("seeds redundancy on upgrade and does not let a contended startup lock kill the runtime", () => {
+    const store = createStore();
+    const account = store.add({ provider: "codex", label: "Personal" });
+    const metadata = join(store.managedRoot, "accounts.json");
+    rmSync(`${metadata}.last-good`, { force: true });
+    const reopened = new AccountStore(store.managedRoot);
+    expect(reopened.get(account.accountId)).toBeDefined();
+    expect(JSON.parse(readFileSync(`${metadata}.last-good`, "utf8")).accounts[0].accountId).toBe(
+      account.accountId,
+    );
+    writeFileSync(join(store.managedRoot, "accounts.lock"), "other process");
+    expect(() => new AccountStore(store.managedRoot)).not.toThrow();
   });
 
   it.each([
