@@ -438,8 +438,10 @@ export function normalizeMathDollarRuns(text: string): string {
  * line. micromark-extension-math flow math only recognizes a `$$` run at line
  * start, so the glued closer is read as content — the whole block falls back
  * to raw `$$…` source in the rendered output. Split the trailing run onto its
- * own line whenever the block is open. Single-line `$$…$$` blocks and fenced
- * code are left alone.
+ * own line whenever the block is open. Also split a math-bearing opening
+ * line: remark-math treats text after its opening $$ as metadata, dropping
+ * the equation and any opening environment before KaTeX sees them.
+ * Single-line `$$…$$` spans, metadata labels, and fenced code are left alone.
  */
 export function normalizeDisplayMathClosers(text: string): string {
   if (!text.includes("$$")) return text;
@@ -470,11 +472,19 @@ export function normalizeDisplayMathClosers(text: string): string {
     }
     const newline = line.slice(body.length);
     if (!inMath) {
-      if (
-        BARE_DOLLARS_RE.test(body) ||
-        (/^ {0,3}\$\$(?!\$)/.test(body) && !SINGLE_LINE_BLOCK_RE.test(body))
-      ) {
+      const opening = body.match(/^( {0,3})\$\$(?!\$)(.*)$/u);
+      if (BARE_DOLLARS_RE.test(body) || (opening && !SINGLE_LINE_BLOCK_RE.test(body))) {
         inMath = true;
+        if (
+          opening &&
+          newline &&
+          !opening[2]!.includes("$") &&
+          LATEX_MATH_SIGNAL_RE.test(opening[2]!)
+        ) {
+          out.push(`${opening[1]}$$${newline}`, `${opening[1]}${opening[2]}${newline}`);
+          changed = true;
+          continue;
+        }
       }
       out.push(line);
       continue;
@@ -485,7 +495,7 @@ export function normalizeDisplayMathClosers(text: string): string {
       continue;
     }
     if (body.endsWith("$$") && body.length > 2) {
-      out.push(`${body.slice(0, -2)}${newline}`, `$$${newline}`);
+      out.push(`${body.slice(0, -2)}${newline || "\n"}`, `$$${newline}`);
       inMath = false;
       changed = true;
       continue;

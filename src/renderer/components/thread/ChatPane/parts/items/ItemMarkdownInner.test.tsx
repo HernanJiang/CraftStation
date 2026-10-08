@@ -154,6 +154,54 @@ $$`}
     expect(container.textContent).not.toContain("$$");
   });
 
+  it("renders Gemini's nested cases verdict without exposing raw LaTeX", async () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={String.raw`验收条件：
+
+$$\text{Accepted} = \begin{cases}
+\text{True}, & \text{当且仅当 } \begin{cases}
+\text{verdict.achieved} = \text{True} \\
+\text{reading.view} = \text{'detail'} & \text{(视图必须是独立面板，列表卡片不算！)} \\
+\text{reading.close\_visible} = \text{True} & \text{(右上角必须亲眼看到关闭 X 按钮！)} \\
+\text{reading.detail\_header} \ne \text{''} & \text{(必须有详情头部标牌！)}
+\end{cases} \\
+\text{False}, & \text{否则拒绝通过，打回重试！}
+\end{cases}$$
+
+继续验证。`}
+        />
+      </AppProvider>,
+    );
+
+    await waitFor(() => expect(container.querySelectorAll(".katex")).toHaveLength(1));
+    expect(container.querySelector(".katex-error")).toBeNull();
+    expect(container.querySelector('annotation[encoding="application/x-tex"]')).toHaveTextContent(
+      "\\text{Accepted}",
+    );
+    expect(container.querySelector(".katex-display")).not.toBeNull();
+    expect(container).toHaveTextContent("继续验证。");
+  });
+
+  it("preserves a multiline display formula's equation and environment on its opening line", async () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={String.raw`$$f(x) = \begin{cases}
+1 & x > 0 \\
+0 & x \le 0
+\end{cases}$$`}
+        />
+      </AppProvider>,
+    );
+    await waitFor(() => expect(container.querySelectorAll(".katex")).toHaveLength(1));
+    expect(container.querySelector(".katex-error")).toBeNull();
+    expect(container.querySelector('annotation[encoding="application/x-tex"]')).toHaveTextContent(
+      "f(x) = \\begin{cases}",
+    );
+  });
+
   it("centers a paragraph that contains only standalone math lines", async () => {
     const { container } = render(
       <AppProvider>

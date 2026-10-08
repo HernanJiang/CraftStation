@@ -183,10 +183,11 @@ describe("normalizeDisplayMathClosers", () => {
     expect(normalizeDisplayMathClosers(source)).toBe(
       "$$\n\\begin{bmatrix} a & b \\\\ c & d \\end{bmatrix}\n$$\n",
     );
+    expect(normalizeDisplayMathClosers("$$\nx^2$$")).toBe("$$\nx^2\n$$");
   });
 
   it("splits a glued closer after an opener that carries inline content", () => {
-    expect(normalizeDisplayMathClosers("$$ E = mc^2\nmore$$\n")).toBe("$$ E = mc^2\nmore\n$$\n");
+    expect(normalizeDisplayMathClosers("$$ E = mc^2\nmore$$\n")).toBe("$$\n E = mc^2\nmore\n$$\n");
   });
 
   it("leaves well-formed blocks, single-line spans, prose, and fences alone", () => {
@@ -198,6 +199,10 @@ describe("normalizeDisplayMathClosers", () => {
     expect(normalizeDisplayMathClosers(prose)).toBe(prose);
     const fenced = "```\n$$\nx$$\n```\n";
     expect(normalizeDisplayMathClosers(fenced)).toBe(fenced);
+    const metadata = "$$asciimath\nx^2\n$$\n";
+    expect(normalizeDisplayMathClosers(metadata)).toBe(metadata);
+    const mismatchedSingleLine = "$$x^2$\n";
+    expect(normalizeDisplayMathClosers(mismatchedSingleLine)).toBe(mismatchedSingleLine);
   });
 });
 

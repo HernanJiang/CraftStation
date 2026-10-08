@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "1.8.5",
+      "date": "2026-10-08",
+      "title": "Complete multiline formulas",
+      "summary": "Multiline formulas from Gemini and other models keep their first line and render correctly, including nested piecewise expressions.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "A multiline formula starting on the same line as its opening delimiter no longer loses its equation or opening environment and falls back to raw LaTeX. Closing delimiters also work when the response ends without a final newline."
+        }
+      ]
+    },
+    {
       "version": "1.8.4",
       "date": "2026-10-08",
       "title": "Account recovery after restart",
