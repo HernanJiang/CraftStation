@@ -1,4 +1,4 @@
-## 1.9.0 网页输出映射与 Ultrafast 候选（2026-10-09）
+## 1.9.0 网页输出映射与 Ultrafast 发布（2026-10-09）
 
 - **范围确认**：远程网页聊天指用户已登录 ChatGPT 网页的输出映射到 CraftStation。独立桌面网页会话使用共享输入框，支持实时正文、多轮、停止、导入续聊、实际思考选项、确认同步删除；Remote 分区与全局置顶已接入。Auto / Recipe 的执行路径沿用原实现。
 - **交互组件**：识别回复中的 iframe、图表、可视化容器，以实时卡片投递点击、拖动、滚动及键盘输入；支持展开、保存当前 PNG、继续修改草稿和重开原网页恢复。公开 MCP Apps 的受控 iframe 样例已通过初始化、tools/call 与计算结果回传；第三方宿主授权留在原网页。组件源码没有复制到应用中，PNG 不是离线交互程序。
@@ -6,7 +6,8 @@
 - **Mermaid**：截图原始代码已经在真实 Electron 中恢复为 9 个节点、12 条连线的图表；原始代码保留。兼容修复先在 main 完成，再合入本候选。
 - **验证**：582 项相关测试通过，4 项条件性用例未运行；新增与发布说明相关 22 项检查通过，类型检查与两种 lint 通过。隔离 Electron 网页全流程 16 项通过，覆盖计算器 9→81、滑块改变图表、展开/关闭、修改草稿、480px 窄屏、多轮停止、思考档位、导入去重、删除取消/确认与断线。相关 7 项界面场景和 4 个 mock 门禁通过，控制台与运行时错误为 0。最终证据在 `C:/Users/Haona/.craftstation-smoke/web-widgets-1.9-acceptance-20261009/artifacts/`，测试窗口已停止。
 - **候选构建**：版本分支的 `release/` 已生成 Windows x64 `CraftStation-Setup-1.9.0-x64.exe`（133426990 字节）与 `CraftStation-Portable-1.9.0-x64.exe`（112549539 字节），生产编译、17 项运行依赖与原生二进制检查通过；NSIS blockmap 和更新清单保留，清单指向安装包。打包中间文件已移出并归档至 `D:/Work/CraftStation-release-archive/candidate-1.9.0-intermediates/`；稳定版 main 的 release 目录未改动。详见 `ai_workspace/verification-1.9.0.md`。
-- **工作区与发布边界**：`dev/1.9-chatgpt-web` / `.worktrees/1.9-chatgpt-web`；网页账号完整本地 UI 回合、真实 Visualizations/MCP Apps 与具备权限的 Ultrafast 回合尚未全部验收。本候选未合入 main、未打正式 tag、未发布；使用与边界见 `docs/features/chatgpt-web.md`、`docs/features/codex-ultrafast.md`。
+- **发布授权与进度**：用户查看 dev 后明确要求“直接发布吧”，已将 `dev/1.9-chatgpt-web` 快进合入 `main`。正式发布使用 `Release (stable)`，按次版本策略构建 Windows、Linux、macOS；发布完成后记录链接与资产结果。用户试用的 dev 窗口保留运行。
+- **外部验收边界**：网页账号完整本地 UI 回合、真实 Visualizations/MCP Apps 与具备权限的 Ultrafast 回合尚未全部验收；本次正式发布保留实验标识和相应双语说明，不把受控样例或普通 Codex 回复认定为这些外部能力的真实验收。使用与边界见 `docs/features/chatgpt-web.md`、`docs/features/codex-ultrafast.md`。
 
 ## Mermaid 连线标签兼容修复（2026-10-09）
 

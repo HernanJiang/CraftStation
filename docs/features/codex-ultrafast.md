@@ -1,4 +1,4 @@
-# GPT-6.1 Sol Ultrafast（1.9.0 候选）
+# GPT-6.1 Sol Ultrafast（1.9.0）
 
 模型菜单显示当前账号目录提供的速度档位。新线程默认 Standard；支持的模型可切换 Fast 或 Ultrafast，之后的回合使用新选择。
 
