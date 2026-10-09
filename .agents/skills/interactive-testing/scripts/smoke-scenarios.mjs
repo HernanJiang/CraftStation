@@ -12,7 +12,7 @@ export const productionRoots = [
 export const functionalAreas = [
   {
     id: "chatgpt-web",
-    title: "ChatGPT 网页：双向文字同步、停止生成与历史恢复",
+    title: "ChatGPT 网页：双向同步、交互组件映射、停止与历史恢复",
     patterns: [/chatGptWeb/i, /webChat/i],
     automated: ["baseline", "webchat"],
     manual: ["changed-surface", "ipc-roundtrip"],

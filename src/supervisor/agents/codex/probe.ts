@@ -23,6 +23,7 @@ import { resolveProbeSpawnCwd } from "../probeCwd";
 import { buildCodexAppServerCommand } from "./argv";
 import { probeCodexCliSemver } from "./plugin/install";
 import { CodexStdioTransport } from "./stdioTransport";
+import { ULTRAFAST_USAGE_NOTE, type SpeedTierOption } from "@/shared/codexSpeed";
 
 // ── Types ────────────────────────────────────────────────────────
 
@@ -61,7 +62,7 @@ export interface CodexProbeResult {
    * `ultrafast` on gpt-5.6-sol). Drives the composer's Fast tier picker;
    * absent for CLIs that predate `serviceTiers`.
    */
-  modelFastTiers?: Record<string, Array<{ id: string; label: string }>>;
+  modelFastTiers?: Record<string, SpeedTierOption[]>;
   approvalPolicies?: Array<{ id: string; label: string }>;
   sandboxModes?: Array<{ id: string; label: string }>;
   slashCommands?: AgentSlashCommand[];
@@ -164,7 +165,9 @@ function codexModelSupportsFast(entry: CodexModelEntry): boolean {
   if (entry.additionalSpeedTiers !== undefined) {
     return (
       Array.isArray(entry.additionalSpeedTiers) &&
-      entry.additionalSpeedTiers.some((tier) => tier === "fast" || tier === "priority")
+      entry.additionalSpeedTiers.some(
+        (tier) => tier === "fast" || tier === "priority" || tier === "ultrafast",
+      )
     );
   }
   return Array.isArray(entry.serviceTiers) && entry.serviceTiers.length > 0;
@@ -252,26 +255,37 @@ export function mapCodexModels(
   // Selectable lanes beyond the default tier (priority/Fast, ultrafast, ...).
   // `serviceTiers` is the canonical source — ids and display names ride the
   // wire value unchanged, so no client-side renaming is needed.
-  const modelFastTiers: Record<string, Array<{ id: string; label: string }>> = {};
+  const modelFastTiers: Record<string, SpeedTierOption[]> = {};
   for (const m of visible) {
-    const tiers = (m.serviceTiers ?? [])
+    const tiers: SpeedTierOption[] = (m.serviceTiers ?? [])
       .filter((tier) => tier.id.trim().length > 0)
       .map((tier) => {
         const id = tier.id.trim();
         const label = tier.name?.trim() || id[0]!.toUpperCase() + id.slice(1);
-        return { id, label };
+        return {
+          id,
+          label,
+          availability: "catalog" as const,
+          ...(id === "ultrafast"
+            ? { description: ULTRAFAST_USAGE_NOTE }
+            : tier.description
+              ? { description: tier.description }
+              : {}),
+        };
       });
-    // Ultrafast is access-controlled catalog data; the bundled `model/list`
-    // lags the announced lanes (Cerebras preview on GPT-5.6 Sol, then the
-    // GPT-6 flagships). Offer the lane on those ids even when the probed
-    // catalog omitted it — the server declines it cleanly when the account
-    // is not entitled, so the worst case is a standard-speed turn.
+    // Announced lanes remain selectable when older catalog data lags, but
+    // never claim entitlement or silently label a Standard turn Ultrafast.
     if (
       CODEX_ULTRAFAST_MODEL_IDS.has(m.id) &&
       tiers.length > 0 &&
       !tiers.some((tier) => tier.id === "ultrafast")
     ) {
-      tiers.push({ id: "ultrafast", label: "Ultrafast" });
+      tiers.push({
+        id: "ultrafast",
+        label: "Ultrafast",
+        availability: "unverified",
+        description: `需要 Pro $500 或符合条件的 Enterprise/Edu（需管理员启用）。${ULTRAFAST_USAGE_NOTE}`,
+      });
     }
     if (tiers.length > 0) modelFastTiers[m.id] = tiers;
   }
@@ -392,7 +406,26 @@ export function mergeCodexCatalogModels(
     };
     return priority(a.id) - priority(b.id);
   });
-  return [...cliModels, ...extras];
+  const updated = cliModels.map((model) => {
+    const raw = models.find(
+      (candidate) =>
+        candidate &&
+        typeof candidate === "object" &&
+        (candidate as CodexCatalogModel).slug === model.id,
+    ) as CodexCatalogModel | undefined;
+    const entry = raw && catalogModelToEntry(raw);
+    const required = parseSemverTriplet(raw?.minimal_client_version);
+    if (!entry || (required && cliVersion && !semverAtLeast(cliVersion, required))) return model;
+    // Authenticated catalog tier metadata also updates already-known models.
+    return {
+      ...model,
+      ...(raw?.service_tiers !== undefined ? { serviceTiers: entry.serviceTiers ?? [] } : {}),
+      ...(entry.additionalSpeedTiers !== undefined
+        ? { additionalSpeedTiers: entry.additionalSpeedTiers }
+        : {}),
+    };
+  });
+  return [...updated, ...extras];
 }
 
 interface CodexCatalogToken {

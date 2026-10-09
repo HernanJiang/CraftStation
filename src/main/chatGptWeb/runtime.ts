@@ -8,6 +8,7 @@ import {
   type WebChatSession,
   type WebChatConversation,
   type WebChatReasoning,
+  type WebChatWidgetInput,
 } from "@/shared/chatGptWeb";
 import {
   chatGptPageScript,
@@ -21,6 +22,8 @@ import {
   chatGptDeleteScript,
 } from "./pageManagement";
 import type { BrowserPanelManager } from "../browser";
+import { WebChatWidgetMirror } from "./widgetMirror";
+import { dispatchWidgetInput } from "./widgetInput";
 
 /** Browser execution is behind a narrow seam; tests exercise the same lifecycle. */
 export interface WebChatBrowser {
@@ -30,6 +33,11 @@ export interface WebChatBrowser {
   reveal(tabId: string): void;
   keepAlive(sessionId: string, active: boolean): void;
   close(tabId: string): Promise<void>;
+  capture?(
+    tabId: string,
+    bounds: { x: number; y: number; width: number; height: number },
+  ): Promise<string>;
+  input?(tabId: string, input: WebChatWidgetInput, point?: { x: number; y: number }): Promise<void>;
 }
 
 export function embeddedWebChatBrowser(manager: BrowserPanelManager): WebChatBrowser {
@@ -53,6 +61,38 @@ export function embeddedWebChatBrowser(manager: BrowserPanelManager): WebChatBro
       manager.setAutomationSession(`webchat:${id}`, active);
     },
     close: (id) => manager.closeTab(id),
+    capture: async (id, bounds) => {
+      const tab = manager.getTab(id);
+      if (!tab?.isAttached() || !isChatGptWebUrl(tab.webContents.getURL()))
+        throw new Error("WEB_DISCONNECTED：网页已断开。");
+      const image = await tab.webContents.capturePage(bounds, {
+        stayHidden: true,
+        stayAwake: true,
+      });
+      if (image.isEmpty()) throw new Error("WEB_WIDGET_CAPTURE：组件画面尚未就绪。");
+      return image.toDataURL();
+    },
+    input: async (id, input, point) => {
+      const tab = manager.getTab(id);
+      if (!tab?.isAttached() || !isChatGptWebUrl(tab.webContents.getURL()))
+        throw new Error("WEB_DISCONNECTED：网页已断开。");
+      await tab.cdp.attach();
+      try {
+        await dispatchWidgetInput(
+          (method, params, sessionId) =>
+            tab.webContents.debugger.sendCommand(method, params, sessionId),
+          input,
+          point,
+          (listener) =>
+            tab.cdp.on("Target.attachedToTarget", (event) =>
+              listener(event as { sessionId: string; targetInfo: { targetId: string } }),
+            ),
+        );
+      } finally {
+        const host = tab.isAttached() ? tab.webContents.hostWebContents : undefined;
+        if (host && !host.isDestroyed()) host.focus();
+      }
+    },
   };
 }
 
@@ -68,10 +108,12 @@ type Turn = {
 };
 
 export class ChatGptWebRuntime {
+  readonly widgets: WebChatWidgetMirror;
   private readonly sessions = new Map<string, WebChatSession>();
   private readonly turns = new Map<string, Turn>();
   private readonly locks = new Set<string>();
   private readonly requestIds = new Set<string>();
+  private readonly viewTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private readonly timer: ReturnType<typeof setInterval>;
   private polling = false;
 
@@ -79,6 +121,7 @@ export class ChatGptWebRuntime {
     private readonly browser: WebChatBrowser,
     private readonly filePath?: string,
   ) {
+    this.widgets = new WebChatWidgetMirror(this.browser, (id) => this.get(id));
     if (filePath && existsSync(filePath)) {
       try {
         const records = z
@@ -393,6 +436,18 @@ export class ChatGptWebRuntime {
   }
   async read(id: string) {
     const session = this.get(id);
+    // Keep the selected webpage alive between completed turns. Otherwise the
+    // hidden automation host unmounts as soon as the turn ends and destroys
+    // iframe state before the next poll / component operation.
+    this.browser.keepAlive(`view:${id}`, true);
+    const previous = this.viewTimers.get(id);
+    if (previous) clearTimeout(previous);
+    const timer = setTimeout(() => {
+      this.viewTimers.delete(id);
+      this.browser.keepAlive(`view:${id}`, false);
+    }, 4000);
+    timer.unref();
+    this.viewTimers.set(id, timer);
     if (session.status === "error") return this.copy(session);
     if (!this.turns.has(id) && !this.locks.has(id)) {
       this.locks.add(id);
@@ -496,6 +551,12 @@ export class ChatGptWebRuntime {
     }
   }
   dispose() {
+    this.widgets.dispose();
+    for (const [id, timer] of this.viewTimers) {
+      clearTimeout(timer);
+      this.browser.keepAlive(`view:${id}`, false);
+    }
+    this.viewTimers.clear();
     clearInterval(this.timer);
     for (const id of this.sessions.keys()) this.browser.keepAlive(id, false);
   }

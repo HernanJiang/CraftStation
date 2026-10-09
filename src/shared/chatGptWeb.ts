@@ -1,9 +1,16 @@
 import { z } from "zod";
 
+export const webChatWidgetSchema = z.object({
+  id: z.string().min(1).max(500),
+  title: z.string().max(300),
+  kind: z.enum(["app", "chart", "response"]),
+});
+export type WebChatWidget = z.infer<typeof webChatWidgetSchema>;
 export const webChatMessageSchema = z.object({
   id: z.string(),
   role: z.enum(["user", "assistant"]),
   text: z.string(),
+  widgets: z.array(webChatWidgetSchema).max(30).optional(),
 });
 export type WebChatMessage = z.infer<typeof webChatMessageSchema>;
 export const webChatSessionSchema = z.object({
@@ -18,6 +25,54 @@ export const webChatSessionSchema = z.object({
 });
 export type WebChatSession = z.infer<typeof webChatSessionSchema>;
 export const webChatIdSchema = z.object({ sessionId: z.string().uuid() });
+export const webChatWidgetRequestSchema = webChatIdSchema.extend({
+  widgetId: z.string().min(1).max(500),
+});
+export const webChatWidgetInputSchema = webChatWidgetRequestSchema.extend({
+  frameId: z.string().uuid(),
+  input: z.discriminatedUnion("kind", [
+    z.object({
+      kind: z.literal("pointer"),
+      phase: z.enum(["down", "move", "up"]),
+      x: z.number().min(0).max(1),
+      y: z.number().min(0).max(1),
+      pressed: z.boolean(),
+    }),
+    z.object({
+      kind: z.literal("scroll"),
+      x: z.number().min(0).max(1),
+      y: z.number().min(0).max(1),
+      deltaX: z.number().min(-2000).max(2000),
+      deltaY: z.number().min(-2000).max(2000),
+    }),
+    z.object({ kind: z.literal("text"), text: z.string().max(2000) }),
+    z.object({
+      kind: z.literal("key"),
+      key: z.enum([
+        "Enter",
+        "Tab",
+        "Escape",
+        "Backspace",
+        "Delete",
+        "ArrowLeft",
+        "ArrowRight",
+        "ArrowUp",
+        "ArrowDown",
+        "Home",
+        "End",
+        "Space",
+      ]),
+      shift: z.boolean().optional(),
+    }),
+  ]),
+});
+export type WebChatWidgetInput = z.infer<typeof webChatWidgetInputSchema>["input"];
+export type WebChatWidgetFrame = {
+  frameId: string;
+  dataUrl: string;
+  width: number;
+  height: number;
+};
 export const webChatSendSchema = webChatIdSchema.extend({
   prompt: z.string().trim().min(1).max(100_000),
   requestId: z.string().uuid(),
@@ -54,7 +109,7 @@ export const webChatReasoningSchema = webChatIdSchema.extend({
 export function isChatGptWebUrl(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return parsed.protocol === "https:" && parsed.hostname === "chatgpt.com";
+    return parsed.origin === "https://chatgpt.com" && !parsed.username && !parsed.password;
   } catch {
     return false;
   }

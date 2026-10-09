@@ -652,6 +652,12 @@ export function createLocalIpcHandlers(
     installUpdate: () => options.autoUpdater.installUpdate(),
     browserGetState: () => requireBrowserPanel(options.getBrowserPanelManager).snapshot(),
     webChatList: () => requireWebChat().list(),
+    webChatWidgetFrame: ({ sessionId, widgetId }) =>
+      requireWebChat().widgets.frame(sessionId, widgetId),
+    webChatWidgetInput: ({ sessionId, widgetId, frameId, input }) =>
+      requireWebChat().widgets.input(sessionId, widgetId, frameId, input),
+    webChatWidgetClose: ({ sessionId, widgetId }) =>
+      requireWebChat().widgets.close(sessionId, widgetId),
     webChatCreate: () => requireWebChat().create(),
     webChatRead: ({ sessionId }) => requireWebChat().read(sessionId),
     webChatReveal: ({ sessionId }) => requireWebChat().reveal(sessionId),

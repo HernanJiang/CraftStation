@@ -37,8 +37,15 @@ export const canonicalItemTypeSchema = z.enum([
    * like any other item so reopening the thread keeps every switch node.
    */
   "model_switch",
+  "service_tier",
 ]);
 export type CanonicalItemType = z.infer<typeof canonicalItemTypeSchema>;
+export const serviceTierItemPayloadSchema = z.object({
+  requested: z.string().min(1),
+  actual: z.string().optional(),
+  status: z.enum(["requested", "confirmed", "downgraded", "unknown", "rejected"]),
+});
+export type ServiceTierItemPayload = z.infer<typeof serviceTierItemPayloadSchema>;
 
 export const canonicalRequestTypeSchema = z.enum([
   "command_execution_approval",

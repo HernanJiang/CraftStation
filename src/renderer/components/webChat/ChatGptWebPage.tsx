@@ -12,6 +12,7 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { flattenSegments } from "@/renderer/components/composer/serializeMentions";
 import { ItemMarkdown } from "@/renderer/components/thread/ChatPane/parts/items/ItemMarkdown";
 import { useWebChatStore } from "@/renderer/state/webChatStore";
+import { WebChatWidgetCard } from "./WebChatWidgetCard";
 import {
   chatGptConversationUrl,
   type WebChatSession,
@@ -33,6 +34,7 @@ export function ChatGptWebPage() {
   const [sessions, setSessions] = useState<WebChatSession[]>([]);
   const [session, setSession] = useState<WebChatSession>();
   const [prompt, setPrompt] = useState("");
+  const [activeWidgetId, setActiveWidgetId] = useState<string>();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string>();
   const [dialog, setDialog] = useState<"import" | "reasoning">();
@@ -47,6 +49,21 @@ export function ChatGptWebPage() {
   const follow = useRef(true);
   const selectedId = session?.id;
   const busy = session?.status === "sending" || session?.status === "streaming";
+  const tail = session?.messages.at(-1);
+  const transcriptTailKey = JSON.stringify([
+    session?.id,
+    session?.messages.length,
+    tail?.id,
+    tail?.text,
+    tail?.widgets,
+  ]);
+  useEffect(() => {
+    if (!session || activeWidgetId?.startsWith(`${session.id}:`)) return;
+    const widget = session.messages
+      .flatMap((message) => message.widgets ?? [])
+      .find((w) => w.kind !== "response");
+    if (widget) setActiveWidgetId(`${session.id}:${widget.id}`);
+  }, [session, activeWidgetId]);
   const replace = (next: WebChatSession) => {
     setSession(next);
     setSessions((list) => [next, ...list.filter((s) => s.id !== next.id)]);
@@ -119,7 +136,7 @@ export function ChatGptWebPage() {
   }, [selectedId, pending]);
   useEffect(() => {
     if (follow.current) endRef.current?.scrollIntoView({ block: "end" });
-  }, [session?.messages]);
+  }, [transcriptTailKey]);
   const create = () => {
     if (pending || busy) return;
     setSession(undefined);
@@ -426,6 +443,30 @@ export function ChatGptWebPage() {
                 {message.role === "user" ? t`你` : "ChatGPT"}
               </div>
               <ItemMarkdown text={message.text} />
+              {message.widgets
+                ?.filter((w) => w.kind !== "response")
+                .map((widget) => (
+                  <WebChatWidgetCard
+                    key={`${session.id}:${widget.id}`}
+                    sessionId={session.id}
+                    widget={widget}
+                    active={activeWidgetId === `${session.id}:${widget.id}`}
+                    onActivate={() => setActiveWidgetId(`${session.id}:${widget.id}`)}
+                    onEdit={() => setPrompt(`请继续修改上面「${widget.title}」这个交互组件：`)}
+                  />
+                ))}
+              {message.widgets
+                ?.filter((w) => w.kind === "response")
+                .map((widget) => (
+                  <WebChatWidgetCard
+                    key={`${session.id}:${widget.id}`}
+                    sessionId={session.id}
+                    widget={widget}
+                    active={activeWidgetId === `${session.id}:${widget.id}`}
+                    onActivate={() => setActiveWidgetId(`${session.id}:${widget.id}`)}
+                    onEdit={() => setPrompt("请继续修改上面的回复和交互组件：")}
+                  />
+                ))}
             </article>
           ))}
           <div ref={endRef} />

@@ -494,7 +494,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
             ) : null}
 
             {fastControl ? (
-              fastControl.speedTiers && fastControl.speedTiers.length > 1 ? (
+              fastControl.speedTiers && fastControl.speedTiers.length > 0 ? (
                 // 多速度档（Codex priority + ultrafast）：档位选择与开关合一,
                 // 与「推理强度」同构的子菜单，首项为关闭（标准档）。
                 <Dropdown.SubmenuTrigger>
@@ -553,7 +553,17 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                       </Dropdown.Item>
                       {fastControl.speedTiers.map((tier) => (
                         <Dropdown.Item key={tier.id} id={tier.id} textValue={tier.label}>
-                          <Label>{tier.label}</Label>
+                          <div className="max-w-72" title={tier.description}>
+                            <Label>
+                              {tier.label}
+                              {tier.availability === "unverified" ? " · 权限待确认" : ""}
+                            </Label>
+                            {tier.description && (
+                              <p className="mt-1 whitespace-normal text-[10px] leading-4 text-muted">
+                                {tier.description}
+                              </p>
+                            )}
+                          </div>
                           {fastControl.isSelected && fastControl.speedTierValue === tier.id ? (
                             <Check className="ml-auto size-3.5 text-emerald-400" />
                           ) : null}

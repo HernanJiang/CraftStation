@@ -1,3 +1,5 @@
+import { chatGptWidgetScript } from "./pageWidgets";
+import type { WebChatWidget } from "@/shared/chatGptWeb";
 /** Executed in the page's isolated browser context. Keep this function self-contained. */
 export function chatGptPage(action: "read" | "send" | "stop", prompt = "") {
   if (location.origin !== "https://chatgpt.com")
@@ -181,9 +183,16 @@ export function chatGptPage(action: "read" | "send" | "stop", prompt = "") {
   return { ...snapshot, action: "read" };
 }
 
-export type ChatGptPageSnapshot = ReturnType<typeof chatGptPage>;
+export type ChatGptPageSnapshot = Omit<ReturnType<typeof chatGptPage>, "messages"> & {
+  messages: Array<{
+    id: string;
+    role: "user" | "assistant";
+    text: string;
+    widgets?: WebChatWidget[];
+  }>;
+};
 export const chatGptPageScript = (action: "read" | "send" | "stop", prompt?: string) =>
-  `(${chatGptPage.toString()})(${JSON.stringify(action)}, ${JSON.stringify(prompt ?? "")})`;
+  `(() => { const snapshot = (${chatGptPage.toString()})(${JSON.stringify(action)}, ${JSON.stringify(prompt ?? "")}); if (location.origin === "https://chatgpt.com") { const result = ${chatGptWidgetScript("discover")}; snapshot.messages = snapshot.messages.map(m => ({...m, widgets: result.widgets.filter(w => w.messageId === m.id).map(({messageId, ...w}) => w)})); } return snapshot; })()`;
 
 /** A separate click after the input event; never retry a possibly accepted click. */
 export const chatGptSubmitScript = `(() => {

@@ -331,7 +331,7 @@ export function buildModelPickerControls(input: BuildModelPickerControlsInput): 
       isSelected: fast === true,
       ...(isDisabled !== undefined ? { isDisabled } : {}),
       ...(fastDisabledReason ? { disabledReason: fastDisabledReason } : {}),
-      ...(speedTiers && speedTiers.length > 1
+      ...(speedTiers && speedTiers.length > 0
         ? {
             speedTiers,
             ...(speedTier ? { speedTierValue: speedTier } : {}),
@@ -339,7 +339,11 @@ export function buildModelPickerControls(input: BuildModelPickerControlsInput): 
               onConfigPatch(tierId ? { fast: true, speedTier: tierId } : { fast: false }),
           }
         : {}),
-      onChange: (selected) => onConfigPatch({ fast: selected }),
+      onChange: (selected) =>
+        onConfigPatch({
+          fast: selected,
+          ...(selected && speedTiers?.length === 1 ? { speedTier: speedTiers[0]!.id } : {}),
+        }),
     });
   }
 

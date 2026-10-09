@@ -304,7 +304,8 @@ describe("ChatGPT 网页同步", () => {
     f.complete();
     await vi.advanceTimersByTimeAsync(1800);
     expect((await runtime.read(s.id)).status).toBe("ready");
-    expect(f.browser.keepAlive).toHaveBeenLastCalledWith(s.id, false);
+    expect(f.browser.keepAlive).toHaveBeenCalledWith(s.id, false);
+    expect(f.browser.keepAlive).toHaveBeenLastCalledWith(`view:${s.id}`, true);
     await submit(s.id, "request-2", "继续");
     expect(f.count()).toBe(2);
   });

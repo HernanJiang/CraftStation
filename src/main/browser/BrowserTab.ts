@@ -342,6 +342,7 @@ export class BrowserTab {
     const urlAtHistoryClear = this.currentUrl;
     this.clearInitialHistoryTimer = setTimeout(() => {
       this.clearInitialHistoryTimer = null;
+      if (this.destroyed || this._webContents !== wc || wc.isDestroyed()) return;
       // Do not clear a history entry that the user added after the initial
       // page finished loading. This timer exists only to catch Chromium's
       // delayed about:blank entry during first attach.

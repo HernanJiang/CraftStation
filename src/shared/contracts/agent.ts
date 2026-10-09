@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { speedTierOptionSchema } from "../codexSpeed";
 import {
   agentKindSchema,
   authStateSchema,
@@ -288,9 +289,7 @@ export const agentCapabilitySchema = z.object({
    * rather than a model-id variant; a >1 entry upgrades the composer Fast
    * switch into a tier picker.
    */
-  modelFastTiers: z
-    .record(z.string(), z.array(z.object({ id: z.string().min(1), label: z.string().min(1) })))
-    .optional(),
+  modelFastTiers: z.record(z.string(), z.array(speedTierOptionSchema)).optional(),
   /**
    * Set when a `fastModels` model technically supports fast mode but it is
    * unavailable for the authenticated account (e.g. disabled by the org). The

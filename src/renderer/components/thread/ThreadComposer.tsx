@@ -78,7 +78,7 @@ export type ComposerControl =
        * (Codex `priority` + `ultrafast`). Menu surfaces render a tier picker
        * instead of a bare switch; `onSpeedTierChange` receives the tier id.
        */
-      speedTiers?: readonly { id: string; label: string }[];
+      speedTiers?: readonly import("@/shared/codexSpeed").SpeedTierOption[];
       speedTierValue?: string;
       onSpeedTierChange?: (tierId: string | undefined) => void;
       iconOnly?: boolean;

@@ -23,7 +23,7 @@ export interface AgentModelSelection {
      * Only present when the provider advertises request-level service tiers;
      * variant-based fast (Kimi/Grok model-id rewrite) has no tiers.
      */
-    tiers?: Array<{ id: string; label: string }>;
+    tiers?: Array<import("./codexSpeed").SpeedTierOption>;
   };
 }
 

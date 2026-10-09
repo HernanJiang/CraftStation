@@ -340,6 +340,24 @@ describe("buildModelPickerControls fast toggle", () => {
     onProviderModelChange: () => undefined,
     onConfigPatch: () => undefined,
   };
+  it("只有 Ultrafast 的目录仍提供档位选择，开启时传递准确档位", () => {
+    const patch = vi.fn<(p: Partial<import("@/shared/contracts").ThreadConfig>) => void>();
+    const controls = buildModelPickerControls({
+      ...baseInput,
+      capabilities: {
+        ...capabilities,
+        modelFastTiers: { a: [{ id: "ultrafast", label: "Ultrafast", availability: "catalog" }] },
+      },
+      onConfigPatch: patch,
+    });
+    const control = controls.find((c) => c.kind === "toggle" && c.label === "Fast");
+    if (control?.kind !== "toggle") throw Error("缺少速度选项");
+    expect(control.speedTiers).toHaveLength(1);
+    control.onChange?.(true);
+    expect(patch).toHaveBeenLastCalledWith({ fast: true, speedTier: "ultrafast" });
+    control.onSpeedTierChange?.(undefined);
+    expect(patch).toHaveBeenLastCalledWith({ fast: false });
+  });
 
   it("marks the Fast toggle disabled with a reason when the account is gated", () => {
     const controls = buildModelPickerControls({

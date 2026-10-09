@@ -121,7 +121,13 @@ export class AppServerClient {
         supportsToolCalling: m.supportsToolCalling ?? true,
         inputModalities: m.inputModalities,
         reasoningEfforts: m.supportedReasoningEfforts?.map((r: any) => r.reasoningEffort || r),
-        serviceTiers: m.serviceTiers?.map((s: any) => s.id || s),
+        serviceTiers: Array.from(
+          new Set([
+            ...(m.serviceTiers ?? []).map((s: any) => s.id || s),
+            ...(m.additionalSpeedTiers ?? []).map((s: any) => s.id || s),
+            ...(m.supportsFast ? ["fast"] : []),
+          ]),
+        ) as string[],
       }));
 
       this._cachedModels = models;

@@ -88,6 +88,29 @@ function captureBeforeInput(webContents: ReturnType<typeof createWebContents>): 
 }
 
 describe("BrowserTab", () => {
+  it("网页宿主关闭后，延迟历史清理不访问已销毁的 WebContents", async () => {
+    vi.useFakeTimers();
+    const { BrowserTab } = await import("./BrowserTab");
+    const tab = new BrowserTab({
+      tabId: "web-widget",
+      userAgent: "ua",
+      initialUrl: "https://chatgpt.com/",
+      onUpdate: vi.fn<() => void>(),
+      onAttention: vi.fn<() => void>(),
+      onPopup: vi.fn<() => void>(),
+    });
+    const wc = createWebContents("https://chatgpt.com/");
+    tab.attach(wc as never);
+    wc.isDestroyed.mockReturnValue(true);
+    wc.navigationHistory.canGoBack.mockImplementation(() => {
+      throw new Error("Object has been destroyed");
+    });
+    try {
+      expect(() => vi.advanceTimersByTime(600)).not.toThrow();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   beforeEach(() => {
     vi.clearAllMocks();
   });

@@ -16,6 +16,7 @@ import { PlanItem } from "./PlanItem";
 import { QuestionAnswer } from "./QuestionAnswer";
 import { Reasoning } from "./Reasoning";
 import { RuntimeSegmentMarker } from "./RuntimeSegmentMarker";
+import { ServiceTierMarker } from "./ServiceTierMarker";
 import { SubAgentToolCall } from "./SubAgentToolCall";
 import { ToolCallGroup } from "./ToolCallGroup";
 import { UserMessage } from "./UserMessage";
@@ -139,6 +140,8 @@ function renderItem(
       return <WebSearchItem item={item} />;
     case "runtime_segment":
       return <RuntimeSegmentMarker item={item} />;
+    case "service_tier":
+      return <ServiceTierMarker item={item} />;
     case "model_switch":
       return <ModelSwitchMarker item={item} />;
     case "error":

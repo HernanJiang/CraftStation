@@ -5,6 +5,9 @@ import {
   webChatImportSchema,
   webChatDeleteSchema,
   webChatReasoningSchema,
+  webChatWidgetRequestSchema,
+  webChatWidgetInputSchema,
+  type WebChatWidgetFrame,
   type WebChatSession,
   type WebChatConversation,
   type WebChatReasoning,
@@ -13,6 +16,21 @@ import type { z } from "zod";
 
 type Id = z.infer<typeof webChatIdSchema>;
 export const chatGptWebProcedures = {
+  webChatWidgetFrame: definePayloadProcedure<
+    z.infer<typeof webChatWidgetRequestSchema>,
+    WebChatWidgetFrame,
+    "main-local"
+  >("webChatWidgetFrame", "main-local", webChatWidgetRequestSchema),
+  webChatWidgetInput: definePayloadProcedure<
+    z.infer<typeof webChatWidgetInputSchema>,
+    void,
+    "main-local"
+  >("webChatWidgetInput", "main-local", webChatWidgetInputSchema),
+  webChatWidgetClose: definePayloadProcedure<
+    z.infer<typeof webChatWidgetRequestSchema>,
+    void,
+    "main-local"
+  >("webChatWidgetClose", "main-local", webChatWidgetRequestSchema),
   webChatList: defineNoArgProcedure<WebChatSession[], "main-local">("webChatList", "main-local"),
   webChatCreate: defineNoArgProcedure<WebChatSession, "main-local">("webChatCreate", "main-local"),
   webChatRead: definePayloadProcedure<Id, WebChatSession, "main-local">(

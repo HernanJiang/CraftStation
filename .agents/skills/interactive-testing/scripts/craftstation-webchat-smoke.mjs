@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { resolveDebugConnection } from "./craftstation-debug-session.mjs";
 import { inspectCdpWindowTargets } from "./craftstation-cdp-target.mjs";
+import { runWidgetChecks } from "./webchat-widget-fixture.mjs";
 
 const args = Object.fromEntries(
   process.argv
@@ -25,9 +26,14 @@ const outDir = args.outDir ?? join(connection.root ?? resolve("ai_workspace"), "
 await mkdir(outDir, { recursive: true });
 const targets = await inspectCdpWindowTargets({ port: connection.port, appUrl: connection.appUrl });
 const app = await connect(targets.ready[0]);
+await app.send("Emulation.clearDeviceMetricsOverride");
+await app.send("Emulation.setFocusEmulationEnabled", { enabled: true });
+await app.send("Page.setWebLifecycleState", { state: "active" });
+await evaluate(app, "window.craftstation.focusWindow()", true);
 let page;
 const checks = [];
 const errors = [];
+let failed = false;
 let session;
 const fixture = `<!doctype html><meta charset="utf-8"><title>ChatGPT 同步测试网页</title><style>body{font:16px sans-serif;color:#eee;background:#171717}.ProseMirror{width:80%;height:60px}button{padding:10px}</style><main></main><div class="ProseMirror" contenteditable="true" role="textbox"></div><button data-testid="send-button" disabled>发送</button><script>
 const editor=document.querySelector('.ProseMirror'),send=document.querySelector('button'),main=document.querySelector('main');window.webchatSends=0;window.webchatStops=0;
@@ -178,6 +184,19 @@ try {
   const text = await evalApp("document.querySelector('[data-testid=chatgpt-web-page]').innerText");
   if (text.includes("第一段正在生成")) throw new Error("流式快照被追加，没有替换");
   checks.push("完整回复替换快照，代码、表格、公式正常渲染；发送一次");
+  await runWidgetChecks({
+    evalPage,
+    evalApp,
+    app,
+    wait,
+    click,
+    press,
+    checks,
+    session,
+    outDir,
+    writeFile,
+    join,
+  });
   await wait(
     async () =>
       await evalApp(
@@ -259,10 +278,14 @@ try {
     mobile: false,
   });
   await input("第二轮停止测试");
-  const geometry = await evalApp(
-    "(()=>{const p=document.querySelector('[data-testid=chatgpt-web-page]');const b=p.querySelector('button.craftstation-composer-send');const r=b.getBoundingClientRect(),pr=p.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {inside:r.right<=pr.right&&r.left>=pr.left,hit:hit===b||b.contains(hit)};})()",
-  );
-  if (!geometry.inside || !geometry.hit) throw Error("窄窗口发送按钮被挤掉或遮挡");
+  // Electron applies the viewport resize asynchronously. Wait for the same
+  // visibility and native hit-test assertions instead of checking the old frame.
+  await wait(async () => {
+    const geometry = await evalApp(
+      "(()=>{const p=document.querySelector('[data-testid=chatgpt-web-page]');const b=p.querySelector('button.craftstation-composer-send');const r=b.getBoundingClientRect(),pr=p.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {inside:r.right<=pr.right&&r.left>=pr.left,hit:hit===b||b.contains(hit)};})()",
+    );
+    return geometry.inside && geometry.hit;
+  }, "窄窗口发送按钮被挤掉或遮挡");
   const narrow = await app.send("Page.captureScreenshot", { format: "png" });
   await writeFile(join(outDir, "chatgpt-web-narrow.png"), Buffer.from(narrow.data, "base64"));
   checks.push("480px 窄窗口发送按钮完整可见且可点击");
@@ -291,6 +314,13 @@ try {
   if ((await evalPage("window.webchatSends")) !== 2) throw new Error("第二轮重复发送");
   checks.push("第二轮对话、真实停止按钮、部分回复保留");
   await app.send("Emulation.clearDeviceMetricsOverride");
+  await wait(
+    async () =>
+      await evalApp(
+        "document.querySelector('[data-testid=chatgpt-web-page]').getBoundingClientRect().width > 480",
+      ),
+  );
+  await evalApp("new Promise(done=>setTimeout(done,300))", true);
 
   await press("[data-testid=chatgpt-web-page] footer", "^中$");
   await wait(async () => await evalApp("Boolean(document.querySelector('[role=dialog] select'))"));
@@ -389,10 +419,24 @@ try {
     join(outDir, "report.json"),
     JSON.stringify({ status: "passed", mode: "fixture", checks, errors }, null, 2),
   );
+} catch (error) {
+  failed = true;
+  await writeFile(
+    join(outDir, "report.json"),
+    JSON.stringify(
+      { status: "failed", mode: "fixture", checks, errors, error: String(error) },
+      null,
+      2,
+    ),
+  );
+  const shot = await app.send("Page.captureScreenshot", { format: "png" }).catch(() => undefined);
+  if (shot) await writeFile(join(outDir, "failed.png"), Buffer.from(shot.data, "base64"));
+  throw error;
 } finally {
-  await evalApp(
-    "document.querySelector('[data-testid=chatgpt-web-page] header button')?.click()",
-  ).catch(() => undefined);
+  if (!(failed && args.holdOnFailure))
+    await evalApp(
+      "document.querySelector('[data-testid=chatgpt-web-page] header button')?.click()",
+    ).catch(() => undefined);
   page?.close();
   app.close();
 }
@@ -452,12 +496,33 @@ function evalPage(expression, awaitPromise) {
 }
 async function attachFixture(url) {
   let target;
+  const marker = `webchat-fixture-${session.id}`;
+  await wait(
+    async () =>
+      await evalApp(
+        `(async()=>{const el=document.querySelector('webview[data-tab-id="${session.tabId}"]');if(!el)return false;try {await el.executeJavaScript(${JSON.stringify(`window.craftstationFixtureOwner=${JSON.stringify(marker)};true`)});return true;}catch{return false;}})()`,
+        true,
+      ),
+  );
   await wait(async () => {
     const tabs = await (await fetch(`http://127.0.0.1:${connection.port}/json/list`)).json();
-    target = tabs.find((t) => t.url.startsWith("https://chatgpt.com"));
+    for (const candidate of tabs.filter((t) => t.url.startsWith("https://chatgpt.com"))) {
+      const client = await connect(candidate);
+      try {
+        if (await evaluate(client, `window.craftstationFixtureOwner===${JSON.stringify(marker)}`))
+          target = candidate;
+      } finally {
+        client.close();
+      }
+      if (target) break;
+    }
     return Boolean(target);
   });
   page = await connect(target);
+  // Wait for the original webview's main-process attachment before replacing
+  // its document. Otherwise a late initial navigation can replace the fixture.
+  await evalApp(`window.craftstation.webChatRead({sessionId:${JSON.stringify(session.id)}})`, true);
+  await page.send("Page.stopLoading");
   page.on("Fetch.requestPaused", (event) => {
     void page.send("Fetch.fulfillRequest", {
       requestId: event.requestId,
@@ -478,13 +543,13 @@ async function attachFixture(url) {
     true,
   );
 }
-async function wait(check) {
+async function wait(check, message = "等待网页同步检查超时") {
   const end = Date.now() + 20_000;
   while (Date.now() < end) {
     if (await check()) return;
     await new Promise((done) => setTimeout(done, 150));
   }
-  throw new Error("等待网页同步检查超时");
+  throw new Error(message);
 }
 async function click(selector) {
   await wait(
@@ -493,18 +558,23 @@ async function click(selector) {
         `(() => {const e=document.querySelector(${JSON.stringify(selector)});if(!e || e.disabled)return false;const r=e.getBoundingClientRect();const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return hit===e || e.contains(hit);})()`,
       ),
   );
+  await evalApp("new Promise(done=>requestAnimationFrame(()=>requestAnimationFrame(done)))", true);
   const rect = await evalApp(
     `(() => {const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('缺少按钮');const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`,
   );
+  await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...rect });
   await app.send("Input.dispatchMouseEvent", {
     type: "mousePressed",
     button: "left",
+    buttons: 1,
     clickCount: 1,
     ...rect,
   });
+  await new Promise((done) => setTimeout(done, 80));
   await app.send("Input.dispatchMouseEvent", {
     type: "mouseReleased",
     button: "left",
+    buttons: 0,
     clickCount: 1,
     ...rect,
   });

@@ -1585,7 +1585,7 @@ async function previewCloseScenario(client) {
       const root = (dom.createRoot ?? dom.default.createRoot)(host);
       window.__previewCloseSmoke = {
         render: kind => {
-          const text = kind === 'mermaid' ? '~~~mermaid\\nflowchart LR\\n A[开始] --> B[检查滚轮缩放与关闭按钮] --> C[放大] --> D[拖动] --> E[缩小] --> F[结束]\\n~~~' : '~~~text\\n关闭按钮点击检查\\n~~~';
+          const text = kind === 'mermaid' ? '~~~mermaid\\nflowchart LR\\n subgraph Env [无头浏览器 (Browser Gym)]\\n A[开始] -->|分支 (x)| B[检查滚轮缩放与关闭按钮] --> C[放大] --> D[拖动] --> E[缩小] --> F[结束]\\n end\\n~~~' : '~~~text\\n关闭按钮点击检查\\n~~~';
           const svg = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="240"><rect width="400" height="240" fill="#80b8e0"/></svg>';
           const content = kind === 'image'
             ? createElement(ImageCard, {source:{src:'data:image/svg+xml,' + encodeURIComponent(svg),mime:'image/svg+xml',extension:'svg',fileName:'preview.svg',alt:'预览检查',width:400,height:240}})

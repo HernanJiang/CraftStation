@@ -57,6 +57,8 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
       interruptError?: string;
       accountIdentity?: string | null;
       accountReadError?: string;
+      accountPlan?: string;
+      modelUltrafast?: boolean;
       rateLimitsIdentity?: string;
       rateLimitsError?: string;
       /** Skip the canned happy-path notification stream after turn/start. */
@@ -90,6 +92,21 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
                 },
               }) + "\n",
             );
+          } else if (msg.method === "model/list") {
+            hostToClient.write(
+              JSON.stringify({
+                jsonrpc: "2.0",
+                id: msg.id,
+                result: {
+                  data: [
+                    {
+                      id: "gpt-6.1-sol",
+                      additionalSpeedTiers: options.modelUltrafast === false ? [] : ["ultrafast"],
+                    },
+                  ],
+                },
+              }) + "\n",
+            );
           } else if (msg.method === "account/read") {
             hostToClient.write(
               JSON.stringify({
@@ -100,6 +117,9 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
                   : {
                       result: {
                         account: {
+                          ...(options.accountPlan
+                            ? { type: "chatgpt", planType: options.accountPlan }
+                            : {}),
                           accountId:
                             options.accountIdentity === undefined
                               ? "codex:work"
@@ -316,6 +336,80 @@ describe("v0.3: NativeCodexRuntimeAdapter Official V2 Protocol Parity", () => {
       providerAccountId: "codex:work",
     };
   }
+
+  it("Ultrafast 在提交回合前拒绝明确不支持的订阅，切回 Standard 可以继续", async () => {
+    const { client, receivedRequests } = setupMockClientTransport({ accountPlan: "plus" });
+    const adapter = new NativeCodexRuntimeAdapter({ client });
+    const plan = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+      { workspace: "D:\\test\\workspace" },
+    ).craftPlan!;
+    const session = await adapter.createSession(await adapter.spawnEntity(plan));
+    const events: RuntimeEvent[] = [];
+    session.subscribe((event) => events.push(event));
+    await expect(
+      session.startTurn({ prompt: "ULTRAFAST_TEST", overrides: { serviceTier: "ultrafast" } }),
+    ).rejects.toThrow("CODEX_ULTRAFAST_UNAVAILABLE");
+    expect(receivedRequests.filter((r) => r.method === "turn/start")).toHaveLength(0);
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "item.started",
+        itemType: "service_tier",
+        payload: { requested: "ultrafast", status: "rejected" },
+      }),
+    );
+    await expect(
+      session.startTurn({ prompt: "STANDARD_TEST", overrides: { serviceTier: "default" } }),
+    ).resolves.toMatchObject({ status: "completed" });
+    expect(receivedRequests.find((r) => r.method === "turn/start")?.params.serviceTier).toBe(
+      "default",
+    );
+  });
+
+  it("官方目录未声明 Ultrafast 时不提交回合，防止 CLI 静默省略参数", async () => {
+    const { client, receivedRequests } = setupMockClientTransport({
+      accountPlan: "pro",
+      modelUltrafast: false,
+    });
+    const adapter = new NativeCodexRuntimeAdapter({ client });
+    const plan = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+      { workspace: "D:\\test\\workspace" },
+    ).craftPlan!;
+    const session = await adapter.createSession(await adapter.spawnEntity(plan));
+    await expect(
+      session.startTurn({
+        prompt: "ULTRAFAST_TEST",
+        overrides: { model: "gpt-6.1-sol", serviceTier: "ultrafast" },
+      }),
+    ).rejects.toThrow("官方模型目录");
+    expect(receivedRequests.filter((r) => r.method === "turn/start")).toHaveLength(0);
+  });
+  it("Ultrafast 请求被接受但没有实际档位证据时保留未报告状态，多轮档位切换不粘连", async () => {
+    const { client, receivedRequests } = setupMockClientTransport({ accountPlan: "pro" });
+    const adapter = new NativeCodexRuntimeAdapter({ client });
+    const plan = new Crafter().compile(
+      { slots: { model: BUILTIN_MODEL_ITEMS[0]!, harness: "auto" } },
+      { workspace: "D:\\test\\workspace" },
+    ).craftPlan!;
+    const session = await adapter.createSession(await adapter.spawnEntity(plan));
+    const events: RuntimeEvent[] = [];
+    session.subscribe((event) => events.push(event));
+    await session.startTurn({
+      prompt: "ULTRAFAST_TEST",
+      overrides: { model: "gpt-6.1-sol", serviceTier: "ultrafast" },
+    });
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "item.completed",
+        payload: { requested: "ultrafast", status: "unknown" },
+      }),
+    );
+    await session.startTurn({ prompt: "FAST_TEST", overrides: { serviceTier: "fast" } });
+    expect(
+      receivedRequests.filter((r) => r.method === "turn/start").map((r) => r.params.serviceTier),
+    ).toEqual(["ultrafast", "fast"]);
+  });
 
   function managedCodexPlan() {
     return new Crafter().compile(

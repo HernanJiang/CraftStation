@@ -79,7 +79,13 @@ describe("v0.3/T02: Codex App-Server JSON-RPC Transport & Official V2 Schema", (
             id: msg.id,
             result: {
               models: [
-                { id: "gpt-5.3-codex", displayName: "GPT-5.3 Codex", contextWindow: 200000 },
+                {
+                  id: "gpt-5.3-codex",
+                  displayName: "GPT-5.3 Codex",
+                  contextWindow: 200000,
+                  additionalSpeedTiers: ["ultrafast"],
+                  supportsFast: true,
+                },
                 { id: "gpt-5-codex", displayName: "GPT-5 Codex", contextWindow: 128000 },
               ],
             },
@@ -92,6 +98,7 @@ describe("v0.3/T02: Codex App-Server JSON-RPC Transport & Official V2 Schema", (
     expect(snapshot.serverInfo.version).toBe("1.0.0");
     expect(snapshot.models.length).toBe(2);
     expect(snapshot.models[0]?.id).toBe("gpt-5.3-codex");
+    expect(snapshot.models[0]?.serviceTiers).toEqual(["ultrafast", "fast"]);
   });
 
   it("F03: throws observable error on model/list failure instead of silent fallback", async () => {

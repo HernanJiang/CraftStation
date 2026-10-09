@@ -1,6 +1,49 @@
 {
   "releases": [
     {
+      "version": "1.9.0",
+      "date": "2026-10-09",
+      "title": "ChatGPT web widgets & clearer speed tiers",
+      "summary": "An experimental desktop chat maps ChatGPT website replies and interactive components into CraftStation. Codex speed controls now check account support and distinguish the requested tier from an explicitly reported execution tier.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "ChatGPT Web",
+          "text": "You can send from CraftStation to your signed-in ChatGPT website, follow streaming replies, stop a response, and reopen saved web conversations."
+        },
+        {
+          "kind": "added",
+          "label": "Widgets",
+          "text": "Charts, calculators and simulators run in their original webpage while live cards in CraftStation forward clicks, dragging and keyboard input, with expand, save PNG and continue-editing actions."
+        },
+        {
+          "kind": "added",
+          "label": "ChatGPT Web",
+          "text": "Create or import account conversations, read and apply the website’s actual thinking options, and confirm deletion of the original conversation before removing its local record."
+        },
+        {
+          "kind": "improved",
+          "label": "Navigation",
+          "text": "Web conversations use the shared composer with Local and Web remote choices, appear under Remote, and can join the global pinned section."
+        },
+        {
+          "kind": "improved",
+          "label": "Codex",
+          "text": "Ultrafast selection checks the account and official model catalog, explains usage multipliers, and shows confirmed, downgraded, rejected or unreported execution tiers without treating request echoes as confirmation."
+        },
+        {
+          "kind": "fixed",
+          "label": "Mermaid",
+          "text": "Flowcharts recover from unquoted parentheses in both group titles and edge labels while retaining the original source for copying."
+        },
+        {
+          "kind": "fixed",
+          "label": "Browser",
+          "text": "Closing an initializing browser tab no longer lets delayed history cleanup access destroyed web contents."
+        }
+      ]
+    },
+    {
       "version": "1.8.9",
       "date": "2026-10-09",
       "title": "Responsive crafting and titlebar",

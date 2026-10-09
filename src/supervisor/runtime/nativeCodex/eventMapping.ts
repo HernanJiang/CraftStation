@@ -50,6 +50,41 @@ export interface EventMappingContext {
   usageScope?: UsageScope;
   usageScopeFresh?: boolean;
   accountId?: string;
+  requestedServiceTier?: string;
+  actualServiceTier?: string;
+}
+
+function serviceTierEvent(
+  threadId: string,
+  turnId: string,
+  context: EventMappingContext,
+  fallback: "requested" | "unknown" | "rejected",
+): RuntimeEvent {
+  const requested = context.requestedServiceTier!;
+  const actual = context.actualServiceTier;
+  const normalize = (tier: string) =>
+    tier === "default" ? "standard" : tier === "priority" ? "fast" : tier;
+  const payload = {
+    requested,
+    ...(actual ? { actual } : {}),
+    status:
+      fallback === "rejected"
+        ? fallback
+        : actual
+          ? normalize(actual) === normalize(requested)
+            ? "confirmed"
+            : "downgraded"
+          : fallback,
+  };
+  return fallback === "requested"
+    ? {
+        type: "item.started",
+        threadId,
+        itemId: `${turnId}:service-tier`,
+        itemType: "service_tier",
+        payload,
+      }
+    : { type: "item.completed", threadId, itemId: `${turnId}:service-tier`, payload };
 }
 
 export function mapCodexNotificationToRuntimeEvents(
@@ -65,11 +100,14 @@ export function mapCodexNotificationToRuntimeEvents(
     case "turn/started": {
       const turnId = params.turn?.id || params.turnId || context.turnId || `turn:${Date.now()}`;
       context.turnId = turnId;
+      delete context.actualServiceTier;
       events.push({
         type: "turn.started",
         threadId,
         turnId,
       });
+      if (context.requestedServiceTier)
+        events.push(serviceTierEvent(threadId, turnId, context, "requested"));
       break;
     }
 
@@ -250,6 +288,21 @@ export function mapCodexNotificationToRuntimeEvents(
       if (rawState === "interrupted") state = "interrupted";
       else if (rawState === "cancelled" || rawState === "canceled") state = "cancelled";
       else if (rawState === "failed") state = "failed";
+      if (context.requestedServiceTier) {
+        // A request/config echo (`turn.serviceTier`) is not actual execution evidence.
+        const actual = turn.actualServiceTier ?? params.actualServiceTier;
+        if (typeof actual === "string" && actual) context.actualServiceTier = actual;
+        events.push(
+          serviceTierEvent(
+            threadId,
+            turnId,
+            context,
+            /ultrafast|service.?tier|entitle/i.test(turn.error?.message ?? "")
+              ? "rejected"
+              : "unknown",
+          ),
+        );
+      }
       // The turn is closed — drop the tracked id so a trailing
       // thread/status/changed(idle) cannot synthesize a second completion.
       delete context.turnId;

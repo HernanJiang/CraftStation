@@ -1,6 +1,7 @@
 import { SessionEventHistory } from "../sessionEventHistory";
 import { toCodexSandboxPolicy } from "@/shared/agents/codexPermissions";
 import { randomUUID } from "node:crypto";
+import { codexUltrafastAccountRestriction } from "@/shared/codexSpeed";
 import type {
   CraftPlan,
   CraftSession,
@@ -381,6 +382,7 @@ export class NativeCodexCraftSession implements CraftSession {
     }
 
     const turnEvents: RuntimeEvent[] = [];
+    this._mappingContext.requestedServiceTier = this._effectiveOverrides?.serviceTier ?? "standard";
     let accumulatedResponse = "";
 
     return new Promise<TurnResult>((resolve, reject) => {
@@ -409,6 +411,21 @@ export class NativeCodexCraftSession implements CraftSession {
         });
         this.history.addDiagnostic(diagnostic);
         const rawMsg = error instanceof Error ? error.message : String(error);
+        this.emitEvent({
+          type: "item.started",
+          threadId: this.threadId,
+          itemId: `${turnId}:service-tier`,
+          itemType: "service_tier",
+          payload: {
+            requested: this._mappingContext.requestedServiceTier,
+            status: /ultrafast|service.?tier|entitle/i.test(rawMsg) ? "rejected" : "unknown",
+          },
+        });
+        this.emitEvent({
+          type: "item.completed",
+          threadId: this.threadId,
+          itemId: `${turnId}:service-tier`,
+        });
         // Native-CLI transport failures (direct official endpoint unreachable)
         // get an actionable explanation instead of raw transport text.
         const errorMsg = explainNativeNetworkError(rawMsg, "Codex") ?? rawMsg;
@@ -482,8 +499,31 @@ export class NativeCodexCraftSession implements CraftSession {
       }
 
       const turnInlineInstructions = command.inlineInstructions ?? this.inlineSkillInstructions;
-      this.client
-        .startTurn({
+      const submit = async () => {
+        if (this._effectiveOverrides?.serviceTier === "ultrafast") {
+          const account = await this.client.readAccount();
+          const restriction = codexUltrafastAccountRestriction(account);
+          console.info("[codex-native]", {
+            phase: "turn",
+            operation: "ultrafast-access",
+            status: restriction ? "rejected" : "unverified",
+            code: restriction ? "CODEX_ULTRAFAST_UNAVAILABLE" : "CODEX_TIER_ACCESS_PENDING",
+            threadId: this.threadId,
+            turnId,
+          });
+          if (restriction) throw new Error(restriction);
+          const models = await this.client.listModels();
+          const selected = models.find(
+            (m) => m.id === (this._effectiveOverrides?.model ?? this.runtimeModelId),
+          );
+          if (!selected?.serviceTiers?.includes("ultrafast")) {
+            throw new Error(
+              "CODEX_ULTRAFAST_UNAVAILABLE：当前账号的官方模型目录未声明此模型支持 Ultrafast；请刷新目录或切换 Standard/Fast。未提交回合。",
+            );
+          }
+        }
+        if (command.signal?.aborted) throw new Error("Turn cancelled before submission.");
+        return this.client.startTurn({
           threadId: this.threadId,
           turnId,
           input: [
@@ -515,8 +555,9 @@ export class NativeCodexCraftSession implements CraftSession {
               developer_instructions: DEFAULT_COLLABORATION_INSTRUCTIONS,
             },
           },
-        })
-        .catch(fail);
+        });
+      };
+      void submit().catch(fail);
     });
   }
 
