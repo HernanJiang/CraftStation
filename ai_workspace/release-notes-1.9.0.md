@@ -17,7 +17,7 @@
 
 582 项相关测试通过，4 项条件性用例未运行，另有 22 项新增/发布说明检查通过；类型检查和两种 lint 通过。隔离 Electron 网页全流程 16 项、相关界面/IPC 7 个场景和 4 个 mock 门禁通过，控制台/运行时错误为 0。截图中的原始 Mermaid 已渲染为 9 个节点、12 条连线。候选构建结果见 PROJECT_STATUS.md。
 
-本候选尚未发布。真实账号的完整网页 UI 回合、Visualizations/第三方 MCP Apps 和具有 Ultrafast 权限的服务端回合仍需验收；当前 CLI 明确提示模型目录未开放 Ultrafast，因此不能宣称实际生效。
+Windows x64 安装包和便携版均已构建。本候选尚未发布。真实账号的完整网页 UI 回合、Visualizations/第三方 MCP Apps 和具有 Ultrafast 权限的服务端回合仍需验收；当前 CLI 明确提示模型目录未开放 Ultrafast，因此不能宣称实际生效。
 
 ---
 
@@ -40,4 +40,4 @@ Components and MCP Apps messaging stay in the original webpage. CraftStation for
 
 582 related tests and 22 additional/change-log checks passed; four conditional cases did not run. Type checking and both lint passes succeeded. The isolated Electron web workflow passed 16 checks, with seven related UI/IPC scenarios and four mock gates, and no console/runtime errors. The original screenshot diagram rendered with nine nodes and twelve edges. Candidate artifact results are recorded in PROJECT_STATUS.md.
 
-This candidate is unpublished. The complete real-account web UI workflow, real Visualizations/third-party MCP Apps, and an entitled Ultrafast service response still require acceptance. The current CLI explicitly reports that Ultrafast is absent from the model catalog, so actual Ultrafast execution is not claimed.
+Both Windows x64 installer and portable artifacts are built. This candidate is unpublished. The complete real-account web UI workflow, real Visualizations/third-party MCP Apps, and an entitled Ultrafast service response still require acceptance. The current CLI explicitly reports that Ultrafast is absent from the model catalog, so actual Ultrafast execution is not claimed.

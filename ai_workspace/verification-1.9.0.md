@@ -21,4 +21,12 @@
 
 ## 候选交付
 
-Windows x64 安装包与便携版正在构建。工作区为 `dev/1.9-chatgpt-web`，正式 main 仅包含 Mermaid 修复，不包含网页组件及 Ultrafast 候选。用户验收前不合入 main、不打正式 tag、不发布 GitHub Release；1.9.0 正式次版本的 Linux/macOS 构建随正式发布流程完成。
+Windows x64 双包已通过 `pnpm dist:win`、`pnpm dist:win:portable` 构建，生产编译、17 项运行依赖和原生二进制检查通过：
+
+- [便携版](../release/CraftStation-Portable-1.9.0-x64.exe)：112549539 字节。
+- [安装包](../release/CraftStation-Setup-1.9.0-x64.exe)：133426990 字节。
+- NSIS blockmap 与 latest.yml 保留，更新清单指向安装包。候选 release 下的打包中间文件已移出，归档至 `D:/Work/CraftStation-release-archive/candidate-1.9.0-intermediates/`；稳定版的 release 目录未改动。
+
+在方便重启时退出旧版并打开候选便携版，从“新增 → 网页对话 → ChatGPT”进入，登录或复用自己的网页登录状态，在新的临时网页对话中验证完整回复及组件交互。Ultrafast 需要官方目录明确提供该档位的账号；实际档位没有报告时，验收结果继续记为未报告。
+
+工作区为 `dev/1.9-chatgpt-web`，正式 main 仅包含 Mermaid 修复，不包含网页组件及 Ultrafast 候选。用户验收前不合入 main、不打正式 tag、不发布 GitHub Release；1.9.0 正式次版本的 Linux/macOS 构建随正式发布流程完成。
