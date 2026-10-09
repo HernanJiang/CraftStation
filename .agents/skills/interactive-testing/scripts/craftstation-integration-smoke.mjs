@@ -15,6 +15,7 @@ import {
 } from "./smoke-scenarios.mjs";
 import { inspectCdpWindowTargets } from "./craftstation-cdp-target.mjs";
 import { resolveDebugConnection } from "./craftstation-debug-session.mjs";
+import { responsiveLayoutScenario } from "./craftstation-layout-smoke.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, "../../../../");
@@ -192,6 +193,9 @@ async function runSmoke(plan) {
   try {
     await client.send("Page.enable");
     await client.send("Runtime.enable");
+    // Windows occlusion can stop requestAnimationFrame even after focusWindow.
+    // CDP keeps this isolated renderer visible for deterministic UI interaction.
+    await client.send("Emulation.setFocusEmulationEnabled", { enabled: true });
     // Electron can start occluded on Windows; input and menu transitions must
     // run against the visible owned window, not a background-throttled surface.
     await bridgeInvoke(client, "focusWindow");
@@ -231,6 +235,11 @@ async function runSmoke(plan) {
     if (plan.automated.includes("collaboration-layout")) {
       await runScenario(report, "collaboration-layout", () => collaborationLayoutScenario(client));
     }
+    if (plan.automated.includes("responsive-layout")) {
+      await runScenario(report, "responsive-layout", () =>
+        responsiveLayoutScenario(client, join(outDir, "responsive-layout")),
+      );
+    }
     const collected = await evaluate(client, "window.__smokeErrors ?? []");
     report.errors = [...new Set([...runtimeErrors, ...collected].filter(Boolean))];
     if (report.errors.length > 0) {
@@ -242,6 +251,9 @@ async function runSmoke(plan) {
     }
   } finally {
     await resetDrivenState(client).catch(() => undefined);
+    await client
+      .send("Emulation.setFocusEmulationEnabled", { enabled: false })
+      .catch(() => undefined);
     client.close();
   }
 
@@ -1340,6 +1352,13 @@ async function githubActionsScenario(client) {
 }
 
 async function controlGeometryScenario(client) {
+  // A prior settings scenario may still be closing a nested import dialog.
+  // Start from a freshly mounted settings overlay for this independent check.
+  await evaluate(
+    client,
+    "window.__craftstationDev.closeSettings(); new Promise(resolve => setTimeout(resolve, 250))",
+    true,
+  );
   await evaluate(
     client,
     `window.__craftstationDev.openSettings("general"); new Promise((resolve) => setTimeout(resolve, 250))`,
@@ -1644,15 +1663,18 @@ async function previewCloseScenario(client) {
             await screenshot(client, path);
             screenshots.push(path);
           }
+          await client.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...geometry.click });
           await client.send("Input.dispatchMouseEvent", {
             type: "mousePressed",
             button: "left",
+            buttons: 1,
             clickCount: 1,
             ...geometry.click,
           });
           await client.send("Input.dispatchMouseEvent", {
             type: "mouseReleased",
             button: "left",
+            buttons: 0,
             clickCount: 1,
             ...geometry.click,
           });

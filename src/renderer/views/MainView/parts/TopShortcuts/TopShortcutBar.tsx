@@ -10,17 +10,16 @@ import { getTopShortcutPickerItems, useTopShortcuts, type TopShortcutEntry } fro
 const MORE_BUTTON_WIDTH = 34;
 const ADD_BUTTON_WIDTH = 34;
 
-function ShortcutButton(props: {
-  entry: TopShortcutEntry;
-  registerRef: (id: string, element: HTMLButtonElement | null) => void;
-}) {
+const shortcutButtonClass =
+  "craftstation-titlebar-control inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs text-muted transition-all duration-150 hover:-translate-y-px hover:bg-[var(--row-hover)] hover:text-foreground active:translate-y-0";
+
+function ShortcutButton(props: { entry: TopShortcutEntry }) {
   return (
     <ControlTooltip label={props.entry.label}>
       <button
         type="button"
-        ref={(element) => props.registerRef(props.entry.id, element)}
         data-testid={`top-shortcut-${props.entry.id}`}
-        className={`craftstation-titlebar-control inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs text-muted transition-all duration-150 hover:-translate-y-px hover:bg-[var(--row-hover)] hover:text-foreground active:translate-y-0 ${
+        className={`${shortcutButtonClass} ${
           props.entry.isActive ? "bg-[var(--row-active)] text-foreground" : ""
         }`}
         onClick={() => startTransition(() => props.entry.onPress())}
@@ -46,7 +45,7 @@ export function TopShortcutBar() {
   const [query, setQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState<number | null>(null);
   const navRef = useRef<HTMLSpanElement>(null);
-  const itemRefs = useRef(new Map<string, HTMLButtonElement>());
+  const itemRefs = useRef(new Map<string, HTMLSpanElement>());
 
   const pinnedIds = useMemo(() => new Set(normalizeTopShortcutOrder(savedOrder)), [savedOrder]);
   const pickerItems = getTopShortcutPickerItems(query, pinnedIds);
@@ -58,7 +57,7 @@ export function TopShortcutBar() {
     );
   };
 
-  const registerRef = (id: string, element: HTMLButtonElement | null) => {
+  const registerRef = (id: string, element: HTMLSpanElement | null) => {
     if (element) itemRefs.current.set(id, element);
     else itemRefs.current.delete(id);
   };
@@ -112,9 +111,28 @@ export function TopShortcutBar() {
   // in the middle of the titlebar. Same h-7 sizing and hover style as the
   // other titlebar controls.
   return (
-    <span ref={navRef} className="flex min-w-0 flex-1 items-center gap-0.5 overflow-hidden">
+    <span
+      ref={navRef}
+      className="relative flex min-w-[68px] flex-1 items-center gap-0.5 overflow-hidden"
+    >
+      {/* 全量测量行不随收起而卸载，也能响应新钉住项及语言切换。 */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none invisible absolute flex w-max gap-0.5"
+      >
+        {entries.map((entry) => (
+          <span
+            key={entry.id}
+            ref={(element) => registerRef(entry.id, element)}
+            className={shortcutButtonClass}
+          >
+            {entry.icon}
+            <span>{entry.label}</span>
+          </span>
+        ))}
+      </span>
       {visible.map((entry) => (
-        <ShortcutButton key={entry.id} entry={entry} registerRef={registerRef} />
+        <ShortcutButton key={entry.id} entry={entry} />
       ))}
       {overflowed.length > 0 ? (
         <Dropdown>

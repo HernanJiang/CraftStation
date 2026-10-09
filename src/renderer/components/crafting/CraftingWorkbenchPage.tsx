@@ -343,12 +343,15 @@ export function CraftingWorkbenchPage(props: {
       : "";
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 p-3" data-testid="crafting-workbench-page">
-      <div className="flex min-h-0 flex-1 gap-3 overflow-hidden">
+    <div
+      className="craftstation-workbench-page flex min-h-0 min-w-0 flex-1 flex-col gap-3 p-3"
+      data-testid="crafting-workbench-page"
+    >
+      <div className="craftstation-workbench-content min-h-0 flex-1 gap-3">
         {/* Main workbench area */}
-        <div className="flex min-h-0 min-w-0 shrink flex-col gap-3">
+        <div className="craftstation-workbench-main flex min-h-0 min-w-0 flex-col gap-3">
           {/* 顶部：合成台（主视觉） | 紧凑结果详情 */}
-          <div className="grid shrink-0 grid-cols-[max-content_minmax(14rem,22rem)] items-stretch gap-3">
+          <div className="craftstation-workbench-result grid shrink-0 items-stretch gap-3">
             <EfficientWorkbench
               model={selectedModel}
               harness={selectedHarness}
@@ -408,7 +411,7 @@ export function CraftingWorkbenchPage(props: {
 
           {/* 下方两列：填满剩余高度，各列内部滚动，不截断在半页 */}
           <div
-            className="grid min-h-0 flex-1 grid-cols-2 gap-3 overflow-hidden"
+            className="craftstation-workbench-inventories grid min-h-0 min-w-0 gap-3"
             data-testid="crafting-inventory-columns"
           >
             <ModelsInventory
@@ -472,7 +475,7 @@ export function CraftingWorkbenchPage(props: {
 
         {/* Right ingredients rail */}
         <aside
-          className="flex min-h-0 min-w-[22rem] flex-1 flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-3"
+          className="craftstation-workbench-ingredients flex min-h-0 min-w-0 flex-col rounded-2xl border border-white/10 bg-white/[0.03] p-3"
           aria-label={t`原料栏`}
         >
           <ComponentsRail />

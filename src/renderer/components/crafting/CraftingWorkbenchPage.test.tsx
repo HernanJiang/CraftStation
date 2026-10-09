@@ -193,7 +193,6 @@ describe("CraftingWorkbenchPage", () => {
     );
 
     const columns = await screen.findByTestId("crafting-inventory-columns");
-    expect(columns.className).toContain("flex-1");
     expect(columns.className).toContain("min-h-0");
     expect(screen.getByTestId("models-inventory-grid").className).not.toContain("max-h-72");
     expect(screen.getByTestId("harness-inventory-grid").className).not.toContain("max-h-72");
@@ -222,7 +221,8 @@ describe("CraftingWorkbenchPage", () => {
     expect(within(page).queryByTestId("components-inventory-grid")).toBeNull();
     // Bottom grid keeps models + harness only.
     const columns = within(page).getByTestId("crafting-inventory-columns");
-    expect(columns.className).toContain("grid-cols-2");
+    expect(within(columns).getByTestId("models-inventory")).toBeInTheDocument();
+    expect(within(columns).getByTestId("harness-inventory")).toBeInTheDocument();
   });
 
   it("hides the retired DeepSeek API Runtime from the bench catalogue", async () => {

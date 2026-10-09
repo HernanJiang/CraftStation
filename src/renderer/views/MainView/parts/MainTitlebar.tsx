@@ -7,6 +7,7 @@ import {
   Gauge,
   GitPullRequest,
   Hammer,
+  MoreHorizontal,
   PanelLeft,
   RefreshCw,
 } from "lucide-react";
@@ -48,7 +49,7 @@ function formatDownloadProgressDetail(
 }
 
 const buttonClass =
-  "craftstation-titlebar-control inline-flex h-7 shrink-0 items-center justify-center gap-1.5 rounded-lg px-2 text-xs text-muted transition-all duration-150 hover:-translate-y-px hover:bg-[var(--row-hover)] hover:text-foreground active:translate-y-0";
+  "craftstation-titlebar-control inline-flex h-7 shrink-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-2 text-xs text-muted transition-all duration-150 hover:-translate-y-px hover:bg-[var(--row-hover)] hover:text-foreground active:translate-y-0";
 
 type CliUpdate = {
   key: string;
@@ -135,7 +136,9 @@ export function CliUpdateMenu() {
         Promise.all(
           currentStatuses.map(async ({ key, status }) => {
             try {
-              const result = await readBridge().getLatestAgentVersion({ agentKind: status.kind });
+              const result = await readBridge().getLatestAgentVersion({
+                agentKind: status.kind,
+              });
               return result.version && isNewerVersion(result.version, status.version ?? "")
                 ? ({ key, status, latest: result.version } satisfies CliUpdate)
                 : undefined;
@@ -458,7 +461,7 @@ export function MainTitlebar() {
             <PanelLeft className="size-4" />
           </button>
         </ControlTooltip>
-        <ControlTooltip label={t`Back`}>
+        <ControlTooltip label={t`Back`} triggerClassName="craftstation-titlebar-history">
           <button
             type="button"
             className={`${buttonClass} px-1.5`}
@@ -468,7 +471,7 @@ export function MainTitlebar() {
             <ArrowLeft className="size-4" />
           </button>
         </ControlTooltip>
-        <ControlTooltip label={t`Forward`}>
+        <ControlTooltip label={t`Forward`} triggerClassName="craftstation-titlebar-history">
           <button
             type="button"
             className={`${buttonClass} px-1.5`}
@@ -481,24 +484,34 @@ export function MainTitlebar() {
       </div>
 
       <nav className="ml-1 flex min-w-0 flex-1 items-center gap-0.5">
-        <ControlTooltip label={t`Pull requests`} detail={t`View and review pull requests`}>
+        <ControlTooltip
+          label={t`Pull requests`}
+          detail={t`View and review pull requests`}
+          triggerClassName="craftstation-titlebar-primary"
+        >
           <button
             type="button"
             className={`${buttonClass} ${view.kind === "pullRequests" ? "bg-[var(--row-active)] text-foreground" : ""}`}
             onClick={() => startTransition(() => openPullRequests())}
+            aria-label={t`Pull requests`}
           >
             <GitPullRequest className="size-3.5" />
-            <span>{t`Pull requests`}</span>
+            <span className="craftstation-titlebar-label">{t`Pull requests`}</span>
           </button>
         </ControlTooltip>
-        <ControlTooltip label={t`Plan`} detail={t`View plans and scheduled tasks`}>
+        <ControlTooltip
+          label={t`Plan`}
+          detail={t`View plans and scheduled tasks`}
+          triggerClassName="craftstation-titlebar-primary"
+        >
           <button
             type="button"
             className={`${buttonClass} ${view.kind === "schedules" ? "bg-[var(--row-active)] text-foreground" : ""}`}
             onClick={() => startTransition(() => openSchedules())}
+            aria-label={t`Plan`}
           >
             <CalendarDays className="size-3.5" />
-            <span>{t`Plan`}</span>
+            <span className="craftstation-titlebar-label">{t`Plan`}</span>
             {scheduleCount > 0 ? (
               <span
                 data-testid="titlebar-schedule-count"
@@ -509,20 +522,26 @@ export function MainTitlebar() {
             ) : null}
           </button>
         </ControlTooltip>
-        <ControlTooltip label={t`Work`} detail={t`View automated work`}>
+        <ControlTooltip
+          label={t`Work`}
+          detail={t`View automated work`}
+          triggerClassName="craftstation-titlebar-primary"
+        >
           <button
             type="button"
             className={buttonClass}
             onClick={() => startTransition(() => openGitHubActions())}
+            aria-label={t`Work`}
           >
             <Hammer className="size-3.5" />
-            <span>{t`Work`}</span>
+            <span className="craftstation-titlebar-label">{t`Work`}</span>
           </button>
         </ControlTooltip>
-        <ControlTooltip label={t`Usage`}>
+        <ControlTooltip label={t`Usage`} triggerClassName="craftstation-titlebar-primary">
           <button
             type="button"
             data-testid="titlebar-usage"
+            aria-label={t`Usage`}
             className={`${buttonClass} ${usageStatsActive ? "bg-[var(--row-active)] text-foreground" : ""}`}
             onClick={() =>
               startTransition(() =>
@@ -531,9 +550,72 @@ export function MainTitlebar() {
             }
           >
             <Gauge className="size-3.5" />
-            <span>{t`Usage`}</span>
+            <span className="craftstation-titlebar-label">{t`Usage`}</span>
           </button>
         </ControlTooltip>
+        <div className="craftstation-titlebar-compact">
+          <Dropdown>
+            <Dropdown.Trigger
+              className={buttonClass}
+              aria-label={t`More shortcuts`}
+              data-testid="titlebar-navigation-menu"
+            >
+              <MoreHorizontal className="size-4" />
+            </Dropdown.Trigger>
+            <Dropdown.Popover placement="bottom start">
+              <Dropdown.Menu aria-label={t`More shortcuts`}>
+                <Dropdown.Item id="back" textValue={t`Back`} onPress={() => cycleRecentThread(-1)}>
+                  <ArrowLeft className="size-4" />
+                  <Label>{t`Back`}</Label>
+                </Dropdown.Item>
+                <Dropdown.Item
+                  id="forward"
+                  textValue={t`Forward`}
+                  onPress={() => cycleRecentThread(1)}
+                >
+                  <ArrowRight className="size-4" />
+                  <Label>{t`Forward`}</Label>
+                </Dropdown.Item>
+                <Dropdown.Item
+                  id="pull-requests"
+                  textValue={t`Pull requests`}
+                  onPress={() => startTransition(() => openPullRequests())}
+                >
+                  <GitPullRequest className="size-4" />
+                  <Label>{t`Pull requests`}</Label>
+                </Dropdown.Item>
+                <Dropdown.Item
+                  id="plan"
+                  textValue={t`Plan`}
+                  onPress={() => startTransition(() => openSchedules())}
+                >
+                  <CalendarDays className="size-4" />
+                  <Label>{t`Plan`}</Label>
+                </Dropdown.Item>
+                <Dropdown.Item
+                  id="work"
+                  textValue={t`Work`}
+                  onPress={() => startTransition(() => openGitHubActions())}
+                >
+                  <Hammer className="size-4" />
+                  <Label>{t`Work`}</Label>
+                </Dropdown.Item>
+                <Dropdown.Item
+                  id="usage"
+                  textValue={t`Usage`}
+                  onPress={() =>
+                    startTransition(() =>
+                      usePanelStore.getState().openModelUsageWorkspace({ tab: "stats" }),
+                    )
+                  }
+                >
+                  <Gauge className="size-4" />
+                  <Label>{t`Usage`}</Label>
+                </Dropdown.Item>
+              </Dropdown.Menu>
+            </Dropdown.Popover>
+          </Dropdown>
+        </div>
         <TopShortcutBar />
       </nav>
 
@@ -542,6 +624,7 @@ export function MainTitlebar() {
         <ControlTooltip
           label={t`Check for updates`}
           detail={t`Click to check for a new CraftStation version`}
+          triggerClassName="craftstation-titlebar-version"
         >
           <button
             type="button"
@@ -579,7 +662,7 @@ export function MainTitlebar() {
             ) : (
               <RefreshCw className="size-3.5 animate-spin" />
             )}
-            <span>
+            <span className="craftstation-titlebar-progress-label max-w-60 truncate">
               {updatePhase === "downloaded"
                 ? `${t`Update available`}${updateVersion ? ` v${updateVersion}` : ""}`
                 : updateDownloadDetail
@@ -592,7 +675,7 @@ export function MainTitlebar() {
       {/* Electron's native min/max/close buttons occupy the transparent overlay at the right. */}
       <div
         data-testid="titlebar-window-controls-spacer"
-        className="w-[138px] shrink-0"
+        className="w-[calc(138px/var(--app-zoom,1))] shrink-0"
         aria-hidden="true"
       />
     </header>

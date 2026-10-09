@@ -51,13 +51,13 @@ export function EfficientWorkbench(props: {
 
   return (
     <section
-      className="rounded-2xl border border-white/10 bg-white/[0.03] p-3"
+      className="craftstation-workbench-table min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] p-3"
       data-testid="efficient-workbench"
       aria-label={t`合成台`}
     >
-      <div className="flex items-center gap-3">
+      <div className="craftstation-workbench-slots flex items-center gap-3">
         <div
-          className="grid shrink-0 grid-cols-3 content-start gap-2"
+          className="craftstation-workbench-grid grid grid-cols-3 content-start gap-2"
           data-testid="crafting-grid-3x3"
         >
           <CraftingSlot
