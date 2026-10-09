@@ -312,6 +312,39 @@ export function normalizeMermaidSubgraphTitles(code: string): string {
   );
 }
 
+/** Retry-only repair for flowchart labels containing unquoted parentheses. */
+export function normalizeMermaidFlowchartLabels(code: string): string {
+  if (!/^\s*(?:flowchart|graph)\b/u.test(code)) return code;
+  const source = normalizeMermaidSubgraphTitles(code);
+  let result = "";
+  let quoted = false;
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]!;
+    if (char === '"' && source[index - 1] !== "\\") quoted = !quoted;
+    if (!quoted && source.startsWith("%%", index)) {
+      const end = source.indexOf("\n", index);
+      if (end === -1) return result + source.slice(index);
+      result += source.slice(index, end + 1);
+      index = end;
+      continue;
+    }
+    if (!quoted && /[<.=-]/u.test(char)) {
+      const edge = /^(?:[<ox]?[-.=]{2,}[>ox]?)([\t ]*)\|([^|\r\n]+)\|/u.exec(source.slice(index));
+      if (edge) {
+        const label = edge[2]!;
+        if (/[()]/u.test(label) && !label.trimStart().startsWith('"')) {
+          const separator = edge[0].indexOf("|");
+          result += `${edge[0].slice(0, separator)}|"${label.replaceAll('"', "#quot;")}"|`;
+        } else result += edge[0];
+        index += edge[0].length - 1;
+        continue;
+      }
+    }
+    result += char;
+  }
+  return result;
+}
+
 /**
  * Models frequently emit LaTeX with the classic `\[ … \]` / `\( … \)`
  * delimiters, but remark-math only recognizes `$$ … $$` / `$ … $`. Rewrite the

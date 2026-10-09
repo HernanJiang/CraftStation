@@ -448,6 +448,28 @@ flowchart TD
     expect(renderDiagram.mock.calls[1]?.[0]).not.toBe(renderDiagram.mock.calls[0]?.[0]);
   });
 
+  it("repairs an unquoted edge as well as a group title in the Browser Gym reply", async () => {
+    const source =
+      'flowchart TD\nsubgraph Env [无头浏览器集群 (Browser Gym)]\nModel -->|轨迹2 (点错卡片)| E2["误触弹窗"]\nend';
+    const renderDiagram = vi.fn<(id: string, code: string) => Promise<{ svg: string }>>(
+      (_id, code) =>
+        code.includes('Env["无头浏览器集群 (Browser Gym)"]') &&
+        code.includes('|"轨迹2 (点错卡片)"|')
+          ? Promise.resolve({ svg: '<svg data-mermaid-mock="true"></svg>' })
+          : Promise.reject(new Error("Parse error: unexpected PS")),
+    );
+    mermaidRenderImpl.value = renderDiagram;
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={`\`\`\`mermaid\n${source}\n\`\`\``} />
+      </AppProvider>,
+    );
+    await waitFor(() => expect(container.querySelector(".lc-md-mermaid svg")).not.toBeNull());
+    expect(container.querySelector("pre")).toBeNull();
+    expect(renderDiagram).toHaveBeenCalledTimes(2);
+    expect(renderDiagram.mock.calls[0]?.[1]).toBe(source);
+  });
+
   it("keeps original Mermaid source when a repaired diagram still cannot render", async () => {
     const source = "flowchart TD\nsubgraph 最终收拢 (Supervisor)\nA -->\nend";
     const renderDiagram = vi.fn<(id: string, code: string) => Promise<{ svg: string }>>(() =>
