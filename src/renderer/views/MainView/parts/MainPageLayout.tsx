@@ -28,17 +28,17 @@ const ChatGptWebPage = lazy(() =>
 
 export function MainPageLayout() {
   const webChatOpen = useWebChatStore((s) => s.open);
+  const webChatNavigationKey = useWebChatStore((s) => s.navigationKey);
   const channel = readBridge().channel;
   const isDev = import.meta.env.DEV;
   const auxiliaryPanelPlacement = usePanelStore((state) => state.auxiliaryPanelPlacement);
   const auxiliaryPanelOpen = auxiliaryPanelPlacement !== "hidden";
   const conversationResetKey = useAppStore((state) => {
-    const view = state.view;
-    if (view.kind !== "thread") return view.kind;
-    return `thread:${view.panes.join("|")}`;
+    return JSON.stringify(state.view);
   });
   useEffect(() => {
-    useWebChatStore.getState().setOpen(false);
+    const state = useWebChatStore.getState();
+    if (state.open && state.navigationKey !== conversationResetKey) state.setOpen(false);
   }, [conversationResetKey]);
 
   return (
@@ -53,7 +53,7 @@ export function MainPageLayout() {
       content={
         <MainPanelDropZone>
           <ConversationErrorBoundary resetKey={conversationResetKey}>
-            {webChatOpen ? (
+            {webChatOpen && webChatNavigationKey === conversationResetKey ? (
               <Suspense>
                 <ChatGptWebPage />
               </Suspense>

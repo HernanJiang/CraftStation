@@ -29,6 +29,9 @@ export function UniversalDockedChatInput(props: {
   showGoalStrip?: boolean;
   /** One-line extension of the local context bar (queued follow-up, etc.). */
   afterContextBar?: ReactNode;
+  runtimeMode?: "local" | "web";
+  onRuntimeModeChange?: (mode: "local" | "web") => void;
+  rightActions?: ReactNode;
 }) {
   return (
     <DraftGitLaunchSlotProvider>
@@ -46,6 +49,11 @@ export function UniversalDockedChatInput(props: {
             project={props.project}
             craftMode={props.craftMode}
             onCraftModeChange={props.onCraftModeChange}
+            {...(props.runtimeMode ? { runtimeMode: props.runtimeMode } : {})}
+            {...(props.onRuntimeModeChange
+              ? { onRuntimeModeChange: props.onRuntimeModeChange }
+              : {})}
+            {...(props.rightActions ? { rightActions: props.rightActions } : {})}
             {...(props.threadId ? { threadId: props.threadId } : {})}
             {...(props.paneId ? { paneId: props.paneId } : {})}
             {...(props.worktreePath ? { worktreePath: props.worktreePath } : {})}

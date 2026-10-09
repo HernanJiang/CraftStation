@@ -658,6 +658,12 @@ export function createLocalIpcHandlers(
     webChatSend: ({ sessionId, prompt, requestId }) =>
       requireWebChat().send(sessionId, prompt, requestId),
     webChatStop: ({ sessionId }) => requireWebChat().stop(sessionId),
+    webChatDiscover: ({ sessionId }) => requireWebChat().discover(sessionId),
+    webChatImport: ({ url }) => requireWebChat().importConversation(url),
+    webChatDelete: ({ sessionId, url }) => requireWebChat().deleteConversation(sessionId, url),
+    webChatReasoning: ({ sessionId }) => requireWebChat().reasoning(sessionId),
+    webChatSetReasoning: ({ sessionId, option }) =>
+      requireWebChat().setReasoning(sessionId, option),
     browserCreateTab: (payload) =>
       requireBrowserPanel(options.getBrowserPanelManager).createTab({
         ...(payload.url !== undefined ? { url: payload.url } : {}),

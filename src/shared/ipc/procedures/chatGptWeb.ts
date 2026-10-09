@@ -1,5 +1,14 @@
 import { defineNoArgProcedure, definePayloadProcedure } from "../core";
-import { webChatIdSchema, webChatSendSchema, type WebChatSession } from "../../chatGptWeb";
+import {
+  webChatIdSchema,
+  webChatSendSchema,
+  webChatImportSchema,
+  webChatDeleteSchema,
+  webChatReasoningSchema,
+  type WebChatSession,
+  type WebChatConversation,
+  type WebChatReasoning,
+} from "../../chatGptWeb";
 import type { z } from "zod";
 
 type Id = z.infer<typeof webChatIdSchema>;
@@ -26,4 +35,29 @@ export const chatGptWebProcedures = {
     "main-local",
     webChatIdSchema,
   ),
+  webChatDiscover: definePayloadProcedure<Id, WebChatConversation[], "main-local">(
+    "webChatDiscover",
+    "main-local",
+    webChatIdSchema,
+  ),
+  webChatImport: definePayloadProcedure<
+    z.infer<typeof webChatImportSchema>,
+    WebChatSession,
+    "main-local"
+  >("webChatImport", "main-local", webChatImportSchema),
+  webChatDelete: definePayloadProcedure<z.infer<typeof webChatDeleteSchema>, void, "main-local">(
+    "webChatDelete",
+    "main-local",
+    webChatDeleteSchema,
+  ),
+  webChatReasoning: definePayloadProcedure<Id, WebChatReasoning, "main-local">(
+    "webChatReasoning",
+    "main-local",
+    webChatIdSchema,
+  ),
+  webChatSetReasoning: definePayloadProcedure<
+    z.infer<typeof webChatReasoningSchema>,
+    WebChatSession,
+    "main-local"
+  >("webChatSetReasoning", "main-local", webChatReasoningSchema),
 };

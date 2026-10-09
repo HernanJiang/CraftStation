@@ -15,7 +15,7 @@ import type {
 } from "@/shared/contracts";
 import { HOME_PROJECT_NAME, isHomeProjectId } from "@/shared/homeScope";
 import { isComposerPickerExcludedAgent } from "@/renderer/components/thread/useManagedComposerProviders";
-import { readBridge } from "@/renderer/bridge";
+import { isRemoteSession, readBridge } from "@/renderer/bridge";
 import { getComputerUseScope } from "@/renderer/components/composer/computerUseScope";
 import {
   browserMcpServer,
@@ -75,6 +75,8 @@ import { friendlyError } from "@/shared/messages";
 import { ProjectSwitchMenu } from "./ProjectSwitchMenu";
 import { ThreadDraftComposerArea, type DraftStartInput } from "./ThreadDraftComposerArea";
 import { UniversalDockedChatInput } from "./UniversalDockedChatInput";
+import { ThreadComposer } from "./ThreadComposer";
+import { useWebChatStore } from "@/renderer/state/webChatStore";
 import type { SaveClipboardImage } from "../composer/useAttachments";
 import { AgentDiscoveryScreen } from "./AgentDiscoveryScreen";
 import {
@@ -1512,15 +1514,40 @@ export function ThreadDraftView(props: {
       );
     }
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          <Trans>No supported agents detected</Trans>
-        </h1>
-        <p className="text-muted">
-          <Trans>
-            Install {formatAgentList(props.agentStatuses.map((s) => s.label))} to create a thread.
-          </Trans>
-        </p>
+      <div className="flex h-full flex-col px-6 pb-3">
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">
+          <h1 className="text-2xl font-semibold tracking-tight">
+            <Trans>No supported agents detected</Trans>
+          </h1>
+          <p className="text-muted">
+            <Trans>
+              Install {formatAgentList(props.agentStatuses.map((s) => s.label))} to create a thread.
+            </Trans>
+          </p>
+        </div>
+        {!isRemoteSession() && !props.quickComposer && (
+          <UniversalDockedChatInput
+            project={project}
+            placement="home"
+            craftMode="auto"
+            onCraftModeChange={() => undefined}
+            runtimeMode="local"
+            onRuntimeModeChange={(runtimeMode) => {
+              if (runtimeMode === "web") useWebChatStore.getState().startDraft(project.id, true);
+            }}
+          >
+            <ThreadComposer
+              prompt=""
+              placeholder={t`Send a message...`}
+              promptDisabled
+              submitLabel={t`发送`}
+              submitDisabled
+              controls={[]}
+              onPromptChange={() => undefined}
+              onSubmit={() => undefined}
+            />
+          </UniversalDockedChatInput>
+        )}
       </div>
     );
   }
@@ -1743,6 +1770,15 @@ export function ThreadDraftView(props: {
             <UniversalDockedChatInput
               project={project}
               placement="home"
+              {...(!isRemoteSession()
+                ? {
+                    runtimeMode: "local" as const,
+                    onRuntimeModeChange: (runtimeMode: "local" | "web") => {
+                      if (runtimeMode === "web")
+                        useWebChatStore.getState().startDraft(project.id, true);
+                    },
+                  }
+                : {})}
               craftMode={craftMode}
               onCraftModeChange={handleCraftModeChange}
               {...(props.paneId ? { paneId: props.paneId } : {})}

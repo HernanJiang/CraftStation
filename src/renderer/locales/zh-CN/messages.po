@@ -16747,3 +16747,90 @@ msgstr "返回"
 
 msgid "发送"
 msgstr "发送"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "导入已有对话"
+msgstr "导入已有对话"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "删除账号中的对话"
+msgstr "删除账号中的对话"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "从已登录账号选择对话，或粘贴自己的对话链接。导入后可继续原对话；分享链接不支持续聊。"
+msgstr "从已登录账号选择对话，或粘贴自己的对话链接。导入后可继续原对话；分享链接不支持续聊。"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "ChatGPT 对话链接"
+msgstr "ChatGPT 对话链接"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "网页已加载的对话"
+msgstr "网页已加载的对话"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "刷新列表"
+msgstr "刷新列表"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "没有已加载的对话。可先打开网页登录、加载旧对话，或直接粘贴链接。"
+msgstr "没有已加载的对话。可先打开网页登录、加载旧对话，或直接粘贴链接。"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "选项来自当前网页账号和模型。应用后会核实网页档位；模型或套餐变化时，请重新读取选项。"
+msgstr "选项来自当前网页账号和模型。应用后会核实网页档位；模型或套餐变化时，请重新读取选项。"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "网页思考强度"
+msgstr "网页思考强度"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "正在读取或应用网页设置…"
+msgstr "正在读取或应用网页设置…"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "导入并继续"
+msgstr "导入并继续"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "应用到网页"
+msgstr "应用到网页"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "删除账号中的对话？"
+msgstr "删除账号中的对话？"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "这会同步删除你的 ChatGPT 账号中的原对话及本地记录，无法撤销。"
+msgstr "这会同步删除你的 ChatGPT 账号中的原对话及本地记录，无法撤销。"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "删除原对话"
+msgstr "删除原对话"
+
+msgid "新增网页对话"
+msgstr "新增网页对话"
+
+msgid "网页对话服务"
+msgstr "网页对话服务"
+
+msgid "ChatGPT 网页对话"
+msgstr "ChatGPT 网页对话"
+
+msgid "网页远程"
+msgstr "网页远程"
+
+msgid "对话运行方式"
+msgstr "对话运行方式"
+
+msgid "本地"
+msgstr "本地"
+
+msgid "远程"
+msgstr "远程"
+
+msgid "网页连接超时，请打开网页检查后重试。"
+msgstr "网页连接超时，请打开网页检查后重试。"
+
+msgid "使用侧边浏览器已登录的 ChatGPT 账号。发送后回复实时显示在这里；尚未登录时会打开官方登录页。"
+msgstr "使用侧边浏览器已登录的 ChatGPT 账号。发送后回复实时显示在这里；尚未登录时会打开官方登录页。"

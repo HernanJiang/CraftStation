@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ChatGptWebRuntime, type WebChatBrowser } from "./runtime";
 import { chatGptPageScript, type ChatGptPageSnapshot } from "./pageDriver";
-import { isChatGptWebUrl } from "@/shared/chatGptWeb";
+import { chatGptConversationUrl, isChatGptWebUrl, webChatDeleteSchema } from "@/shared/chatGptWeb";
 
 function fixture() {
   const dom = new JSDOM(
@@ -59,6 +59,9 @@ function fixture() {
     ),
     reveal: vi.fn<WebChatBrowser["reveal"]>(),
     keepAlive: vi.fn<WebChatBrowser["keepAlive"]>(),
+    close: vi.fn<WebChatBrowser["close"]>(async () => {
+      attached = false;
+    }),
   };
   return {
     dom,
@@ -72,6 +75,83 @@ function fixture() {
     complete: () => {
       window.document.querySelector('button[aria-label="停止"]')?.remove();
       send.disabled = false;
+    },
+  };
+}
+
+function managementFixture(
+  f: ReturnType<typeof fixture>,
+  labels = ["即时", "中", "高", "极高", "Pro"],
+) {
+  const { document } = f.dom.window;
+  f.dom.reconfigure({ url: "https://chatgpt.com/c/test-conversation" });
+  document.title = "测试对话";
+  document.body.insertAdjacentHTML(
+    "afterbegin",
+    '<nav><a href="/c/test-conversation">测试对话</a><a href="/c/older-conversation">旧对话</a><a href="/c/older-conversation">重复</a><a href="/share/shared-conversation">分享</a><a href="https://example.com/c/other-conversation">外站</a></nav>',
+  );
+  f.messages.insertAdjacentHTML(
+    "afterbegin",
+    '<header><button aria-label="更多" aria-haspopup="menu">更多</button></header>',
+  );
+  const more = document.querySelector<HTMLButtonElement>('button[aria-label="更多"]')!;
+  let deletions = 0;
+  let acknowledgeDeletion = true;
+  more.onclick = () => {
+    more.setAttribute("aria-controls", "conversation-menu");
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      '<div role="menu" id="conversation-menu"><div role="menuitem">删除</div></div>',
+    );
+    document.querySelector<HTMLElement>("#conversation-menu [role=menuitem]")!.onclick = () => {
+      document.querySelector("#conversation-menu")!.remove();
+      document.body.insertAdjacentHTML(
+        "beforeend",
+        `<div role="dialog" aria-modal="true"><h2>删除聊天？</h2><p>永久删除“${document.title}”</p><button>取消</button><button type="submit">删除聊天</button></div>`,
+      );
+      const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
+      dialog.querySelector<HTMLButtonElement>("button")!.onclick = () => dialog.remove();
+      dialog.querySelector<HTMLButtonElement>('[type="submit"]')!.onclick = () => {
+        deletions++;
+        dialog.remove();
+        if (!acknowledgeDeletion) return;
+        document.querySelector('nav a[href="/c/test-conversation"]')!.remove();
+        f.dom.window.history.replaceState({}, "", "/");
+      };
+    };
+  };
+  document.body.insertAdjacentHTML(
+    "beforeend",
+    '<button data-codex-intelligence-trigger aria-haspopup="menu" aria-expanded="false">中</button>',
+  );
+  const trigger = document.querySelector<HTMLButtonElement>("[data-codex-intelligence-trigger]")!;
+  let index = 1;
+  trigger.onclick = () => {
+    trigger.setAttribute("aria-expanded", "true");
+    trigger.setAttribute("aria-controls", "reasoning-menu");
+    document.body.insertAdjacentHTML(
+      "beforeend",
+      `<div role="menu" id="reasoning-menu"><span role="status" id="effort-status">${labels[index]}, 第 ${index + 1} 项</span><div role="menuitem" data-reasoning-slider aria-describedby="effort-status"><span aria-hidden="true" role="slider" aria-valuemin="0" aria-valuemax="${labels.length - 1}" aria-valuenow="${index}"></span></div></div>`,
+    );
+    const menu = document.querySelector<HTMLElement>("#reasoning-menu")!;
+    menu.onkeydown = (e) => {
+      if (e.key === "Escape") {
+        menu.remove();
+        trigger.setAttribute("aria-expanded", "false");
+        return;
+      }
+      if (!e.target || !(e.target as HTMLElement).hasAttribute("data-reasoning-slider")) return;
+      index = Math.min(labels.length - 1, Math.max(0, index + (e.key === "ArrowRight" ? 1 : -1)));
+      menu.querySelector('[role="slider"]')!.setAttribute("aria-valuenow", String(index));
+      menu.querySelector('[role="status"]')!.textContent = `${labels[index]}, 第 ${index + 1} 项`;
+      trigger.textContent = labels[index]!;
+    };
+  };
+  return {
+    deletions: () => deletions,
+    index: () => index,
+    loseAcknowledgement: () => {
+      acknowledgeDeletion = false;
     },
   };
 }
@@ -96,6 +176,119 @@ describe("ChatGPT 网页同步", () => {
     await vi.advanceTimersByTimeAsync(150);
     return promise;
   };
+  it("新建与导入默认在后台打开官方页面，只有显式打开才展开浏览器", async () => {
+    const draft = await runtime.create();
+    expect(f.browser.create).toHaveBeenCalledWith("https://chatgpt.com/", false);
+    expect(f.browser.reveal).not.toHaveBeenCalled();
+    managementFixture(f);
+    const imported = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    await runtime.importConversation(imported.url);
+    expect(f.browser.create).toHaveBeenLastCalledWith(imported.url, false);
+    expect(f.browser.reveal).not.toHaveBeenCalled();
+    await runtime.reveal(draft.id);
+    expect(f.browser.reveal).toHaveBeenCalledTimes(1);
+  });
+  it("只接入自己的对话链接，重复导入复用会话，读取原历史后可继续发送", async () => {
+    expect(chatGptConversationUrl("https://chatgpt.com/g/project/c/test-conversation?x=1")).toBe(
+      "https://chatgpt.com/c/test-conversation",
+    );
+    for (const url of [
+      "https://chatgpt.com/share/test-conversation",
+      "https://chatgpt.com.evil.test/c/test-conversation",
+      "https://user@chatgpt.com/c/test-conversation",
+      "https://chatgpt.com:444/c/test-conversation",
+    ]) {
+      await expect(runtime.importConversation(url)).rejects.toThrow("WEB_IMPORT_INVALID");
+    }
+    managementFixture(f);
+    f.messages.insertAdjacentHTML(
+      "beforeend",
+      '<div data-message-author-role="assistant" data-message-id="old">旧回复</div>',
+    );
+    const s = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    expect((await runtime.read(s.id)).messages[0]?.text).toBe("旧回复");
+    expect((await runtime.importConversation(`${s.url}?source=web`)).id).toBe(s.id);
+    expect(runtime.list()).toHaveLength(1);
+    expect(f.browser.create).toHaveBeenCalledTimes(1);
+    expect(await runtime.discover(s.id)).toEqual([
+      { title: "测试对话", url: s.url },
+      { title: "旧对话", url: "https://chatgpt.com/c/older-conversation" },
+    ]);
+    await submit(s.id);
+    expect(f.count()).toBe(1);
+    await expect(runtime.reasoning(s.id)).rejects.toThrow("WEB_BUSY");
+  });
+  it("思考档位来自原生滑杆，读取后恢复偏好，设置后核实标签", async () => {
+    const native = managementFixture(f);
+    const s = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    const reading = runtime.reasoning(s.id);
+    await vi.advanceTimersByTimeAsync(1800);
+    const options = await reading;
+    expect(options.options.map((o) => o.label)).toEqual(["即时", "中", "高", "极高", "Pro"]);
+    expect(options.value).toBe("1");
+    expect(native.index()).toBe(1);
+    const setting = runtime.setReasoning(s.id, { id: "3", label: "极高" });
+    await vi.advanceTimersByTimeAsync(500);
+    expect((await setting).reasoningLabel).toBe("极高");
+    expect(native.index()).toBe(3);
+    const invalid = runtime
+      .setReasoning(s.id, { id: "0", label: "虚构档位" })
+      .catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await invalid).toHaveProperty(
+      "message",
+      expect.stringContaining("WEB_REASONING_CHANGED"),
+    );
+    expect(native.index()).toBe(3);
+    expect(f.count()).toBe(0);
+  });
+  it("删除须显式确认，核对 URL 与原生对话框后只提交一次，确认成功才移除历史", async () => {
+    expect(
+      webChatDeleteSchema.safeParse({
+        sessionId: "00000000-0000-4000-8000-000000000000",
+        url: "https://chatgpt.com/c/test-conversation",
+      }).success,
+    ).toBe(false);
+    const native = managementFixture(f);
+    const s = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    await expect(
+      runtime.deleteConversation(s.id, "https://chatgpt.com/c/older-conversation"),
+    ).rejects.toThrow("WEB_PAGE_CHANGED");
+    expect(native.deletions()).toBe(0);
+    const deleting = runtime.deleteConversation(s.id, s.url);
+    await vi.advanceTimersByTimeAsync(1000);
+    await deleting;
+    expect(native.deletions()).toBe(1);
+    expect(runtime.list()).toHaveLength(0);
+    expect(f.browser.close).toHaveBeenCalledTimes(1);
+  });
+  it("手动切换网页后拒绝删除，原会话记录和目标都保留", async () => {
+    const native = managementFixture(f);
+    const s = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    f.dom.reconfigure({ url: "https://chatgpt.com/c/older-conversation" });
+    await expect(runtime.deleteConversation(s.id, s.url)).rejects.toThrow("WEB_PAGE_CHANGED");
+    expect(native.deletions()).toBe(0);
+    expect(runtime.list()[0]?.url).toBe(s.url);
+  });
+  it("网页删除结果不明确时保留记录，绝不再次点击删除", async () => {
+    const native = managementFixture(f);
+    native.loseAcknowledgement();
+    const s = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    const deleting = runtime.deleteConversation(s.id, s.url).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(17_000);
+    expect(await deleting).toHaveProperty(
+      "message",
+      expect.stringContaining("WEB_DELETE_UNCERTAIN"),
+    );
+    expect(native.deletions()).toBe(1);
+    expect(runtime.list()[0]?.id).toBe(s.id);
+    expect(f.browser.close).not.toHaveBeenCalled();
+  });
+  it("网页没有原生思考控件时明确拒绝，不提供虚构选项", async () => {
+    const s = await runtime.create();
+    await expect(runtime.reasoning(s.id)).rejects.toThrow("WEB_REASONING_UNAVAILABLE");
+    expect(f.count()).toBe(0);
+  });
   it("将中文和多行文字发送一次，持续替换回复快照，并在网页结束后完成", async () => {
     const s = await runtime.create();
     expect((await runtime.read(s.id)).status).toBe("ready");
@@ -142,9 +335,19 @@ describe("ChatGPT 网页同步", () => {
     expect(f.count()).toBe(0);
     f.editor.remove();
     f.dom.window.document.body.insertAdjacentHTML("beforeend", '<a href="/auth/login">登录</a>');
+    let loginClicks = 0;
+    f.dom.window.document
+      .querySelector('a[href="/auth/login"]')!
+      .addEventListener("click", (event) => {
+        event.preventDefault();
+        loginClicks++;
+      });
     await runtime.reveal(s.id);
     expect((await runtime.read(s.id)).status).toBe("login-required");
     await expect(runtime.send(s.id, "新消息", "request-2")).rejects.toThrow("WEB_LOGIN_REQUIRED");
+    await runtime.reveal(s.id);
+    expect(loginClicks).toBe(1);
+    expect(f.count()).toBe(0);
   });
   it("消息提交后无法确认时超时，绝不再次点击发送", async () => {
     const s = await runtime.create();

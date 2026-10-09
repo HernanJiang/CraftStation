@@ -1,8 +1,9 @@
-import { Bell, MessageSquarePlus, Plus, Search, Trash2 } from "lucide-react";
+import { Bell, Globe, MessageSquarePlus, Plus, Search, Trash2 } from "lucide-react";
 import { Dropdown, Label } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { ControlTooltip } from "@/renderer/components/common/ControlTooltip";
-import { openThread, openNewThread } from "@/renderer/actions/threadActions";
+import { openThread, openNewThread, openNewWebChat } from "@/renderer/actions/threadActions";
+import { isRemoteSession } from "@/renderer/bridge";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import {
   selectHasUnread,
@@ -174,6 +175,23 @@ export function SidebarCodexNav() {
                   <MessageSquarePlus className="size-4 text-muted" />
                   <Label>{t`New chat`}</Label>
                 </Dropdown.Item>
+                {!isRemoteSession() && (
+                  <Dropdown.SubmenuTrigger delay={0}>
+                    <Dropdown.Item id="web-chat" textValue={t`新增网页对话`}>
+                      <Globe className="size-4 text-muted" />
+                      <Label>{t`新增网页对话`}</Label>
+                      <Dropdown.SubmenuIndicator />
+                    </Dropdown.Item>
+                    <Dropdown.Popover>
+                      <Dropdown.Menu aria-label={t`网页对话服务`} onAction={() => openNewWebChat()}>
+                        <Dropdown.Item id="chatgpt-web" textValue={t`ChatGPT 网页对话`}>
+                          <Globe className="size-4 text-muted" />
+                          <Label>{t`ChatGPT 网页对话`}</Label>
+                        </Dropdown.Item>
+                      </Dropdown.Menu>
+                    </Dropdown.Popover>
+                  </Dropdown.SubmenuTrigger>
+                )}
                 <Dropdown.Item id="project" textValue={t`New project`} className="rounded-none">
                   <Plus className="size-4 text-muted" />
                   <Label>{t`New project`}</Label>

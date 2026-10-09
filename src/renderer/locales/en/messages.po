@@ -16744,3 +16744,90 @@ msgstr "Back"
 
 msgid "发送"
 msgstr "Send"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "导入已有对话"
+msgstr "Import an existing conversation"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "删除账号中的对话"
+msgstr "Delete account conversation"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "从已登录账号选择对话，或粘贴自己的对话链接。导入后可继续原对话；分享链接不支持续聊。"
+msgstr "Choose a conversation from your signed-in account or paste its link to continue it here. Shared links cannot continue the original conversation."
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "ChatGPT 对话链接"
+msgstr "ChatGPT conversation link"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "网页已加载的对话"
+msgstr "Conversations loaded on the website"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "刷新列表"
+msgstr "Refresh list"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "没有已加载的对话。可先打开网页登录、加载旧对话，或直接粘贴链接。"
+msgstr "No conversations loaded. Open the website to sign in and load older conversations, or paste a link."
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "选项来自当前网页账号和模型。应用后会核实网页档位；模型或套餐变化时，请重新读取选项。"
+msgstr "Options come from the current account and model on the website. Changes are verified on the website; reload options after changing models or plans."
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "网页思考强度"
+msgstr "Website thinking intensity"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "正在读取或应用网页设置…"
+msgstr "Reading or applying website settings…"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "导入并继续"
+msgstr "Import and continue"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "应用到网页"
+msgstr "Apply to website"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "删除账号中的对话？"
+msgstr "Delete account conversation?"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "这会同步删除你的 ChatGPT 账号中的原对话及本地记录，无法撤销。"
+msgstr "This permanently deletes the original conversation from your ChatGPT account and its local record. This cannot be undone."
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "删除原对话"
+msgstr "Delete original conversation"
+
+msgid "新增网页对话"
+msgstr "New web conversation"
+
+msgid "网页对话服务"
+msgstr "Web conversation service"
+
+msgid "ChatGPT 网页对话"
+msgstr "ChatGPT web conversation"
+
+msgid "网页远程"
+msgstr "Web remote"
+
+msgid "对话运行方式"
+msgstr "Conversation runtime"
+
+msgid "本地"
+msgstr "Local"
+
+msgid "远程"
+msgstr "Remote"
+
+msgid "网页连接超时，请打开网页检查后重试。"
+msgstr "Website connection timed out. Open the website to check, then retry."
+
+msgid "使用侧边浏览器已登录的 ChatGPT 账号。发送后回复实时显示在这里；尚未登录时会打开官方登录页。"
+msgstr "Use the ChatGPT account signed in to the side browser. Replies appear here in real time; if you are signed out, the official login page opens."

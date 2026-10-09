@@ -1,4 +1,5 @@
-import { Monitor } from "lucide-react";
+import { Globe, Monitor } from "lucide-react";
+import { OptionMenu } from "@/renderer/components/common/OptionMenu";
 import { useLingui } from "@lingui/react/macro";
 import type { Project, ThreadGoal } from "@/shared/contracts";
 import { isHomeProjectId } from "@/shared/homeScope";
@@ -28,11 +29,15 @@ export function DraftContextBar(props: {
   craftMode: CraftMode;
   onCraftModeChange: (mode: CraftMode) => void;
   rightActions?: ReactNode;
+  runtimeMode?: "local" | "web";
+  onRuntimeModeChange?: (mode: "local" | "web") => void;
   /** When false, the context bar does not host the goal strip (mobile chips / terminal dock). */
   showGoalStrip?: boolean;
 }) {
   const { t } = useLingui();
-  const runtimeLabel = props.project.location.kind === "wsl" ? "WSL" : t`Local`;
+  const localLabel = props.project.location.kind === "wsl" ? "WSL" : t`Local`;
+  const runtimeLabel = props.runtimeMode === "web" ? t`网页远程` : localLabel;
+  const RuntimeIcon = props.runtimeMode === "web" ? Globe : Monitor;
   const showProject = !isHomeProjectId(props.project.id);
   // A live thread rebinds itself to the picked project ("+ Add to project");
   // draft panes keep their local draft-switching behavior.
@@ -86,10 +91,25 @@ export function DraftContextBar(props: {
               : {})}
         />
         {!showProject ? <span className="sr-only">{t`No project`}</span> : null}
-        <span className={itemClass}>
-          <Monitor className="size-3.5 shrink-0 text-muted" />
-          <span>{runtimeLabel}</span>
-        </span>
+        {props.onRuntimeModeChange ? (
+          <OptionMenu
+            value={props.runtimeMode ?? "local"}
+            options={[
+              { id: "local", label: localLabel, icon: <Monitor className="size-3.5" /> },
+              { id: "web", label: t`网页远程`, icon: <Globe className="size-3.5" /> },
+            ]}
+            placeholder={t`对话运行方式`}
+            icon={<RuntimeIcon className="size-3.5" />}
+            buttonVariant="ghost"
+            className="h-6 min-w-0 px-1.5 text-xs"
+            onChange={(mode) => props.onRuntimeModeChange?.(mode === "web" ? "web" : "local")}
+          />
+        ) : (
+          <span className={itemClass}>
+            <RuntimeIcon className="size-3.5 shrink-0 text-muted" />
+            <span>{runtimeLabel}</span>
+          </span>
+        )}
         {goalThreadId ? <ComposerPlanChip threadId={goalThreadId} /> : null}
         {props.showGoalStrip !== false && goalThreadId && visibleGoalState ? (
           <ThreadGoalDock

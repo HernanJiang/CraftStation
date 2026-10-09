@@ -1,8 +1,25 @@
 import { randomUUID } from "node:crypto";
 import { existsSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { z } from "zod";
-import { isChatGptWebUrl, webChatSessionSchema, type WebChatSession } from "@/shared/chatGptWeb";
-import { chatGptPageScript, chatGptSubmitScript, type ChatGptPageSnapshot } from "./pageDriver";
+import {
+  chatGptConversationUrl,
+  isChatGptWebUrl,
+  webChatSessionSchema,
+  type WebChatSession,
+  type WebChatConversation,
+  type WebChatReasoning,
+} from "@/shared/chatGptWeb";
+import {
+  chatGptPageScript,
+  chatGptSubmitScript,
+  chatGptLoginScript,
+  type ChatGptPageSnapshot,
+} from "./pageDriver";
+import {
+  chatGptConversationsScript,
+  chatGptReasoningScript,
+  chatGptDeleteScript,
+} from "./pageManagement";
 import type { BrowserPanelManager } from "../browser";
 
 /** Browser execution is behind a narrow seam; tests exercise the same lifecycle. */
@@ -12,6 +29,7 @@ export interface WebChatBrowser {
   execute(tabId: string, script: string): Promise<unknown>;
   reveal(tabId: string): void;
   keepAlive(sessionId: string, active: boolean): void;
+  close(tabId: string): Promise<void>;
 }
 
 export function embeddedWebChatBrowser(manager: BrowserPanelManager): WebChatBrowser {
@@ -34,6 +52,7 @@ export function embeddedWebChatBrowser(manager: BrowserPanelManager): WebChatBro
     keepAlive: (id, active) => {
       manager.setAutomationSession(`webchat:${id}`, active);
     },
+    close: (id) => manager.closeTab(id),
   };
 }
 
@@ -73,6 +92,7 @@ export class ChatGptWebRuntime {
               tabId: undefined,
               status: "connecting",
               error: undefined,
+              reasoningLabel: undefined,
             });
           }
       } catch {
@@ -148,19 +168,153 @@ export class ChatGptWebRuntime {
       status: "connecting",
       messages: [],
     };
+    await this.attach(session, false);
     this.sessions.set(session.id, session);
-    await this.attach(session, true);
     this.persist();
     this.log(session, "create", "ok");
     return this.copy(session);
   }
+  async importConversation(value: string) {
+    const url = chatGptConversationUrl(value);
+    if (!url)
+      throw new Error(
+        "WEB_IMPORT_INVALID：请输入自己的 ChatGPT 对话链接，分享链接无法继续原对话。",
+      );
+    const existing = [...this.sessions.values()].find((s) => chatGptConversationUrl(s.url) === url);
+    if (existing) {
+      if (!this.turns.has(existing.id)) {
+        existing.status = "connecting";
+        existing.error = undefined;
+      }
+      await this.attach(existing, false);
+      return this.copy(existing);
+    }
+    const session: WebChatSession = {
+      id: randomUUID(),
+      title: "导入的对话",
+      url,
+      status: "connecting",
+      messages: [],
+    };
+    await this.attach(session, false);
+    this.sessions.set(session.id, session);
+    this.persist();
+    this.log(session, "import", "connected");
+    return this.copy(session);
+  }
+
+  private async manage<T>(
+    id: string,
+    operation: string,
+    run: (session: WebChatSession, page: ChatGptPageSnapshot) => Promise<T>,
+  ): Promise<T> {
+    const session = this.get(id);
+    const deadline = Date.now() + 10_000;
+    while (this.locks.has(id) && !this.turns.has(id) && Date.now() < deadline) await sleep(30);
+    if (this.locks.has(id) || this.turns.has(id)) throw new Error("WEB_BUSY：请等待当前回复完成。");
+    this.locks.add(id);
+    this.browser.keepAlive(id, true);
+    try {
+      const page = await this.page(session, "read");
+      if (page.generating) throw new Error("WEB_BUSY：网页正在生成回复。");
+      if (page.loginRequired || !page.ready)
+        throw new Error("WEB_LOGIN_REQUIRED：请打开网页并登录 ChatGPT。");
+      this.apply(session, page);
+      const result = await run(session, page);
+      this.log(session, operation, "ok");
+      return result;
+    } catch (error) {
+      const code = error instanceof Error ? /^WEB_[A-Z_]+/.exec(error.message)?.[0] : undefined;
+      this.log(session, operation, "failed", code ?? "WEB_MANAGEMENT_FAILED");
+      throw error;
+    } finally {
+      this.locks.delete(id);
+      this.browser.keepAlive(id, false);
+    }
+  }
+
+  discover(id: string) {
+    return this.manage(
+      id,
+      "discover",
+      async (session) =>
+        (await this.browser.execute(
+          session.tabId!,
+          chatGptConversationsScript,
+        )) as WebChatConversation[],
+    );
+  }
+  reasoning(id: string) {
+    return this.manage(
+      id,
+      "reasoning-read",
+      async (session) =>
+        (await this.browser.execute(session.tabId!, chatGptReasoningScript())) as WebChatReasoning,
+    );
+  }
+  setReasoning(id: string, option: WebChatReasoning["options"][number]) {
+    return this.manage(id, "reasoning-set", async (session) => {
+      await this.browser.execute(session.tabId!, chatGptReasoningScript(option));
+      this.apply(session, await this.page(session, "read"));
+      return this.copy(session);
+    });
+  }
+  async deleteConversation(id: string, value: string) {
+    const url = chatGptConversationUrl(value);
+    if (!url || chatGptConversationUrl(this.get(id).url) !== url)
+      throw new Error("WEB_PAGE_CHANGED：删除目标已变化，未执行删除。");
+    return this.manage(id, "delete", async (session, page) => {
+      if (chatGptConversationUrl(page.url) !== url || !page.title)
+        throw new Error("WEB_PAGE_CHANGED：网页删除目标不一致，未执行删除。");
+      for (const stage of ["open", "choose", "confirm"] as const) {
+        await this.browser.execute(session.tabId!, chatGptDeleteScript(stage, url, page.title));
+        await sleep(200);
+      }
+      // After the native confirmation there is no retry of any mutating click.
+      // Keep local history until the webpage acknowledges the remote deletion.
+      const deadline = Date.now() + 15_000;
+      let deleted = false;
+      while (Date.now() < deadline && !deleted) {
+        try {
+          deleted =
+            (await this.browser.execute(
+              session.tabId!,
+              chatGptDeleteScript("state", url, page.title),
+            )) === true;
+        } catch {
+          // Navigation can invalidate the page execution context; only observe.
+        }
+        if (!deleted) await sleep(300);
+      }
+      if (!deleted)
+        throw new Error(
+          "WEB_DELETE_UNCERTAIN：尚未确认网页删除结果。本地记录已保留，请打开网页检查，勿重复删除。",
+        );
+      this.sessions.delete(id);
+      this.persist();
+      try {
+        await this.browser.close(session.tabId!);
+      } catch {
+        this.log(session, "close-deleted-tab", "failed", "WEB_TAB_CLOSE_FAILED");
+      }
+    });
+  }
   async reveal(id: string) {
     const session = this.get(id);
+    const needsLogin = session.status === "login-required";
     if (!this.turns.has(id)) {
       session.status = "connecting";
       session.error = undefined;
     }
     await this.attach(session, true);
+    if (needsLogin) {
+      try {
+        await this.browser.execute(session.tabId!, chatGptLoginScript);
+      } catch {
+        // 原生登录跳转可能销毁执行上下文；页面已展开，让用户继续登录。
+        this.log(session, "open-login", "skipped", "WEB_LOGIN_NAVIGATION");
+      }
+    }
   }
   private async page(session: WebChatSession, action: "read" | "send" | "stop", prompt?: string) {
     const tabId = await this.attach(session, false);
@@ -175,10 +329,14 @@ export class ChatGptWebRuntime {
   private apply(session: WebChatSession, page: ChatGptPageSnapshot) {
     const turn = this.turns.get(session.id);
     const previousPath = new URL(session.url).pathname;
-    if (turn && previousPath.startsWith("/c/") && new URL(page.url).pathname !== previousPath)
-      throw new Error("WEB_PAGE_CHANGED：生成期间切换了网页会话，请检查网页中的回复。");
+    const boundUrl = chatGptConversationUrl(session.url);
+    if (boundUrl && chatGptConversationUrl(page.url) !== boundUrl && !page.loginRequired)
+      throw new Error("WEB_PAGE_CHANGED：网页会话已切换，请打开原对话或导入这个会话。");
     const urlChanged = session.url !== page.url;
     session.url = page.url;
+    session.reasoningLabel = page.reasoningLabel;
+    if (chatGptConversationUrl(page.url) && page.title && page.title !== "ChatGPT")
+      session.title = page.title;
     if (!turn && urlChanged && previousPath.startsWith("/c/")) session.messages = [];
     // Older turns may leave the webpage DOM while the latest response streams.
     const messages = [...session.messages];

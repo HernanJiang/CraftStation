@@ -33,6 +33,13 @@ const fixture = `<!doctype html><meta charset="utf-8"><title>ChatGPT 同步测�
 const editor=document.querySelector('.ProseMirror'),send=document.querySelector('button'),main=document.querySelector('main');window.webchatSends=0;window.webchatStops=0;
 editor.oninput=()=>send.disabled=!editor.innerText.trim();
 send.onclick=()=>{window.webchatSends++;const n=window.webchatSends;const user=document.createElement('div');user.dataset.userMessageBubble='true';user.textContent=editor.innerText;main.append(user);editor.innerHTML='';send.disabled=true;const answer=document.createElement('div');answer.dataset.markdownTextStyle='assistant-message';answer.innerHTML='<div data-dil-source-message-id="answer-'+n+'"><p>第一段正在生成 '+n+'</p></div>';main.append(answer);const stop=document.createElement('button');stop.setAttribute('aria-label','停止');stop.textContent='停止';document.body.append(stop);const timer=setTimeout(()=>{answer.innerHTML='<div data-dil-source-message-id="answer-'+n+'"><p>第一段完成</p><p>第二段完成</p><pre><code class="language-js">const x = 1;</code></pre><table><tr><th>A</th><th>B</th></tr><tr><td>1</td><td>2</td></tr></table><span class="katex"><annotation encoding="application/x-tex">x^2</annotation></span></div>';stop.remove();send.disabled=false},1800);stop.onclick=()=>{window.webchatStops++;clearTimeout(timer);stop.remove();send.disabled=false};};
+document.body.insertAdjacentHTML('afterbegin','<nav><a href="'+location.pathname+'">ChatGPT 同步测试网页</a><a href="/c/older-conversation">历史对话</a></nav>');
+main.insertAdjacentHTML('afterbegin','<header><button aria-label="更多" aria-haspopup="menu">更多</button></header>');
+const more=document.querySelector('button[aria-label="更多"]');window.webchatDeletes=0;
+more.onclick=()=>{more.setAttribute('aria-controls','conversation-menu');document.body.insertAdjacentHTML('beforeend','<div role="menu" id="conversation-menu"><div role="menuitem">删除</div></div>');document.querySelector('#conversation-menu [role=menuitem]').onclick=()=>{document.querySelector('#conversation-menu').remove();document.body.insertAdjacentHTML('beforeend','<div role="dialog" aria-modal="true"><h2>删除聊天？</h2><p>永久删除“ChatGPT 同步测试网页”</p><button>取消</button><button type="submit">删除聊天</button></div>');const dialog=document.querySelector('[role=dialog]');dialog.querySelector('[type=submit]').onclick=()=>{window.webchatDeletes++;document.querySelector('nav a').remove();dialog.remove();history.replaceState({},'', '/');};};};
+document.body.insertAdjacentHTML('beforeend','<button data-codex-intelligence-trigger aria-haspopup="menu" aria-expanded="false">中</button>');
+const reasoning=document.querySelector('[data-codex-intelligence-trigger]'),labels=['即时','中','高','极高','Pro'];window.webchatEffort=1;
+reasoning.onclick=()=>{reasoning.setAttribute('aria-expanded','true');reasoning.setAttribute('aria-controls','reasoning-menu');document.body.insertAdjacentHTML('beforeend','<div role="menu" id="reasoning-menu"><span role="status" id="effort-status">'+labels[window.webchatEffort]+', 第 '+(window.webchatEffort+1)+' 项</span><div role="menuitem" data-reasoning-slider aria-describedby="effort-status"><span aria-hidden="true" role="slider" aria-valuemin="0" aria-valuemax="4" aria-valuenow="'+window.webchatEffort+'"></span></div></div>');const menu=document.querySelector('#reasoning-menu');menu.onkeydown=e=>{if(e.key==='Escape'){menu.remove();reasoning.setAttribute('aria-expanded','false');return;}if(!e.target.hasAttribute('data-reasoning-slider'))return;window.webchatEffort=Math.max(0,Math.min(4,window.webchatEffort+(e.key==='ArrowRight'?1:-1)));menu.querySelector('[role=slider]').setAttribute('aria-valuenow',String(window.webchatEffort));menu.querySelector('[role=status]').textContent=labels[window.webchatEffort]+', 第 '+(window.webchatEffort+1)+' 项';reasoning.textContent=labels[window.webchatEffort];};};
 </script>`;
 
 try {
@@ -42,48 +49,74 @@ try {
     "window.craftstation.browserGetState().then(async s=>{for(const tab of s.tabs)await window.craftstation.browserCloseTab({tabId:tab.tabId})})",
     true,
   );
-  await click('[data-testid="titlebar-chatgpt-web"]');
+  await press('[aria-label="CraftStation"]', "^New$|^新增$");
+  await selectMenuOption("新增网页对话|New web conversation");
+  await selectMenuOption("ChatGPT 网页对话|ChatGPT web conversation");
   await wait(async () =>
-    Boolean(await evalApp("document.querySelector('[data-testid=chatgpt-web-page]') !== null")),
+    Boolean(
+      await evalApp(
+        "Boolean(document.querySelector('[data-testid=chatgpt-web-page] [data-universal-docked-chat-input] [data-draft-context-bar]'))",
+      ),
+    ),
   );
+  const layout = await evalApp(
+    "(()=>{const p=document.querySelector('[data-testid=chatgpt-web-page]');const b=p.querySelector('[data-testid=webchat-thinking]');return {thinkingBelow:Boolean(b?.closest('.craftstation-composer-toolbar')),quota:Boolean(p.querySelector('[data-testid=context-quota-ring]')),remote:p.innerText.includes('Web remote')||p.innerText.includes('网页远程')};})()",
+  );
+  if (!layout.thinkingBelow || layout.quota || !layout.remote)
+    throw Error("网页输入框布局或虚构上下文额度");
+  if (await browserVisible()) throw Error("新增网页对话自动打开了浏览器");
+  checks.push("新增 → 网页对话 → ChatGPT；共享输入框与网页远程标识，底部思考强度，无上下文环");
+  await click('[data-testid=chatgpt-web-page] button[aria-label="Conversation runtime"]');
+  await selectMenuOption("^Local$|^本地$");
+  await wait(
+    async () =>
+      !(await evalApp("Boolean(document.querySelector('[data-testid=chatgpt-web-page]'))")),
+  );
+  await wait(async () =>
+    Boolean(
+      await evalApp(
+        "Boolean(document.querySelector('[data-draft-context-bar] button[aria-label=\"Conversation runtime\"]'))",
+      ),
+    ),
+  );
+  const editor = await evalApp(
+    "Boolean(document.querySelector('.craftstation-mention-input[contenteditable=true]'))",
+  );
+  if (editor) {
+    await evalApp(
+      "document.querySelector('.craftstation-mention-input[contenteditable=true]').focus()",
+    );
+    await app.send("Input.insertText", { text: "切换运行方式保留草稿" });
+  }
+  await click('[data-draft-context-bar] button[aria-label="Conversation runtime"]');
+  await selectMenuOption("^Web remote$|^网页远程$");
+  await wait(async () =>
+    Boolean(
+      await evalApp("Boolean(document.querySelector('[data-testid=chatgpt-web-page] textarea'))"),
+    ),
+  );
+  if (editor)
+    await wait(
+      async () =>
+        (await evalApp(
+          "document.querySelector('[data-testid=chatgpt-web-page] textarea').value",
+        )) === "切换运行方式保留草稿",
+    );
+  checks.push("未发送页面可双向切换本地 / 网页远程，保留已有文字草稿");
+  await press("[data-testid=chatgpt-web-page] header", "新对话|New conversation");
+  // 用户显式打开网页时，必须展示同一账号的官方页面。
   const previousIds = new Set(
     (await evalApp("window.craftstation.webChatList()", true)).map((s) => s.id),
   );
-  await evalApp(
-    "[...document.querySelectorAll('[data-testid=chatgpt-web-page] button')].find(b=>/新对话|New conversation/.test(b.textContent)).click()",
-  );
+  await press("[data-testid=chatgpt-web-page] header", "打开网页|Open website");
   await wait(async () => {
-    const list = await evalApp("window.craftstation.webChatList()", true);
-    session = list.find((s) => !previousIds.has(s.id));
+    session = (await evalApp("window.craftstation.webChatList()", true)).find(
+      (s) => !previousIds.has(s.id),
+    );
     return Boolean(session?.tabId);
   });
-  let browserTarget;
-  await wait(async () => {
-    const tabs = await (await fetch(`http://127.0.0.1:${connection.port}/json/list`)).json();
-    browserTarget = tabs.find((t) => t.url.startsWith("https://chatgpt.com"));
-    return Boolean(browserTarget);
-  });
-  page = await connect(browserTarget);
-  page.on("Fetch.requestPaused", (event) => {
-    void page.send("Fetch.fulfillRequest", {
-      requestId: event.requestId,
-      responseCode: 200,
-      responseHeaders: [{ name: "Content-Type", value: "text/html; charset=utf-8" }],
-      body: Buffer.from(fixture).toString("base64"),
-    });
-  });
-  await page.send("Fetch.enable", {
-    patterns: [
-      { urlPattern: "https://chatgpt.com/*", resourceType: "Document", requestStage: "Request" },
-    ],
-  });
-  await page.send("Page.navigate", { url: "https://chatgpt.com/c/craftstation-webchat-fixture" });
-  await wait(async () => await evalPage("Boolean(document.querySelector('.ProseMirror'))"));
-  // 首次导航可能触发登录/连接提示；显式重新连接。
-  await evalApp(
-    `window.craftstation.webChatReveal({sessionId:${JSON.stringify(session.id)}})`,
-    true,
-  );
+  await attachFixture("https://chatgpt.com/c/craftstation-webchat-fixture");
+  await hideBrowser();
   await wait(
     async () =>
       (
@@ -94,6 +127,30 @@ try {
       ).status === "ready",
   );
   await input("第一轮中文测试");
+  await evalPage(
+    "document.body.insertAdjacentHTML('beforeend','<button data-testid=\"login-button\">登录</button>')",
+  );
+  await click('[data-testid="chatgpt-web-page"] button.craftstation-composer-send');
+  await wait(async () => await browserVisible());
+  if (
+    (await evalPage("window.webchatSends")) !== 0 ||
+    (await evalApp("document.querySelector('[data-testid=chatgpt-web-page] textarea').value")) !==
+      "第一轮中文测试"
+  )
+    throw Error("未登录时发送或丢失草稿");
+  await evalPage("document.querySelector('[data-testid=login-button]').remove()");
+  await hideBrowser();
+  await wait(
+    async () =>
+      (
+        await evalApp(
+          `window.craftstation.webChatRead({sessionId:${JSON.stringify(session.id)}})`,
+          true,
+        )
+      ).status === "ready",
+  );
+  if ((await evalPage("window.webchatSends")) !== 0) throw Error("登录恢复后擅自发送草稿");
+  checks.push("未登录时打开官方侧边网页且保留输入；登录后等待用户发送，不自动重发");
   await click('[data-testid="chatgpt-web-page"] button.craftstation-composer-send');
   await wait(async () =>
     (await evalApp("document.querySelector('[data-testid=chatgpt-web-page]').innerText")).includes(
@@ -162,7 +219,53 @@ try {
   );
   if ((await evalPage("window.webchatSends")) !== 1) throw new Error("重连重复发送");
   checks.push("网页回复加载失败显示为错误；显式重连后恢复且不重发");
+  await wait(
+    async () =>
+      await evalApp(
+        `Boolean(document.querySelector('[data-testid=sidebar-web-remote] [data-webchat-sidebar-session="${session.id}"]'))`,
+      ),
+  );
+  const row = await evalApp(
+    `(()=>{const e=document.querySelector('[data-testid=sidebar-web-remote] [data-webchat-sidebar-session="${session.id}"]');const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2,text:e.innerText};})()`,
+  );
+  if (!row.text.includes("Remote")) throw Error("远程行缺少固定标识");
+  await app.send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    button: "right",
+    clickCount: 1,
+    x: row.x,
+    y: row.y,
+  });
+  await app.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    button: "right",
+    clickCount: 1,
+    x: row.x,
+    y: row.y,
+  });
+  await selectMenuOption("^Pin$|^置顶$");
+  await wait(
+    async () =>
+      await evalApp(
+        `Boolean(document.querySelector('section[aria-label=Pinned] [data-webchat-sidebar-session="${session.id}"]'))`,
+      ),
+  );
+  checks.push("新网页会话归入远程，Remote 标识固定显示，右键置顶进入全局置顶区");
+  await hideBrowser();
+  await app.send("Emulation.setDeviceMetricsOverride", {
+    width: 480,
+    height: 850,
+    deviceScaleFactor: 1,
+    mobile: false,
+  });
   await input("第二轮停止测试");
+  const geometry = await evalApp(
+    "(()=>{const p=document.querySelector('[data-testid=chatgpt-web-page]');const b=p.querySelector('button.craftstation-composer-send');const r=b.getBoundingClientRect(),pr=p.getBoundingClientRect(),hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return {inside:r.right<=pr.right&&r.left>=pr.left,hit:hit===b||b.contains(hit)};})()",
+  );
+  if (!geometry.inside || !geometry.hit) throw Error("窄窗口发送按钮被挤掉或遮挡");
+  const narrow = await app.send("Page.captureScreenshot", { format: "png" });
+  await writeFile(join(outDir, "chatgpt-web-narrow.png"), Buffer.from(narrow.data, "base64"));
+  checks.push("480px 窄窗口发送按钮完整可见且可点击");
   await click('[data-testid="chatgpt-web-page"] button.craftstation-composer-send');
   await wait(
     async () => await evalPage("Boolean(document.querySelector('button[aria-label=\"停止\"]'))"),
@@ -187,6 +290,78 @@ try {
   if ((await evalPage("window.webchatStops")) !== 1) throw new Error("停止没有传递到网页");
   if ((await evalPage("window.webchatSends")) !== 2) throw new Error("第二轮重复发送");
   checks.push("第二轮对话、真实停止按钮、部分回复保留");
+  await app.send("Emulation.clearDeviceMetricsOverride");
+
+  await press("[data-testid=chatgpt-web-page] footer", "^中$");
+  await wait(async () => await evalApp("Boolean(document.querySelector('[role=dialog] select'))"));
+  const choices = await evalApp(
+    "[...document.querySelectorAll('[role=dialog] select option')].map(o=>o.textContent)",
+  );
+  if (choices.join(",") !== "即时,中,高,极高,Pro" || (await evalPage("window.webchatEffort")) !== 1)
+    throw new Error("网页选项读取或原档位恢复失败");
+  await evalApp(
+    "(()=>{const select=document.querySelector('[role=dialog] select');select.value='3';select.dispatchEvent(new Event('change',{bubbles:true}));})()",
+  );
+  await press("[role=dialog]", "应用到网页|Apply to website");
+  await wait(async () => (await evalPage("window.webchatEffort")) === 3);
+  await wait(async () => await evalApp("!document.querySelector('[role=dialog] select')"));
+  checks.push("网页真实滑杆选项 → 本地选择 → 网页档位变更并核实；读取恢复原偏好");
+  await press(
+    "[data-testid=chatgpt-web-page] header",
+    "导入已有对话|Import an existing conversation",
+  );
+  await wait(
+    async () =>
+      await evalApp(
+        "[...document.querySelectorAll('[role=dialog] button')].some(b=>b.textContent.includes('ChatGPT 同步测试网页'))",
+      ),
+  );
+  await press("[role=dialog]", "ChatGPT 同步测试网页");
+  await wait(async () => await evalApp("!document.querySelector('[role=dialog] input')"));
+  const list = await evalApp("window.craftstation.webChatList()", true);
+  if (
+    list.filter((s) => s.url === "https://chatgpt.com/c/craftstation-webchat-fixture").length !== 1
+  )
+    throw new Error("重复导入创建了重复会话");
+  checks.push("本地导入列表读取网页已有对话，重复导入打开原记录");
+  await click(
+    '[data-testid=chatgpt-web-page] header button[aria-label="Delete account conversation"]',
+  );
+  await wait(async () => await evalApp("Boolean(document.querySelector('[role=alertdialog]'))"));
+  await press("[role=alertdialog]", "Cancel|取消");
+  if ((await evalPage("window.webchatDeletes")) !== 0) throw new Error("取消后仍执行远端删除");
+  await click(
+    '[data-testid=chatgpt-web-page] header button[aria-label="Delete account conversation"]',
+  );
+  await wait(async () => await evalApp("Boolean(document.querySelector('[role=alertdialog]'))"));
+  await press("[role=alertdialog]", "Delete original conversation|删除原对话");
+  await wait(
+    async () =>
+      !(await evalApp("window.craftstation.webChatList()", true)).some((s) => s.id === session.id),
+  );
+  checks.push("删除取消不操作网页；确认后原生删除成功，移除本地记录与网页标签");
+  page.close();
+  const existingIds = new Set(
+    (await evalApp("window.craftstation.webChatList()", true)).map((s) => s.id),
+  );
+  await press("[data-testid=chatgpt-web-page] header", "新对话|New conversation");
+  await press("[data-testid=chatgpt-web-page] header", "打开网页|Open website");
+  await wait(async () => {
+    session = (await evalApp("window.craftstation.webChatList()", true)).find(
+      (s) => !existingIds.has(s.id),
+    );
+    return Boolean(session?.tabId);
+  });
+  await attachFixture("https://chatgpt.com/c/craftstation-disconnect-fixture");
+  await wait(
+    async () =>
+      (
+        await evalApp(
+          `window.craftstation.webChatRead({sessionId:${JSON.stringify(session.id)}})`,
+          true,
+        )
+      ).status === "ready",
+  );
   await input("第三轮断线测试");
   await click('[data-testid="chatgpt-web-page"] button.craftstation-composer-send');
   await wait(
@@ -275,6 +450,34 @@ function evalApp(expression, awaitPromise) {
 function evalPage(expression, awaitPromise) {
   return evaluate(page, expression, awaitPromise);
 }
+async function attachFixture(url) {
+  let target;
+  await wait(async () => {
+    const tabs = await (await fetch(`http://127.0.0.1:${connection.port}/json/list`)).json();
+    target = tabs.find((t) => t.url.startsWith("https://chatgpt.com"));
+    return Boolean(target);
+  });
+  page = await connect(target);
+  page.on("Fetch.requestPaused", (event) => {
+    void page.send("Fetch.fulfillRequest", {
+      requestId: event.requestId,
+      responseCode: 200,
+      responseHeaders: [{ name: "Content-Type", value: "text/html; charset=utf-8" }],
+      body: Buffer.from(fixture).toString("base64"),
+    });
+  });
+  await page.send("Fetch.enable", {
+    patterns: [
+      { urlPattern: "https://chatgpt.com/*", resourceType: "Document", requestStage: "Request" },
+    ],
+  });
+  await page.send("Page.navigate", { url });
+  await wait(async () => await evalPage("Boolean(document.querySelector('.ProseMirror'))"));
+  await evalApp(
+    `window.craftstation.webChatReveal({sessionId:${JSON.stringify(session.id)}})`,
+    true,
+  );
+}
 async function wait(check) {
   const end = Date.now() + 20_000;
   while (Date.now() < end) {
@@ -284,6 +487,12 @@ async function wait(check) {
   throw new Error("等待网页同步检查超时");
 }
 async function click(selector) {
+  await wait(
+    async () =>
+      await evalApp(
+        `(() => {const e=document.querySelector(${JSON.stringify(selector)});if(!e || e.disabled)return false;const r=e.getBoundingClientRect();const hit=document.elementFromPoint(r.x+r.width/2,r.y+r.height/2);return hit===e || e.contains(hit);})()`,
+      ),
+  );
   const rect = await evalApp(
     `(() => {const e=document.querySelector(${JSON.stringify(selector)});if(!e)throw Error('缺少按钮');const r=e.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`,
   );
@@ -308,5 +517,41 @@ async function input(text) {
       await evalApp(
         "(() => {const b=document.querySelector('[data-testid=chatgpt-web-page] button.craftstation-composer-send');return Boolean(b && !b.disabled && /^(Send|发送)$/.test(b.getAttribute('aria-label')));})()",
       ),
+  );
+}
+
+async function press(scope, pattern) {
+  await wait(
+    async () =>
+      await evalApp(
+        `(() => {const b=[...document.querySelectorAll(${JSON.stringify(scope + " button")})].find(b=>new RegExp(${JSON.stringify(pattern)}).test(b.textContent));if(!b || b.disabled)return false;b.dataset.smokePress='true';return true;})()`,
+      ),
+  );
+  await click('button[data-smoke-press="true"]');
+  await evalApp(
+    "document.querySelector('button[data-smoke-press]')?.removeAttribute('data-smoke-press')",
+  );
+}
+
+async function browserVisible() {
+  return evalApp(
+    "(()=>{const p=window.__craftstationDev.stores.panel.getState();return p.browserPanelOpen||p.browserOverlayOpen;})()",
+  );
+}
+async function hideBrowser() {
+  await evalApp(
+    "(()=>{const p=window.__craftstationDev.stores.panel.getState();p.setBrowserPanelOpen(false);p.setBrowserOverlayOpen(false);})()",
+  );
+}
+async function selectMenuOption(pattern) {
+  await wait(
+    async () =>
+      await evalApp(
+        `(()=>{const e=[...document.querySelectorAll('[role=option],[role=menuitem]')].find(e=>new RegExp(${JSON.stringify(pattern)}).test(e.textContent.trim())&&e.getBoundingClientRect().height>0);if(!e)return false;e.dataset.smokeTarget='true';return true;})()`,
+      ),
+  );
+  await click('[data-smoke-target="true"]');
+  await evalApp(
+    "document.querySelector('[data-smoke-target]')?.removeAttribute('data-smoke-target')",
   );
 }

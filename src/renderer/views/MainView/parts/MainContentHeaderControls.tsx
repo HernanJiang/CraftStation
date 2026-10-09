@@ -1,4 +1,4 @@
-import { Folder, PanelRight } from "lucide-react";
+import { Folder, Globe, PanelRight } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
 import { ControlTooltip } from "@/renderer/components/common/ControlTooltip";
 import { MAIN_THREAD_HEADER_PORTAL_ID } from "@/renderer/components/layout/layoutHeaderPortals";
@@ -6,6 +6,8 @@ import { useCurrentProjectId, useFocusedThreadId } from "@/renderer/hooks/uiSele
 import { useAppStore } from "@/renderer/state/appStore";
 import { isHomeProjectId } from "@/shared/homeScope";
 import { usePanelStore } from "@/renderer/state/panelStore";
+import { useWebChatStore } from "@/renderer/state/webChatStore";
+import { toggleBrowserPanel } from "@/renderer/actions/panelActions";
 
 /**
  * Codex-style project identity at left and workspace layout controls at right.
@@ -22,6 +24,10 @@ import { usePanelStore } from "@/renderer/state/panelStore";
  */
 export function MainContentHeaderControls() {
   const { t } = useLingui();
+  const webChatOpen = useWebChatStore((s) => s.open);
+  const webTitle = useWebChatStore(
+    (s) => s.sessions.find((session) => session.id === s.selectedSessionId)?.title,
+  );
   const projectId = useCurrentProjectId();
   const focusedThreadId = useFocusedThreadId();
   const isAuxiliaryPanelOpen = usePanelStore((state) => state.auxiliaryPanelPlacement !== "hidden");
@@ -38,7 +44,13 @@ export function MainContentHeaderControls() {
         id={MAIN_THREAD_HEADER_PORTAL_ID}
         className="relative flex h-full min-w-0 flex-1 items-center overflow-visible"
       >
-        {!focusedThreadExists && project && !isHomeProjectId(project.id) ? (
+        {webChatOpen ? (
+          <div className="flex min-w-0 items-center gap-1.5 px-2 py-1 text-xs font-medium text-foreground/90">
+            <Globe className="size-3.5 shrink-0" />
+            <span className="truncate">{webTitle || t`ChatGPT 网页对话`}</span>
+            <span className="shrink-0 text-[10px] text-muted">Remote</span>
+          </div>
+        ) : !focusedThreadExists && project && !isHomeProjectId(project.id) ? (
           <div className="flex min-w-0 items-center gap-1.5 rounded-lg px-2 py-1 text-xs text-muted">
             <Folder className="size-3.5 shrink-0" />
             <span className="max-w-[min(34vw,360px)] truncate font-medium text-foreground/90">
@@ -61,6 +73,11 @@ export function MainContentHeaderControls() {
             onPointerDown={(event) => event.stopPropagation()}
             onClick={(event) => {
               event.stopPropagation();
+              const web = useWebChatStore.getState();
+              if (web.open) {
+                toggleBrowserPanel();
+                return;
+              }
               usePanelStore.getState().toggleAuxiliaryPanel("right");
             }}
             className="craftstation-overlay-header__controls pointer-events-auto flex size-7 shrink-0 items-center justify-center rounded-full text-muted transition-colors hover:bg-[var(--row-hover)] hover:text-foreground"

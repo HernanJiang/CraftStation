@@ -3,6 +3,7 @@ import { toast } from "@heroui/react";
 import { friendlyError } from "@/shared/messages";
 import { readBridge } from "@/renderer/bridge";
 import { useAppStore } from "@/renderer/state/appStore";
+import { useWebChatStore } from "@/renderer/state/webChatStore";
 import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
 import { hasDirtyEditorBuffers } from "@/renderer/state/fileEditorSelectors";
 import { useFileEditorStore } from "@/renderer/state/fileEditorStore";
@@ -149,6 +150,21 @@ export function toggleBrowserPanel(): void {
   if (panelStore.browserPanelOpen && panelStore.rightPanelTab === "browser") {
     panelStore.setBrowserPanelOpen(false);
   } else {
+    const web = useWebChatStore.getState();
+    if (web.open) {
+      void (async () => {
+        const session = web.selectedSessionId
+          ? web.sessions.find((s) => s.id === web.selectedSessionId)
+          : undefined;
+        const target = session ?? (await readBridge().webChatCreate());
+        if (!session) {
+          useWebChatStore.getState().setSessions([target, ...useWebChatStore.getState().sessions]);
+          useWebChatStore.getState().selectSession(target.id);
+        }
+        await readBridge().webChatReveal({ sessionId: target.id });
+      })().catch((error) => toast.danger(friendlyError(error)));
+      return;
+    }
     undockPanelTab("browser");
     panelStore.setBrowserPanelOpen(true);
     panelStore.setRightPanelTab("browser");

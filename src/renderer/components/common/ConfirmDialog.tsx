@@ -12,6 +12,7 @@ export function ConfirmDialog(props: {
   cancelLabel?: string;
   confirmVariant?: ConfirmVariant;
   status?: "danger" | "warning";
+  isPending?: boolean;
   onConfirm: () => void;
   onClose: () => void;
 }) {
@@ -24,13 +25,18 @@ export function ConfirmDialog(props: {
     cancelLabel,
     confirmVariant = "danger",
     status = "danger",
+    isPending = false,
     onConfirm,
     onClose,
   } = props;
   const resolvedCancelLabel = cancelLabel ?? t`Cancel`;
 
   return (
-    <AlertDialog.Backdrop isOpen={isOpen} onOpenChange={(open) => !open && onClose()}>
+    <AlertDialog.Backdrop
+      isOpen={isOpen}
+      isDismissable={!isPending}
+      onOpenChange={(open) => !open && !isPending && onClose()}
+    >
       <AlertDialog.Container>
         <AlertDialog.Dialog>
           <AlertDialog.Header>
@@ -39,10 +45,15 @@ export function ConfirmDialog(props: {
           </AlertDialog.Header>
           <AlertDialog.Body>{body}</AlertDialog.Body>
           <AlertDialog.Footer>
-            <Button slot="close" variant="ghost" className="text-muted">
+            <Button slot="close" variant="ghost" className="text-muted" isDisabled={isPending}>
               {resolvedCancelLabel}
             </Button>
-            <Button variant={confirmVariant} onPress={onConfirm}>
+            <Button
+              variant={confirmVariant}
+              onPress={onConfirm}
+              isPending={isPending}
+              isDisabled={isPending}
+            >
               {confirmLabel}
             </Button>
           </AlertDialog.Footer>

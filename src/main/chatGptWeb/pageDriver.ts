@@ -3,6 +3,8 @@ export function chatGptPage(action: "read" | "send" | "stop", prompt = "") {
   if (location.origin !== "https://chatgpt.com")
     return {
       url: location.href,
+      title: "",
+      reasoningLabel: undefined as string | undefined,
       messages: [] as { id: string; role: "user" | "assistant"; text: string }[],
       generating: false,
       ready: false,
@@ -132,8 +134,11 @@ export function chatGptPage(action: "read" | "send" | "stop", prompt = "") {
       },
     ];
   });
+  const reasoningTrigger = find("[data-codex-intelligence-trigger]");
   const snapshot = {
     url: location.href,
+    title: document.title.replace(/\s*[-–]\s*ChatGPT$/, ""),
+    reasoningLabel: (reasoningTrigger?.innerText || reasoningTrigger?.textContent)?.trim(),
     messages,
     generating: Boolean(stop),
     ready: Boolean(editor),
@@ -186,5 +191,13 @@ export const chatGptSubmitScript = `(() => {
   const editor = document.querySelector('#prompt-textarea, #pending-home-input, textarea[name="prompt-textarea"], .ProseMirror[contenteditable="true"], [contenteditable="true"][role="textbox"]');
   const button = [...document.querySelectorAll('[data-testid="send-button"], button[aria-label="Send prompt"], button[aria-label="发送提示"], button[aria-label="发送"], button[aria-label="Send"]')].find(el => el.getClientRects().length > 0);
   if (!editor || !button || button.disabled) return false;
+  button.click(); return true;
+})()`;
+
+/** 用户请求登录时，使用官网自己的入口，不读取或填写凭据。 */
+export const chatGptLoginScript = `(() => {
+  if (location.origin !== 'https://chatgpt.com') return false;
+  const button = [...document.querySelectorAll('[data-testid="login-button"], a[href*="/auth/login"], button')].find(el => el.getClientRects().length > 0 && (el.matches('[data-testid="login-button"], a[href*="/auth/login"]') || /^(Log in|Login|登录)$/i.test((el.textContent || '').trim())));
+  if (!button) return false;
   button.click(); return true;
 })()`;

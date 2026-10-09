@@ -26,6 +26,7 @@ import { getRuntimeExecutionEnvelope } from "@/renderer/state/sessionHandoffStor
 import { findExperimentByThreadId, useExperimentStore } from "@/renderer/state/experimentStore";
 import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
+import { useWebChatStore } from "@/renderer/state/webChatStore";
 import { remoteOwner } from "@/renderer/state/remoteProjection";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
 import {
@@ -118,6 +119,7 @@ function resolveNewThreadProjectId(): string | undefined {
 }
 
 export function openNewThread(projectId?: string): void {
+  useWebChatStore.getState().setOpen(false);
   openThreadRequestId += 1;
   // The inline usage workspace replaces the main content area. Any thread
   // navigation is an explicit handoff back to the conversation surface, so
@@ -138,6 +140,15 @@ export function openNewThread(projectId?: string): void {
       useAppStore.getState().openDraft(targetProjectId);
     }
   });
+}
+
+/** 网页对话使用当前项目的新建页面，不启动本地 Harness。 */
+export function openNewWebChat(projectId?: string): void {
+  const targetProjectId = projectId ?? resolveNewThreadProjectId();
+  usePanelStore.getState().closeModelUsageDialog();
+  if (targetProjectId) useAppStore.getState().openDraft(targetProjectId);
+  else useAppStore.getState().openHome();
+  useWebChatStore.getState().startDraft(targetProjectId);
 }
 
 export function openNewThreadSideBySide(projectId: string): void {
@@ -178,6 +189,7 @@ export function openThread(
   threadId: string,
   options?: { focusComposer?: boolean; standalone?: boolean; switchWorkspace?: boolean },
 ): void {
+  useWebChatStore.getState().setOpen(false);
   // Opening a conversation is the user's acknowledgement of that thread's
   // completion/attention toast. Drop it from the bell list and sidebar dot.
   useNotificationStore.getState().dismissThread(threadId);

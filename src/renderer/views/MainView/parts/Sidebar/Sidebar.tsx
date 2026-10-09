@@ -44,6 +44,7 @@ import {
 } from "@/renderer/state/workspaceSelectors";
 import { SidebarCodexNav } from "./parts/SidebarCodexNav";
 import { GlobalPinnedSection } from "./parts/GlobalPinnedSection";
+import { SidebarWebChatSection } from "./parts/SidebarWebChatSection";
 import { SidebarWorkspaceInbox } from "./parts/SidebarWorkspaceInbox";
 import { SidebarArchivedProjects } from "./parts/SidebarArchivedProjects";
 import { SidebarProviderAccounts } from "./parts/SidebarProviderAccounts";
@@ -394,7 +395,7 @@ export function Sidebar() {
                     <span className="flex items-center gap-1.5">
                       <House className="size-3.5 shrink-0 text-muted" />
                       <span className="truncate text-xs font-semibold text-foreground">
-                        <Trans>Home</Trans>
+                        <Trans>本地</Trans>
                       </span>
                     </span>
                   }
@@ -409,6 +410,7 @@ export function Sidebar() {
                 )}
               </section>
             ) : null}
+            <SidebarWebChatSection />
             <SidebarArchivedProjects projectIds={archivedProjectIds} sortMode={sortMode} />
           </div>
         </div>

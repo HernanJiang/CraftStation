@@ -13,6 +13,7 @@ export const webChatSessionSchema = z.object({
   tabId: z.string().optional(),
   status: z.enum(["connecting", "login-required", "ready", "sending", "streaming", "error"]),
   error: z.string().optional(),
+  reasoningLabel: z.string().optional(),
   messages: z.array(webChatMessageSchema),
 });
 export type WebChatSession = z.infer<typeof webChatSessionSchema>;
@@ -20,6 +21,33 @@ export const webChatIdSchema = z.object({ sessionId: z.string().uuid() });
 export const webChatSendSchema = webChatIdSchema.extend({
   prompt: z.string().trim().min(1).max(100_000),
   requestId: z.string().uuid(),
+});
+export type WebChatConversation = { title: string; url: string };
+export type WebChatReasoning = { value: string; options: { id: string; label: string }[] };
+
+/** Canonical account conversation URL, excluding shared links and credentials. */
+export function chatGptConversationUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    if (url.origin !== "https://chatgpt.com" || url.username || url.password) return;
+    const id = /^(?:\/g\/[^/]+)?\/c\/([a-zA-Z0-9-]{8,})\/?$/.exec(url.pathname)?.[1];
+    return id ? `https://chatgpt.com/c/${id}` : undefined;
+  } catch {
+    return;
+  }
+}
+export const webChatImportSchema = z.object({
+  url: z
+    .string()
+    .trim()
+    .refine((url) => Boolean(chatGptConversationUrl(url)), "请输入自己的 ChatGPT 对话链接"),
+});
+export const webChatDeleteSchema = webChatIdSchema.extend({
+  url: webChatImportSchema.shape.url,
+  confirmed: z.literal(true),
+});
+export const webChatReasoningSchema = webChatIdSchema.extend({
+  option: z.object({ id: z.string().max(10), label: z.string().min(1).max(100) }),
 });
 
 /** Only the public ChatGPT page is driven; credentials never cross this seam. */

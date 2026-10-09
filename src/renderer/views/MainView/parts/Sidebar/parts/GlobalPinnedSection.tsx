@@ -6,9 +6,12 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { useSidebarUiStore } from "@/renderer/state/sidebarUiStore";
 import { SidebarThreadRow } from "./SidebarThreadRow";
 import type { SidebarRow } from "./sidebarProjectRows";
+import { useWebChatStore } from "@/renderer/state/webChatStore";
+import { SidebarWebChatRow, webChatPinKey } from "./SidebarWebChatSection";
 
 function threadPinTimeMs(thread: Thread): number {
-  if (typeof thread.pinnedAt === "number" && Number.isFinite(thread.pinnedAt)) return thread.pinnedAt;
+  if (typeof thread.pinnedAt === "number" && Number.isFinite(thread.pinnedAt))
+    return thread.pinnedAt;
   // Legacy mirror: starred without a timestamp still counts as pinned.
   if (thread.starred) return 0;
   return NaN;
@@ -19,7 +22,9 @@ export function useGloballyPinnedThreads(): Thread[] {
   return useAppStore(
     useShallow((state) =>
       state.threads
-        .filter((thread) => !thread.archived && !thread.done && Number.isFinite(threadPinTimeMs(thread)))
+        .filter(
+          (thread) => !thread.archived && !thread.done && Number.isFinite(threadPinTimeMs(thread)),
+        )
         .sort((a, b) => {
           const diff = threadPinTimeMs(a) - threadPinTimeMs(b);
           return diff !== 0 ? diff : a.id.localeCompare(b.id);
@@ -38,19 +43,27 @@ export function useGloballyPinnedThreads(): Thread[] {
  * `projectId`/workspace identity; unpin returns it to its home section.
  */
 export function GlobalPinnedSection() {
+  const webSessions = useWebChatStore((s) => s.sessions);
+  const pinTimes = useSidebarUiStore((s) => s.pinnedProjectAt);
+  const pinnedWebSessions = webSessions
+    .filter((s) => webChatPinKey(s.id) in pinTimes)
+    .sort((a, b) => pinTimes[webChatPinKey(a.id)]! - pinTimes[webChatPinKey(b.id)]!);
   const pinnedThreads = useGloballyPinnedThreads();
   const projectsById = useAppStore(
     useShallow((state) => new Map(state.projects.map((project) => [project.id, project]))),
   );
   const editingThreadId = useSidebarUiStore((s) => s.editingThreadId);
   const setEditingThreadId = useSidebarUiStore((s) => s.setEditingThreadId);
-  if (pinnedThreads.length === 0) return null;
+  if (pinnedThreads.length === 0 && pinnedWebSessions.length === 0) return null;
   return (
     <section className="space-y-0.5" aria-label="Pinned">
       <p className="flex items-center gap-1 px-2 pt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-muted/65">
         <Pin className="size-2.5" aria-hidden />
         <Trans>Pinned</Trans>
       </p>
+      {pinnedWebSessions.map((session) => (
+        <SidebarWebChatRow key={session.id} session={session} />
+      ))}
       {pinnedThreads.map((thread, index) => {
         const project = projectsById.get(thread.projectId);
         if (!project) return null;
