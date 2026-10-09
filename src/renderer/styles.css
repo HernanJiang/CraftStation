@@ -1526,6 +1526,132 @@ html[data-window-kind="main"]:where(.light, [data-theme="light"])
 
 .craftstation-titlebar {
   background: transparent !important;
+  container: titlebar / inline-size;
+}
+
+/* Tooltip wrappers share the same width as their buttons. */
+.craftstation-titlebar .tooltip__trigger {
+  flex-shrink: 0;
+}
+
+.craftstation-titlebar-compact {
+  display: none;
+  flex-shrink: 0;
+}
+
+@container titlebar (max-width: 64rem) {
+  .craftstation-titlebar-label,
+  .craftstation-titlebar-progress-label {
+    display: none;
+  }
+}
+
+@container titlebar (max-width: 34rem) {
+  .craftstation-titlebar-primary,
+  .craftstation-titlebar-history,
+  .craftstation-titlebar-version {
+    display: none;
+  }
+
+  .craftstation-titlebar-compact {
+    display: flex;
+  }
+}
+
+/* Layout follows the available settings pane after sidebar and UI zoom. */
+.craftstation-workbench-page {
+  container: workbench-page / inline-size;
+}
+
+.craftstation-workbench-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-auto-rows: max-content;
+  align-items: start;
+  overflow-y: auto;
+}
+
+.craftstation-workbench-result {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.craftstation-workbench-inventories {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.craftstation-workbench-inventories > section {
+  min-width: 0;
+  height: 20rem;
+}
+
+.craftstation-workbench-ingredients {
+  height: 32rem;
+}
+
+.craftstation-workbench-table {
+  container: workbench-table / inline-size;
+}
+
+.craftstation-workbench-slots {
+  flex-direction: column;
+}
+
+.craftstation-workbench-grid {
+  width: min(100%, 14.5rem);
+}
+
+.craftstation-workbench-grid > div {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1;
+  min-width: 0;
+}
+
+@container workbench-table (min-width: 26rem) {
+  .craftstation-workbench-slots {
+    flex-direction: row;
+  }
+
+  .craftstation-workbench-grid {
+    flex-shrink: 0;
+  }
+}
+
+@container workbench-page (min-width: 28rem) {
+  .craftstation-workbench-inventories {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@container workbench-page (min-width: 54rem) {
+  .craftstation-workbench-content {
+    grid-template-columns: minmax(0, 2fr) minmax(18rem, 1fr);
+  }
+}
+
+@container workbench-page (min-width: 76rem) {
+  .craftstation-workbench-content {
+    align-items: stretch;
+    grid-auto-rows: minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .craftstation-workbench-result {
+    grid-template-columns: minmax(28rem, 1.3fr) minmax(14rem, 1fr);
+  }
+
+  .craftstation-workbench-inventories {
+    flex: 1;
+    min-height: 12rem;
+  }
+
+  .craftstation-workbench-inventories > section {
+    height: auto;
+  }
+
+  .craftstation-workbench-ingredients {
+    height: auto;
+  }
 }
 
 html:where(.light, [data-theme="light"]) .craftstation-titlebar {

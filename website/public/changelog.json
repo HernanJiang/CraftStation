@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.8.9",
+      "date": "2026-10-09",
+      "title": "Responsive crafting and titlebar",
+      "summary": "Crafting panels and titlebar actions remain accessible in small windows and at higher interface zoom.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Crafting",
+          "text": "The crafting grid, result, recipes and ingredients now reflow within the available settings pane, with scrolling to keep every panel reachable instead of overlapping."
+        },
+        {
+          "kind": "fixed",
+          "label": "Titlebar",
+          "text": "Navigation labels collapse to icons and then a menu as space shrinks, pinned shortcuts stay stable when moved into overflow, and interface zoom preserves room for the native window controls."
+        }
+      ]
+    },
+    {
       "version": "1.8.8",
       "date": "2026-10-08",
       "title": "A Harness Marketplace and smoother chat",

@@ -18,6 +18,18 @@ export const functionalAreas = [
     manual: ["changed-surface", "ipc-roundtrip"],
   },
   {
+    id: "responsive-layout",
+    title: "Crafting panels and compact titlebar at UI zoom",
+    patterns: [
+      /components\/crafting\//,
+      /MainTitlebar\.tsx$/,
+      /TopShortcuts\//,
+      /^src\/renderer\/styles\.css$/,
+    ],
+    automated: ["responsive-layout"],
+    manual: [],
+  },
+  {
     id: "desktop-shell",
     title: "Electron lifecycle and renderer shell",
     patterns: [/^src\/main\//, /^src\/preload\//, /^src\/renderer\/(app|main|devBridge)\./],

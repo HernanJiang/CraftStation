@@ -24,9 +24,9 @@ export function SettingsTitlebar(props: { onClose: () => void }) {
         >
           <PanelLeft className="size-4" />
         </button>
-        <button type="button" className={buttonClass} onClick={props.onClose}>
+        <button type="button" className={buttonClass} aria-label={t`Back`} onClick={props.onClose}>
           <ArrowLeft className="size-4" />
-          <span>{t`Back`}</span>
+          <span className="craftstation-titlebar-label">{t`Back`}</span>
         </button>
       </div>
       <span className="ml-2 text-xs font-medium text-foreground/80">{t`Settings`}</span>
@@ -35,22 +35,25 @@ export function SettingsTitlebar(props: { onClose: () => void }) {
         <button
           type="button"
           disabled={phase !== "downloaded"}
+          aria-label={
+            phase === "downloaded" ? t`Restart to install` : t`正在下载 ${Math.round(percent)}%`
+          }
           onClick={() => void readBridge().installUpdate()}
-          className="craftstation-titlebar-control mr-1 inline-flex h-6 items-center gap-1.5 rounded-lg bg-[var(--row-hover)] px-2 text-[11px] text-muted transition-colors hover:bg-[var(--row-active)] hover:text-foreground disabled:cursor-default"
+          className="craftstation-titlebar-control mr-1 inline-flex h-6 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--row-hover)] px-2 text-[11px] text-muted transition-colors hover:bg-[var(--row-active)] hover:text-foreground disabled:cursor-default"
         >
           {phase === "downloaded" ? (
             <Download className="size-3.5" />
           ) : (
             <RefreshCw className="size-3.5 animate-spin" />
           )}
-          <span>
+          <span className="craftstation-titlebar-progress-label max-w-60 truncate">
             {phase === "downloaded"
               ? t`可用更新${version ? ` v${version}` : ""}`
               : t`正在下载 ${Math.round(percent)}%`}
           </span>
         </button>
       ) : null}
-      <div className="w-[138px] shrink-0" aria-hidden="true" />
+      <div className="w-[calc(138px/var(--app-zoom,1))] shrink-0" aria-hidden="true" />
     </header>
   );
 }
