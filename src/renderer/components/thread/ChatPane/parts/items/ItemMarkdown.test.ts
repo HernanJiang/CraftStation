@@ -6,11 +6,38 @@ import {
   normalizeLatexMathDelimiters,
   normalizeMathDollarRuns,
   normalizeMermaidFenceLanguages,
+  normalizeMermaidFlowchartLabels,
   normalizeMermaidSubgraphTitles,
   normalizeShortCodeFenceClosers,
   protectMathSpans,
   repairMathSyntax,
 } from "./ItemMarkdown";
+
+describe("normalizeMermaidFlowchartLabels", () => {
+  it("repairs both labels that prevented the Browser Gym reply from rendering", () => {
+    const source =
+      'flowchart TD\nsubgraph Env [无头浏览器集群 (Browser Gym)]\nModel -->|轨迹2: 点DynaMER (点错卡片)| E2["误触弹窗 (得分: -1.0)"]\nend';
+    const expected =
+      'flowchart TD\nsubgraph Env["无头浏览器集群 (Browser Gym)"]\nModel -->|"轨迹2: 点DynaMER (点错卡片)"| E2["误触弹窗 (得分: -1.0)"]\nend';
+    expect(normalizeMermaidFlowchartLabels(source)).toBe(expected);
+    expect(normalizeMermaidFlowchartLabels(expected)).toBe(expected);
+  });
+
+  it("preserves quoted nodes, quoted edges, comments, and other diagram syntax", () => {
+    for (const source of [
+      'flowchart TD\nA["example -->|text (x)|"] -->|plain| B',
+      'flowchart TD\nA -->|"text (x)"| B\n%% C -->|comment (x)| D',
+      "sequenceDiagram\nA->>B: message (x)",
+    ])
+      expect(normalizeMermaidFlowchartLabels(source)).toBe(source);
+  });
+
+  it("handles dotted and thick edges while preserving CRLF and edge structure", () => {
+    expect(
+      normalizeMermaidFlowchartLabels("graph LR\r\nA -.-> |结果 (x)| B ==> |结果 (y)| C\r\n"),
+    ).toBe('graph LR\r\nA -.-> |"结果 (x)"| B ==> |"结果 (y)"| C\r\n');
+  });
+});
 
 describe("normalizeMermaidSubgraphTitles", () => {
   it("quotes the unescaped title from Gemini without changing nodes or links", () => {
