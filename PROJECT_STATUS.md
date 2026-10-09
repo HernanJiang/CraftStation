@@ -6,14 +6,15 @@
 - **Mermaid**：截图原始代码已经在真实 Electron 中恢复为 9 个节点、12 条连线的图表；原始代码保留。兼容修复先在 main 完成，再合入本候选。
 - **验证**：582 项相关测试通过，4 项条件性用例未运行；新增与发布说明相关 22 项检查通过，类型检查与两种 lint 通过。隔离 Electron 网页全流程 16 项通过，覆盖计算器 9→81、滑块改变图表、展开/关闭、修改草稿、480px 窄屏、多轮停止、思考档位、导入去重、删除取消/确认与断线。相关 7 项界面场景和 4 个 mock 门禁通过，控制台与运行时错误为 0。最终证据在 `C:/Users/Haona/.craftstation-smoke/web-widgets-1.9-acceptance-20261009/artifacts/`，测试窗口已停止。
 - **候选构建**：版本分支的 `release/` 已生成 Windows x64 `CraftStation-Setup-1.9.0-x64.exe`（133426990 字节）与 `CraftStation-Portable-1.9.0-x64.exe`（112549539 字节），生产编译、17 项运行依赖与原生二进制检查通过；NSIS blockmap 和更新清单保留，清单指向安装包。打包中间文件已移出并归档至 `D:/Work/CraftStation-release-archive/candidate-1.9.0-intermediates/`；稳定版 main 的 release 目录未改动。详见 `ai_workspace/verification-1.9.0.md`。
-- **发布授权与进度**：用户查看 dev 后明确要求“直接发布吧”，已将 `dev/1.9-chatgpt-web` 快进合入 `main`。正式发布使用 `Release (stable)`，按次版本策略构建 Windows、Linux、macOS；发布完成后记录链接与资产结果。用户试用的 dev 窗口保留运行。
+- **正式发布**：用户查看 dev 后明确要求“直接发布吧”，已将 `dev/1.9-chatgpt-web` 快进合入 `main`，发布收口提交 `99dcbe56` 已推送。[Release (stable)](https://github.com/HernanJiang/CraftStation/actions/runs/37911587289) 的 Windows、Linux、macOS 构建和发布全部通过；[v1.9.0 GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.9.0) 已上线并设为最新稳定版，12 个资产均上传完成，正文为本版中英双语说明。正式 Windows x64 NSIS 为 133319374 字节，便携版为 112501660 字节；三端更新清单版本均为 1.9.0，分别指向 NSIS、AppImage 和 macOS ZIP。工作流已自动把 main 的开发版本推进到 1.9.1，正式 tag 仍为 v1.9.0。用户试用的 dev 窗口保留运行。
+- **本地收口**：已将正式 Windows 双包、NSIS blockmap 与三端清单下载到根仓库 `release/`，六个文件大小与 GitHub 资产一致，三端清单的版本和目标文件均已核对。便携版只保留 1.9.0 与上一个稳定版 1.8.9；1.8.8 已归档至 `D:/Work/CraftStation-release-archive/before-1.9.0/`，历版 NSIS 与 blockmap 保留。本轮未额外检查 SHA。
 - **外部验收边界**：网页账号完整本地 UI 回合、真实 Visualizations/MCP Apps 与具备权限的 Ultrafast 回合尚未全部验收；本次正式发布保留实验标识和相应双语说明，不把受控样例或普通 Codex 回复认定为这些外部能力的真实验收。使用与边界见 `docs/features/chatgpt-web.md`、`docs/features/codex-ultrafast.md`。
 
 ## Mermaid 连线标签兼容修复（2026-10-09）
 
 - **复现**：截图中的 Browser Gym 图表在真实 Mermaid 渲染器中失败；分组标题和连线标签中的未加引号括号均触发解析错误，原有兼容只修复分组标题。
 - **修复**：原始渲染失败后，再对流程图的分组和连线标签做一次有限兼容重试；保留节点、连线、注释、其他图种及复制时的原始代码。无法修复的代码仍可查看。
-- **验证**：先复现 4 项回归失败，修复后 109 项相关测试通过，类型检查与两种 lint 通过。真实截图代码的 Electron 界面回放通过；本修复纳入 1.9.0 候选，尚未正式发布。
+- **验证**：先复现 4 项回归失败，修复后 109 项相关测试通过，类型检查与两种 lint 通过。真实截图代码的 Electron 界面回放通过；本修复已随 1.9.0 正式发布。
 
 ## 1.9 追加更新范围（2026-10-09）
 

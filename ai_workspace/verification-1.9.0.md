@@ -1,4 +1,4 @@
-# 1.9.0 候选验证
+# 1.9.0 验证与发布
 
 ## 已实现并验证
 
@@ -19,14 +19,25 @@
 1. 用户账号的完整本地 UI 网页回合，以及真实 Visualizations 和第三方 MCP Apps 组件。历史已有真实网页提交、生成中回复读取、实际强度读取等局部证据，本轮固定网页不能替代当前账号的完整验收。
 2. 具有 Ultrafast 权限的真实账号。CLI 0.161.0 已执行无文件读写的真实回合，但明确提示模型目录未声明 Ultrafast、参数会被省略，随后普通回复成功；此结果不能算 Ultrafast 生效。当前候选会阻止这种静默省略；实际档位未报告时继续显示未报告。
 
-## 候选交付
+## 候选构建记录
 
-Windows x64 双包已通过 `pnpm dist:win`、`pnpm dist:win:portable` 构建，生产编译、17 项运行依赖和原生二进制检查通过：
+正式发布前，版本工作树中的 Windows x64 双包已通过 `pnpm dist:win`、`pnpm dist:win:portable` 构建，生产编译、17 项运行依赖和原生二进制检查通过：
 
-- [便携版](../release/CraftStation-Portable-1.9.0-x64.exe)：112549539 字节。
-- [安装包](../release/CraftStation-Setup-1.9.0-x64.exe)：133426990 字节。
+- 版本工作树 `release/CraftStation-Portable-1.9.0-x64.exe`：112549539 字节。
+- 版本工作树 `release/CraftStation-Setup-1.9.0-x64.exe`：133426990 字节。
 - NSIS blockmap 与 latest.yml 保留，更新清单指向安装包。候选 release 下的打包中间文件已移出，归档至 `D:/Work/CraftStation-release-archive/candidate-1.9.0-intermediates/`；稳定版的 release 目录未改动。
 
 在方便重启时退出旧版并打开候选便携版，从“新增 → 网页对话 → ChatGPT”进入，登录或复用自己的网页登录状态，在新的临时网页对话中验证完整回复及组件交互。Ultrafast 需要官方目录明确提供该档位的账号；实际档位没有报告时，验收结果继续记为未报告。
 
-工作区为 `dev/1.9-chatgpt-web`，正式 main 仅包含 Mermaid 修复，不包含网页组件及 Ultrafast 候选。用户验收前不合入 main、不打正式 tag、不发布 GitHub Release；1.9.0 正式次版本的 Linux/macOS 构建随正式发布流程完成。
+## 正式发布
+
+用户查看 dev 后明确授权“直接发布吧”。版本分支已快进合入 main，正式发布提交为 `99dcbe56`；[三端 stable 工作流](https://github.com/HernanJiang/CraftStation/actions/runs/37911587289) 的所有构建、发布与发布后任务全部通过。[v1.9.0](https://github.com/HernanJiang/CraftStation/releases/tag/v1.9.0) 已设为最新稳定版，12 个资产均上传完成，正文为本版中英双语说明：
+
+- Windows x64 NSIS（133319374 字节）、便携版（112501660 字节）、blockmap 与 `latest.yml`。
+- Linux x64 AppImage、amd64 deb 与 `latest-linux.yml`。
+- macOS arm64 DMG、自动更新 ZIP、两份 blockmap 与 `latest-mac.yml`。
+- 三端清单版本均为 1.9.0，分别指向正式 NSIS、AppImage 和 ZIP；按用户要求只核对版本、文件、大小，不额外检查 SHA。
+
+发布工作流自动把 main 的后续开发版本推进到 1.9.1，正式 tag 保持 v1.9.0。网页映射仍标为实验，上述外部真实账号验收边界保留；正式构建成功不替代这些账号能力的验收。
+
+正式 Windows 双包、blockmap 和三端清单已下载至根仓库 `release/`，六个文件大小与 GitHub 资产一致，三端清单的版本及目标已核对。便携备份只保留 1.9.0 与 1.8.9；旧 1.8.8 已归档到 `D:/Work/CraftStation-release-archive/before-1.9.0/`，历版安装包与 blockmap 保留。用户试用的 1.9.0 dev 窗口继续运行。
