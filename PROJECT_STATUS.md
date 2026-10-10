@@ -3,7 +3,8 @@
 - **范围**：按用户报告在 `main` 修复 `/goal`。对照官方 Codex goal，把持久状态、自动续跑、完成证据、连续阻塞审计、预算与暂停/恢复/清除放入公共 Craft-Harness；Codex 原生 Agent Loop、工具与压缩仍由官方 runtime 拥有。
 - **运行边界**：原生 CraftSession、structured 与可信 CLI hook 使用同一调度；补齐 OpenCode / DeepSeek 目标 MCP，ACP 使用通用 stdio 通道且拒绝静默移除。网络/remote compact 按设置重试，用户 Stop 与新输入取消旧重试；纯 PTY 缺少可信回合信号时不承诺自动续跑。
 - **真实验证**：Codex 已通过首轮目标注册、两轮自动续跑、暂停、关闭会话后的原 Session 恢复、无工具自动回合停止空转、用户验收消息、工具完成证据与清除。Kimi 在隔离实例启动时鉴权受阻，其他模型与平台未逐一真实验收。详见 `ai_workspace/reports/goal-craft-harness-1.9.1.md`。
-- **验证与构建**：完整单测 12617 项通过、67 项条件跳过；后补升级 checkpoint 专项 159 项和最终状态机 20 项通过。全量干净 Electron mock 15 场景/16 门禁通过，控制台与运行时错误为 0。类型检查及两种 lint 通过；Windows x64 NSIS、便携版、17 项运行依赖、原生二进制、包内最终 supervisor 和更新清单 SHA-512 均已验证。双包待发布 GitHub，结果以报告为准。
+- **验证与构建**：完整单测 12617 项通过、67 项条件跳过；后补升级 checkpoint 专项 159 项和最终状态机 20 项通过。全量干净 Electron mock 15 场景/16 门禁通过，控制台与运行时错误为 0。类型检查及两种 lint 通过；Windows x64 NSIS、便携版、17 项运行依赖、原生二进制、包内最终 supervisor 和更新清单 SHA-512 均已验证。
+- **发布**：修复提交 `6b73bb52`、`main` 与 `v1.9.1` tag 已推送；[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.9.1) 已正式发布并确认为最新稳定版。NSIS、blockmap、latest.yml 和便携版四个资产的远端 SHA-256 与大小均匹配本地，正文与本版双语 notes 一致。仅发布 Windows 补丁；便携版保留 1.9.1 与 1.9.0，旧包和中间目录已归档至 `D:/Work/CraftStation-release-archive/before-1.9.1/`。
 
 ## 1.9.0 网页输出映射与 Ultrafast 发布（2026-10-09）
 

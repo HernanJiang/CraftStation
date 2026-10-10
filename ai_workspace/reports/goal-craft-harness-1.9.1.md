@@ -48,7 +48,9 @@ Windows x64 NSIS 与 portable 均已构建，exit 0；复用同一份最终生�
 | latest.yml                                |       361 | `7c91f067ad9f34100b7ed58b4a404373cd7be83c71583d1b409a573985a173cd` |
 | CraftStation-Portable-1.9.1-x64.exe       | 127483150 | `36b8650602d57e033b2b455d7ab82dea4c283ecb6645816d85d5aba7873828ae` |
 
-`latest.yml` 指向 1.9.1 NSIS，SHA-512 与 size 均通过校验；便携包构建未覆盖安装包更新清单。验证记录：`D:/Work/CraftStation-release-archive/goal-1.9.1-fixtures/release-nsis-verification.json`、`release-portable-verification.json`。四个文件待上传 GitHub Release，发布结果随后记录。
+`latest.yml` 指向 1.9.1 NSIS，SHA-512 与 size 均通过校验；便携包构建未覆盖安装包更新清单。验证记录：`D:/Work/CraftStation-release-archive/goal-1.9.1-fixtures/release-nsis-verification.json`、`release-portable-verification.json`。
+
+修复提交 `6b73bb52867c64638fce9c94b5debbb7ab6968ca` 与 `v1.9.1` tag 已推送。[GitHub Release v1.9.1](https://github.com/HernanJiang/CraftStation/releases/tag/v1.9.1) 已正式发布并确认为最新稳定版，四个资产均 uploaded，GitHub 返回的 SHA-256 digest 与大小全部匹配上述本地结果，发布正文与双语 notes 文件一致。核验记录：`D:/Work/CraftStation-release-archive/goal-1.9.1-fixtures/published-release-verification.json`。发布前提交钩子的 type-aware lint、格式化与类型检查均通过。
 
 `release/` 仅保留 1.9.1 与 1.9.0 两份稳定便携版；1.8.9 便携版、win-unpacked 与 builder-debug.yml 已移到 `D:/Work/CraftStation-release-archive/before-1.9.1/`。历版 NSIS、blockmap 和更新清单保留。本次为补丁版，按项目策略只发布 Windows。
 
