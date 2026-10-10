@@ -374,7 +374,7 @@ export function AppProvider(props: {
                     />
                   </div>
                 )}
-                <Toast.CloseButton className="absolute top-2 right-2" />
+                <Toast.CloseButton className="lc-toast__close absolute top-2 right-2" />
               </SwipeDismissToast>
             );
           }}
