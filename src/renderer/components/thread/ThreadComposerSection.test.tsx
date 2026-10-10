@@ -23,6 +23,7 @@ const bridgeMock = vi.hoisted(() => ({
   isRemoteSession: vi.fn<() => boolean>(() => false),
   clearPendingSteer: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   interruptThread: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  controlThreadGoal: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   setPendingSteer: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   appendUsageEvents: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
   refreshAgentStatuses: vi
@@ -84,6 +85,7 @@ vi.mock("../../bridge", () => ({
     pickFiles: vi.fn<() => Promise<string[] | undefined>>().mockResolvedValue(undefined),
     clearPendingSteer: bridgeMock.clearPendingSteer,
     interruptThread: bridgeMock.interruptThread,
+    controlThreadGoal: bridgeMock.controlThreadGoal,
     setPendingSteer: bridgeMock.setPendingSteer,
     writeTerminal: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
     refreshAgentStatuses: bridgeMock.refreshAgentStatuses,

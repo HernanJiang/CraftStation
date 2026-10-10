@@ -1,6 +1,6 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { normalizeThirdPartyModelId } from "@/shared/thirdPartyRouting";
-import type { AccountBinding, ProjectLocation } from "@/shared/contracts";
+import type { AccountBinding, ProjectLocation, ResolvedMcpServer } from "@/shared/contracts";
 import type {
   CraftPlan,
   CraftSession,
@@ -31,6 +31,7 @@ export interface OpenCodeNativeRuntimeAdapterOptions {
   readonly readinessProvider?: OpenCodeExecutableReadinessProvider;
   readonly runtimeBindingResolver?: OpenCodeRuntimeBindingResolver;
   readonly serverPool?: OpenCodeNativeServerPool;
+  readonly mcpServers?: readonly ResolvedMcpServer[];
 }
 
 /** Runtime adapter for the official OpenCode server API, not its terminal UI. */
@@ -113,11 +114,16 @@ export class OpenCodeNativeRuntimeAdapter implements HarnessRuntimeAdapter {
       ...(this.options.accountBinding ? { accountBinding: this.options.accountBinding } : {}),
       ...(this.options.profileRef ? { profileRef: this.options.profileRef } : {}),
     });
+    // Thread-scoped MCP capabilities cannot share a process with another thread.
+    const mcpKey = this.options.mcpServers?.length
+      ? createHash("sha256").update(JSON.stringify(this.options.mcpServers)).digest("hex")
+      : undefined;
     return this.options.serverPool.acquire({
-      isolationKey: resolved.isolationKey,
+      isolationKey: mcpKey ? `${resolved.isolationKey}:mcp:${mcpKey}` : resolved.isolationKey,
       transportOptions: {
         projectLocation: this.options.projectLocation,
         ...resolved.transportOptions,
+        ...(this.options.mcpServers ? { mcpServers: this.options.mcpServers } : {}),
       },
       onDiagnostic: (diagnostic) => this.diagnostics.push(diagnostic),
     });
@@ -163,6 +169,7 @@ export class OpenCodeNativeRuntimeAdapter implements HarnessRuntimeAdapter {
       threadId: entity.craftPlan.threadId ?? `thread:${randomUUID()}`,
       projectLocation: this.options.projectLocation,
       plan: entity.craftPlan,
+      ...(this.options.mcpServers ? { mcpServers: this.options.mcpServers } : {}),
       sessionRef: entity.craftPlan.sessionRef,
       ...(transport ? { transport } : {}),
       ...(this.options.transportFactory ? { transportFactory: this.options.transportFactory } : {}),
@@ -182,6 +189,7 @@ export class OpenCodeNativeRuntimeAdapter implements HarnessRuntimeAdapter {
       threadId: entity.craftPlan.threadId ?? `thread:${randomUUID()}`,
       projectLocation: this.options.projectLocation,
       plan: entity.craftPlan,
+      ...(this.options.mcpServers ? { mcpServers: this.options.mcpServers } : {}),
       sessionRef,
       ...(transport ? { transport } : {}),
       ...(this.options.transportFactory ? { transportFactory: this.options.transportFactory } : {}),

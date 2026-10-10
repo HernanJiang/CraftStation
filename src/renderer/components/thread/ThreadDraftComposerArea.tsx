@@ -831,7 +831,7 @@ export function ThreadDraftComposerArea(props: {
     let startPrompt = flatPrompt;
     let startSegments = currentSegments;
     let startGoal: string | undefined;
-    if (goalCommand.kind === "empty") {
+    if (goalCommand.kind === "empty" || goalCommand.kind === "control") {
       toast.danger(t`用法：/goal + Prompt（Prompt 不能为空）`);
       return;
     }

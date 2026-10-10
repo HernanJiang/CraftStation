@@ -38,6 +38,7 @@ import type {
   AuthenticateAcpAgentPayload,
   ClearPendingSteerPayload,
   ControlThreadGoalPayload,
+  ThreadGoalControlResult,
   CloseThreadPayload,
   ExtractContextPayload,
   ExtractContextResult,
@@ -245,11 +246,11 @@ export const threadProcedures = {
     "supervisor",
     interruptThreadPayloadSchema,
   ),
-  controlThreadGoal: definePayloadProcedure<ControlThreadGoalPayload, void, "supervisor">(
-    "controlThreadGoal",
-    "supervisor",
-    controlThreadGoalPayloadSchema,
-  ),
+  controlThreadGoal: definePayloadProcedure<
+    ControlThreadGoalPayload,
+    ThreadGoalControlResult,
+    "supervisor"
+  >("controlThreadGoal", "supervisor", controlThreadGoalPayloadSchema),
   rollbackThreadConversation: definePayloadProcedure<
     RollbackThreadConversationPayload,
     void,

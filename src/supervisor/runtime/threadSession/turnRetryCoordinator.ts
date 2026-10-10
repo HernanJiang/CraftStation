@@ -1,11 +1,7 @@
 import type { SupervisorEvent } from "@/shared/ipc";
-import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
-import { isNativeNetworkErrorMessage } from "../../agents/nativeNetworkError";
+import { CRAFT_RETRY_CONTEXT, isCraftRetryable } from "../craftHarness/turnRetry";
 import type { QueuedStructuredTurn, SessionRuntime } from "../sessionTypes";
-import {
-  classifyStructuredFailure,
-  isExpectedStructuredFailure,
-} from "./structuredFailureReporter";
+import { classifyStructuredFailure } from "./structuredFailureReporter";
 
 /**
  * Invisible continuation note prepended to the SENT prompt of an automatically
@@ -14,11 +10,7 @@ import {
  * have produced partial work (continue it) or never reached the agent at all
  * (just do the request).
  */
-const RETRY_CONTINUATION_NOTE =
-  "[CraftStation Craft-Harness auto-retry] The previous attempt of this turn was " +
-  "interrupted by a network/transport failure before completing. Continue the task " +
-  "from where it stopped; if the previous attempt never actually started, simply " +
-  "carry out the original request normally.";
+const RETRY_CONTINUATION_NOTE = CRAFT_RETRY_CONTEXT;
 
 /** Craft-Harness turn retry policy, sourced from shared settings. */
 export interface TurnRetryPolicy {
@@ -76,11 +68,8 @@ export class TurnRetryCoordinator {
     if (session.structuredTurnInterruptRequested === true) return false;
     const generation = session.structuredTurnGeneration;
     const message = error instanceof Error ? error.message : String(error ?? "");
-    if (isRetryableCapacityError(message)) return false;
-    if (isExpectedStructuredFailure(error)) return false;
     const failureClass = classifyStructuredFailure(error);
-    const retryable = failureClass === "transport" || isNativeNetworkErrorMessage(message);
-    if (!retryable) return false;
+    if (!isCraftRetryable(error)) return false;
     const attempt = (turn.turnRetryAttempt ?? 0) + 1;
     if (attempt > policy.maxAttempts) return false;
     turn.turnRetryAttempt = attempt;

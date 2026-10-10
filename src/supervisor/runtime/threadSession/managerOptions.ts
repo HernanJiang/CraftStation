@@ -26,6 +26,13 @@ export interface ThreadSessionManagerOptions {
    * restarting sessions.
    */
   readTurnRetryPolicy(): { maxAttempts: number; intervalMs: number };
+  goalContext?(threadId: string): string | undefined;
+  onGoalFailure?(threadId: string): void;
+  resolveGoalMcp?(
+    threadId: string,
+    location: ProjectLocation,
+    adapter?: AgentAdapter,
+  ): Promise<ResolvedMcpServer>;
   adapters: Map<AgentKind, AgentAdapter>;
   resolveWindowsShell(runtime?: "preferred" | "powershell"): WindowsShellPreference;
   /**

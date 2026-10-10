@@ -1,5 +1,5 @@
 import type { PromptSegment, Thread } from "@/shared/contracts";
-import { buildGoalContextText, isCodexNativeGoalAgent } from "@/shared/threadGoal";
+import { readBridge } from "@/renderer/bridge";
 import { registerNativeGoal } from "@/renderer/actions/threadActions";
 import { setThreadPendingSteer, submitThreadInput } from "@/renderer/actions/threadRuntimeActions";
 import { captureThreadPromptSubmitted } from "@/renderer/analytics/posthog";
@@ -18,14 +18,19 @@ export function enqueueThreadFollowUp(
     queuedAt: Date.now(),
     paused: false,
   });
+  setGoalInputHold(threadId, true);
 }
 
 export function clearQueuedFollowUp(threadId: string): void {
   useAppStore.getState().setQueuedFollowUps(threadId, null);
+  setGoalInputHold(threadId, false);
 }
 
 export function removeQueuedFollowUpItem(threadId: string, itemId: string): void {
   useAppStore.getState().removeQueuedFollowUpItem(threadId, itemId);
+  if (!useAppStore.getState().queuedFollowUpByThreadId[threadId]?.length) {
+    setGoalInputHold(threadId, false);
+  }
 }
 
 export async function sendQueuedFollowUpNow(thread: Thread, itemId?: string): Promise<void> {
@@ -34,6 +39,10 @@ export async function sendQueuedFollowUpNow(thread: Thread, itemId?: string): Pr
   try {
     if (thread.status === "working") {
       await setThreadPendingSteer(thread, queued.prompt, queued.segments);
+      setGoalInputHold(
+        thread.id,
+        !!useAppStore.getState().queuedFollowUpByThreadId[thread.id]?.length,
+      );
       captureThreadPromptSubmitted(thread, queued.prompt, queued.segments, "pending_steer");
       return;
     }
@@ -101,18 +110,17 @@ function restoreQueuedFollowUpAtFront(threadId: string, queued: QueuedFollowUp):
 async function submitQueuedPrompt(thread: Thread, queued: QueuedFollowUp): Promise<void> {
   const live = useAppStore.getState().threads.find((item) => item.id === thread.id) ?? thread;
   const liveGoal = live.goal;
-  const useNative = isCodexNativeGoalAgent(live.agentKind);
   const activeGoal = liveGoal && !liveGoal.paused ? liveGoal : undefined;
-  if (activeGoal && useNative) {
+  if (activeGoal) {
     await registerNativeGoal(live.id, activeGoal.prompt);
   }
-  const goalContext =
-    activeGoal && !useNative ? buildGoalContextText(activeGoal.prompt) : undefined;
-  await submitThreadInput(
-    live.id,
-    queued.prompt,
-    queued.segments,
-    goalContext ? { goalContext } : undefined,
-  );
+  await submitThreadInput(live.id, queued.prompt, queued.segments, undefined);
+  setGoalInputHold(live.id, !!useAppStore.getState().queuedFollowUpByThreadId[live.id]?.length);
   captureThreadPromptSubmitted(live, queued.prompt, queued.segments, "follow_up");
+}
+
+function setGoalInputHold(threadId: string, pending: boolean): void {
+  void readBridge()
+    .controlThreadGoal({ threadId, action: "hold", pending })
+    .catch((error: unknown) => console.warn("[goal] pending input sync failed", error));
 }

@@ -132,6 +132,7 @@ describe("Crafting Registry", () => {
       "harness:minimax",
       "harness:muse",
       "harness:opencode",
+      "harness:pi",
       "harness:stepcode",
       "harness:zcode",
     ]);

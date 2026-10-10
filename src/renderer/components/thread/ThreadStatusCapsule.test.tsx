@@ -546,8 +546,7 @@ describe("ThreadStatusCapsule", () => {
     const panel = screen.getByTestId("project-status-panel");
     expect(panel).toHaveTextContent("Goal");
     expect(panel).toHaveTextContent("修复所有 Provider 认证问题");
-    // Codex threads register natively.
-    expect(panel).toHaveTextContent("Native");
+    expect(panel).toHaveTextContent("Craft-Harness");
     expect(screen.queryByRole("button", { name: "Goal. Show task." })).toBeNull();
   });
 

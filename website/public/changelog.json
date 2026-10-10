@@ -1,6 +1,39 @@
 {
   "releases": [
     {
+      "version": "1.9.1",
+      "date": "2026-10-10",
+      "title": "Persistent goals across agent harnesses",
+      "summary": "Craft-Harness now manages persistent goals across supported agent runtimes, with safe automatic continuation and bounded recovery from network or compaction failures.",
+      "changes": [
+        {
+          "kind": "improved",
+          "label": "Goals",
+          "text": "Goals continue after ordinary turns, retain their state across session recovery and model changes, and require explicit completion evidence from the agent."
+        },
+        {
+          "kind": "improved",
+          "label": "Goals",
+          "text": "Use /goal pause, resume and clear or the goal controls to manage a task, while queued messages, pending approvals and plan mode prevent automatic continuation."
+        },
+        {
+          "kind": "fixed",
+          "label": "Recovery",
+          "text": "Remote compaction and transport failures follow your retry settings, preserve the goal when attempts run out, and respect Stop and newer user input."
+        },
+        {
+          "kind": "fixed",
+          "label": "Goals",
+          "text": "New threads register goals before launch, resumed goals can reopen their session, upgrades preserve completion and spent budgets, and automatic turns without tool calls stop repeating."
+        },
+        {
+          "kind": "fixed",
+          "label": "Harnesses",
+          "text": "Native DeepSeek and OpenCode sessions receive goal tools, and ACP sessions report an injection failure if required goal tools cannot be made available."
+        }
+      ]
+    },
+    {
       "version": "1.9.0",
       "date": "2026-10-09",
       "title": "ChatGPT web widgets & clearer speed tiers",

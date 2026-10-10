@@ -9,12 +9,15 @@ import type {
   UserInputOption,
 } from "@/shared/contracts";
 import { friendlyError } from "@/shared/messages";
+import { parseGoalSlashCommand } from "@/shared/threadGoal";
 import {
-  buildGoalContextText,
-  isCodexNativeGoalAgent,
-  parseGoalSlashCommand,
-} from "@/shared/threadGoal";
-import { registerNativeGoal, setThreadGoalPrompt } from "@/renderer/actions/threadActions";
+  registerNativeGoal,
+  setThreadGoalPrompt,
+  pauseThreadGoal,
+  resumeThreadGoal,
+  stopThreadGoal,
+} from "@/renderer/actions/threadActions";
+import { readBridge } from "@/renderer/bridge";
 import { enqueueThreadFollowUp } from "@/renderer/actions/queuedFollowUpActions";
 import { isSkillCatalogOutboundTurn } from "@/shared/skillCatalogDump";
 import {
@@ -36,8 +39,6 @@ import {
   bindLeadingSkillUnlessLocalAction,
   resolveLocalActionUnlessSkill,
 } from "./threadSlashCommands";
-import { msg as linguiMsg } from "@lingui/core/macro";
-import { i18n } from "@/renderer/i18n/i18n";
 
 /**
  * Everything the composer submit path reads from the section component,
@@ -147,21 +148,33 @@ export function submitComposerPrompt(segments: PromptSegment[], ctx: ComposerSub
     clearComposerText();
     return;
   }
-  // `/goal + Prompt` binds (or replaces) the durable thread goal and never
-  // sends anything — the goal rides subsequent turns natively or via the
-  // labeled fallback block. No user bubble is painted for the command itself.
+  // `/goal + Prompt` binds the durable Craft-Harness goal. The command itself
+  // is not a user chat message; the coordinator owns idle continuation.
   const goalCommand = parseGoalSlashCommand(flat);
   if (goalCommand.kind !== "not-goal") {
     if (goalCommand.kind === "empty") {
-      toast.danger(i18n._(linguiMsg`用法：/goal + Prompt（Prompt 不能为空）`));
+      // 已有目标由输入框上方的 dock 展示；查看命令不创建新回合。
+    } else if (goalCommand.kind === "control") {
+      const action = goalCommand.action;
+      void (async () => {
+        if (action === "clear") await stopThreadGoal(thread.id);
+        else {
+          if (thread.goal) await registerNativeGoal(thread.id, thread.goal.prompt);
+          const result = await readBridge().controlThreadGoal({ threadId: thread.id, action });
+          if (action === "pause") pauseThreadGoal(thread.id);
+          else resumeThreadGoal(thread.id);
+          if (result?.requiresLaunch)
+            await submitThreadInput(thread.id, "继续推进当前目标，检查实际状态与完成证据。");
+        }
+      })().catch((error) => toast.danger(friendlyError(error)));
     } else {
       const result = setThreadGoalPrompt(thread.id, goalCommand.prompt);
       if (!result.ok) {
         toast.danger(result.error);
-      } else if (isCodexNativeGoalAgent(thread.agentKind)) {
-        // Best-effort native registration; a missing session (idle thread)
-        // simply defers to the per-submit re-registration below.
-        void registerNativeGoal(thread.id, goalCommand.prompt);
+      } else {
+        void registerNativeGoal(thread.id, goalCommand.prompt, false).catch((error) =>
+          toast.danger(friendlyError(error)),
+        );
       }
     }
     mentionRef.current?.clear();
@@ -228,24 +241,14 @@ export function submitComposerPrompt(segments: PromptSegment[], ctx: ComposerSub
   const submit =
     ctx.onSubmitInput ??
     (async (outgoingPrompt: string, outgoingSegments?: PromptSegment[]) => {
-      // Re-assert a durable goal on every submit: resume/switch rebuild
-      // sessions without server-side goal state. Codex registers natively;
-      // everyone else carries the labeled fallback block in the SENT prompt
-      // only (the painted user message stays the raw prompt).
+      // Reassert the renderer's durable goal without reviving a completed or
+      // paused Craft-Harness goal. The runtime owns instruction injection.
       const liveGoal = useAppStore.getState().threads.find((t) => t.id === thread.id)?.goal;
-      const useNative = isCodexNativeGoalAgent(thread.agentKind);
       const activeGoal = liveGoal && !liveGoal.paused ? liveGoal : undefined;
-      if (activeGoal && useNative) {
+      if (activeGoal) {
         await registerNativeGoal(thread.id, activeGoal.prompt);
       }
-      const goalContext =
-        activeGoal && !useNative ? buildGoalContextText(activeGoal.prompt) : undefined;
-      await submitThreadInput(
-        thread.id,
-        outgoingPrompt,
-        outgoingSegments,
-        goalContext ? { goalContext } : undefined,
-      );
+      await submitThreadInput(thread.id, outgoingPrompt, outgoingSegments, undefined);
     });
   const runSubmission = async () => {
     if (!ctx.usesPendingSteerPath) {

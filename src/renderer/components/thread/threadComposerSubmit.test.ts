@@ -160,7 +160,7 @@ describe("submitComposerPrompt steer routing", () => {
     expect(ctx.setPrompt).toHaveBeenCalledWith("");
   });
 
-  it("carries the fallback goalContext beside the raw prompt for non-codex", async () => {
+  it("registers the Craft-Harness goal while preserving the raw prompt for non-codex", async () => {
     const goal = { prompt: "fix auth", createdAt: "t", updatedAt: "t" };
     const thread = { ...workingGuiThread(), agentKind: "kimi", status: "idle", goal } as Thread;
     vi.mocked(useAppStore.getState).mockReturnValue({
@@ -174,13 +174,13 @@ describe("submitComposerPrompt steer routing", () => {
         "thread-steer",
         "hello",
         [{ kind: "text", content: "hello" }],
-        { goalContext: expect.stringContaining("fix auth") },
+        undefined,
       );
     });
     // The painted/sent prompt stays raw: the goal rides the side channel.
     const sentPrompt = vi.mocked(submitThreadInput).mock.calls[0]?.[1];
     expect(sentPrompt).toBe("hello");
-    expect(registerNativeGoal).not.toHaveBeenCalled();
+    expect(registerNativeGoal).toHaveBeenCalledWith("thread-steer", "fix auth");
   });
 
   it("swallows a Grok skill-catalog dump and sends nothing", () => {

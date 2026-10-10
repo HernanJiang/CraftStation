@@ -66,6 +66,7 @@ import {
   sendThreadInputPayloadSchema,
   type ProfileCoreStats,
   type ControlThreadGoalPayload,
+  type ThreadGoalControlResult,
   type ProfileDevicesResponse,
   type ProfileIdentity,
   type ProfileIdentityResponse,
@@ -765,12 +766,14 @@ export class RemoteDesktopClient {
     });
   }
 
-  async controlThreadGoal(input: ControlThreadGoalPayload): Promise<void> {
+  async controlThreadGoal(input: ControlThreadGoalPayload): Promise<ThreadGoalControlResult> {
     const { threadId, ...body } = controlThreadGoalPayloadSchema.parse(input);
-    await this.requestJson(`/api/threads/${encodeURIComponent(threadId)}/goal`, {
+    const result = await this.requestJson(`/api/threads/${encodeURIComponent(threadId)}/goal`, {
       method: "POST",
       body,
     });
+    const launch = z.object({ requiresLaunch: z.literal(true).optional() }).parse(result);
+    if (launch.requiresLaunch) return { requiresLaunch: true };
   }
 
   async closeThread(threadId: string): Promise<void> {

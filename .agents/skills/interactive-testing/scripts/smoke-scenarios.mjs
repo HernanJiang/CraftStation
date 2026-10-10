@@ -11,6 +11,13 @@ export const productionRoots = [
 
 export const functionalAreas = [
   {
+    id: "craft-harness-goal",
+    title: "Craft-Harness：持久目标、续跑、预算、暂停与跨 Harness 目标工具",
+    patterns: [/runtime\/craftHarness\//, /[Gg]oal/, /shared\/threadGoal/],
+    automated: ["baseline", "goal"],
+    manual: ["changed-surface", "ipc-roundtrip", "provider-live", "runtime-requests"],
+  },
+  {
     id: "chatgpt-web",
     title: "ChatGPT 网页：双向同步、交互组件映射、停止与历史恢复",
     patterns: [/chatGptWeb/i, /webChat/i],

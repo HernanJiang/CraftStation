@@ -3,16 +3,16 @@ import { Label, Modal, TextField, toast } from "@heroui/react";
 import { Pause, Pencil, Play, X } from "lucide-react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { GoalControlAction, ThreadGoalControl } from "@/shared/contracts";
-import { isCodexNativeGoalAgent } from "@/shared/threadGoal";
 import { friendlyError } from "@/shared/messages";
 import { readBridge } from "@/renderer/bridge";
+import { submitThreadInput } from "@/renderer/actions/threadRuntimeActions";
 import {
   pauseThreadGoal,
+  registerNativeGoal,
   resumeThreadGoal,
   setThreadGoalPrompt,
   stopThreadGoal,
 } from "@/renderer/actions/threadActions";
-import { useAppStore } from "@/renderer/state/appStore";
 import { Button, TextArea } from "@/renderer/components/common";
 import { ThreadDockIconButton } from "./ThreadDockUI";
 import type { ThreadGoalDockState } from "./threadGoalState";
@@ -58,18 +58,13 @@ export function ThreadGoalControls({ threadId, state, onDismiss }: ThreadGoalCon
 
   const controlGoal = async (control: ThreadGoalControl): Promise<boolean> => {
     setPendingAction(control.action);
-    const agentKind = useAppStore.getState().threads.find((thread) => thread.id === threadId)
-      ?.agentKind;
     try {
-      try {
-        await readBridge().controlThreadGoal({ threadId, ...control });
-      } catch (error) {
-        if (agentKind && isCodexNativeGoalAgent(agentKind) && control.action !== "clear") {
-          toast.danger(friendlyError(error));
-          return false;
-        }
-      }
+      if (control.action === "pause" || control.action === "resume")
+        await registerNativeGoal(threadId, state.objective);
+      const result = await readBridge().controlThreadGoal({ threadId, ...control });
       await applyDurable(control);
+      if (result?.requiresLaunch)
+        await submitThreadInput(threadId, "继续推进当前目标，检查实际状态与完成证据。");
       return true;
     } catch (error) {
       toast.danger(friendlyError(error));

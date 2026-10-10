@@ -86,7 +86,7 @@ const CROSSAGENT_SESSION_ID_ARG = "__craftstation_provider_session_id";
 // ("craftstation" is the app-controls server name; "Schedule" and
 // "crossagents" are the other built-ins. Matched case-insensitively because
 // harnesses sanitize server names differently.)
-const SESSION_ROUTED_TOOL_PATTERN = /^(crossagents|craftstation|schedule)[_-]/i;
+const SESSION_ROUTED_TOOL_PATTERN = /^(crossagents|craftstation|schedule|craft_goal)[_-]/i;
 
 function injectCrossagentSessionId(input, output) {
   if (process.env.CRAFTSTATION_OPENCODE_SESSION_ROUTING !== "1") return;

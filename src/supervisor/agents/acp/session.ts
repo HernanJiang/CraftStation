@@ -928,6 +928,16 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     );
     const built = buildAcpMcpServers(this.mcpServers);
     const attempted = gateAcpMcpServers(built, capabilities);
+    const requireGoalService = (servers: ProtocolMcpServer[]): void => {
+      if (
+        built.some((server) => server.name === "craft_goal") &&
+        !servers.some((server) => server.name === "craft_goal")
+      )
+        throw new Error(
+          "GOAL_MCP_UNAVAILABLE: required Craft-Harness goal tools could not be injected.",
+        );
+    };
+    requireGoalService(attempted);
     const optimisticTransports = this.optimisticMcpTransports;
     let fallback: ProtocolMcpServer[];
     if (optimisticTransports !== undefined && optimisticTransports.length > 0) {
@@ -961,6 +971,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
       return result;
     } catch (error) {
       if (!isAssumedMcpCompatibilityError(error)) throw error;
+      requireGoalService(fallback);
       console.log(
         "[acp] session open failed with %d assumed-transport MCP server(s) (ACP error %d); retrying without them",
         attempted.length - fallback.length,

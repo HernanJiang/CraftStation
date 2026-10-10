@@ -1059,11 +1059,13 @@ export async function handleHttp(
         ctx.security.requireBearer(req, [route.scope]);
         const body = await readJsonBody(req);
         const dispatch = async () => {
-          await route.dispatch(ctx.options.callSupervisor, {
+          const controlResult = await route.dispatch(ctx.options.callSupervisor, {
             ...(typeof body === "object" && body !== null ? body : {}),
             threadId,
           });
-          return { ok: true };
+          return route.suffix === "/goal" && controlResult
+            ? { ok: true, ...(controlResult as { requiresLaunch?: true }) }
+            : { ok: true };
         };
         const result = route.idempotent
           ? await runIdempotentRemoteMutation(req, url.pathname, dispatch)

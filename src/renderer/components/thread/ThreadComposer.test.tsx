@@ -480,7 +480,7 @@ describe("ThreadComposer", () => {
     );
 
     fireEvent.click(screen.getByRole("button", { name: /Current Model/ }));
-    fireEvent.click(await screen.findByRole("menuitem", { name: /Model list/ }));
+    fireEvent.pointerEnter(await screen.findByRole("menuitem", { name: /Model list/ }));
     fireEvent.click(await screen.findByRole("menuitem", { name: /Enabled Model/ }));
 
     expect(onModelChange).toHaveBeenCalledWith({

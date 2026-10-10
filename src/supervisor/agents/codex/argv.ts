@@ -31,17 +31,19 @@ interface BuildCodexArgsOptions {
   config: ThreadConfig;
   prompt: string;
   enableGoals: boolean;
+  disableGoals?: boolean;
   launchOptions?: AgentLaunchOptions;
   mcpArgs?: string[];
 }
 
 function buildCodexArgs(opts: BuildCodexArgsOptions): string[] {
-  const { config, prompt, enableGoals, launchOptions, mcpArgs } = opts;
+  const { config, prompt, enableGoals, disableGoals, launchOptions, mcpArgs } = opts;
   const args: string[] = [];
 
   if (enableGoals) {
     args.push("--enable", CODEX_GOALS_FEATURE_FLAG);
   }
+  if (disableGoals) args.push("-c", "features.goals=false");
 
   // OSC 9 TUI notifications — L2 status when hooks are unavailable (always-on).
   // `tui.notifications = true` enables all notification event types; array = allowlist only.
@@ -129,11 +131,13 @@ export function buildCodexArgvFor(
   const mcpArgs = [...buildCodexMcpSkillConflictArgs(location, mcpServers), ...mcp.args];
   const mcpEnv = mcp.env;
   const hasMcpEnv = Object.keys(mcpEnv).length > 0;
-  const enableGoals = isCodexGoalsSupported(location);
+  const disableGoals = mcpServers.some((server) => server.id === "craft-goal");
+  const enableGoals = !disableGoals && isCodexGoalsSupported(location);
   const baseArgsOptions: BuildCodexArgsOptions = {
     config,
     prompt: "",
     enableGoals,
+    disableGoals,
     ...(launchOptions ? { launchOptions } : {}),
     mcpArgs,
   };
@@ -197,7 +201,11 @@ export function buildCodexAppServerCommand(
   const spawnEnv = { ...options?.env, ...mcpEnv };
   const hasSpawnEnv = Object.keys(spawnEnv).length > 0;
   const args = [
-    ...(isCodexGoalsSupported(location, wslExecPath) ? ["--enable", CODEX_GOALS_FEATURE_FLAG] : []),
+    ...(mcpServers.some((server) => server.id === "craft-goal")
+      ? ["-c", "features.goals=false"]
+      : isCodexGoalsSupported(location, wslExecPath)
+        ? ["--enable", CODEX_GOALS_FEATURE_FLAG]
+        : []),
     ...mcpSkillConflictArgs,
     ...(includeMcpConfig ? mcp.args : []),
     "app-server",

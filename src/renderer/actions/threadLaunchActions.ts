@@ -24,7 +24,6 @@ import {
 import { isHomeProject, isHomeProjectId } from "@/shared/homeScope";
 import { resolveProjectLocation } from "@/shared/worktree";
 import { friendlyError } from "@/shared/messages";
-import { buildGoalContextText, isCodexNativeGoalAgent } from "@/shared/threadGoal";
 import { buildPromptContentBlocks } from "@/shared/promptContent";
 import { titlePromptFromSegments } from "@/shared/threadTitle";
 import { captureThreadPromptSubmitted, captureThreadStarted } from "@/renderer/analytics/posthog";
@@ -81,7 +80,7 @@ import {
 } from "./worktreeLaunchActions";
 import { performWorktreeRemoval } from "./worktreeActions";
 import { readSessionHandoffState } from "./sessionHandoffActions";
-import { setThreadGoalPrompt } from "./threadActions";
+import { getThreadGoalCheckpoint, setThreadGoalPrompt } from "./threadActions";
 
 export async function performInitialThreadLaunch(input: {
   thread: Thread;
@@ -108,6 +107,18 @@ export async function performInitialThreadLaunch(input: {
     presentation === thread.presentationMode
       ? thread
       : { ...thread, presentationMode: presentation };
+  if (effectiveThread.goal && !remoteOwner(effectiveThread)) {
+    const checkpoint = getThreadGoalCheckpoint(effectiveThread.id, effectiveThread.goal.prompt);
+    await readBridge().controlThreadGoal({
+      threadId: effectiveThread.id,
+      action: "edit",
+      objective: effectiveThread.goal.prompt,
+      reassert: true,
+      ...(checkpoint ? { checkpoint } : {}),
+    });
+    if (effectiveThread.goal.paused)
+      await readBridge().controlThreadGoal({ threadId: effectiveThread.id, action: "pause" });
+  }
   if (effectiveThread.config.model) {
     useSharedSettings
       .getState()
@@ -214,13 +225,6 @@ export async function performInitialThreadLaunch(input: {
     ...(effectiveThread.presentationMode ? { presentationMode: presentation } : {}),
     ...(optimisticUserMessageItemId ? { userMessageItemId: optimisticUserMessageItemId } : {}),
     ...(thirdPartyAccountId ? { thirdPartyAccountId } : {}),
-    // Launch-turn fallback goal (native-goal threads register separately
-    // once the session exists). Painted output stays the raw prompt.
-    ...(effectiveThread.goal &&
-    !effectiveThread.goal.paused &&
-    !isCodexNativeGoalAgent(effectiveThread.agentKind)
-      ? { goalContext: buildGoalContextText(effectiveThread.goal.prompt) }
-      : {}),
   };
 
   // Mirrored remote threads must launch on their host. Spawning locally would
@@ -230,13 +234,25 @@ export async function performInitialThreadLaunch(input: {
   if (owner) {
     // No mcpLaunchSnapshot here: the host ignores client-supplied MCP servers
     // and resolves the launch snapshot from its own settings.
-    await useRemoteServersStore.getState().withClient(owner.desktopId, (client) =>
-      client.startThread({
+    await useRemoteServersStore.getState().withClient(owner.desktopId, async (client) => {
+      if (effectiveThread.goal) {
+        const checkpoint = getThreadGoalCheckpoint(effectiveThread.id, effectiveThread.goal.prompt);
+        await client.controlThreadGoal({
+          threadId: owner.remoteId,
+          action: "edit",
+          objective: effectiveThread.goal.prompt,
+          reassert: true,
+          ...(checkpoint ? { checkpoint } : {}),
+        });
+        if (effectiveThread.goal.paused)
+          await client.controlThreadGoal({ threadId: owner.remoteId, action: "pause" });
+      }
+      return client.startThread({
         threadId: owner.remoteId,
         projectLocation: unprojectProjectLocation(projectLocation),
         ...startInput,
-      }),
-    );
+      });
+    });
   } else {
     await readBridge().startThread({
       threadId: effectiveThread.id,
@@ -244,23 +260,6 @@ export async function performInitialThreadLaunch(input: {
       ...startInput,
       ...mcpLaunchSnapshot,
     });
-    // A durable goal predating the first session still needs its native
-    // registration once the session exists (later submits re-assert anyway).
-    if (
-      effectiveThread.goal &&
-      !effectiveThread.goal.paused &&
-      isCodexNativeGoalAgent(effectiveThread.agentKind)
-    ) {
-      try {
-        await readBridge().controlThreadGoal({
-          threadId: effectiveThread.id,
-          action: "edit",
-          objective: effectiveThread.goal.prompt,
-        });
-      } catch (error) {
-        console.warn(`[goal] native registration after launch failed:`, error);
-      }
-    }
   }
   if (thirdPartyAccountId) {
     const accountBinding = {
@@ -885,7 +884,7 @@ function threadLaunchHost(project: Project): ThreadLaunchHostTransport {
       // must not depend on which pane is mounted (see the worktree path above).
       try {
         await performInitialThreadLaunch({
-          thread,
+          thread: useAppStore.getState().threads.find((row) => row.id === thread.id) ?? thread,
           projectLocation: resolveProjectLocation(launch.project.location, launch.worktreePath),
           prompt: launch.prompt,
           ...(launch.segments ? { segments: launch.segments } : {}),

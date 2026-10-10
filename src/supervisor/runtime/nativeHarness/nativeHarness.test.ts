@@ -508,6 +508,32 @@ function makePtyAgent(): AgentAdapter {
 }
 
 describe("PTY Native Harness adapter", () => {
+  it("sends persistent goal instructions while painting only the user's prompt", async () => {
+    const fixture = makePtyFixture();
+    const adapter = new PtyNativeHarnessRuntimeAdapter({
+      adapter: makePtyAgent(),
+      descriptor: ANTIGRAVITY_NATIVE_HARNESS_DESCRIPTOR,
+      projectLocation: windowsProject,
+      spawnPty: () => fixture.pty,
+    });
+    const session = await adapter.createSession(
+      await adapter.spawnEntity(makePlan("antigravity", "google")),
+    );
+    const events: RuntimeEvent[] = [];
+    session.subscribe((event) => events.push(event));
+    const completion = session.startTurn({
+      prompt: "continue",
+      inlineInstructions: "persistent goal context",
+    });
+    fixture.emitData("WORKING");
+    fixture.emitData("IDLE");
+    await completion;
+    expect(fixture.writes[0]).toBe("persistent goal context\n\ncontinue");
+    expect(
+      events.find((event) => event.type === "item.started" && event.itemType === "user_message"),
+    ).toMatchObject({ payload: { content: [{ kind: "text", text: "continue" }] } });
+    await session.terminate();
+  });
   it("drives the official PTY boundary and cleans up without a leaked process", async () => {
     const fixture = makePtyFixture();
     const adapter = new PtyNativeHarnessRuntimeAdapter({

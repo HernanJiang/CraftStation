@@ -88,7 +88,7 @@ describe("installOpenCodePlugin", () => {
 
     expect(isOpenCodePluginInstalled({ envKind: "posix", baseDir })).toMatchObject({
       installed: true,
-      version: "1.8.0",
+      version: "1.8.1",
     });
   });
 

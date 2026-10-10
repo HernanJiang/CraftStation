@@ -3,9 +3,17 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AppProvider } from "@/renderer/components/ui/provider";
 import { ThreadGoalDock } from "./ThreadGoalDock";
+import type { ControlThreadGoalPayload, ThreadGoalControlResult } from "@/shared/contracts";
 
 const bridgeMock = vi.hoisted(() => ({
-  controlThreadGoal: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  controlThreadGoal: vi
+    .fn<(payload: ControlThreadGoalPayload) => Promise<ThreadGoalControlResult>>()
+    .mockResolvedValue(undefined),
+  submitThreadInput: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/renderer/actions/threadRuntimeActions", () => ({
+  submitThreadInput: bridgeMock.submitThreadInput,
 }));
 
 vi.mock("@/renderer/bridge", async (importOriginal) => ({
@@ -28,7 +36,8 @@ describe("ThreadGoalDock", () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
-    bridgeMock.controlThreadGoal.mockClear();
+    bridgeMock.controlThreadGoal.mockReset().mockResolvedValue(undefined);
+    bridgeMock.submitThreadInput.mockClear();
   });
 
   it("renders goal details with the shared dock chrome", async () => {
@@ -126,7 +135,10 @@ describe("ThreadGoalDock", () => {
     );
   });
 
-  it("offers resume for a paused Codex goal", () => {
+  it("relaunches the persisted session when resuming a goal without a live runtime", async () => {
+    bridgeMock.controlThreadGoal.mockImplementation(async (payload) =>
+      payload.action === "resume" ? { requiresLaunch: true } : undefined,
+    );
     render(
       <AppProvider>
         <ThreadGoalDock
@@ -146,6 +158,13 @@ describe("ThreadGoalDock", () => {
 
     expect(screen.getByRole("button", { name: "Resume goal" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Pause goal" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Resume goal" }));
+    await waitFor(() =>
+      expect(bridgeMock.submitThreadInput).toHaveBeenCalledWith(
+        "thread-1",
+        "继续推进当前目标，检查实际状态与完成证据。",
+      ),
+    );
   });
 
   it("abbreviates five-digit token counts", () => {

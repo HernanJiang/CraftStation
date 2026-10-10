@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Thread } from "@/shared/contracts";
 import { useAppStore } from "@/renderer/state/appStore";
+import { readBridge } from "@/renderer/bridge";
+
+vi.mock("@/renderer/bridge", () => ({ readBridge: () => ({ controlThreadGoal: goalHold }) }));
+const goalHold = vi.hoisted(() => vi.fn<() => Promise<void>>().mockResolvedValue(undefined));
 
 vi.mock("@/renderer/actions/threadRuntimeActions", () => ({
   setThreadPendingSteer: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
@@ -59,6 +63,11 @@ describe("queued follow-up actions", () => {
     ]);
     expect(submitThreadInput).not.toHaveBeenCalled();
     expect(setThreadPendingSteer).not.toHaveBeenCalled();
+    expect(readBridge().controlThreadGoal).toHaveBeenCalledWith({
+      threadId: "thread-q",
+      action: "hold",
+      pending: true,
+    });
   });
 
   it("appends new follow-ups behind existing ones instead of overwriting", () => {

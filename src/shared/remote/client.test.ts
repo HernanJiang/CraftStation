@@ -521,6 +521,21 @@ describe("RemoteDesktopClient", () => {
     expect(requestBody).toEqual({ action: "edit", objective: "Ship edited goal" });
   });
 
+  it("preserves the host's goal session reattachment result", async () => {
+    const client = new RemoteDesktopClient(
+      "http://127.0.0.1:38987/",
+      "lc_access_test",
+      async () =>
+        new Response(JSON.stringify({ ok: true, requiresLaunch: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    expect(await client.controlThreadGoal({ threadId: "thread-1", action: "resume" })).toEqual({
+      requiresLaunch: true,
+    });
+  });
+
   it("times out requests even when the transport ignores abort signals", async () => {
     vi.useFakeTimers();
     let signal: AbortSignal | undefined;

@@ -202,6 +202,9 @@ async function runSmoke(plan) {
     await runScenario(report, "welcome-dismissal", () => welcomeDismissalScenario(client));
     await installWindowErrorCollector(client);
     await runScenario(report, "baseline", () => baselineScenario(client));
+    if (plan.automated.includes("goal")) {
+      await runScenario(report, "goal", () => goalScenario(client));
+    }
     if (plan.automated.includes("settings")) {
       await runScenario(report, "settings", () => settingsScenario(client));
       await runScenario(report, "control-geometry", () => controlGeometryScenario(client));
@@ -224,6 +227,13 @@ async function runSmoke(plan) {
       ).catch(() => undefined);
     }
     if (plan.automated.includes("webchat")) {
+      // Earlier scenarios can leave the full-screen Actions workspace open.
+      // Return to the product sidebar before exercising its New menu.
+      await resetDrivenState(client);
+      await evaluate(
+        client,
+        'window.__craftstationDev.stores.app.getState().openDraft("smoke-project")',
+      );
       await runScenario(report, "webchat", () => {
         const result = spawnSync(
           process.execPath,
@@ -306,6 +316,69 @@ async function runScenario(report, id, fn) {
     const detail = error instanceof Error ? error.message : String(error);
     report.automated.push({ id, status: "fail", detail });
     console.log(`FAIL: ${id} - ${detail}`);
+  }
+}
+
+async function goalScenario(client) {
+  const threadId = "smoke-craft-goal";
+  const goalState = () =>
+    evaluate(
+      client,
+      `(() => {
+    const state = window.__craftstationDev.stores.app.getState();
+    const ids = state.runtimeItemIdsByThread[${JSON.stringify(threadId)}] ?? [];
+    const items = state.runtimeItemsByIdByThread[${JSON.stringify(threadId)}] ?? {};
+    return ids.map(id => items[id]).filter(item => item?.type === "goal").at(-1);
+  })()`,
+    );
+  try {
+    await bridgeInvoke(client, "controlThreadGoal", {
+      threadId,
+      action: "edit",
+      objective: "Verify Craft-Harness goal IPC",
+    });
+    const active = await waitForValue(
+      goalState,
+      (item) => item?.payload?.status === "active",
+      "active goal event",
+    );
+    assert(
+      active.payload.objective === "Verify Craft-Harness goal IPC",
+      "goal objective was not projected through supervisor events",
+    );
+    await bridgeInvoke(client, "controlThreadGoal", { threadId, action: "pause" });
+    await waitForValue(
+      goalState,
+      (item) => item?.payload?.status === "paused",
+      "paused goal event",
+    );
+    await bridgeInvoke(client, "controlThreadGoal", {
+      threadId,
+      action: "edit",
+      objective: "Verify Craft-Harness goal IPC",
+      reassert: true,
+    });
+    assert((await goalState()).payload.status === "paused", "reassert revived a paused goal");
+    await bridgeInvoke(client, "controlThreadGoal", { threadId, action: "resume" });
+    await waitForValue(
+      goalState,
+      (item) => item?.payload?.status === "active",
+      "resumed goal event",
+    );
+    await bridgeInvoke(client, "controlThreadGoal", { threadId, action: "clear" });
+    await waitForValue(
+      goalState,
+      (item) => item?.payload?.action === "cleared",
+      "cleared goal event",
+    );
+    return {
+      controls: ["edit", "pause", "reassert", "resume", "clear"],
+      integration: "renderer/preload/main/supervisor",
+    };
+  } finally {
+    await bridgeInvoke(client, "controlThreadGoal", { threadId, action: "clear" }).catch(
+      () => undefined,
+    );
   }
 }
 
@@ -1488,6 +1561,9 @@ async function threadSearchScenario(client) {
 }
 
 async function composerCaretScenario(client) {
+  // Mock gates may have focused a separate Quick Composer window.
+  await bridgeInvoke(client, "focusWindow");
+  await client.send("Emulation.setFocusEmulationEnabled", { enabled: true });
   await evaluate(
     client,
     'window.__craftstationDev.stores.app.getState().openDraft("smoke-project")',

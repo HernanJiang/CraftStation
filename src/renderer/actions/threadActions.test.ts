@@ -1259,13 +1259,13 @@ describe("thread goal lifecycle", () => {
     });
   });
 
-  it("stop on non-codex skips the native clear but still interrupts", async () => {
+  it("stop on non-codex clears the Craft-Harness goal and interrupts", async () => {
     const thread = seedThread("kimi");
     setThreadGoalPrompt(thread.id, "goal");
     await stopThreadGoal(thread.id);
     expect(goalOf(thread.id)).toBeUndefined();
     expect(bridge.interruptThread).toHaveBeenCalledWith({ threadId: thread.id });
-    expect(bridge.controlThreadGoal).not.toHaveBeenCalled();
+    expect(bridge.controlThreadGoal).toHaveBeenCalledWith({ threadId: thread.id, action: "clear" });
   });
 
   it("stop without a goal is a no-op", async () => {

@@ -336,8 +336,9 @@ class PtyNativeCraftSession implements CraftSession {
       activeTurn.resolve = resolve;
       activeTurn.reject = reject;
     });
-    const input = this.adapter.buildDirectInput?.(command.prompt, undefined, this.config) ?? [
-      command.prompt,
+    const sendPrompt = [command.inlineInstructions, command.prompt].filter(Boolean).join("\n\n");
+    const input = this.adapter.buildDirectInput?.(sendPrompt, undefined, this.config) ?? [
+      sendPrompt,
       "\r",
     ];
     if (command.signal?.aborted) {

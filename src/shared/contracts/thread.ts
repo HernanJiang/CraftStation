@@ -25,15 +25,15 @@ export const threadStatusSourceSchema = z.enum(["cli_hook", "terminal_parse", "s
 export type ThreadStatusSource = z.infer<typeof threadStatusSourceSchema>;
 
 /**
- * Durable `/goal` prompt bound to a thread. Presence means active; absence
- * means no goal. Stopped goals are deleted, never tombstoned.
+ * Durable `/goal` objective selected by the user. Craft-Harness owns the
+ * lifecycle and accounting; keeping this field does not reactivate a goal.
  * Deliberately no length cap — goals carry full task context.
  */
 export const threadGoalSchema = z.object({
   prompt: z.string().trim().min(1),
   createdAt: z.string().min(1),
   updatedAt: z.string().min(1),
-  /** Fallback/local pause. Native Codex pause is owned by the harness goal item. */
+  /** User pause preference mirrored by the Craft-Harness goal item. */
   paused: z.boolean().optional(),
 });
 export type ThreadGoal = z.infer<typeof threadGoalSchema>;
@@ -300,10 +300,28 @@ export type InterruptThreadPayload = z.infer<typeof interruptThreadPayloadSchema
 const goalObjectiveSchema = z.string().trim().min(1);
 
 export const threadGoalControlSchema = z.discriminatedUnion("action", [
-  z.object({ action: z.literal("edit"), objective: goalObjectiveSchema }),
+  z.object({
+    action: z.literal("edit"),
+    objective: goalObjectiveSchema,
+    tokenBudget: z.number().int().positive().nullable().optional(),
+    reassert: z.boolean().optional(),
+    checkpoint: z
+      .object({
+        objective: z.string().min(1),
+        status: z.enum(["active", "paused", "budget_limited", "complete", "failed", "cancelled"]),
+        tokenBudget: z.number().int().nonnegative().nullable().optional(),
+        tokensUsed: z.number().nonnegative().optional(),
+        timeUsedSeconds: z.number().nonnegative().optional(),
+        iterations: z.number().int().nonnegative().optional(),
+        lastReason: z.string().optional(),
+        deferred: z.boolean().optional(),
+      })
+      .optional(),
+  }),
   z.object({ action: z.literal("pause") }),
   z.object({ action: z.literal("resume") }),
   z.object({ action: z.literal("clear") }),
+  z.object({ action: z.literal("hold"), pending: z.boolean() }),
 ]);
 export type ThreadGoalControl = z.infer<typeof threadGoalControlSchema>;
 
@@ -311,6 +329,7 @@ export const controlThreadGoalPayloadSchema = threadGoalControlSchema.and(
   z.object({ threadId: z.string().min(1) }),
 );
 export type ControlThreadGoalPayload = z.infer<typeof controlThreadGoalPayloadSchema>;
+export type ThreadGoalControlResult = void | { requiresLaunch: true };
 
 export const rollbackThreadConversationPayloadSchema = z.object({
   threadId: z.string().min(1),

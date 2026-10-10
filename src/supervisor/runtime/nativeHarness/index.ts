@@ -233,6 +233,7 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
     projectLocation,
     baseSpawnEnv,
     profileRef,
+    mcpServers,
     resolveExecutable = resolveExecutablePath,
     spawnProcess,
     skillSegments,
@@ -264,6 +265,7 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
       ...(spawnProcess ? { spawnProcess } : {}),
       ...(skillSegments ? { skillSegments } : {}),
       ...(inlineSkillInstructions ? { inlineSkillInstructions } : {}),
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
     });
   },
   // Alias for the DeepSeek Harness first-class id requested by callers that
@@ -328,6 +330,7 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
     } satisfies StructuredNativeHarnessRuntimeAdapterOptions),
   opencode: ({
     projectLocation,
+    mcpServers,
     accountBinding,
     profileRef,
     openCodeReadinessProvider,
@@ -337,6 +340,7 @@ const FACTORIES: Partial<Record<string, NativeHarnessFactory>> = {
     new OpenCodeNativeRuntimeAdapter({
       projectLocation,
       descriptor: OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
+      ...(mcpServers !== undefined ? { mcpServers } : {}),
       ...(accountBinding ? { accountBinding } : {}),
       ...(profileRef ? { profileRef } : {}),
       ...(openCodeReadinessProvider ? { readinessProvider: openCodeReadinessProvider } : {}),

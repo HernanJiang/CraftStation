@@ -1,6 +1,6 @@
 import { SessionEventHistory } from "../sessionEventHistory";
 import { randomUUID } from "node:crypto";
-import type { ProjectLocation } from "@/shared/contracts";
+import type { ProjectLocation, ResolvedMcpServer } from "@/shared/contracts";
 import { normalizeThirdPartyModelId } from "@/shared/thirdPartyRouting";
 import type {
   CraftPlan,
@@ -39,6 +39,7 @@ export interface OpenCodeNativeSessionOptions {
   readonly projectLocation: ProjectLocation;
   readonly plan: CraftPlan;
   readonly sessionRef?: string | undefined;
+  readonly mcpServers?: readonly ResolvedMcpServer[];
   readonly transport?: OpenCodeNativeTransport | OpenCodeNativeServerLease | undefined;
   readonly transportFactory?:
     | ((options: OpenCodeNativeTransportOptions) => OpenCodeNativeTransport)
@@ -242,6 +243,7 @@ export class OpenCodeNativeSession implements CraftSession {
       options.transport ??
       (options.transportFactory ?? ((input) => new OpenCodeNativeTransport(input)))({
         projectLocation: options.projectLocation,
+        ...(options.mcpServers ? { mcpServers: options.mcpServers } : {}),
         ...(options.onDiagnostic ? { onDiagnostic: options.onDiagnostic } : {}),
       });
     let connection: OpenCodeNativeConnection;

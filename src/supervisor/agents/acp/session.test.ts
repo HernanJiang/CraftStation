@@ -1877,6 +1877,22 @@ describe("ACP client protocol helpers", () => {
     });
   });
 
+  it("fails explicitly instead of silently dropping the required Craft-Harness goal service", async () => {
+    const { connection, session } = makeConfigSyncSession({
+      agentMcpCapabilities: { http: false },
+      mcpServers: [
+        {
+          id: "craft-goal",
+          name: "craft_goal",
+          timeoutMs: 30000,
+          transport: { type: "http", url: "http://127.0.0.1:9200/mcp", headers: {} },
+        },
+      ],
+    });
+    await expect(session.openThread({ model: "model-a" })).rejects.toThrow("GOAL_MCP_UNAVAILABLE");
+    expect(connection.newSession).not.toHaveBeenCalled();
+  });
+
   it("keeps HTTP MCP servers when the adapter assumes support and the agent advertises nothing", async () => {
     // Factory Droid answers `initialize` with no mcpCapabilities block but
     // connects HTTP MCP servers fine, so its adapter declares the transport.

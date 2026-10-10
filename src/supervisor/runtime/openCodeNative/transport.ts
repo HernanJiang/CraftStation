@@ -4,10 +4,11 @@ import { mkdirSync, mkdtempSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve as resolvePath, sep } from "node:path";
-import type { ProjectLocation } from "@/shared/contracts";
+import type { ProjectLocation, ResolvedMcpServer } from "@/shared/contracts";
 import type { NativeHarnessDiagnostic } from "@/shared/crafting";
 import { resolveAgentBinaryPath } from "@/supervisor/agents/binaryResolver";
 import { buildOpenCodeServerCommand } from "@/supervisor/agents/opencode/argv";
+import { buildOpenCodeMcpLaunchConfig } from "@/supervisor/agents/userMcp";
 import { terminateChildProcessTree } from "@/shared/processTree";
 import { isOpenCodePrivateRuntimeEnvironmentKey } from "../privateRuntimeEnvironment";
 import { buildOpenCodeNativeDiagnostic, safeMessage } from "./diagnostics";
@@ -48,6 +49,7 @@ export interface OpenCodeNativeTransportOptions {
   readonly executablePath?: string;
   /** Supervisor-resolved provider environment; values stay process-private. */
   readonly serverEnvironment?: Readonly<Record<string, string>>;
+  readonly mcpServers?: readonly ResolvedMcpServer[];
   /** Supervisor-private account runtime root. Never expose this path over IPC. */
   readonly serverRuntimeRoot?: string;
   readonly spawnProcess?: typeof spawn;
@@ -227,23 +229,37 @@ export class OpenCodeNativeTransport {
     const username = "craftstation";
     const password = randomUUID();
     const authorization = `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`;
-    const command = buildOpenCodeServerCommand(this.options.projectLocation, executable, {
+    const mcp = this.options.mcpServers
+      ? buildOpenCodeMcpLaunchConfig(this.options.mcpServers)
+      : undefined;
+    const sourceConfig = this.options.serverEnvironment?.OPENCODE_CONFIG_CONTENT;
+    const originalConfig = mcp && sourceConfig ? JSON.parse(sourceConfig) : {};
+    const serverEnvironment = {
       ...(this.options.serverEnvironment ?? {}),
+      ...(mcp
+        ? {
+            ...mcp.env,
+            OPENCODE_CONFIG_CONTENT: JSON.stringify({
+              ...originalConfig,
+              mcp: {
+                ...originalConfig.mcp,
+                ...JSON.parse(mcp.configContent).mcp,
+              },
+            }),
+          }
+        : {}),
       OPENCODE_SERVER_USERNAME: username,
       OPENCODE_SERVER_PASSWORD: password,
-    });
+    };
+    const command = buildOpenCodeServerCommand(
+      this.options.projectLocation,
+      executable,
+      serverEnvironment,
+    );
     const runtimeRoot =
       this.options.serverRuntimeRoot ??
       (this.temporaryRuntimeRoot ??= mkdtempSync(join(tmpdir(), "craftstation-opencode-native-")));
-    const childEnvironment = openCodeServerEnvironment(
-      command.env,
-      {
-        ...(this.options.serverEnvironment ?? {}),
-        OPENCODE_SERVER_USERNAME: username,
-        OPENCODE_SERVER_PASSWORD: password,
-      },
-      runtimeRoot,
-    );
+    const childEnvironment = openCodeServerEnvironment(command.env, serverEnvironment, runtimeRoot);
     const child = spawnProcess(command.command, command.args, {
       ...(command.cwd ? { cwd: command.cwd } : {}),
       env: childEnvironment,

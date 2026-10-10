@@ -80,7 +80,8 @@ describe("OpenCodeNativeTransport", () => {
     ]);
   });
 
-  it("reports SSE reconnect through the unified readiness diagnostic", async () => {    async function* failingStream(): AsyncIterable<unknown> {
+  it("reports SSE reconnect through the unified readiness diagnostic", async () => {
+    async function* failingStream(): AsyncIterable<unknown> {
       yield await Promise.reject(new Error("Bearer private-token connection lost"));
     }
     const diagnostics: unknown[] = [];
@@ -135,6 +136,7 @@ describe("OpenCodeNativeTransport", () => {
       executablePath: "C:/tools/opencode.exe",
       serverEnvironment: {
         OPENAI_API_KEY: "selected-account-secret",
+        OPENCODE_CONFIG_CONTENT: JSON.stringify({ provider: { fixture: { name: "Fixture" } } }),
         HOME: "C:/host-home",
         USERPROFILE: "C:/other-profile",
         APPDATA: "C:/other-appdata",
@@ -144,6 +146,18 @@ describe("OpenCodeNativeTransport", () => {
         XDG_CACHE_HOME: "C:/other-xdg-cache",
         OPENCODE_CONFIG_DIR: "C:/other-opencode-config",
       },
+      mcpServers: [
+        {
+          id: "craft-goal",
+          name: "craft_goal",
+          timeoutMs: 30000,
+          transport: {
+            type: "http",
+            url: "http://127.0.0.1:1234/mcp",
+            headers: { Authorization: "Bearer goal-secret" },
+          },
+        },
+      ],
       spawnProcess: spawnProcess as never,
       clientFactory: () => clientWithStream(oneEvent({ type: "session.idle" })),
     });
@@ -151,6 +165,11 @@ describe("OpenCodeNativeTransport", () => {
     await transport.connect();
     const env = (captured[0]?.options as { env?: Record<string, string> } | undefined)?.env ?? {};
     expect(env.OPENAI_API_KEY).toBe("selected-account-secret");
+    const config = JSON.parse(env.OPENCODE_CONFIG_CONTENT!);
+    expect(config.provider.fixture.name).toBe("Fixture");
+    expect(config.mcp.craft_goal.type).toBe("remote");
+    expect(env.OPENCODE_CONFIG_CONTENT).not.toContain("goal-secret");
+    expect(Object.values(env)).toContain("Bearer goal-secret");
     expect(env.HOME).toBe(env.USERPROFILE);
     expect(env.APPDATA).toBe(join(env.HOME!, "appdata"));
     expect(env.LOCALAPPDATA).toBe(join(env.HOME!, "local-appdata"));

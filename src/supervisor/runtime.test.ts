@@ -154,7 +154,8 @@ afterEach(async () => {
   appendFileMock.mockReset();
   nativeHarnessFactoryOverrides.clear();
   for (const dir of tempDirs.splice(0)) {
-    rmSync(dir, { recursive: true, force: true });
+    // Windows can briefly retain a file handle after a runtime shuts down.
+    rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
 });
 
@@ -3367,6 +3368,7 @@ describe("SupervisorRuntime craftAgent", () => {
             timeoutMs: selectedServer.timeoutMs,
             transport: selectedServer.transport,
           },
+          expect.objectContaining({ id: "craft-goal", name: "craft_goal" }),
         ],
       }),
     );
@@ -3420,6 +3422,7 @@ describe("SupervisorRuntime craftAgent", () => {
         mcpServers: [
           expect.objectContaining({ id: "server-one" }),
           expect.objectContaining({ id: "server-two" }),
+          expect.objectContaining({ id: "craft-goal", name: "craft_goal" }),
         ],
       }),
     );

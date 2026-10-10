@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => {
     view: { kind: "home" } as { kind: string; panes?: string[]; activeGroupId?: string },
     projects: [] as Project[],
     threads: [] as Thread[],
+    runtimeItemIdsByThread: {} as Record<string, string[]>,
+    runtimeItemsByIdByThread: {} as Record<string, Record<string, unknown>>,
     provisioningWorktreeThreadIds: {} as Record<string, true>,
     createThread: vi.fn<(input: unknown) => Thread>(),
     queueThreadLaunch:
@@ -42,6 +44,7 @@ const mocks = vi.hoisted(() => {
   };
   const remoteClient = {
     startThread: vi.fn<(input: unknown) => Promise<{ threadId: string }>>(),
+    controlThreadGoal: vi.fn<(input: unknown) => Promise<void>>(),
   };
   const remoteState = {
     servers: [] as Array<{
@@ -66,6 +69,7 @@ const mocks = vi.hoisted(() => {
       >(),
   };
   const bridge = {
+    controlThreadGoal: vi.fn<(input: unknown) => Promise<void>>().mockResolvedValue(undefined),
     startThread: vi.fn<(input: unknown) => Promise<{ threadId: string }>>(),
     dbUpsertThread: vi.fn<(thread: unknown) => Promise<void>>(),
     craftAgent: vi.fn<(input: unknown) => Promise<unknown>>(),
@@ -724,6 +728,11 @@ describe("startThreadFromDraft host transport", () => {
   });
 
   it("binds a draft /goal prompt to the new thread before launch", async () => {
+    mocks.appState.setThreadGoal.mockImplementation((threadId, goal) => {
+      mocks.appState.threads = mocks.appState.threads.map((thread) =>
+        thread.id === threadId ? { ...thread, goal: goal as Thread["goal"] } : thread,
+      );
+    });
     await startThreadFromDraft(localProject, {
       agentKind: "codex",
       config: { model: "gpt-5.6" },
@@ -735,6 +744,15 @@ describe("startThreadFromDraft host transport", () => {
     expect(mocks.appState.setThreadGoal).toHaveBeenCalledWith(
       "local-thread",
       expect.objectContaining({ prompt: "fix auth" }),
+    );
+    expect(mocks.bridge.controlThreadGoal).toHaveBeenCalledWith({
+      threadId: "local-thread",
+      action: "edit",
+      objective: "fix auth",
+      reassert: true,
+    });
+    expect(mocks.bridge.controlThreadGoal.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.bridge.startThread.mock.invocationCallOrder[0]!,
     );
     // The provider still gets the clean first message.
     expect(mocks.bridge.startThread).toHaveBeenCalledWith(
@@ -1256,6 +1274,8 @@ describe("performInitialThreadLaunch host transport", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.appState.runtimeItemIdsByThread = {};
+    mocks.appState.runtimeItemsByIdByThread = {};
     mocks.appState.projects = [];
     mocks.sharedSettings.customModels = [];
     mocks.sharedSettings.defaultPermissionMode = "ask";
@@ -1318,6 +1338,74 @@ describe("performInitialThreadLaunch host transport", () => {
     // The host resolves MCP from its own settings; clients must not inject any.
     expect(startInput).not.toHaveProperty("mcpServers");
     expect(mocks.bridge.startThread).not.toHaveBeenCalled();
+  });
+
+  it("registers a mirrored thread's goal on its host before starting the session", async () => {
+    await performInitialThreadLaunch({
+      thread: {
+        ...remoteThread,
+        goal: {
+          prompt: "Finish remotely",
+          createdAt: "2026-10-10T00:00:00Z",
+          updatedAt: "2026-10-10T00:00:00Z",
+          paused: true,
+        },
+      },
+      projectLocation: { kind: "posix", path: "/srv/repo", remoteServerId: "d1" },
+      prompt: "",
+      initialSize,
+    });
+    expect(mocks.remoteClient.controlThreadGoal).toHaveBeenNthCalledWith(1, {
+      threadId: "rt-1",
+      action: "edit",
+      objective: "Finish remotely",
+      reassert: true,
+    });
+    expect(mocks.remoteClient.controlThreadGoal).toHaveBeenNthCalledWith(2, {
+      threadId: "rt-1",
+      action: "pause",
+    });
+    expect(mocks.remoteClient.controlThreadGoal.mock.invocationCallOrder[1]).toBeLessThan(
+      mocks.remoteClient.startThread.mock.invocationCallOrder[0]!,
+    );
+  });
+
+  it("preserves a completed pre-upgrade goal's budget when registering before launch", async () => {
+    mocks.appState.runtimeItemIdsByThread[localThread.id] = ["old-goal"];
+    mocks.appState.runtimeItemsByIdByThread[localThread.id] = {
+      "old-goal": {
+        id: "old-goal",
+        type: "goal",
+        state: "completed",
+        streams: {},
+        payload: {
+          objective: "Already shipped",
+          status: "complete",
+          tokenBudget: 100,
+          tokensUsed: 100,
+        },
+      },
+    };
+    await performInitialThreadLaunch({
+      thread: {
+        ...localThread,
+        goal: { prompt: "Already shipped", createdAt: "2026-10-09", updatedAt: "2026-10-09" },
+      },
+      projectLocation: localProject.location,
+      prompt: "Follow-up",
+      initialSize,
+    });
+    expect(mocks.bridge.controlThreadGoal).toHaveBeenCalledWith(
+      expect.objectContaining({
+        reassert: true,
+        checkpoint: expect.objectContaining({
+          objective: "Already shipped",
+          status: "complete",
+          tokenBudget: 100,
+          tokensUsed: 100,
+        }),
+      }),
+    );
   });
 
   it("launches a local thread over the bridge with the MCP launch snapshot", async () => {

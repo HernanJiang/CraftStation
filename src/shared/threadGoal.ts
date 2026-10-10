@@ -3,11 +3,12 @@ import type { PromptSegment } from "./contracts";
 export type GoalSlashCommand =
   | { kind: "set"; prompt: string }
   | { kind: "empty" }
+  | { kind: "control"; action: "pause" | "resume" | "clear" }
   | { kind: "not-goal" };
 
 /**
  * Parse a composer line for the `/goal + Prompt` command. Only this form is
- * supported — no `/goal clear|done|...` subcommands in this round.
+ * supported, together with the user lifecycle controls pause/resume/clear.
  */
 export function parseGoalSlashCommand(text: string): GoalSlashCommand {
   if (!text.startsWith("/goal")) return { kind: "not-goal" };
@@ -18,6 +19,8 @@ export function parseGoalSlashCommand(text: string): GoalSlashCommand {
   }
   const prompt = rest.trim();
   if (prompt.length === 0) return { kind: "empty" };
+  if (prompt === "pause" || prompt === "resume" || prompt === "clear")
+    return { kind: "control", action: prompt };
   return { kind: "set", prompt };
 }
 
@@ -58,20 +61,16 @@ export function validateGoalPrompt(
 }
 
 /**
- * Build the fallback goal block prepended to the SENT prompt of every turn
- * while a thread goal is active. Explicitly labeled so neither the model nor
- * any reader mistakes it for a freshly typed user message. Native-goal
- * threads (Codex) never send this — the harness owns their goal.
+ * Legacy wire compatibility helper. Current launches get their persistent
+ * goal instructions from Craft-Harness in the supervisor.
  */
 export function buildGoalContextText(prompt: string): string {
   return `[CraftStation Goal · fallback — persistent thread goal set via /goal, carried automatically; context, not a new user request]\n${prompt}`;
 }
 
 /**
- * Native-first routing: only Codex exposes a real harness-level goal surface
- * (`thread/goal/*` on the official app-server). Every other integrated
- * harness gets the CraftStation fallback. The UI derives 原生/兼容 from this
- * same predicate so the label can never disagree with the runtime path.
+ * Legacy capability predicate retained for old native integrations.
+ * Current product goal controls route through Craft-Harness for every agent.
  */
 export function isCodexNativeGoalAgent(agentKind: string): boolean {
   return agentKind === "codex";

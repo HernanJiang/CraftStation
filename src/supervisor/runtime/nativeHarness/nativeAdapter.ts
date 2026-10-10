@@ -1,4 +1,5 @@
 import { SessionEventHistory } from "../sessionEventHistory";
+import { createDeepSeekMcpProjection } from "./deepSeekMcpProjection";
 import { randomUUID } from "node:crypto";
 import { resolveExecutablePath } from "@/supervisor/agents/base";
 import { buildAntigravityModelArgs } from "@/supervisor/agents/antigravity/argv";
@@ -835,6 +836,7 @@ export class NativeProcessHarnessRuntimeAdapter implements HarnessRuntimeAdapter
     const options = objectOptions(entity.craftPlan);
     const runtimeConfig = nativeRuntimeExecutionConfigForPlan(entity.craftPlan);
     const args: string[] = [];
+    let deepSeekMcpProjection: ReturnType<typeof createDeepSeekMcpProjection>;
     if (this.options.mode === "antigravity") {
       args.push(
         ...buildAntigravityModelArgs(
@@ -885,9 +887,14 @@ export class NativeProcessHarnessRuntimeAdapter implements HarnessRuntimeAdapter
           ...buildDeepSeekJsonRpcArgs(profile, this.options.runtimeArgs ?? []),
           ...(configPath ? ["--patch", configPath] : []),
         );
+        deepSeekMcpProjection = createDeepSeekMcpProjection(this.options.mcpServers ?? []);
+        if (deepSeekMcpProjection) args.push("--patch", deepSeekMcpProjection.configPath);
       } else {
         args.push(...(this.options.runtimeArgs ?? []));
-        if (configPath) args.push(configPath);
+        deepSeekMcpProjection = configPath
+          ? createDeepSeekMcpProjection(this.options.mcpServers ?? [], configPath)
+          : undefined;
+        if (configPath) args.push(deepSeekMcpProjection?.configPath ?? configPath);
       }
     }
     let session: NativeProcessCraftSession | undefined;
@@ -932,6 +939,7 @@ export class NativeProcessHarnessRuntimeAdapter implements HarnessRuntimeAdapter
             args,
             env: {
               ...(this.options.runtimeEnv ?? {}),
+              ...(deepSeekMcpProjection?.env ?? {}),
               ...(typeof options.configPath === "string" && options.configPath.trim()
                 ? { DSH_CORDIS_CONFIG: options.configPath.trim() }
                 : {}),
@@ -960,6 +968,7 @@ export class NativeProcessHarnessRuntimeAdapter implements HarnessRuntimeAdapter
         this.sessions.delete(terminatedSession);
         this.transports.delete(transport);
         antigravityMcpProjection?.dispose();
+        deepSeekMcpProjection?.dispose();
       },
       this.options.skillSegments,
       this.options.inlineSkillInstructions,
@@ -975,6 +984,7 @@ export class NativeProcessHarnessRuntimeAdapter implements HarnessRuntimeAdapter
       session.handleDiagnostic(record);
       session.disposeAfterReadinessFailure();
       antigravityMcpProjection?.dispose();
+      deepSeekMcpProjection?.dispose();
       if (protocolMismatch) {
         throw CraftingError.protocolMismatch(
           this.harnessKind,

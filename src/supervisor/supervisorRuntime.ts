@@ -54,7 +54,12 @@ import type {
   ProviderPoolConfig,
   ResolveThreadServerRequestPayload,
   ResolvedMcpServer,
+  ThreadGoalControlResult,
   SendThreadInputPayload,
+  ControlThreadGoalPayload,
+  StartThreadPayload,
+  StartThreadResult,
+  ThreadConfig,
   InterruptThreadPayload,
   SetPendingSteerPayload,
   ClearPendingSteerPayload,
@@ -159,6 +164,9 @@ import { AgentRegistryService } from "./runtime/agentRegistryService";
 import { GenerationService } from "./runtime/generationService";
 import { type SessionRuntime, type ShellSessionRuntime } from "./runtime/sessionTypes";
 import { ThreadSessionManager, writeSubmittedPrompt } from "./runtime/threadSessionManager";
+import { GoalCoordinator } from "./runtime/craftHarness/goalCoordinator";
+import { GoalMcpIngress } from "./runtime/craftHarness/goalMcpIngress";
+import { CRAFT_RETRY_CONTEXT, runWithCraftRetry } from "./runtime/craftHarness/turnRetry";
 import { CliHookPluginCoordinator } from "./runtime/cliHookPluginCoordinator";
 import { OwnSubagentsMcpIngress } from "./crossagentMcp/CrossagentMcpIngress";
 import { SubagentRunManager } from "./crossagentMcp/SubagentRunManager";
@@ -181,7 +189,7 @@ import { resolveWslHelpersDir } from "./wsl/wslDeploy";
 import { resolveWslHostAccess } from "./wsl/hostAccess";
 import { McpOAuthService } from "./mcp/McpOAuthService";
 import { McpProbeService } from "./mcp/McpProbeService";
-import { prepareMcpToolFilters } from "./mcp/McpToolFilterService";
+import { prepareMcpToolFilters, wrapHeaderBearingHttpMcpAsStdio } from "./mcp/McpToolFilterService";
 import { resolveCapabilities, type BuiltInMcpCandidate } from "./capabilities/capabilityResolver";
 import {
   readComputerUseMcpEnv,
@@ -572,6 +580,10 @@ export class SupervisorRuntime {
   private readonly isDev = Boolean(process.env.VITE_DEV_SERVER_URL);
   private readonly baseDir: string;
   private readonly emit: (event: SupervisorEvent) => void;
+  private readonly goals: GoalCoordinator;
+  private readonly goalMcp: GoalMcpIngress;
+  private readonly goalConfigByThread = new Map<string, ThreadConfig>();
+  private readonly craftedRetryAttempts = new Map<string, number>();
   private readonly runtimeEventSubscribers = new Set<
     (threadId: string, event: import("@/shared/contracts").RuntimeEvent) => void
   >();
@@ -744,6 +756,7 @@ export class SupervisorRuntime {
   constructor(emitToParent: (event: SupervisorEvent) => void) {
     const emit = (event: SupervisorEvent): void => {
       emitToParent(event);
+      this.goals?.observe(event);
       if (event.type === "thread-runtime-event") {
         this.observeParentTurnEnd(event.threadId, event.event);
         for (const listener of this.runtimeEventSubscribers) listener(event.threadId, event.event);
@@ -778,6 +791,52 @@ export class SupervisorRuntime {
       rawBaseDir && rawBaseDir !== "undefined" && isAbsolute(rawBaseDir) ? rawBaseDir : undefined;
     const baseDir = envBaseDir ?? resolveCraftStationBaseDir();
     this.baseDir = baseDir;
+    this.goals = new GoalCoordinator({
+      path: join(baseDir, "goals.json"),
+      emit,
+      snapshot: (threadId) => {
+        const crafted = this.craftedSessionsByThread.get(threadId);
+        if (crafted)
+          return {
+            identity: crafted.id,
+            idle: crafted.status === "idle" || crafted.status === "error",
+            planMode: this.goalConfigByThread.get(threadId)?.mode === "plan",
+            pendingInput:
+              this.sessionHandoffCoordinator.hasQueuedSwitch(threadId) ||
+              (this.craftedRequestsByThread.get(threadId)?.size ?? 0) > 0,
+            supportsContinuation: true,
+          };
+        const legacy = this.threadSessionManager?.sessions.get(threadId);
+        return legacy
+          ? {
+              identity: legacy.instanceId,
+              idle: legacy.status === "idle",
+              planMode: legacy.config.mode === "plan",
+              pendingInput: !!legacy.pendingSteer || !!legacy.pendingLaunchPrompt,
+              supportsContinuation:
+                !!legacy.structuredSession?.startTurn || legacy.cliHookEnvInjected === true,
+            }
+          : undefined;
+      },
+      continueGoal: async (threadId) => {
+        const config =
+          this.goalConfigByThread.get(threadId) ??
+          this.threadSessionManager.sessions.get(threadId)?.config;
+        if (!config) return;
+        await this.sendThreadInput(
+          { threadId, prompt: "继续推进当前目标，检查实际状态与完成证据。", config },
+          true,
+        );
+      },
+      stopForBudget: (threadId) => this.interruptThread({ threadId }),
+    });
+    this.goalMcp = new GoalMcpIngress(this.goals, (sessionId) => {
+      for (const [threadId, session] of this.craftedSessionsByThread) {
+        if (session.nativeSessionRef === sessionId || session.sessionRef === sessionId)
+          return threadId;
+      }
+      return this.threadSessionManager?.sessionsBySessionId.get(sessionId)?.threadId;
+    });
     this.runtimeSegmentLedger = new RuntimeSegmentLedger(baseDir);
     this.sessionHandoffCoordinator = new SessionHandoffCoordinator({
       ledger: this.runtimeSegmentLedger,
@@ -914,8 +973,11 @@ export class SupervisorRuntime {
         lookupSession: (input) => this.threadSessionManager.findSessionForCliHookPlugin(input),
         applyCliHookPluginState: (session, change) =>
           this.threadSessionManager.applyCliHookPluginState(session, change),
-        onRoutedEvent: (session, env) =>
-          this.threadSessionManager.noteCliHookPluginActivity(session, env),
+        onRoutedEvent: (session, env) => {
+          this.threadSessionManager.noteCliHookPluginActivity(session, env);
+          if (!session.structuredSession)
+            this.goals.observeHook(session.threadId, env.intent, env.extra);
+        },
         onUnroutable: (env) => {
           if (isCraftStationHookDebug()) {
             console.warn(
@@ -1085,6 +1147,10 @@ export class SupervisorRuntime {
           intervalMs: settings.turnRetryIntervalSeconds * 1000,
         };
       },
+      goalContext: (threadId) => this.goals.context(threadId),
+      onGoalFailure: (threadId) => this.goals.onFailure(threadId),
+      resolveGoalMcp: (threadId, location, adapter) =>
+        this.resolveGoalMcp(threadId, location, adapter),
       adapters: this.adapters,
       resolveWindowsShell: (runtime) => this.resolveWindowsShell(runtime),
       resolveAccountSessionEnv: (input) => this.resolveAccountSessionEnv(input),
@@ -1407,6 +1473,8 @@ export class SupervisorRuntime {
     const craftedSession = this.craftedSessionsByThread.get(payload.threadId);
     if (craftedSession) {
       this.sessionHandoffCoordinator.assertActiveExecution(payload.threadId, payload.execution);
+      this.goals.detach(payload.threadId);
+      this.goalMcp.unregister(payload.threadId);
       const switchState = this.sessionHandoffCoordinator.readState(payload.threadId);
       if (switchState?.phase === "queued") {
         this.sessionHandoffCoordinator.cancelQueued(payload.threadId, switchState.requestId);
@@ -1421,6 +1489,8 @@ export class SupervisorRuntime {
       return;
     }
     await this.threadSessionManager.closeThread(payload);
+    this.goals.detach(payload.threadId);
+    this.goalMcp.unregister(payload.threadId);
   }
 
   /**
@@ -1519,7 +1589,64 @@ export class SupervisorRuntime {
     return this.sessionHandoffCoordinator.readState(threadId) ?? null;
   }
 
-  async sendThreadInput(payload: SendThreadInputPayload): Promise<void> {
+  async controlThreadGoal(payload: ControlThreadGoalPayload): Promise<ThreadGoalControlResult> {
+    this.goals.control(payload.threadId, payload);
+    if (
+      payload.action === "pause" &&
+      (this.craftedSessionsByThread.has(payload.threadId) ||
+        this.threadSessionManager.sessions.has(payload.threadId))
+    )
+      await this.interruptThread({ threadId: payload.threadId });
+    if (
+      (payload.action === "resume" || (payload.action === "edit" && !payload.reassert)) &&
+      !this.craftedSessionsByThread.has(payload.threadId) &&
+      !this.threadSessionManager.sessions.has(payload.threadId)
+    )
+      return { requiresLaunch: true };
+  }
+
+  async startThread(payload: StartThreadPayload): Promise<StartThreadResult> {
+    if (payload.threadId) {
+      this.goalConfigByThread.set(payload.threadId, payload.config);
+      this.goals.onUserInput(payload.threadId);
+      this.goals.restore(payload.threadId);
+    }
+    try {
+      return await this.threadSessionManager.startThread(payload);
+    } catch (error) {
+      if (payload.threadId) this.goals.onFailure(payload.threadId);
+      throw error;
+    }
+  }
+
+  async sendThreadInput(payload: SendThreadInputPayload, automaticGoal = false): Promise<void> {
+    if (!automaticGoal && this.craftedSessionsByThread.has(payload.threadId)) {
+      this.craftedFailoverEpochByThread.set(
+        payload.threadId,
+        (this.craftedFailoverEpochByThread.get(payload.threadId) ?? 0) + 1,
+      );
+    }
+    const epoch = this.craftedFailoverEpochByThread.get(payload.threadId) ?? 0;
+    try {
+      await this.sendManagedThreadInput(payload, automaticGoal);
+    } catch (error) {
+      // 无会话时 renderer 会通过首次启动/恢复重建，不能提前把持久目标停掉。
+      if (
+        (this.craftedFailoverEpochByThread.get(payload.threadId) ?? 0) === epoch &&
+        (this.craftedSessionsByThread.has(payload.threadId) ||
+          this.threadSessionManager.sessions.has(payload.threadId))
+      )
+        this.goals.onFailure(payload.threadId);
+      throw error;
+    }
+  }
+
+  private async sendManagedThreadInput(
+    payload: SendThreadInputPayload,
+    automaticGoal: boolean,
+  ): Promise<void> {
+    this.goalConfigByThread.set(payload.threadId, payload.config);
+    if (!automaticGoal) this.goals.onUserInput(payload.threadId);
     const session = this.craftedSessionsByThread.get(payload.threadId);
     if (!session) {
       await this.threadSessionManager.sendThreadInput(payload);
@@ -1548,7 +1675,12 @@ export class SupervisorRuntime {
     const failoverLocation = this.craftProjectLocationByThread.get(payload.threadId);
     const failoverBinding = this.craftedSessionBindings.get(payload.threadId);
     const turnInput = await this.resolveCraftedTurnInput(payload, failoverPlan);
-    if (payload.config || payload.userMessageItemId || turnInput.inlineInstructions) {
+    if (
+      payload.config ||
+      payload.userMessageItemId ||
+      turnInput.inlineInstructions ||
+      this.goals.context(payload.threadId)
+    ) {
       const command = {
         prompt: turnInput.prompt,
         ...(turnInput.inlineInstructions
@@ -1559,6 +1691,12 @@ export class SupervisorRuntime {
           ? {
               overrides: {
                 model: payload.config.model,
+                ...(payload.config.effort
+                  ? {
+                      reasoningEffort: payload.config
+                        .effort as import("@/shared/crafting").RuntimeOverrides["reasoningEffort"],
+                    }
+                  : {}),
                 permissionConfig: permissionConfigSchema.parse(payload.config),
                 // Crafted Codex sessions read the Fast lane off
                 // `overrides.serviceTier`; a mid-thread composer toggle
@@ -1586,11 +1724,23 @@ export class SupervisorRuntime {
           projectLocation: failoverLocation,
           provider: failoverBinding.provider,
           failedAccountId: failoverBinding.accountId,
-          runTurn: (target) => target.startTurn(command),
+          runTurn: (target) =>
+            target.startTurn({
+              ...command,
+              inlineInstructions: this.goalInstructions(
+                payload.threadId,
+                command.inlineInstructions,
+              ),
+            }),
         });
         return;
       }
-      await session.startTurn(command);
+      await this.runCraftedTurnWithRetry(payload.threadId, (target) =>
+        target.startTurn({
+          ...command,
+          inlineInstructions: this.goalInstructions(payload.threadId, command.inlineInstructions),
+        }),
+      );
     } else {
       if (failoverPlan && failoverLocation && failoverBinding) {
         await this.runCraftedTurnWithPoolFailover({
@@ -1604,11 +1754,18 @@ export class SupervisorRuntime {
         });
         return;
       }
-      await session.sendPrompt(turnInput.prompt);
+      await this.runCraftedTurnWithRetry(payload.threadId, (target) =>
+        target.startTurn({
+          prompt: turnInput.prompt,
+          inlineInstructions: this.goalInstructions(payload.threadId, turnInput.inlineInstructions),
+        }),
+      );
     }
   }
 
   async interruptThread(payload: InterruptThreadPayload): Promise<void> {
+    if (this.goals.get(payload.threadId)?.status === "active")
+      this.goals.control(payload.threadId, { action: "pause" });
     const session = this.craftedSessionsByThread.get(payload.threadId);
     if (!session) {
       await this.threadSessionManager.interruptThread(payload);
@@ -2556,13 +2713,13 @@ export class SupervisorRuntime {
       );
       const firstTurn: ((target: CraftSession) => Promise<TurnResult | PromptResult>) | undefined =
         payload.prompt.trim().length > 0
-          ? payload.userMessageItemId
-            ? (target: CraftSession) =>
-                target.startTurn({
-                  prompt: payload.prompt,
-                  userMessageItemId: payload.userMessageItemId,
-                })
-            : (target: CraftSession) => target.sendPrompt(payload.prompt)
+          ? (target: CraftSession) =>
+              this.startCraftedPrompt(
+                target,
+                craftedThreadId!,
+                payload.prompt,
+                payload.userMessageItemId,
+              )
           : undefined;
       const useFailover = !!firstTurn && !!accountBinding && !!craftedThreadId;
       if (useFailover) failoverArmed = true;
@@ -2577,7 +2734,7 @@ export class SupervisorRuntime {
               failedAccountId: accountBinding!.accountId,
               runTurn: firstTurn,
             })
-          : await firstTurn(session)
+          : await this.runCraftedTurnWithRetry(craftedThreadId!, firstTurn)
         : { response: "" };
       // Same staleness rule as resume: report the session + binding the
       // failover may have moved the thread to.
@@ -2600,6 +2757,7 @@ export class SupervisorRuntime {
         ...(launchedBinding ? { accountBinding: launchedBinding } : {}),
       };
     } catch (error) {
+      if (payload.craftPlan.threadId) this.goals.onFailure(payload.craftPlan.threadId);
       // The native ACP session normally observes this before projecting the
       // failure. Keep the Supervisor boundary defensive as well: custom
       // adapters and a first-turn rejection may bypass that callback. Skipped
@@ -2656,7 +2814,19 @@ export class SupervisorRuntime {
   }
 
   async resumeCraftAgent(payload: ResumeCraftAgentPayload): Promise<CraftAgentResult> {
+    try {
+      return await this.resumeManagedCraftAgent(payload);
+    } catch (error) {
+      if (payload.craftPlan.threadId) this.goals.onFailure(payload.craftPlan.threadId);
+      throw error;
+    }
+  }
+
+  private async resumeManagedCraftAgent(
+    payload: ResumeCraftAgentPayload,
+  ): Promise<CraftAgentResult> {
     const threadId = payload.craftPlan.threadId;
+    if (threadId && payload.prompt?.trim()) this.goals.onUserInput(threadId);
     const live = threadId ? this.craftedSessionsByThread.get(threadId) : undefined;
     if (live && live.status !== "terminated" && live.status !== "error") {
       const activePlan = this.craftedPlansByThread.get(threadId!);
@@ -2701,6 +2871,7 @@ export class SupervisorRuntime {
               runTurn: (target) =>
                 target.startTurn({
                   prompt: payload.prompt!,
+                  inlineInstructions: this.goalInstructions(threadId!),
                   ...(payload.userMessageItemId
                     ? { userMessageItemId: payload.userMessageItemId }
                     : {}),
@@ -2709,13 +2880,16 @@ export class SupervisorRuntime {
                     : {}),
                 }),
             })
-          : await live.startTurn({
-              prompt: payload.prompt,
-              ...(payload.userMessageItemId
-                ? { userMessageItemId: payload.userMessageItemId }
-                : {}),
-              ...(payload.craftPlan.overrides ? { overrides: payload.craftPlan.overrides } : {}),
-            })
+          : await this.runCraftedTurnWithRetry(threadId!, (target) =>
+              target.startTurn({
+                prompt: payload.prompt!,
+                inlineInstructions: this.goalInstructions(threadId!),
+                ...(payload.userMessageItemId
+                  ? { userMessageItemId: payload.userMessageItemId }
+                  : {}),
+                ...(payload.craftPlan.overrides ? { overrides: payload.craftPlan.overrides } : {}),
+              }),
+            )
         : undefined;
       this.publishCraftedSessionState(threadId!, live);
       // The turn above may have rotated the pool binding via failover;
@@ -2830,13 +3004,13 @@ export class SupervisorRuntime {
       );
       const firstTurn: ((target: CraftSession) => Promise<TurnResult | PromptResult>) | undefined =
         payload.prompt?.trim()
-          ? payload.userMessageItemId
-            ? (target: CraftSession) =>
-                target.startTurn({
-                  prompt: payload.prompt!,
-                  userMessageItemId: payload.userMessageItemId,
-                })
-            : (target: CraftSession) => target.sendPrompt(payload.prompt!)
+          ? (target: CraftSession) =>
+              this.startCraftedPrompt(
+                target,
+                craftedThreadId!,
+                payload.prompt!,
+                payload.userMessageItemId,
+              )
           : undefined;
       const useFailover = !!firstTurn && !!accountBinding && !!craftedThreadId;
       if (useFailover) failoverArmed = true;
@@ -2851,7 +3025,7 @@ export class SupervisorRuntime {
               failedAccountId: accountBinding!.accountId,
               runTurn: firstTurn,
             })
-          : await firstTurn(session)
+          : await this.runCraftedTurnWithRetry(craftedThreadId!, firstTurn)
         : { response: "" };
       // Same staleness rule as the live branch: report the session + binding
       // the failover may have moved the thread to.
@@ -2874,6 +3048,7 @@ export class SupervisorRuntime {
         ...(rebuiltBinding ? { accountBinding: rebuiltBinding } : {}),
       };
     } catch (error) {
+      if (threadId) this.goals.onFailure(threadId);
       // Same skip rule as craftAgent: the failover helper already marked the
       // dead row when the first turn ran inside it; every other failure
       // still needs this write-back.
@@ -3676,7 +3851,11 @@ export class SupervisorRuntime {
       }
     }
 
-    if (resolution.mcpServers.length === 0 && resolution.builtInMcpServerIds.length === 0) {
+    if (
+      resolution.mcpServers.length === 0 &&
+      resolution.builtInMcpServerIds.length === 0 &&
+      !plan.threadId
+    ) {
       return undefined;
     }
 
@@ -3704,9 +3883,112 @@ export class SupervisorRuntime {
     const merged: ResolvedMcpServer[] = [
       ...selected.map(({ description: _description, enabled: _enabled, ...server }) => server),
       ...builtInServers,
+      ...(plan.threadId
+        ? [await this.resolveGoalMcp(plan.threadId, projectLocation, adapter, false)]
+        : []),
     ];
     if (merged.length === 0) return undefined;
     return merged;
+  }
+
+  private async resolveGoalMcp(
+    threadId: string,
+    location: ProjectLocation,
+    adapter?: AgentAdapter,
+    providerSession = adapter?.capabilities.crossagentMcpRouting === "provider-session",
+  ): Promise<ResolvedMcpServer> {
+    let server = await this.goalMcp.register(threadId, providerSession);
+    if (location.kind === "wsl" && server.transport.type === "http") {
+      const access = await resolveWslHostAccess(location.distro);
+      if (!access) throw new Error("GOAL_MCP_UNREACHABLE：WSL 无法连接目标管理服务。");
+      if (access.kind !== "loopback") {
+        const url = new URL(server.transport.url);
+        url.hostname = access.ip;
+        server = { ...server, transport: { ...server.transport, url: url.toString() } };
+      }
+    }
+    if (
+      (adapter && adapter.kind !== "codex" && adapter.kind !== "opencode") ||
+      adapter?.capabilities.requiresSecretFreeMcpConfig ||
+      adapter?.capabilities.supportsMcpHttpHeaders === false
+    ) {
+      return (await wrapHeaderBearingHttpMcpAsStdio([server], location))[0]!;
+    }
+    return server;
+  }
+
+  private goalInstructions(threadId: string, inline?: string): string | undefined {
+    return (
+      [
+        this.goals.context(threadId),
+        (this.craftedRetryAttempts.get(threadId) ?? 0) > 0 ? CRAFT_RETRY_CONTEXT : undefined,
+        inline,
+      ]
+        .filter(Boolean)
+        .join("\n\n") || undefined
+    );
+  }
+
+  private startCraftedPrompt(
+    session: CraftSession,
+    threadId: string,
+    prompt: string,
+    userMessageItemId?: string,
+  ): Promise<TurnResult | PromptResult> {
+    const inlineInstructions = this.goalInstructions(threadId);
+    return inlineInstructions || userMessageItemId
+      ? session.startTurn({
+          prompt,
+          ...(userMessageItemId ? { userMessageItemId } : {}),
+          ...(inlineInstructions ? { inlineInstructions } : {}),
+        })
+      : session.sendPrompt(prompt);
+  }
+
+  private async runCraftedTurnWithRetry<R>(
+    threadId: string,
+    run: (session: CraftSession) => Promise<R>,
+  ): Promise<R | undefined> {
+    const session = this.craftedSessionsByThread.get(threadId);
+    if (!session) throw new Error(`Unknown crafted session: ${threadId}`);
+    const epoch = this.craftedFailoverEpochByThread.get(threadId) ?? 0;
+    try {
+      return await runWithCraftRetry({
+        threadId,
+        policy: () => {
+          const settings = this.sharedSettingsCache.read();
+          return {
+            maxAttempts: settings.turnRetryMaxAttempts,
+            intervalMs: settings.turnRetryIntervalSeconds * 1000,
+          };
+        },
+        isCurrent: () =>
+          this.craftedSessionsByThread.get(threadId) === session &&
+          (this.craftedFailoverEpochByThread.get(threadId) ?? 0) === epoch,
+        emit: this.emit,
+        sleep: (ms) => new Promise((done) => setTimeout(done, ms)),
+        run: async (attempt) => {
+          this.craftedRetryAttempts.set(threadId, attempt);
+          const result = await run(session);
+          if (
+            result &&
+            typeof result === "object" &&
+            "status" in result &&
+            result.status === "failed"
+          ) {
+            const failure = result as unknown as TurnResult;
+            throw new Error(
+              failure.error ??
+                failure.events.find((event) => event.type === "error")?.message ??
+                "Crafted turn failed",
+            );
+          }
+          return result;
+        },
+      });
+    } finally {
+      this.craftedRetryAttempts.delete(threadId);
+    }
   }
 
   /**
@@ -4012,6 +4294,22 @@ export class SupervisorRuntime {
   ): void {
     if (!threadId) return;
     this.craftedSessionsByThread.set(threadId, session);
+    if (plan) {
+      const config = nativeRuntimeExecutionConfigForPlan(plan);
+      this.goalConfigByThread.set(threadId, {
+        ...this.goalConfigByThread.get(threadId),
+        model: config.model,
+        ...(config.reasoningEffort ? { effort: config.reasoningEffort } : {}),
+        ...(config.serviceTier
+          ? {
+              fast: config.serviceTier !== "default",
+              speedTier: config.serviceTier === "fast" ? "priority" : config.serviceTier,
+            }
+          : {}),
+        ...config.permissionConfig,
+      });
+    }
+    this.goals.restore(threadId);
     if (plan) this.craftedPlansByThread.set(threadId, plan);
     this.nativeHarnessSessions.set(harnessKind, session);
     if (binding) this.craftedSessionBindings.set(threadId, binding);
@@ -4491,7 +4789,7 @@ export class SupervisorRuntime {
       !isPoolRotationProvider(input.provider) ||
       input.plan.runtimeBinding.routeType === "compatibility"
     ) {
-      return input.runTurn(startedSession);
+      return this.runCraftedTurnWithRetry(input.threadId, input.runTurn);
     }
     const thirdPartyChannel = input.provider === THIRD_PARTY_CHANNEL_PROVIDER;
     const epochAtStart = this.craftedFailoverEpochByThread.get(input.threadId) ?? 0;
@@ -4527,7 +4825,7 @@ export class SupervisorRuntime {
       let flipProbe: Error | undefined;
       if (!skipFirstAttempt) {
         try {
-          const result = await input.runTurn(session);
+          const result = await this.runCraftedTurnWithRetry(input.threadId, input.runTurn);
           if (thirdPartyChannel) {
             const quotaFailure = readCraftedChannelFailure(result);
             if (quotaFailure) {
@@ -5238,6 +5536,8 @@ export class SupervisorRuntime {
     this.nativeHarnessAdapters.clear();
     await this.threadSessionManager.dispose();
     this.ownSubagentsMcpIngress.dispose();
+    this.goals.dispose();
+    this.goalMcp.dispose();
     this.sharedSettingsCache.dispose();
     await this.cliHookPluginCoordinator.dispose().catch((error) => {
       console.warn("[supervisor] CLI hook plugin coordinator dispose failed:", error);

@@ -18,7 +18,6 @@ import { toast } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ProjectLocation } from "@/shared/contracts";
 import { friendlyError } from "@/shared/messages";
-import { isCodexNativeGoalAgent } from "@/shared/threadGoal";
 import { buildWorktreeLocation } from "@/shared/worktree";
 import { showGitReviewPanel } from "@/renderer/actions/panelActions";
 import { readBridge } from "@/renderer/bridge";
@@ -777,11 +776,7 @@ export function ThreadStatusCapsule(props: ThreadStatusCapsuleProps) {
                             <Trans>目标</Trans>
                           </p>
                           <span className="shrink-0 text-[11px] text-muted [font-variant-numeric:tabular-nums]">
-                            {thread?.agentKind && isCodexNativeGoalAgent(thread.agentKind) ? (
-                              <Trans>原生</Trans>
-                            ) : (
-                              <Trans>兼容模式</Trans>
-                            )}
+                            Craft-Harness
                           </span>
                         </div>
                         <p className="truncate text-xs text-foreground">{thread.goal.prompt}</p>

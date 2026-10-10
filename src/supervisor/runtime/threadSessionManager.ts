@@ -191,6 +191,8 @@ export class ThreadSessionManager {
     });
     this.structuredTurnQueue = new StructuredTurnQueue({
       emit: options.emit,
+      ...(options.goalContext ? { goalContext: options.goalContext } : {}),
+      ...(options.onGoalFailure ? { onGoalFailure: options.onGoalFailure } : {}),
       sessions: this.sessions,
       beginFailureEpisode: (session) => this.structuredFailureReporter.beginEpisode(session),
       failStructuredSession: (session, error) => this.failStructuredSession(session, error),
@@ -1071,7 +1073,12 @@ export class ThreadSessionManager {
     }
     this.recentlyRemovedThreadIds.delete(threadId);
 
-    const run = this.spawnPipeline.startThreadInner({ ...payload, threadId });
+    const goalContext = this.options.goalContext?.(threadId) ?? payload.goalContext;
+    const run = this.spawnPipeline.startThreadInner({
+      ...payload,
+      threadId,
+      ...(goalContext ? { goalContext } : {}),
+    });
     this.startLocks.set(
       threadId,
       run.then(
@@ -1213,10 +1220,13 @@ export class ThreadSessionManager {
     // localizeWorkspaceAttachments returns the same array when it's a no-op, so
     // reuse the already-formatted prompt unless paths actually changed.
     const ptySegments = await this.localizeWorkspaceAttachments(session, terminalSegments);
-    const ptyPrompt =
+    const rawPtyPrompt =
       ptySegments === effectiveSegments
         ? prompt
         : this.formatSegmentsForPrompt(session, ptySegments, payload.prompt);
+    const ptyPrompt = [this.options.goalContext?.(session.threadId), rawPtyPrompt]
+      .filter(Boolean)
+      .join("\n\n");
     await writeSubmittedPrompt(
       pty,
       session.adapter.buildDirectInput?.(
@@ -1309,6 +1319,7 @@ export class ThreadSessionManager {
   }
 
   async controlThreadGoal(payload: ControlThreadGoalPayload): Promise<void> {
+    if (payload.action === "hold") return;
     const { threadId, ...control } = payload;
     const session = this.requireSession(threadId);
     if (session.structuredSession?.controlGoal) {

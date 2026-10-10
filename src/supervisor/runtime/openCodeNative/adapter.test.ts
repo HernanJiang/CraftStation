@@ -156,6 +156,18 @@ describe("OpenCode native route-specific runtime gate", () => {
       projectLocation: { kind: "windows", path: "C:/workspace" },
       descriptor: OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
       accountBinding,
+      mcpServers: [
+        {
+          id: "craft-goal",
+          name: "craft_goal",
+          timeoutMs: 30000,
+          transport: {
+            type: "http",
+            url: "http://127.0.0.1:1234/mcp",
+            headers: { Authorization: "Bearer thread-one" },
+          },
+        },
+      ],
       profileRef: "profile:work",
       readinessProvider: () => ({ status: "ready", reason: "Verified route fixture." }),
       runtimeBindingResolver: { resolve },
@@ -176,9 +188,33 @@ describe("OpenCode native route-specific runtime gate", () => {
     expect(transportOptions).toEqual([
       expect.objectContaining({
         serverEnvironment: { OPENAI_API_KEY: "supervisor-private" },
+        mcpServers: [expect.objectContaining({ name: "craft_goal" })],
       }),
     ]);
     expect(JSON.stringify(entity)).not.toContain("supervisor-private");
+    const second = new OpenCodeNativeRuntimeAdapter({
+      projectLocation: { kind: "windows", path: "C:/workspace" },
+      descriptor: OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
+      accountBinding,
+      readinessProvider: () => ({ status: "ready", reason: "Verified route fixture." }),
+      runtimeBindingResolver: { resolve },
+      serverPool: pool,
+      mcpServers: [
+        {
+          id: "craft-goal",
+          name: "craft_goal",
+          timeoutMs: 30000,
+          transport: {
+            type: "http",
+            url: "http://127.0.0.1:1234/mcp",
+            headers: { Authorization: "Bearer thread-two" },
+          },
+        },
+      ],
+    });
+    const secondSession = await second.createSession(entity);
+    expect(transportOptions).toHaveLength(2);
+    await secondSession.terminate();
     await session.terminate();
     await pool.dispose();
   });

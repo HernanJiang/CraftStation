@@ -518,6 +518,33 @@ function extractForwardCookieValue(setCookieHeader: string): string {
 }
 
 describe("RemoteAccessServer", () => {
+  it("returns the goal resume reattachment decision to a remote client", async () => {
+    const callSupervisor = vi.fn<RemoteAccessServerOptions["callSupervisor"]>(
+      async () => ({ requiresLaunch: true }) as never,
+    );
+    const server = new RemoteAccessServer({
+      appVersion: "1.9.1",
+      identity: { desktopId: "desktop-test", label: "Test Desktop" },
+      host: "127.0.0.1",
+      port: 0,
+      callSupervisor,
+    });
+    servers.push(server);
+    const info = await server.start();
+    const token = await issueAccessToken(info, ["session:operate"]);
+    const response = await fetch(new URL("/api/threads/thread-1/goal", info.httpBaseUrl), {
+      method: "POST",
+      headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+      body: JSON.stringify({ action: "resume" }),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, requiresLaunch: true });
+    expect(callSupervisor).toHaveBeenCalledWith("controlThreadGoal", {
+      threadId: "thread-1",
+      action: "resume",
+    });
+  });
+
   it("checks and installs a downloaded host update for manage-scoped clients", async () => {
     let updateStatus: RemoteHostUpdateStatus | null = null;
     const check = vi.fn<() => Promise<void>>(async () => {

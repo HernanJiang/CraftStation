@@ -1633,6 +1633,7 @@ export class SpawnPipeline {
     adapter?: AgentAdapter;
     presentationMode?: ThreadPresentationMode;
   }): Promise<ResolvedMcpServer[]> {
+    const goalThreadId = crossagentThreadId ?? identity?.threadId;
     if (
       adapter &&
       (!supportsMcpAtProjectLocation(adapter.capabilities, location) ||
@@ -1715,6 +1716,8 @@ export class SpawnPipeline {
       scheduleMcp,
       crossagentsPeerMcp,
     );
+    if (goalThreadId && this.ctx.options.resolveGoalMcp)
+      resolved.push(await this.ctx.options.resolveGoalMcp(goalThreadId, location, adapter));
     if (!adapter) return resolved;
     const secretFree =
       adapter.capabilities.requiresSecretFreeMcpConfig === true ||

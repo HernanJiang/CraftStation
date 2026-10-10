@@ -16,12 +16,13 @@ import {
 } from "@/shared/archiveRetention";
 import { isHomeProject } from "@/shared/homeScope";
 import { friendlyError } from "@/shared/messages";
-import { validateGoalPrompt, isCodexNativeGoalAgent } from "@/shared/threadGoal";
+import { validateGoalPrompt } from "@/shared/threadGoal";
 import { i18n } from "@/renderer/i18n/i18n";
 import { isDraftPaneId, parseDraftProjectId } from "@/shared/paneId";
 import { shouldRelaunchThreadOnOpen } from "@/shared/threadRelaunch";
 import { readBridge } from "@/renderer/bridge";
 import { useAppStore } from "@/renderer/state/appStore";
+import { selectThreadGoalDockState } from "@/renderer/components/thread/threadGoalState";
 import { getRuntimeExecutionEnvelope } from "@/renderer/state/sessionHandoffStore";
 import { findExperimentByThreadId, useExperimentStore } from "@/renderer/state/experimentStore";
 import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
@@ -604,7 +605,7 @@ export function toggleMarkThreadDone(threadId: string, options?: { preservePane?
 /**
  * Bind (or replace) the durable `/goal` prompt on a thread. Validates only —
  * the caller owns composer bookkeeping. Never sends anything: the goal rides
- * subsequent turns (native registration or fallback injection at submit).
+ * subsequent turns through Craft-Harness.
  */
 export function setThreadGoalPrompt(
   threadId: string,
@@ -620,7 +621,6 @@ export function setThreadGoalPrompt(
     prompt: validated.prompt,
     createdAt: thread.goal?.createdAt ?? now,
     updatedAt: now,
-    ...(thread.goal?.paused ? { paused: true } : {}),
   });
   return { ok: true };
 }
@@ -646,44 +646,67 @@ export function resumeThreadGoal(threadId: string): void {
 }
 
 /**
- * Best-effort native goal registration for Codex threads
- * (`thread/goal/*` on the official app-server). Returns false when there is
- * no live session yet or the harness refuses — the caller falls back to the
- * labeled text injection for that turn. Never throws.
+ * 向 Craft-Harness 注册线程目标；相同目标的重注册保留生命周期与累计用量。
  */
-export async function registerNativeGoal(threadId: string, objective: string): Promise<boolean> {
+export async function registerNativeGoal(
+  threadId: string,
+  objective: string,
+  reassert = true,
+): Promise<boolean> {
   try {
-    await readBridge().controlThreadGoal({ threadId, action: "edit", objective });
+    const checkpoint = reassert ? getThreadGoalCheckpoint(threadId, objective) : undefined;
+    const result = await readBridge().controlThreadGoal({
+      threadId,
+      action: "edit",
+      objective,
+      reassert,
+      ...(checkpoint ? { checkpoint } : {}),
+    });
+    if (result?.requiresLaunch && !reassert) {
+      const { submitThreadInput } = await import("./threadRuntimeActions");
+      await submitThreadInput(threadId, "继续推进当前目标，检查实际状态与完成证据。");
+    }
     return true;
   } catch (error) {
-    console.warn(`[goal] native registration failed for thread ${threadId}:`, error);
-    return false;
+    console.warn(`[goal] Craft-Harness registration failed for thread ${threadId}:`, error);
+    throw error;
   }
+}
+
+/** Import a pre-upgrade goal once; the supervisor ignores it when durable state exists. */
+export function getThreadGoalCheckpoint(threadId: string, objective: string) {
+  const state = useAppStore.getState();
+  if (!state.runtimeItemIdsByThread?.[threadId]) return undefined;
+  const previous = selectThreadGoalDockState(state, threadId);
+  if (!previous || previous.objective !== objective.replace(/\s+/g, " ").trim()) return undefined;
+  return {
+    objective,
+    status: previous.status,
+    tokenBudget: previous.tokenBudget,
+    tokensUsed: previous.tokensUsed,
+    timeUsedSeconds: previous.timeUsedSeconds,
+    iterations: previous.iterations,
+    lastReason: previous.lastReason,
+    deferred: previous.status === "active" && previous.availableActions?.includes("resume"),
+  };
 }
 
 /**
  * Truly stop a thread goal: interrupt the in-flight turn (it may already
- * carry the goal), clear a native registration when present, then delete the
+ * carry the goal), clear its Craft-Harness registration, then delete the
  * durable goal so later turns stop carrying it. UI derives from the deleted
  * field, so the chip/row vanish with this call.
  */
 export async function stopThreadGoal(threadId: string): Promise<void> {
   const store = useAppStore.getState();
   const thread = store.threads.find((t) => t.id === threadId);
-  if (!thread?.goal) return;
-  const agentKind = thread.agentKind;
+  if (!thread || (!thread.goal && !selectThreadGoalDockState(store, threadId))) return;
   try {
     await readBridge().interruptThread({ threadId });
   } catch (error) {
     console.warn(`[goal] interrupt during stop failed for thread ${threadId}:`, error);
   }
-  if (isCodexNativeGoalAgent(agentKind)) {
-    try {
-      await readBridge().controlThreadGoal({ threadId, action: "clear" });
-    } catch (error) {
-      console.warn(`[goal] native clear failed for thread ${threadId}:`, error);
-    }
-  }
+  await readBridge().controlThreadGoal({ threadId, action: "clear" });
   useAppStore.getState().setThreadGoal(threadId, undefined);
 }
 

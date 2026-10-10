@@ -71,7 +71,14 @@ export class AppServerProcessHost {
     this._resolvedBinary = binary;
 
     // Use official --stdio argument
-    const args = ["app-server", "--stdio", ...(this.options?.args ?? [])];
+    // Craft-Harness 拥有目标外围调度；禁用原生 goal，避免两个调度者同时续跑。
+    const args = [
+      "app-server",
+      "--stdio",
+      ...(this.options?.args ?? []),
+      "-c",
+      "features.goals=false",
+    ];
     this._spawnArgs = [...args];
     const cwd = this.options?.cwd ?? process.cwd();
     // Endpoint profiles are already compiled by provider/API. Initializing a

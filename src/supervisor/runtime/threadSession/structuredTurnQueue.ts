@@ -6,6 +6,8 @@ import type { QueuedStructuredTurn, SessionRuntime } from "../sessionTypes";
 
 export interface StructuredTurnQueueContext {
   emit(event: SupervisorEvent): void;
+  goalContext?(threadId: string): string | undefined;
+  onGoalFailure?(threadId: string): void;
   sessions: Map<string, SessionRuntime>;
   beginFailureEpisode(session: SessionRuntime): void;
   failStructuredSession(session: SessionRuntime, error: unknown): void;
@@ -86,7 +88,12 @@ export class StructuredTurnQueue {
     // Persistent fallback goal first (highest priority), then the failover
     // preface, then the raw prompt. Painted output always stays the raw
     // prompt (see the optimistic paint above).
-    const sendPrompt = [turn.goalContext, turn.retryContext, turn.historyPreface, turn.prompt]
+    const sendPrompt = [
+      this.ctx.goalContext?.(session.threadId) ?? turn.goalContext,
+      turn.retryContext,
+      turn.historyPreface,
+      turn.prompt,
+    ]
       .filter((part): part is string => typeof part === "string" && part.length > 0)
       .join("\n\n");
     delete turn.historyPreface;
@@ -122,7 +129,7 @@ export class StructuredTurnQueue {
     session.pendingLaunchPrompt = undefined;
     // One-shot fallback goal for the launch turn (same paint/send split as
     // regular turns; later turns re-assert via their own `goalContext`).
-    const launchGoal = session.pendingLaunchGoalContext;
+    const launchGoal = this.ctx.goalContext?.(session.threadId) ?? session.pendingLaunchGoalContext;
     session.pendingLaunchGoalContext = undefined;
     const sendPrompt = launchGoal ? `${launchGoal}\n\n${prompt}` : prompt;
     const options =
@@ -179,7 +186,10 @@ export class StructuredTurnQueue {
           nextStep: "Inspect the original turn failure and provider connection state.",
         });
       }
-      if (isCurrent()) this.ctx.failStructuredSession(session, error);
+      if (isCurrent()) {
+        this.ctx.onGoalFailure?.(session.threadId);
+        this.ctx.failStructuredSession(session, error);
+      }
     });
   }
 

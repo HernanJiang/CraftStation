@@ -608,6 +608,7 @@ export class CodexStructuredSession implements StructuredSessionHandle {
   }
 
   async controlGoal(control: ThreadGoalControl): Promise<void> {
+    if (control.action === "hold") return;
     const threadId = await this.waitForRemoteThreadId();
     if (control.action === "edit") {
       await this.rpc.request("thread/goal/set", {
