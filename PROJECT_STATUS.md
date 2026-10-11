@@ -2,8 +2,8 @@
 
 - **范围**：直接在 `main` 补齐对话中的已有文件与文件夹右键菜单：在侧边栏打开、在文件夹中打开、使用默认应用打开。
 - **实现**：覆盖回复徽标、Markdown 文件链接、用户文件引用和首屏回退渲染；三种操作共用项目路径解析。文件夹展开右侧 Files 树并恢复隐藏侧边栏；系统打开失败给出原因并保留侧边栏操作。菜单补齐 13 种界面语言。
-- **验证**：222 项相关回归、类型检查和两种 lint 通过。实际 Electron 窗口已验证中文文件预览、文件夹目录展开、中文菜单和真实系统打开失败反馈；最终 Electron 基线及三项 mock 门禁通过，控制台/运行时错误 0。NSIS 已构建，便携版构建中，详见 `ai_workspace/reports/chat-path-menu-1.9.4.md`。
-- **发布**：准备 v1.9.4 Windows 补丁，双语说明见 `ai_workspace/release-notes-1.9.4.md`。
+- **验证**：222 项相关回归、类型检查和两种 lint 通过。实际 Electron 窗口已验证中文文件预览、文件夹目录展开、中文菜单和真实系统打开失败反馈；最终 Electron 基线及三项 mock 门禁通过，控制台/运行时错误 0。包内版本、菜单和系统接口、17 项运行依赖与原生二进制、更新清单 SHA-512 均已核实，详见 `ai_workspace/reports/chat-path-menu-1.9.4.md`。
+- **发布**：修复提交 `3dc70653`、`main` 与 `v1.9.4` tag 已推送，[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.9.4) 已发布为最新稳定版。Windows x64 NSIS、blockmap、`latest.yml` 和便携版四个资产的远端 SHA-256 与大小均匹配本地；正文与本版双语说明一致。便携版保留 1.9.4 与 1.9.3，旧包和中间产物归档至 `D:/Work/CraftStation-release-archive/before-1.9.4/`；隔离测试窗口已退出且双端口关闭。
 
 ## 1.9.3 网页远程连接恢复修复（2026-10-11）
 
