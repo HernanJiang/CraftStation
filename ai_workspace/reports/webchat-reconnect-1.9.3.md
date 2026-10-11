@@ -8,4 +8,5 @@
 - 证据：`C:/Users/Haona/.craftstation-smoke/webchat-reconnect-20261011/artifacts/integration-final/smoke-report.json`；网页报告与断线/重连截图位于其 `webchat/` 子目录。
 - 外部边界：使用隔离 profile 与固定网页，没有改动用户真实账号。真实 ChatGPT 账号的完整 UI 回合未在本次复测。
 - 发布审计：`v1.9.2` 之后已有的发布验证文档提交省略（无用户行为变化）；本次修复的自动恢复、刷新入口、过期错误清理均已纳入 1.9.3 changelog；测试与 IPC 实现折入相应条目。
-- Windows 双包与发布：待构建收口后补记。
+- Windows 双包与发布：最终 NSIS 148829758 字节、便携版 127481496 字节；blockmap 与 361 字节 `latest.yml` 一并发布，更新清单指向 1.9.3 NSIS。安装包中的版本、刷新入口、恢复后发送错误清理与刷新 IPC 已核实；构建脚本验证 17 项运行依赖和原生二进制。`main` 与 `v1.9.3` tag 已推送，[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.9.3) 正式发布，远端四个资产大小与本地一致。本次没有额外校验 SHA。
+- 收尾：隔离测试窗口已 reset/stop；便携版保留 1.9.3 和 1.9.2，旧包与中间文件归档至 `D:/Work/CraftStation-release-archive/before-1.9.3/`；原有未跟踪研究材料未纳入提交。

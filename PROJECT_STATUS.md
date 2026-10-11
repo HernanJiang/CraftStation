@@ -3,7 +3,7 @@
 - **范围**：直接在 `main` 修复已登录网页仍停留在同步中断的问题，并增加顶部“刷新重试”。
 - **实现**：同步失败后继续观察现有网页，登录或页面恢复后更新连接状态；显式刷新重载绑定会话，已关闭网页重新创建；保留草稿和历史、不重发消息，回复生成期间不执行刷新。
 - **验证**：22 个文件、151 项相关测试通过；真实 Electron 固定网页全流程 19 项通过，含错误自动恢复、登录恢复、刷新草稿保留和关闭后重连；页面回归另覆盖发送断连后的旧错误清理与草稿保留。类型检查与两种 lint 通过，基础界面及 IPC mock 门禁通过，控制台/运行时错误为 0。完整真实账号回合未在本次隔离验证中测试。详见 `ai_workspace/reports/webchat-reconnect-1.9.3.md`。
-- **发布**：Windows x64 NSIS 与便携版构建中；双语说明见 `ai_workspace/release-notes-1.9.3.md`。
+- **发布**：`main` 与 `v1.9.3` tag 已推送，[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.9.3) 已发布为最新稳定版。Windows x64 NSIS、blockmap、`latest.yml` 和便携版四个资产齐备；包内刷新入口、错误清理和 IPC 已核实。双语说明见 `ai_workspace/release-notes-1.9.3.md`。便携版保留 1.9.3 与 1.9.2，旧包和中间产物归档至 `D:/Work/CraftStation-release-archive/before-1.9.3/`；隔离验证窗口已停止。
 
 ## 1.9.2 聊天渲染与完整历史导航修复（2026-10-11）
 
