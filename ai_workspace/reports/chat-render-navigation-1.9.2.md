@@ -38,3 +38,16 @@
 - `v1.9.1..HEAD` 的既有提交仅补充上一版 goal 发布验证文档，不作为本版新增能力重复列出。
 - 本次聊天修复纳入变更日志的渲染、历史与跳转三条说明；测试、版本号和验证材料不单独列为产品能力。
 - 补丁仅构建 Windows x64 NSIS 与便携版；发布正文采用中文在前、英文完整译文在后的格式。
+
+## 发布结果
+
+`main` 与 `v1.9.2` tag 已推送。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.9.2) 已正式发布并设为最新稳定版，四个资产已上传：
+
+| 资产                                        | 大小（字节） |
+| ------------------------------------------- | -----------: |
+| `CraftStation-Setup-1.9.2-x64.exe`          |    148845161 |
+| `CraftStation-Setup-1.9.2-x64.exe.blockmap` |       154923 |
+| `latest.yml`                                |          361 |
+| `CraftStation-Portable-1.9.2-x64.exe`       |    127490571 |
+
+更新清单版本为 1.9.2，指向 NSIS 安装包。`release/` 保留 1.9.2 与 1.9.1 两个稳定版便携包；旧便携包和中间产物采用可恢复的归档方式移至 `D:/Work/CraftStation-release-archive/before-1.9.2/`，其他版本的 NSIS 与更新资产保留。

@@ -3,7 +3,7 @@
 - **范围**：直接在 `main` 修复用户截图中的聊天文字重叠，以及左侧导航遗漏早期历史、长对话入口超出可见区域的问题。
 - **实现**：DOM 内容变更后及时测量虚拟行并同步后续位置；打开聊天页后分批加载全部历史，离开后取消继续请求；导航入口按高度压缩，历史跳转与搜索跳转解除跟随底部。
 - **验证**：52 个文件、713 项回归通过（1 个文件/1 项条件跳过）；真实 Electron 覆盖 120 轮入口、动态高度连续更新、三档缩放，以及数据库中 300 轮历史完整加载与第一轮跳转。类型检查、两种 lint 和 Electron mock smoke 通过，控制台及运行时错误为 0。详见 `ai_workspace/reports/chat-render-navigation-1.9.2.md`。
-- **发布**：正在构建 Windows x64 NSIS 与便携版，发布正文见 `ai_workspace/release-notes-1.9.2.md`。
+- **发布**：`main` 与 `v1.9.2` tag 已推送，[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.9.2) 已正式发布并设为最新稳定版。Windows x64 NSIS、blockmap、`latest.yml` 与便携版四个资产齐备，正文见 `ai_workspace/release-notes-1.9.2.md`。便携版保留 1.9.2 与 1.9.1；旧便携包和中间产物归档至 `D:/Work/CraftStation-release-archive/before-1.9.2/`。
 
 ## 1.9.1 Craft-Harness 统一 goal 修复（2026-10-10）
 
