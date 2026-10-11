@@ -58,6 +58,27 @@ describe("ChatNavRail", () => {
     scrollToIndex.mockClear();
   });
 
+  it("keeps an entry for every turn in a long conversation", () => {
+    const threadId = "thread-nav-long";
+    const users = Array.from({ length: 120 }, (_, index) =>
+      userItem(threadId, `user-${index}`, `第 ${index + 1} 轮`),
+    );
+    seedItems(threadId, users);
+    render(
+      <ChatNavRail
+        threadId={threadId}
+        entries={entriesFor(users.map((item) => item.id))}
+        scrollToIndex={scrollToIndex}
+      />,
+    );
+
+    expect(screen.getAllByTestId(/chat-nav-node-/u)).toHaveLength(120);
+    for (const index of [0, 60, 119]) {
+      fireEvent.click(screen.getByTestId(`chat-nav-node-${index}`));
+      expect(scrollToIndex).toHaveBeenLastCalledWith(index, { align: "start" });
+    }
+  });
+
   it("renders one node per user message and scrolls on click", () => {
     seedItems("thread-nav", [
       userItem("thread-nav", "user-1", "第一段需求说明"),

@@ -480,6 +480,31 @@ describe("MessageList", () => {
     }
   });
 
+  it("measures Markdown DOM growth before the next resize delivery", async () => {
+    legendDomReflowMode.current = "deferred";
+    seedCompletedItem("thread-1", "assistant-1", "assistant_message");
+    seedCompletedItem("thread-1", "user-1", "user_message");
+    const view = render(
+      <MessageList threadId="thread-1" entries={makeEntries(["assistant-1", "user-1"])} />,
+    );
+    const row = getVirtualRow(view.container, "assistant-1");
+    setElementSize(
+      row,
+      () => 180,
+      () => 500,
+    );
+    setItemSizeMock.mockClear();
+
+    await act(async () => {
+      const paragraph = document.createElement("p");
+      paragraph.textContent = "Markdown committed after the resize delivery";
+      row.appendChild(paragraph);
+    });
+
+    expect(setItemSizeMock).toHaveBeenCalledWith("assistant-1", { height: 180, width: 500 });
+    expect(mockLegendTops(view.container)).toEqual([0, 180]);
+  });
+
   it("pushes the rows below down when a mid-list row grows, before LegendList reflows", () => {
     legendDomReflowMode.current = "deferred";
     const observed: Array<{ target: Element; callback: () => void }> = [];

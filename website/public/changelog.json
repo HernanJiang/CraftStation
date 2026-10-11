@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.9.2",
+      "date": "2026-10-11",
+      "title": "Stable chat rendering & complete turn navigation",
+      "summary": "Long conversations keep every turn within reach, while streaming replies update without overlapping neighbouring messages.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Chat",
+          "text": "Messages update their measured height as Markdown changes so streaming and completed replies no longer overlap the next message."
+        },
+        {
+          "kind": "fixed",
+          "label": "History",
+          "text": "Opening a conversation loads all older turns in the background and fits every quick navigation entry within the left rail."
+        },
+        {
+          "kind": "fixed",
+          "label": "Navigation",
+          "text": "Jumping to an earlier turn or a search match releases automatic scrolling to the latest reply so you can keep reading that part of the conversation."
+        }
+      ]
+    },
+    {
       "version": "1.9.1",
       "date": "2026-10-10",
       "title": "Persistent goals across agent harnesses",

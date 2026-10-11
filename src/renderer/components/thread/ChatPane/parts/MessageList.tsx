@@ -685,7 +685,21 @@ const VirtualChatListRow = memo(function VirtualChatListRow({
       }
     });
     observer.observe(element);
-    return () => observer.disconnect();
+    // Markdown can commit after this frame's resize delivery. Measure DOM
+    // changes in their microtask as well, before the next paint, so a delayed
+    // virtualizer position update cannot leave the next message underneath it.
+    const mutations = new MutationObserver(() => {
+      const height = element.offsetHeight;
+      const layout = remeasureElement(entry.id, element, true);
+      if (layout && !isLastEntryRef.current && height > previousHeight) {
+        syncFollowingVirtualRowPositions(element, layout);
+      }
+    });
+    mutations.observe(element, { childList: true, characterData: true, subtree: true });
+    return () => {
+      observer.disconnect();
+      mutations.disconnect();
+    };
   }, [entry.id, remeasureElement]);
   useLayoutEffect(
     () => () => {

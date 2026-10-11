@@ -9,11 +9,15 @@ import { byTextContent } from "@/renderer/testUtils/text";
 
 const {
   hydrateThreadRuntimeItems,
+  loadCompleteThreadRuntimeHistory,
   loadOlderThreadRuntimeItems,
   releaseThreadRuntimeItems,
   retainThreadRuntimeItems,
 } = vi.hoisted(() => ({
   hydrateThreadRuntimeItems: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+  loadCompleteThreadRuntimeHistory: vi
+    .fn<(threadId: string, signal: AbortSignal) => Promise<void>>()
+    .mockResolvedValue(undefined),
   loadOlderThreadRuntimeItems: vi.fn<() => Promise<boolean>>().mockResolvedValue(false),
   releaseThreadRuntimeItems: vi.fn<() => void>(),
   retainThreadRuntimeItems: vi.fn<() => void>(),
@@ -29,6 +33,7 @@ const { legendScrollToEnd, legendScrollToIndex } = vi.hoisted(() => ({
 
 vi.mock("@/renderer/state/chatRuntimePersister", () => ({
   hydrateThreadRuntimeItems,
+  loadCompleteThreadRuntimeHistory,
   loadOlderThreadRuntimeItems,
   releaseThreadRuntimeItems,
   retainThreadRuntimeItems,
@@ -296,6 +301,19 @@ describe("ChatPane", () => {
     expect(screen.getByText("Connecting…")).toBeInTheDocument();
     expect(screen.queryByText(/^Working for/)).not.toBeInTheDocument();
     expect(screen.queryByText("No messages yet")).not.toBeInTheDocument();
+  });
+
+  it("loads the complete turn history on open and cancels further pages on close", async () => {
+    const thread = makeThread();
+    const { unmount } = renderChatPane(thread);
+
+    await waitFor(() => expect(loadCompleteThreadRuntimeHistory).toHaveBeenCalledOnce());
+    const [id, signal] = loadCompleteThreadRuntimeHistory.mock.calls[0]!;
+    expect(id).toBe(thread.id);
+    expect(signal.aborted).toBe(false);
+
+    unmount();
+    expect(signal.aborted).toBe(true);
   });
 
   it("loads the next persisted page when LegendList reaches the start", async () => {

@@ -101,6 +101,21 @@ export async function loadOlderThreadRuntimeItems(threadId: string): Promise<boo
   }
 }
 
+/** Load every persisted page so the navigation rail includes every turn. */
+export async function loadCompleteThreadRuntimeHistory(
+  threadId: string,
+  signal: AbortSignal,
+): Promise<void> {
+  while (!signal.aborted) {
+    const cursor = olderRuntimePageCursorByThread.get(threadId);
+    if (cursor === undefined || cursor === null) return;
+    await loadOlderThreadRuntimeItems(threadId);
+    // Stop on a failed request or a non-advancing cursor; retry on next open.
+    const nextCursor = olderRuntimePageCursorByThread.get(threadId);
+    if (nextCursor === cursor || (nextCursor != null && nextCursor > cursor)) return;
+  }
+}
+
 /**
  * Fetch persisted items for a thread and seed the Zustand store. Called on
  * `ChatPane` mount so reopening a thread shows past messages even after an
@@ -172,8 +187,7 @@ async function hydrateThreadRuntimeItemsFromDb(threadId: string): Promise<boolea
     // Compacting the tail into `tool-call-summary:*` ids would miss live tool
     // rows (same tools, different ids) and shuffle or duplicate the current
     // turn. Keep the raw tail whenever live items are already in memory.
-    const hasLiveItems =
-      (useAppStore.getState().runtimeItemIdsByThread[threadId]?.length ?? 0) > 0;
+    const hasLiveItems = (useAppStore.getState().runtimeItemIdsByThread[threadId]?.length ?? 0) > 0;
     const items = hasLiveItems ? rawItems : compactRuntimeItemsForHydration(rawItems);
     useAppStore.getState().hydrateThreadRuntimeItems(threadId, items);
     // Any sub-agent tool_call that was mid-flight when the prior session

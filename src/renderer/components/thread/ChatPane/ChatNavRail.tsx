@@ -108,6 +108,7 @@ export function ChatNavRail(props: {
     if (!itemsById) return [];
     const collected: NavNode[] = [];
     const order = itemIds ?? [];
+    const orderPositions = new Map(order.map((id, index) => [id, index]));
     for (let index = 0; index < entries.length; index += 1) {
       const entry = entries[index];
       if (!entry || entry.kind !== "item") continue;
@@ -116,8 +117,8 @@ export function ChatNavRail(props: {
       // The reply is the first assistant message after this prompt in store
       // order (before the next user prompt).
       let assistant: RuntimeChatItem | undefined;
-      const startAt = order.indexOf(entry.id);
-      if (startAt >= 0) {
+      const startAt = orderPositions.get(entry.id);
+      if (startAt !== undefined) {
         for (let k = startAt + 1; k < order.length; k += 1) {
           const next = itemsById[order[k]!];
           if (!next) continue;
@@ -173,7 +174,7 @@ export function ChatNavRail(props: {
       onMouseLeave={clearFocus}
       aria-label={t`Conversation quick navigation`}
     >
-      <div className="relative flex h-full w-full flex-col justify-center gap-1 py-2 pl-1.5">
+      <div className="relative flex h-full min-h-0 w-full flex-col justify-center py-2 pl-1.5">
         {nodes.map((node, index) => {
           const isCurrent = index === currentIndex;
           const distance =
@@ -195,10 +196,10 @@ export function ChatNavRail(props: {
                 focusNode(index, event.currentTarget);
                 scrollToIndex(node.entryIndex, { align: "start" });
               }}
-              className="pointer-events-auto flex min-h-4 items-center rounded-sm px-0.5 text-left outline-none focus-visible:bg-white/5"
+              className="pointer-events-auto flex min-h-0 max-h-5 flex-1 items-center rounded-sm px-0.5 text-left outline-none focus-visible:bg-white/5"
             >
               <span
-                className={`h-[3px] shrink-0 rounded-full transition-all duration-150 ${focusIndex === null ? "w-1.5" : tickWidthClassByDistance(distance)} ${
+                className={`h-[3px] max-h-full shrink-0 rounded-full transition-all duration-150 ${focusIndex === null ? "w-1.5" : tickWidthClassByDistance(distance)} ${
                   focusIndex === null
                     ? isCurrent
                       ? "bg-neutral-200"

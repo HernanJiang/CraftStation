@@ -5,6 +5,7 @@ import {
   compactRuntimeItemsForHydration,
   hasHydratedThreadRuntimeItems,
   hydrateThreadRuntimeItems,
+  loadCompleteThreadRuntimeHistory,
   loadOlderThreadRuntimeItems,
   releaseThreadRuntimeItems,
   retainThreadRuntimeItems,
@@ -165,6 +166,80 @@ describe("paged runtime hydration", () => {
       runtimeItemsByIdByThread: {},
       runtimeStructuralVersionByThread: {},
     }));
+  });
+
+  it("loads every older turn beyond the initial two prompts and twelve pages", async () => {
+    const threadId = "complete-history-thread";
+    seedOlderThreadRuntimeItemsCursor(threadId, 15);
+    useAppStore
+      .getState()
+      .hydrateThreadRuntimeItems(threadId, [
+        makeItem({ id: "recent-user-1", type: "user_message" }),
+        makeItem({ id: "recent-user-2", type: "user_message" }),
+      ]);
+    for (let cursor = 15; cursor > 0; cursor -= 1) {
+      bridge.dbGetThreadRuntimeItemsPage.mockResolvedValueOnce({
+        items: [makeItem({ id: `history-user-${cursor}`, type: "user_message" })],
+        nextCursor: cursor === 1 ? null : cursor - 1,
+      });
+    }
+
+    await loadCompleteThreadRuntimeHistory(threadId, new AbortController().signal);
+
+    expect(bridge.dbGetThreadRuntimeItemsPage).toHaveBeenCalledTimes(15);
+    expect(useAppStore.getState().runtimeItemIdsByThread[threadId]).toEqual([
+      ...Array.from({ length: 15 }, (_, index) => `history-user-${index + 1}`),
+      "recent-user-1",
+      "recent-user-2",
+    ]);
+  });
+
+  it("stops history loading after the pane closes and resumes from its cursor", async () => {
+    const threadId = "aborted-history-thread";
+    const controller = new AbortController();
+    seedOlderThreadRuntimeItemsCursor(threadId, 10);
+    bridge.dbGetThreadRuntimeItemsPage.mockImplementationOnce(async () => {
+      controller.abort();
+      return {
+        items: [makeItem({ id: "history-user-2", type: "user_message" })],
+        nextCursor: 5,
+      };
+    });
+
+    await loadCompleteThreadRuntimeHistory(threadId, controller.signal);
+    expect(bridge.dbGetThreadRuntimeItemsPage).toHaveBeenCalledTimes(1);
+
+    bridge.dbGetThreadRuntimeItemsPage.mockResolvedValueOnce({
+      items: [makeItem({ id: "history-user-1", type: "user_message" })],
+      nextCursor: null,
+    });
+    await loadCompleteThreadRuntimeHistory(threadId, new AbortController().signal);
+    expect(bridge.dbGetThreadRuntimeItemsPage).toHaveBeenLastCalledWith({
+      threadId,
+      beforePosition: 5,
+      limit: 500,
+      targetTimelineEntryCount: 40,
+    });
+    expect(useAppStore.getState().runtimeItemIdsByThread[threadId]).toEqual([
+      "history-user-1",
+      "history-user-2",
+    ]);
+  });
+
+  it("continues past an empty page but stops on a cursor that does not advance", async () => {
+    const threadId = "empty-history-page-thread";
+    seedOlderThreadRuntimeItemsCursor(threadId, 10);
+    bridge.dbGetThreadRuntimeItemsPage
+      .mockResolvedValueOnce({ items: [], nextCursor: 5 })
+      .mockResolvedValueOnce({
+        items: [makeItem({ id: "earliest-user", type: "user_message" })],
+        nextCursor: 5,
+      });
+
+    await loadCompleteThreadRuntimeHistory(threadId, new AbortController().signal);
+
+    expect(bridge.dbGetThreadRuntimeItemsPage).toHaveBeenCalledTimes(2);
+    expect(useAppStore.getState().runtimeItemIdsByThread[threadId]).toEqual(["earliest-user"]);
   });
 
   it("hydrates the tail and coalesces concurrent requests for the next cursor", async () => {

@@ -41,14 +41,18 @@ vi.mock("@legendapp/list/react", async () => {
       forwardedRef: React.ForwardedRef<unknown>,
     ) {
       const scrollRef = React.useRef<HTMLDivElement>(null);
+      const sizes = React.useRef(new Map<string, number>());
       const onLoadRef = React.useRef(props.onLoad);
       React.useImperativeHandle(forwardedRef, () => ({
         getScrollableNode: () => scrollRef.current,
         getState: () => ({
-          sizes: new Map(),
+          sizes: sizes.current,
           listen: () => () => undefined,
         }),
         scrollToEnd: mockScrollToEnd,
+        setItemSize: (key: string, size: { height: number }) => {
+          sizes.current.set(key, size.height);
+        },
       }));
       React.useLayoutEffect(() => onLoadRef.current?.(), []);
       return (

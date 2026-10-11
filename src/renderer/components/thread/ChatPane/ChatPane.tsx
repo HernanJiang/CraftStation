@@ -11,6 +11,7 @@ import { useThreadHasBackgroundActivity } from "@/renderer/hooks/uiSelectors";
 import { useAppStore } from "@/renderer/state/appStore";
 import {
   hydrateThreadRuntimeItems,
+  loadCompleteThreadRuntimeHistory,
   loadOlderThreadRuntimeItems,
   releaseThreadRuntimeItems,
   retainThreadRuntimeItems,
@@ -105,7 +106,13 @@ export function ChatPane(props: ChatPaneProps) {
   const contentRef = useRef<HTMLDivElement>(null);
   const scrollToIndexRef = useRef<ScrollToIndex | null>(null);
   const registerScrollToIndex = (handler: ScrollToIndex | null) => {
-    scrollToIndexRef.current = handler;
+    scrollToIndexRef.current = handler
+      ? (index, options) => {
+          scrollControlsRef.current?.markUserScrollIntent();
+          scrollControlsRef.current?.disableStickToBottom();
+          handler(index, options);
+        }
+      : null;
   };
   // `scrollEl` mirrors the LegendList-owned scroll node as React state for the
   // find controller and the shared scroll controls.
@@ -255,9 +262,16 @@ export function ChatPane(props: ChatPaneProps) {
   ]);
 
   useEffect(() => {
+    const controller = new AbortController();
     retainThreadRuntimeItems(threadId);
-    if (!isRemoteThread) void hydrateThreadRuntimeItems(threadId);
-    return () => releaseThreadRuntimeItems(threadId);
+    void (async () => {
+      if (!isRemoteThread) await hydrateThreadRuntimeItems(threadId);
+      await loadCompleteThreadRuntimeHistory(threadId, controller.signal);
+    })();
+    return () => {
+      controller.abort();
+      releaseThreadRuntimeItems(threadId);
+    };
   }, [isRemoteThread, threadId]);
 
   useEffect(() => {
