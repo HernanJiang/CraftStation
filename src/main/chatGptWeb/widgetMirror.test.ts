@@ -31,6 +31,7 @@ async function setup() {
     create: async () => "tab-1",
     exists: () => true,
     execute: async (_id, script) => dom.window.eval(script),
+    reload: async () => {},
     reveal: vi.fn<(id: string) => void>(),
     keepAlive: vi.fn<(id: string, active: boolean) => void>(),
     close: async () => {},

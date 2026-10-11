@@ -16773,6 +16773,10 @@ msgid "刷新列表"
 msgstr "刷新列表"
 
 #: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "刷新重试"
+msgstr "刷新重试"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
 msgid "没有已加载的对话。可先打开网页登录、加载旧对话，或直接粘贴链接。"
 msgstr "没有已加载的对话。可先打开网页登录、加载旧对话，或直接粘贴链接。"
 

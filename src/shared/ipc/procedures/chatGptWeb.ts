@@ -43,6 +43,11 @@ export const chatGptWebProcedures = {
     "main-local",
     webChatIdSchema,
   ),
+  webChatRefresh: definePayloadProcedure<Id, WebChatSession, "main-local">(
+    "webChatRefresh",
+    "main-local",
+    webChatIdSchema,
+  ),
   webChatSend: definePayloadProcedure<
     z.infer<typeof webChatSendSchema>,
     WebChatSession,

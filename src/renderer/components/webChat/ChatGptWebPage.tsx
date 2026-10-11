@@ -1,5 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-import { ArrowLeft, Globe, Plus, ExternalLink, Download, Trash2, Brain } from "lucide-react";
+import {
+  ArrowLeft,
+  Globe,
+  Plus,
+  ExternalLink,
+  Download,
+  Trash2,
+  Brain,
+  RefreshCw,
+} from "lucide-react";
 import { Modal } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Button } from "@/renderer/components/common/Button";
@@ -36,7 +45,9 @@ export function ChatGptWebPage() {
   const [prompt, setPrompt] = useState("");
   const [activeWidgetId, setActiveWidgetId] = useState<string>();
   const [pending, setPending] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string>();
+  const [syncError, setSyncError] = useState<string>();
   const [dialog, setDialog] = useState<"import" | "reasoning">();
   const [dialogError, setDialogError] = useState<string>();
   const [importUrl, setImportUrl] = useState("");
@@ -119,9 +130,19 @@ export function ChatGptWebPage() {
     const read = async () => {
       try {
         const next = await readBridge().webChatRead({ sessionId: selectedId });
-        if (!cancelled) replace(next);
+        if (!cancelled) {
+          replace(next);
+          setSyncError(undefined);
+          if (next.status === "ready")
+            setError((previous) =>
+              previous &&
+              /\bWEB_(DISCONNECTED|LOGIN_REQUIRED|PAGE_CHANGED|REPLY_FAILED)\b/.test(previous)
+                ? undefined
+                : previous,
+            );
+        }
       } catch (e) {
-        if (!cancelled) setError(String(e));
+        if (!cancelled) setSyncError(String(e));
       }
       if (!cancelled)
         timer = setTimeout(() => {
@@ -157,7 +178,7 @@ export function ChatGptWebPage() {
         return undefined;
       }
       if (next.status === "ready" || next.status === "streaming") return next;
-      if (next.status === "error") throw new Error(next.error);
+      if (next.status === "error") return undefined;
       await new Promise((resolve) => setTimeout(resolve, 300));
     } while (Date.now() < deadline);
     throw new Error(t`网页连接超时，请打开网页检查后重试。`);
@@ -212,12 +233,30 @@ export function ChatGptWebPage() {
   };
   const reveal = async () => {
     setError(undefined);
+    setSyncError(undefined);
     try {
       const next = session ?? (await readBridge().webChatCreate());
       if (!session) replace(next);
       await readBridge().webChatReveal({ sessionId: next.id });
     } catch (e) {
       setError(String(e));
+    }
+  };
+  const refresh = async () => {
+    if (pending || busy) return;
+    setPending(true);
+    setRefreshing(true);
+    setError(undefined);
+    setSyncError(undefined);
+    try {
+      const next = session ?? (await readBridge().webChatCreate());
+      if (!session) replace(next);
+      replace(await readBridge().webChatRefresh({ sessionId: next.id }));
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setPending(false);
+      setRefreshing(false);
     }
   };
   const openImport = async () => {
@@ -405,6 +444,19 @@ export function ChatGptWebPage() {
             <ExternalLink className="size-4" />
             <Trans>打开网页</Trans>
           </Button>
+          <Button
+            size="sm"
+            variant="tertiary"
+            data-testid="webchat-refresh"
+            isDisabled={pending || busy}
+            isPending={refreshing}
+            onPress={() => {
+              void refresh();
+            }}
+          >
+            <RefreshCw className="size-4" />
+            <Trans>刷新重试</Trans>
+          </Button>
         </div>
       </header>
       <div
@@ -473,12 +525,12 @@ export function ChatGptWebPage() {
         </div>
       </div>
       <footer className="mx-auto w-full max-w-4xl shrink-0 px-4 pb-4">
-        {(error || session?.error) && (
+        {(error || syncError || session?.error) && (
           <p
             role="alert"
             className="mb-3 break-words rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger"
           >
-            {error || session?.error}
+            {error || syncError || session?.error}
           </p>
         )}
         <UniversalDockedChatInput

@@ -16770,6 +16770,10 @@ msgid "刷新列表"
 msgstr "Refresh list"
 
 #: src/renderer/components/webChat/ChatGptWebPage.tsx
+msgid "刷新重试"
+msgstr "Refresh and retry"
+
+#: src/renderer/components/webChat/ChatGptWebPage.tsx
 msgid "没有已加载的对话。可先打开网页登录、加载旧对话，或直接粘贴链接。"
 msgstr "No conversations loaded. Open the website to sign in and load older conversations, or paste a link."
 

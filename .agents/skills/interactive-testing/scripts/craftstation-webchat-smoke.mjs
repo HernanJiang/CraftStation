@@ -52,6 +52,9 @@ try {
   await app.send("Runtime.enable");
   app.on("Runtime.exceptionThrown", (e) => errors.push(e.exceptionDetails.text));
   await evalApp(
+    "(()=>{const s=window.__craftstationDev.stores.agentStatuses.getState();s.hydrateFromCache({windows:s.agentStatuses,wsl:s.wslAgentStatuses});})()",
+  );
+  await evalApp(
     "window.craftstation.browserGetState().then(async s=>{for(const tab of s.tabs)await window.craftstation.browserCloseTab({tabId:tab.tabId})})",
     true,
   );
@@ -132,6 +135,22 @@ try {
         )
       ).status === "ready",
   );
+  await evalPage(
+    "document.body.insertAdjacentHTML('beforeend','<p role=\"alert\" id=\"transient-sync-error\">暂时无法加载网页</p>')",
+  );
+  await wait(
+    async () =>
+      (await evalApp("window.craftstation.webChatList()", true)).find((s) => s.id === session.id)
+        ?.status === "error",
+  );
+  await evalPage("document.querySelector('#transient-sync-error').remove()");
+  await wait(
+    async () =>
+      await evalApp(
+        "(()=>{const p=document.querySelector('[data-testid=chatgpt-web-page]');return /已连接|Connected/.test(p.innerText)&&!p.querySelector('[role=alert]');})()",
+      ),
+  );
+  checks.push("首次同步出错后网页恢复，真实界面自动重新检测并清除过期错误");
   await input("第一轮中文测试");
   await evalPage(
     "document.body.insertAdjacentHTML('beforeend','<button data-testid=\"login-button\">登录</button>')",
@@ -157,6 +176,20 @@ try {
   );
   if ((await evalPage("window.webchatSends")) !== 0) throw Error("登录恢复后擅自发送草稿");
   checks.push("未登录时打开官方侧边网页且保留输入；登录后等待用户发送，不自动重发");
+  await click('[data-testid="webchat-refresh"]');
+  await wait(
+    async () =>
+      await evalApp(
+        "(()=>{const p=document.querySelector('[data-testid=chatgpt-web-page]');return /已连接|Connected/.test(p.innerText)&&!p.querySelector('[data-testid=webchat-refresh]').disabled;})()",
+      ),
+  );
+  if (
+    (await evalApp("document.querySelector('[data-testid=chatgpt-web-page] textarea').value")) !==
+      "第一轮中文测试" ||
+    (await evalPage("window.webchatSends")) !== 0
+  )
+    throw Error("刷新重试丢失输入或擅自发送");
+  checks.push("真实刷新重试按钮重载网页登录页面，保留输入且未发送消息");
   await click('[data-testid="chatgpt-web-page"] button.craftstation-composer-send');
   await wait(async () =>
     (await evalApp("document.querySelector('[data-testid=chatgpt-web-page]').innerText")).includes(
@@ -397,6 +430,11 @@ try {
   await wait(
     async () => await evalPage("Boolean(document.querySelector('button[aria-label=\"停止\"]'))"),
   );
+  await wait(
+    async () =>
+      (await evalApp("window.craftstation.webChatList()", true)).find((s) => s.id === session.id)
+        ?.messages.length > 0,
+  );
   await evalApp(
     `window.craftstation.browserCloseTab({tabId:${JSON.stringify(session.tabId)}})`,
     true,
@@ -413,6 +451,32 @@ try {
   const tabsAfter = await evalApp("window.craftstation.browserGetState()", true);
   if (tabsAfter.tabs.some((t) => t.tabId === session.tabId)) throw new Error("关闭失败");
   checks.push("活动回合关闭网页 → 断线提示，不自动重发");
+  const disconnectedShot = await app.send("Page.captureScreenshot", { format: "png" });
+  await writeFile(
+    join(outDir, "disconnected-with-retry.png"),
+    Buffer.from(disconnectedShot.data, "base64"),
+  );
+  const closedTabId = session.tabId;
+  page.close();
+  await click('[data-testid="webchat-refresh"]');
+  await wait(async () => {
+    session = (await evalApp("window.craftstation.webChatList()", true)).find(
+      (s) => s.id === session.id,
+    );
+    return Boolean(session.tabId && session.tabId !== closedTabId);
+  });
+  await attachFixture("https://chatgpt.com/c/craftstation-disconnect-fixture");
+  await wait(
+    async () =>
+      await evalApp(
+        "(()=>{const p=document.querySelector('[data-testid=chatgpt-web-page]');return /已连接|Connected/.test(p.innerText)&&!p.querySelector('[role=alert]');})()",
+      ),
+  );
+  if ((await evalPage("window.webchatSends")) !== 0 || !session.messages.length)
+    throw Error("显式重连重发消息或清空历史");
+  checks.push("关闭网页后点击刷新重试，重建会话网页并恢复连接，保留历史且不重发");
+  const reconnectedShot = await app.send("Page.captureScreenshot", { format: "png" });
+  await writeFile(join(outDir, "reconnected.png"), Buffer.from(reconnectedShot.data, "base64"));
   if (errors.length) throw new Error(errors.join("\n"));
   console.log(JSON.stringify({ status: "passed", mode: "fixture", checks, errors }, null, 2));
   await writeFile(

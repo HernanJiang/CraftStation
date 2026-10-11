@@ -57,6 +57,7 @@ function fixture() {
     execute: vi.fn<WebChatBrowser["execute"]>(
       async (_id, script) => window.eval(script) as unknown,
     ),
+    reload: vi.fn<WebChatBrowser["reload"]>(async () => {}),
     reveal: vi.fn<WebChatBrowser["reveal"]>(),
     keepAlive: vi.fn<WebChatBrowser["keepAlive"]>(),
     close: vi.fn<WebChatBrowser["close"]>(async () => {
@@ -242,6 +243,47 @@ describe("ChatGPT 网页同步", () => {
     expect(native.index()).toBe(3);
     expect(f.count()).toBe(0);
   });
+  it("刷新恢复连接、保留历史和草稿，网页关闭后只显式重建一次", async () => {
+    const s = await runtime.create();
+    f.messages.innerHTML =
+      '<div data-message-author-role="assistant" data-message-id="old">旧回复</div>';
+    await runtime.read(s.id);
+    f.editor.value = "未发送草稿";
+    expect((await runtime.refresh(s.id)).status).toBe("ready");
+    expect(f.browser.reload).toHaveBeenCalledWith("test-tab", s.url);
+    expect(f.editor.value).toBe("未发送草稿");
+    f.detach();
+    const recovered = await runtime.refresh(s.id);
+    expect(recovered.messages[0]?.text).toBe("旧回复");
+    expect(f.browser.create).toHaveBeenCalledTimes(2);
+    expect(f.browser.reload).toHaveBeenCalledTimes(1);
+    expect(f.count()).toBe(0);
+  });
+  it("生成回复期间不刷新，失败回合仍在网页生成时也不刷新", async () => {
+    const s = await runtime.create();
+    await submit(s.id);
+    await expect(runtime.refresh(s.id)).rejects.toThrow("WEB_BUSY");
+    vi.mocked(f.browser.execute).mockRejectedValueOnce(new Error("WEB_DISCONNECTED：同步暂时断开"));
+    await vi.advanceTimersByTimeAsync(350);
+    await expect(runtime.refresh(s.id)).rejects.toThrow("WEB_BUSY");
+    expect(f.browser.reload).not.toHaveBeenCalled();
+    expect(f.count()).toBe(1);
+  });
+  it("刷新等待正在进行的只读检测完成", async () => {
+    const s = await runtime.create();
+    const execute = f.browser.execute;
+    vi.mocked(f.browser.execute).mockImplementationOnce(async (id, script) => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      return execute(id, script);
+    });
+    const reading = runtime.read(s.id);
+    const refreshing = runtime.refresh(s.id);
+    await vi.advanceTimersByTimeAsync(200);
+    await reading;
+    expect((await refreshing).status).toBe("ready");
+    expect(f.browser.reload).toHaveBeenCalledTimes(1);
+    expect(f.count()).toBe(0);
+  });
   it("删除须显式确认，核对 URL 与原生对话框后只提交一次，确认成功才移除历史", async () => {
     expect(
       webChatDeleteSchema.safeParse({
@@ -327,6 +369,18 @@ describe("ChatGPT 网页同步", () => {
     expect(runtime.list()[0]?.error).toContain("WEB_DISCONNECTED");
     expect(f.browser.create).toHaveBeenCalledTimes(1);
     expect(f.count()).toBe(1);
+  });
+  it("首次同步失败后，已登录网页恢复时自动重新检测连接", async () => {
+    const s = await runtime.create();
+    vi.mocked(f.browser.execute).mockRejectedValueOnce(
+      new Error("WEB_DISCONNECTED：网页已关闭，请重新连接。"),
+    );
+    expect((await runtime.read(s.id)).status).toBe("error");
+    const recovered = await runtime.read(s.id);
+    expect(recovered.status).toBe("ready");
+    expect(recovered.error).toBeUndefined();
+    expect(f.browser.create).toHaveBeenCalledTimes(1);
+    expect(f.count()).toBe(0);
   });
   it("已有网页草稿时拒绝覆盖，未登录时提示登录", async () => {
     const s = await runtime.create();

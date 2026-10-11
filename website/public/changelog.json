@@ -1,6 +1,28 @@
 {
   "releases": [
     {
+      "version": "1.9.3",
+      "date": "2026-10-11",
+      "title": "Web chat reconnects & refresh retry",
+      "summary": "ChatGPT web conversations recover their connection status after temporary errors or login, with a visible refresh control for interrupted sessions.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Web chat",
+          "text": "Use Refresh and retry to reload the current conversation or reopen a closed page while keeping your local draft and history."
+        },
+        {
+          "kind": "fixed",
+          "label": "Connection",
+          "text": "A temporary sync error no longer prevents CraftStation from detecting that the existing webpage has recovered or finished logging in."
+        },
+        {
+          "kind": "fixed",
+          "text": "Recovered connections clear outdated sync errors, and reconnecting never resends a previously submitted message."
+        }
+      ]
+    },
+    {
       "version": "1.9.2",
       "date": "2026-10-11",
       "title": "Stable chat rendering & complete turn navigation",

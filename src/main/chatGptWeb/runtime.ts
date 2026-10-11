@@ -30,6 +30,7 @@ export interface WebChatBrowser {
   create(url: string, reveal: boolean): Promise<string>;
   exists(tabId: string): boolean;
   execute(tabId: string, script: string): Promise<unknown>;
+  reload(tabId: string, url: string): Promise<void>;
   reveal(tabId: string): void;
   keepAlive(sessionId: string, active: boolean): void;
   close(tabId: string): Promise<void>;
@@ -45,6 +46,13 @@ export function embeddedWebChatBrowser(manager: BrowserPanelManager): WebChatBro
     create: async (url, reveal) =>
       (await manager.createTab({ url, reveal, activate: reveal }, { awaitAttach: false })).tabId,
     exists: (id) => Boolean(manager.getTab(id)),
+    reload: async (id, url) => {
+      await manager.ensureTabReady(id);
+      const tab = manager.getTab(id);
+      if (!tab?.isAttached()) throw new Error("WEB_DISCONNECTED：网页已关闭，请重新连接。");
+      if (tab.webContents.getURL() === url) await manager.reload(id);
+      else await manager.navigate(id, url);
+    },
     execute: async (id, script) => {
       await manager.ensureTabReady(id);
       const tab = manager.getTab(id);
@@ -359,6 +367,38 @@ export class ChatGptWebRuntime {
       }
     }
   }
+  async refresh(id: string) {
+    const session = this.get(id);
+    const deadline = Date.now() + 10_000;
+    while (this.locks.has(id) && !this.turns.has(id) && Date.now() < deadline) await sleep(30);
+    if (this.locks.has(id) || this.turns.has(id)) throw new Error("WEB_BUSY：请等待当前回复完成。");
+    this.locks.add(id);
+    this.browser.keepAlive(id, true);
+    try {
+      const tabExists = Boolean(session.tabId && this.browser.exists(session.tabId));
+      const tabId = await this.attach(session, false);
+      if (tabExists) {
+        // A failed local turn may still be generating on the webpage. Observe
+        // before reloading; reconnecting never repeats a send or stop click.
+        const snapshot = (await this.browser
+          .execute(tabId, chatGptPageScript("read"))
+          .catch(() => undefined)) as ChatGptPageSnapshot | undefined;
+        if (snapshot?.generating) throw new Error("WEB_BUSY：网页正在生成回复。");
+        await this.browser.reload(tabId, session.url);
+      }
+      session.status = "connecting";
+      session.error = undefined;
+      this.log(session, "reconnect", "ok");
+    } catch (error) {
+      const code = error instanceof Error ? /^WEB_[A-Z_]+/.exec(error.message)?.[0] : undefined;
+      this.log(session, "reconnect", "failed", code ?? "WEB_RECONNECT_FAILED");
+      throw error;
+    } finally {
+      this.locks.delete(id);
+      this.browser.keepAlive(id, false);
+    }
+    return this.read(id);
+  }
   private async page(session: WebChatSession, action: "read" | "send" | "stop", prompt?: string) {
     const tabId = await this.attach(session, false);
     const result = (await this.browser.execute(
@@ -448,7 +488,11 @@ export class ChatGptWebRuntime {
     }, 4000);
     timer.unref();
     this.viewTimers.set(id, timer);
-    if (session.status === "error") return this.copy(session);
+    // Re-check an existing webpage after navigation / login / attachment errors.
+    // A closed failed turn requires an explicit reconnect instead of opening
+    // another webpage in the background.
+    if (session.status === "error" && (!session.tabId || !this.browser.exists(session.tabId)))
+      return this.copy(session);
     if (!this.turns.has(id) && !this.locks.has(id)) {
       this.locks.add(id);
       try {
