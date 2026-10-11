@@ -89,6 +89,8 @@ function PlainText({
               line={node.line}
               endLine={node.endLine}
               onOpen={actions?.openProjectRelativePath}
+              onShowInExplorer={actions?.showProjectEntryInExplorer}
+              onOpenWithSystem={actions?.openProjectEntryWithSystem}
             />
           );
         }
@@ -98,6 +100,7 @@ function PlainText({
             path={toRelative(node.path)}
             onRevealInTree={actions?.revealProjectFolderInTree}
             onShowInExplorer={actions?.showProjectEntryInExplorer}
+            onOpenWithSystem={actions?.openProjectEntryWithSystem}
           />
         );
       })}

@@ -16838,3 +16838,18 @@ msgstr "网页连接超时，请打开网页检查后重试。"
 
 msgid "使用侧边浏览器已登录的 ChatGPT 账号。发送后回复实时显示在这里；尚未登录时会打开官方登录页。"
 msgstr "使用侧边浏览器已登录的 ChatGPT 账号。发送后回复实时显示在这里；尚未登录时会打开官方登录页。"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open in sidebar"
+msgstr "在侧边栏打开"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open in folder"
+msgstr "在文件夹中打开"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open with default app"
+msgstr "使用默认应用打开"

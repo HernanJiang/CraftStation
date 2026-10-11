@@ -16687,3 +16687,18 @@ msgstr "Найвищий за замовчуванням"
 #: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
 msgid "默认思考强度"
 msgstr "Інтенсивність міркування за замовчуванням"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open in sidebar"
+msgstr "Відкрити на бічній панелі"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open in folder"
+msgstr "Відкрити в папці"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open with default app"
+msgstr "Відкрити в типовому застосунку"

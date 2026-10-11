@@ -502,10 +502,16 @@ async function waitForTarget(timeoutMs) {
 
       const viteError = lastCandidateStates.find((state) => state.viteError)?.viteError;
       if (viteError) throw new Error(`renderer Vite error: ${viteError}`);
-      if (lastCandidateStates.some((state) => state.crashScreen)) {
-        throw new Error(
-          `renderer crash screen is mounted: ${await evaluate(client, "document.body.innerText.slice(0, 4000)")}`,
-        );
+      const crashedState = lastCandidateStates.find((state) => state.crashScreen);
+      if (crashedState) {
+        const target = candidates.find((candidate) => candidate.id === crashedState.targetId);
+        const crashClient = await connectTarget(target);
+        try {
+          const detail = await evaluate(crashClient, "document.body.innerText.slice(0, 4000)");
+          throw new Error(`renderer crash screen is mounted: ${detail}`);
+        } finally {
+          await crashClient.close();
+        }
       }
 
       const clearlyBroken = lastCandidateStates.some(

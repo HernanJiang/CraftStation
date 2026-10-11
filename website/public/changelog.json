@@ -1,6 +1,27 @@
 {
   "releases": [
     {
+      "version": "1.9.4",
+      "date": "2026-10-11",
+      "title": "Chat file opening choices",
+      "summary": "Right-click files and folders in conversations to choose where they open, while keeping the chat visible in the sidebar workflow.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Files",
+          "text": "Right-click a file or folder reference to open it in the sidebar, reveal it in its folder, or open it with the default application."
+        },
+        {
+          "kind": "improved",
+          "text": "File badges, Markdown links, and file mentions share the same opening choices, with relative paths and bare filenames resolved against the current project."
+        },
+        {
+          "kind": "fixed",
+          "text": "Opening a folder in the sidebar expands the Files tree, and system application failures show a reason without disabling sidebar access."
+        }
+      ]
+    },
+    {
       "version": "1.9.3",
       "date": "2026-10-11",
       "title": "Web chat reconnects & refresh retry",

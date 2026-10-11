@@ -20,7 +20,7 @@ import {
   finalizeFileCheckpoint,
   hydrateFileCheckpoints,
 } from "@/renderer/state/fileCheckpointActions";
-import { useFileEditorStore } from "@/renderer/state/fileEditorStore";
+import { usePanelStore } from "@/renderer/state/panelStore";
 import { useProjectRootNames } from "@/renderer/state/projectRootNamesStore";
 import { useProjectTreeStore } from "@/renderer/state/projectTreeStore";
 import { useRemoteServersStore } from "@/renderer/state/remoteServersStore";
@@ -29,7 +29,7 @@ import {
   openFileInRightPanel,
   resolveWorktreeBranch,
 } from "@/renderer/utils/gitHelpers";
-import { showSubAgentPanel } from "@/renderer/actions/panelActions";
+import { showFilesPanel, showSubAgentPanel } from "@/renderer/actions/panelActions";
 import { ChatFindBar, type ScrollToIndex } from "@/renderer/components/find/ChatFindBar";
 import { ChatPaneActionsContext, type ChatPaneActions } from "./chatPaneActionsContext";
 import { ChatScrollControls, type ChatScrollControlsHandle } from "./ChatScrollControls";
@@ -173,14 +173,15 @@ export function ChatPane(props: ChatPaneProps) {
 
   const paneActions: ChatPaneActions | null = useMemo(() => {
     if (!project || !targetContext || isHomeScope) return null;
+    const resolveEntryPath = (path: string) =>
+      resolveBareBasename(
+        normalizeChatProjectPath(path, targetContext.projectLocation),
+        targetContext.projectLocation,
+        projectRootNames,
+      );
     return {
       openProjectRelativePath: async (path, lineNumber) => {
-        const normalized = normalizeChatProjectPath(path, targetContext.projectLocation);
-        const resolvedPath = await resolveBareBasename(
-          normalized,
-          targetContext.projectLocation,
-          projectRootNames,
-        );
+        const resolvedPath = await resolveEntryPath(path);
         if (onOpenProjectRelativePath) {
           onOpenProjectRelativePath(resolvedPath, lineNumber);
           return;
@@ -196,28 +197,29 @@ export function ChatPane(props: ChatPaneProps) {
           onRevealProjectFolderInTree(normalized);
           return;
         }
-        const fileEditor = useFileEditorStore.getState();
-        const currentRoot = fileEditor.rootContext;
-        const isSameContext =
-          currentRoot?.projectId === targetContext.projectId &&
-          currentRoot?.worktreePath === targetContext.worktreePath;
-        if (!isSameContext) {
-          fileEditor.setRootContext(targetContext);
-        }
-        if (fileEditor.overlayMode !== "fullscreen") {
-          fileEditor.setOverlayMode("modal");
+        showFilesPanel(projectId, worktreePath);
+        const panel = usePanelStore.getState();
+        if (panel.auxiliaryPanelPlacement === "hidden") {
+          panel.setAuxiliaryPanelPlacement("right");
         }
         const ancestors = collectPathAncestors(normalized);
         useProjectTreeStore.getState().expandMany(ancestors);
       },
-      ...(canShowProjectEntryInExplorer === false
+      ...(canShowProjectEntryInExplorer === false || isRemoteThread
         ? {}
         : {
-            showProjectEntryInExplorer: (path: string) => {
-              const normalized = normalizeChatProjectPath(path, targetContext.projectLocation);
-              void readBridge().revealProjectEntry({
+            showProjectEntryInExplorer: async (path: string) => {
+              const resolvedPath = await resolveEntryPath(path);
+              await readBridge().revealProjectEntry({
                 projectLocation: targetContext.projectLocation,
-                path: normalized,
+                path: resolvedPath,
+              });
+            },
+            openProjectEntryWithSystem: async (path: string) => {
+              const resolvedPath = await resolveEntryPath(path);
+              await readBridge().openProjectEntryWithSystem({
+                projectLocation: targetContext.projectLocation,
+                path: resolvedPath,
               });
             },
           }),
@@ -258,6 +260,8 @@ export function ChatPane(props: ChatPaneProps) {
     onOpenProjectRelativePath,
     onRevealProjectFolderInTree,
     canShowProjectEntryInExplorer,
+    isRemoteThread,
+    projectId,
     thread.remoteServerId,
   ]);
 

@@ -467,6 +467,8 @@ function renderUserMessageInlineContent(
           key={`file-${index}-${block.path}`}
           path={path}
           onOpen={actions?.openProjectRelativePath}
+          onShowInExplorer={actions?.showProjectEntryInExplorer}
+          onOpenWithSystem={actions?.openProjectEntryWithSystem}
         />,
       );
     }

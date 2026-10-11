@@ -16687,3 +16687,18 @@ msgstr "Máximo por defecto"
 #: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
 msgid "默认思考强度"
 msgstr "Intensidad de razonamiento predeterminada"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open in sidebar"
+msgstr "Abrir en la barra lateral"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open in folder"
+msgstr "Abrir en la carpeta"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open with default app"
+msgstr "Abrir con la aplicación predeterminada"

@@ -16835,3 +16835,18 @@ msgstr "Website connection timed out. Open the website to check, then retry."
 
 msgid "使用侧边浏览器已登录的 ChatGPT 账号。发送后回复实时显示在这里；尚未登录时会打开官方登录页。"
 msgstr "Use the ChatGPT account signed in to the side browser. Replies appear here in real time; if you are signed out, the official login page opens."
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open in sidebar"
+msgstr "Open in sidebar"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open in folder"
+msgstr "Open in folder"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open with default app"
+msgstr "Open with default app"

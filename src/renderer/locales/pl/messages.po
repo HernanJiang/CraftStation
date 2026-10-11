@@ -16687,3 +16687,18 @@ msgstr "Domyślnie najwyższy"
 #: src/renderer/views/MainView/parts/Sidebar/parts/CustomModelDialog.tsx
 msgid "默认思考强度"
 msgstr "Domyślna intensywność myślenia"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open in sidebar"
+msgstr "Otwórz w panelu bocznym"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open in folder"
+msgstr "Otwórz w folderze"
+
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFilePathChip.tsx
+#: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
+msgid "Open with default app"
+msgstr "Otwórz w domyślnej aplikacji"

@@ -4,10 +4,12 @@ import type { RemoteImageRefValue } from "@/shared/remote";
 
 export type ChatPaneActions = {
   openProjectRelativePath: (path: string, lineNumber?: number) => Promise<void>;
-  /** Open the in-app file editor overlay and expand the project tree to the folder. */
+  /** Open the sidebar Files workspace and expand the project tree to the folder. */
   revealProjectFolderInTree: (path: string) => void;
   /** Reveal a file or folder in the OS file explorer (Finder/Explorer/Nautilus). */
-  showProjectEntryInExplorer?: ((path: string) => void) | undefined;
+  showProjectEntryInExplorer?: ((path: string) => Promise<void> | void) | undefined;
+  /** Open a local file or folder with the OS default application. */
+  openProjectEntryWithSystem?: ((path: string) => Promise<void> | void) | undefined;
   onContentHeightChange: () => void;
   isStickToBottom?: () => boolean;
   /** True while the user is mid wheel / scrollbar / pointer scroll-away. */

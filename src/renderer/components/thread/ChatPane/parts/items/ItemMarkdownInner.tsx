@@ -1,4 +1,4 @@
-import { Link, Modal, Tooltip, toast } from "@heroui/react";
+import { Link, Modal, Tooltip } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { CodeXml, ExternalLink, Maximize2, ZoomIn, ZoomOut } from "lucide-react";
 import {
@@ -35,8 +35,6 @@ import {
   rewriteMarkdownLocalImageUrls,
 } from "@/shared/markdownLocalImages";
 import { resolveLocalImageDisplayUrl } from "@/shared/localImageDisplay";
-import { friendlyError } from "@/shared/messages";
-import { getBasename } from "@/shared/pathUtils";
 import { getProjectFsPath } from "@/shared/wsl";
 import { useChatPaneActions } from "../../chatPaneActionsContext";
 import { normalizeChatProjectPath } from "../../chatPathUtils";
@@ -801,7 +799,6 @@ function findCodeChild(children: ReactNode): ReactElement | null {
 }
 
 function MdAnchor(props: { href: string; children?: ReactNode }) {
-  const { t } = useLingui();
   const actions = useChatPaneActions();
   const href = props.href?.trim() ?? "";
   if (!href) return <span>{props.children}</span>;
@@ -860,38 +857,7 @@ function MdAnchor(props: { href: string; children?: ReactNode }) {
   }
   if (actions) {
     const ref = parseHrefProjectPathRef(href, actions);
-    if (ref?.kind === "folder") {
-      const folderPath = normalizeChatProjectPath(ref.path, actions.projectLocation);
-      return (
-        <button
-          type="button"
-          className="inline cursor-pointer rounded border-0 bg-foreground/10 px-[0.35em] py-[0.1em] font-mono text-[0.875em] leading-none align-baseline text-accent underline-offset-2 [overflow-wrap:anywhere] hover:bg-foreground/15 hover:underline"
-          onClick={() => actions.revealProjectFolderInTree(folderPath)}
-        >
-          {props.children}
-        </button>
-      );
-    }
-    if (ref?.kind === "file") {
-      return (
-        <button
-          type="button"
-          className="inline cursor-pointer rounded border-0 bg-foreground/10 px-[0.35em] py-[0.1em] font-mono text-[0.875em] leading-none align-baseline text-accent underline-offset-2 [overflow-wrap:anywhere] hover:bg-foreground/15 hover:underline"
-          onClick={() => {
-            void actions
-              .openProjectRelativePath(
-                normalizeChatProjectPath(ref.path, actions.projectLocation),
-                ref.line,
-              )
-              .catch((error: unknown) => {
-                toast.danger(t`无法打开 ${getBasename(ref.path)}：${friendlyError(error)}`);
-              });
-          }}
-        >
-          {props.children}
-        </button>
-      );
-    }
+    if (ref) return renderPathChip(ref, actions, props.children);
   }
   // Remaining hrefs can never open: the window hardening denies every
   // window.open, and the main-side openExternal allowlist only accepts
@@ -932,6 +898,7 @@ function parseHrefProjectPathRef(
 function renderPathChip(
   ref: ProjectPathRef,
   actions: NonNullable<ReturnType<typeof useChatPaneActions>>,
+  label?: ReactNode,
 ) {
   const normalized = normalizeChatProjectPath(ref.path, actions.projectLocation);
   if (ref.kind === "file") {
@@ -941,6 +908,9 @@ function renderPathChip(
         line={ref.line}
         endLine={ref.endLine}
         onOpen={actions.openProjectRelativePath}
+        onShowInExplorer={actions.showProjectEntryInExplorer}
+        onOpenWithSystem={actions.openProjectEntryWithSystem}
+        label={label}
       />
     );
   }
@@ -949,6 +919,8 @@ function renderPathChip(
       path={normalized}
       onRevealInTree={actions.revealProjectFolderInTree}
       onShowInExplorer={actions.showProjectEntryInExplorer}
+      onOpenWithSystem={actions.openProjectEntryWithSystem}
+      label={label}
     />
   );
 }

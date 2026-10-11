@@ -1,25 +1,29 @@
-import { useState } from "react";
-import { Dropdown, Label } from "@heroui/react";
-import { Trans, useLingui } from "@lingui/react/macro";
+import { type ReactNode, useState } from "react";
+import { toast } from "@heroui/react";
+import { useLingui } from "@lingui/react/macro";
+import { AppWindow, FolderOpen, PanelRight } from "lucide-react";
+import { ContextMenu, type ContextMenuOpenRequest } from "@/renderer/components/common/ContextMenu";
 import { getFolderIconUrl } from "@/renderer/components/common/fileIcons";
 import {
   ResponsiveMenuSurface,
   useResponsiveMenu,
 } from "@/renderer/components/common/ResponsiveMenuSurface";
 import { getBasename } from "@/shared/pathUtils";
-
-type FolderAction = "tree" | "explorer";
+import { friendlyError } from "@/shared/messages";
 
 interface InlineFolderPathChipProps {
   path: string;
-  onRevealInTree?: ((path: string) => void) | undefined;
-  onShowInExplorer?: ((path: string) => void) | undefined;
+  onRevealInTree?: ((path: string) => Promise<void> | void) | undefined;
+  onShowInExplorer?: ((path: string) => Promise<void> | void) | undefined;
+  onOpenWithSystem?: ((path: string) => Promise<void> | void) | undefined;
+  label?: ReactNode;
 }
 
 /**
  * Inline chip rendered inside chat markdown for project folder references.
- * Shows the raw path with a folder icon and offers a dropdown with two
- * actions: reveal in the in-app file tree, and show in the OS file explorer.
+ * Shows the raw path with a folder icon and offers a menu with three
+ * actions: open in the sidebar, reveal in the OS file explorer, or open with
+ * the default app. Right-click offers the same actions on desktop.
  * On the mobile PWA it opens a bottom drawer (or, when a single action is
  * available, fires it on tap) instead of a cramped desktop popover.
  */
@@ -27,30 +31,57 @@ export function InlineFolderPathChip({
   path,
   onRevealInTree,
   onShowInExplorer,
+  onOpenWithSystem,
+  label,
 }: InlineFolderPathChipProps) {
   const { t } = useLingui();
   const { mobile } = useResponsiveMenu();
   const [isOpen, setIsOpen] = useState(false);
+  const [openRequest, setOpenRequest] = useState<ContextMenuOpenRequest | null>(null);
   const basename = getBasename(path);
   const iconUrl = getFolderIconUrl(basename);
 
   const chipInner = (
     <>
       <img className="craftstation-inline-path-chip__icon" src={iconUrl} alt="" draggable={false} />
-      <span className="craftstation-inline-path-chip__name">{path}</span>
+      <span className="craftstation-inline-path-chip__name">{label ?? path}</span>
     </>
   );
 
   const actions = [
     onRevealInTree
-      ? { id: "tree", label: t`Reveal in file tree`, run: () => onRevealInTree(path) }
+      ? {
+          id: "tree",
+          label: t`Open in sidebar`,
+          icon: <PanelRight className="size-4" />,
+          run: () => onRevealInTree(path),
+        }
       : null,
     onShowInExplorer
-      ? { id: "explorer", label: t`Show in file explorer`, run: () => onShowInExplorer(path) }
+      ? {
+          id: "explorer",
+          label: t`Open in folder`,
+          icon: <FolderOpen className="size-4" />,
+          run: () => onShowInExplorer(path),
+        }
       : null,
-  ].filter(
-    (action): action is { id: FolderAction; label: string; run: () => void } => action !== null,
-  );
+    onOpenWithSystem
+      ? {
+          id: "system",
+          label: t`Open with default app`,
+          icon: <AppWindow className="size-4" />,
+          run: () => onOpenWithSystem(path),
+        }
+      : null,
+  ].filter((action) => action !== null);
+
+  const runAction = async (id: string) => {
+    try {
+      await actions.find((action) => action.id === id)?.run();
+    } catch (error) {
+      toast.danger(t`无法打开 ${basename}：${friendlyError(error)}`);
+    }
+  };
 
   if (actions.length === 0) {
     return (
@@ -69,7 +100,9 @@ export function InlineFolderPathChip({
           type="button"
           className="craftstation-inline-path-chip"
           title={path}
-          onClick={() => actions[0]!.run()}
+          onClick={() => {
+            void runAction(actions[0]!.id);
+          }}
         >
           {chipInner}
         </button>
@@ -100,7 +133,7 @@ export function InlineFolderPathChip({
               className="m-sheet-action"
               onClick={() => {
                 setIsOpen(false);
-                action.run();
+                void runAction(action.id);
               }}
             >
               <span className="flex-1 truncate">{action.label}</span>
@@ -112,28 +145,30 @@ export function InlineFolderPathChip({
   }
 
   return (
-    <Dropdown>
-      <button type="button" className="craftstation-inline-path-chip" title={path}>
+    <ContextMenu
+      items={actions}
+      openRequest={openRequest}
+      onAction={(id) => {
+        void runAction(id);
+      }}
+    >
+      <button
+        type="button"
+        className="craftstation-inline-path-chip"
+        title={path}
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const bounds = event.currentTarget.getBoundingClientRect();
+          setOpenRequest((previous) => ({
+            x: bounds.left,
+            y: bounds.bottom,
+            nonce: (previous?.nonce ?? 0) + 1,
+          }));
+        }}
+      >
         {chipInner}
       </button>
-      <Dropdown.Popover className="min-w-[220px]">
-        <Dropdown.Menu onAction={(key) => actions.find((a) => a.id === key)?.run()}>
-          {onRevealInTree ? (
-            <Dropdown.Item id="tree" textValue={t`Reveal in file tree`}>
-              <Label>
-                <Trans>Reveal in file tree</Trans>
-              </Label>
-            </Dropdown.Item>
-          ) : null}
-          {onShowInExplorer ? (
-            <Dropdown.Item id="explorer" textValue={t`Show in file explorer`}>
-              <Label>
-                <Trans>Show in file explorer</Trans>
-              </Label>
-            </Dropdown.Item>
-          ) : null}
-        </Dropdown.Menu>
-      </Dropdown.Popover>
-    </Dropdown>
+    </ContextMenu>
   );
 }

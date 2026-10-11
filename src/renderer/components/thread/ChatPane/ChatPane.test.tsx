@@ -367,6 +367,52 @@ describe("ChatPane", () => {
     });
   });
 
+  it.each([
+    ["Open in folder", "revealProjectEntry"],
+    ["Open with default app", "openProjectEntryWithSystem"],
+  ] as const)("resolves a bare filename before %s", async (label, procedure) => {
+    const thread = makeThread();
+    seedAssistantMessage(thread.id, "Open resume.pdf:12.");
+    useAppStore.setState({ projects: [project] });
+    const searchProjectFiles = vi
+      .fn<typeof window.craftstation.searchProjectFiles>()
+      .mockResolvedValue({
+        entries: [{ path: "Documents/多模态/resume.pdf", name: "resume.pdf", type: "file" }],
+        totalIndexed: 1,
+      });
+    const openEntry = vi
+      .fn<typeof window.craftstation.revealProjectEntry>()
+      .mockResolvedValue(undefined);
+    Object.assign(window.craftstation, { searchProjectFiles, [procedure]: openEntry });
+    const onOpenProjectRelativePath = vi.fn<(path: string, lineNumber?: number) => void>();
+    const { container } = renderChatPane(thread, { onOpenProjectRelativePath });
+    await waitFor(() => expect(container.querySelector(".lc-chat-markdown")).toBeInTheDocument(), {
+      timeout: 10_000,
+    });
+    fireEvent.contextMenu(screen.getByRole("button", { name: /resume\.pdf/u }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: label }));
+    await waitFor(() =>
+      expect(openEntry).toHaveBeenCalledWith({
+        projectLocation: project.location,
+        path: "Documents/多模态/resume.pdf",
+      }),
+    );
+    expect(onOpenProjectRelativePath).not.toHaveBeenCalled();
+  });
+
+  it("omits local system actions when the chat host disables them", async () => {
+    const thread = makeThread();
+    seedAssistantMessage(thread.id, "Open Documents/resume.pdf.");
+    useAppStore.setState({ projects: [project] });
+    renderChatPane(thread, { canShowProjectEntryInExplorer: false });
+    fireEvent.contextMenu(await screen.findByRole("button", { name: /resume\.pdf/u }));
+    expect(await screen.findByRole("menuitem", { name: "Open in sidebar" })).toBeInTheDocument();
+    expect(screen.queryByRole("menuitem", { name: "Open in folder" })).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Open with default app" }),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps the chat pinned when the last assistant message grows without changing the scroll anchor", async () => {
     const thread = makeThread();
     seedAssistantMessage(thread.id, "Inspect output");
