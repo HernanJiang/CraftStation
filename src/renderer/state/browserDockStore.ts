@@ -13,9 +13,16 @@ import { create } from "zustand";
 interface BrowserDockState {
   slotEl: HTMLElement | null;
   setSlotEl: (el: HTMLElement | null) => void;
+  conversationSlotEl: HTMLElement | null;
+  conversationTabId: string | undefined;
+  setConversationSlot: (el: HTMLElement | null, tabId?: string) => void;
 }
 
 export const useBrowserDockStore = create<BrowserDockState>((set) => ({
   slotEl: null,
   setSlotEl: (el) => set((s) => (s.slotEl === el ? {} : { slotEl: el })),
+  conversationSlotEl: null,
+  conversationTabId: undefined,
+  setConversationSlot: (conversationSlotEl, conversationTabId) =>
+    set({ conversationSlotEl, conversationTabId }),
 }));

@@ -54,6 +54,7 @@ function fixture() {
       return "test-tab";
     }),
     exists: () => attached,
+    url: () => window.location.href,
     execute: vi.fn<WebChatBrowser["execute"]>(
       async (_id, script) => window.eval(script) as unknown,
     ),
@@ -177,6 +178,170 @@ describe("ChatGPT 网页同步", () => {
     await vi.advanceTimersByTimeAsync(150);
     return promise;
   };
+  it("网页标题仍为 ChatGPT 时，从当前对话链接同步名称", async () => {
+    managementFixture(f);
+    f.dom.window.document.title = "ChatGPT";
+    const session = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    expect((await runtime.read(session.id)).title).toBe("测试对话");
+  });
+  it("名称只取当前侧栏会话，不采用正文里的会话引用或无效链接", async () => {
+    managementFixture(f);
+    f.dom.window.document.title = "ChatGPT";
+    f.dom.window.document.body.insertAdjacentHTML(
+      "afterbegin",
+      '<a href="http://">无效链接</a><a href="/c/test-conversation">正文引用</a>',
+    );
+    const session = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    expect((await runtime.read(session.id)).title).toBe("测试对话");
+  });
+  it("只修改网页对话名也会保存绑定，重启后保留新名称", async () => {
+    managementFixture(f);
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-webchat-"));
+    tempDirs.push(dir);
+    const file = join(dir, "sessions.json");
+    runtime.dispose();
+    runtime = new ChatGptWebRuntime(f.browser, file);
+    const session = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    await runtime.read(session.id);
+    f.dom.window.document.title = "重命名后的对话";
+    expect((await runtime.read(session.id)).title).toBe("重命名后的对话");
+    runtime.dispose();
+    runtime = new ChatGptWebRuntime(f.browser, file);
+    expect(runtime.list()[0]?.title).toBe("重命名后的对话");
+    expect(runtime.list()[0]?.url).toBe(session.url);
+  });
+  it("本地重命名在网页同步与重启后保留，切换到其他对话时恢复网页名称", async () => {
+    managementFixture(f);
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-webchat-"));
+    tempDirs.push(dir);
+    const file = join(dir, "sessions.json");
+    runtime.dispose();
+    runtime = new ChatGptWebRuntime(f.browser, file);
+    const session = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    await runtime.read(session.id);
+    vi.mocked(f.browser.execute).mockClear();
+    expect(runtime.rename(session.id, "  我的对话  ").title).toBe("我的对话");
+    expect(f.browser.execute).not.toHaveBeenCalled();
+    f.dom.window.document.title = "网页上的名称";
+    expect((await runtime.read(session.id)).title).toBe("我的对话");
+    runtime.dispose();
+    runtime = new ChatGptWebRuntime(f.browser, file);
+    expect(runtime.list()[0]?.title).toBe("我的对话");
+    expect((await runtime.read(session.id)).title).toBe("我的对话");
+    f.dom.reconfigure({ url: "https://chatgpt.com/c/older-conversation" });
+    f.dom.window.document.title = "旧对话";
+    const navigated = await runtime.read(session.id, false, true);
+    expect(navigated.title).toBe("旧对话");
+    expect(navigated.customTitle).toBeUndefined();
+  });
+  it("新建页的自定义名称保留到首次会话绑定，空白或过长名称拒绝保存", async () => {
+    const session = await runtime.create();
+    expect(() => runtime.rename(session.id, "   ")).toThrow("WEB_TITLE_INVALID");
+    expect(() => runtime.rename(session.id, "长".repeat(301))).toThrow("WEB_TITLE_INVALID");
+    expect(runtime.list()[0]?.title).toBe(session.title);
+    runtime.rename(session.id, "首次会话");
+    managementFixture(f);
+    expect((await runtime.read(session.id, false, true)).title).toBe("首次会话");
+  });
+  it("删除对话显示只移除持久化的本地记录，保留网页与其他线程", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-webchat-"));
+    tempDirs.push(dir);
+    const file = join(dir, "sessions.json");
+    runtime.dispose();
+    runtime = new ChatGptWebRuntime(f.browser, file);
+    const removed = await runtime.create();
+    const kept = await runtime.create();
+    vi.mocked(f.browser.execute).mockClear();
+    runtime.forget(removed.id);
+    expect(runtime.list().map((session) => session.id)).toEqual([kept.id]);
+    expect(f.browser.execute).not.toHaveBeenCalled();
+    expect(f.browser.close).not.toHaveBeenCalled();
+    expect(f.browser.exists(removed.tabId!)).toBe(true);
+    runtime.dispose();
+    runtime = new ChatGptWebRuntime(f.browser, file);
+    expect(runtime.list().map((session) => session.id)).toEqual([kept.id]);
+  });
+  it("原样网页切换会话时更新当前线程的绑定和名称，保留浏览器标签", async () => {
+    managementFixture(f);
+    const session = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    await runtime.read(session.id);
+    f.dom.reconfigure({ url: "https://chatgpt.com/c/older-conversation" });
+    f.dom.window.document.title = "旧对话";
+    const next = await runtime.read(session.id, false, true);
+    expect(next.status).toBe("ready");
+    expect(next.id).toBe(session.id);
+    expect(next.tabId).toBe(session.tabId);
+    expect(next.url).toBe("https://chatgpt.com/c/older-conversation");
+    expect(next.title).toBe("旧对话");
+    expect(f.browser.reload).not.toHaveBeenCalled();
+  });
+  it("原样网页刷新先读取当前会话，导航后立即刷新也不会跳回旧绑定", async () => {
+    managementFixture(f);
+    const session = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    await runtime.read(session.id);
+    f.dom.reconfigure({ url: "https://chatgpt.com/c/older-conversation" });
+    f.dom.window.document.title = "旧对话";
+    const next = await runtime.refresh(session.id, true);
+    expect(f.browser.reload).toHaveBeenCalledWith(
+      session.tabId,
+      "https://chatgpt.com/c/older-conversation",
+    );
+    expect(next.url).toBe("https://chatgpt.com/c/older-conversation");
+    expect(next.title).toBe("旧对话");
+    expect(f.count()).toBe(0);
+  });
+  it("刷新读取期间源网页换绑另一线程时，不刷新或修改新绑定", async () => {
+    managementFixture(f);
+    const session = await runtime.importConversation(
+      "https://chatgpt.com/c/test-conversation",
+      "test-tab",
+    );
+    const snapshot = f.dom.window.eval(chatGptPageScript("read")) as ChatGptPageSnapshot;
+    let resolveRead!: (value: ChatGptPageSnapshot) => void;
+    vi.mocked(f.browser.execute).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        }),
+    );
+    const refreshing = runtime.refresh(session.id, true).catch((error: unknown) => error);
+    await Promise.resolve();
+    f.dom.reconfigure({ url: "https://chatgpt.com/c/older-conversation" });
+    const other = await runtime.importConversation(
+      "https://chatgpt.com/c/older-conversation",
+      "test-tab",
+    );
+    resolveRead(snapshot);
+    expect(await refreshing).toMatchObject({
+      message: expect.stringContaining("WEB_BINDING_CHANGED"),
+    });
+    expect(f.browser.reload).not.toHaveBeenCalled();
+    expect(runtime.list().find((s) => s.id === other.id)?.url).toBe(other.url);
+    expect(runtime.list().find((s) => s.id === session.id)?.url).toBe(session.url);
+  });
+  it("原样网页保持登录及加载过渡中的绑定，打开新聊天后才清空原对话身份", async () => {
+    managementFixture(f);
+    const session = await runtime.importConversation("https://chatgpt.com/c/test-conversation");
+    await runtime.read(session.id);
+    f.dom.reconfigure({ url: "https://chatgpt.com/" });
+    f.dom.window.document.title = "ChatGPT";
+    f.editor.hidden = true;
+    expect((await runtime.read(session.id, false, true)).url).toBe(session.url);
+    const login = f.dom.window.document.createElement("button");
+    login.dataset.testid = "login-button";
+    f.dom.window.document.body.append(login);
+    const loggedOut = await runtime.read(session.id, false, true);
+    expect(loggedOut.status).toBe("login-required");
+    expect(loggedOut.url).toBe(session.url);
+    expect(loggedOut.title).toBe("测试对话");
+    login.remove();
+    f.editor.hidden = false;
+    const blank = await runtime.read(session.id, false, true);
+    expect(blank.status).toBe("ready");
+    expect(blank.id).toBe(session.id);
+    expect(blank.url).toBe("https://chatgpt.com/");
+    expect(blank.title).toBe("新对话");
+  });
   it("新建与导入默认在后台打开官方页面，只有显式打开才展开浏览器", async () => {
     const draft = await runtime.create();
     expect(f.browser.create).toHaveBeenCalledWith("https://chatgpt.com/", false);
@@ -218,6 +383,147 @@ describe("ChatGPT 网页同步", () => {
     await submit(s.id);
     expect(f.count()).toBe(1);
     await expect(runtime.reasoning(s.id)).rejects.toThrow("WEB_BUSY");
+  });
+  it("从用户选择的网页导入复用源标签，读取历史并去重，不新建网页", async () => {
+    managementFixture(f);
+    f.messages.insertAdjacentHTML(
+      "beforeend",
+      '<div data-message-author-role="assistant" data-message-id="old">已有网页内容</div>',
+    );
+    const session = await runtime.importConversation(
+      "https://chatgpt.com/c/test-conversation",
+      "test-tab",
+    );
+    expect(session.tabId).toBe("test-tab");
+    expect((await runtime.read(session.id)).messages[0]?.text).toBe("已有网页内容");
+    expect((await runtime.importConversation(session.url, "test-tab")).id).toBe(session.id);
+    expect(runtime.list()).toHaveLength(1);
+    expect(f.browser.create).not.toHaveBeenCalled();
+  });
+  it("源网页已切换或关闭时拒绝导入且不创建线程", async () => {
+    managementFixture(f);
+    await expect(
+      runtime.importConversation("https://chatgpt.com/c/older-conversation", "test-tab"),
+    ).rejects.toThrow("WEB_IMPORT_PAGE_CHANGED");
+    f.detach();
+    await expect(
+      runtime.importConversation("https://chatgpt.com/c/test-conversation", "test-tab"),
+    ).rejects.toThrow("WEB_IMPORT_PAGE_CHANGED");
+    expect(runtime.list()).toHaveLength(0);
+    expect(f.browser.create).not.toHaveBeenCalled();
+  });
+  it("重启恢复绑定时复用相同对话的浏览器标签，不再创建网页", async () => {
+    managementFixture(f);
+    const dir = mkdtempSync(join(tmpdir(), "craftstation-webchat-"));
+    tempDirs.push(dir);
+    const file = join(dir, "sessions.json");
+    runtime.dispose();
+    runtime = new ChatGptWebRuntime(f.browser, file);
+    const session = await runtime.importConversation(
+      "https://chatgpt.com/c/test-conversation",
+      "test-tab",
+    );
+    runtime.dispose();
+    // Browser tab IDs are regenerated on restart; the conversation ID is stable.
+    f.browser.exists = (id) => id === "restored-tab";
+    f.browser.find = vi.fn<NonNullable<WebChatBrowser["find"]>>(() => "restored-tab");
+    runtime = new ChatGptWebRuntime(f.browser, file);
+    expect((await runtime.read(session.id)).tabId).toBe("restored-tab");
+    expect(f.browser.find).toHaveBeenCalledWith(session.url, []);
+    expect(f.browser.create).not.toHaveBeenCalled();
+  });
+  it("同一网页切换后导入另一对话，旧线程解除标签绑定并保留原对话地址", async () => {
+    managementFixture(f);
+    const first = await runtime.importConversation(
+      "https://chatgpt.com/c/test-conversation",
+      "test-tab",
+    );
+    f.dom.reconfigure({ url: "https://chatgpt.com/c/older-conversation" });
+    const second = await runtime.importConversation(
+      "https://chatgpt.com/c/older-conversation",
+      "test-tab",
+    );
+    expect(second.tabId).toBe("test-tab");
+    expect(runtime.list().find((s) => s.id === first.id)).toMatchObject({ url: first.url });
+    expect(runtime.list().find((s) => s.id === first.id)?.tabId).toBeUndefined();
+  });
+  it("登录失效不会丢失线程绑定的对话 ID", async () => {
+    managementFixture(f);
+    const session = await runtime.importConversation(
+      "https://chatgpt.com/c/test-conversation",
+      "test-tab",
+    );
+    f.dom.reconfigure({ url: "https://chatgpt.com/" });
+    f.dom.window.document.body.innerHTML = '<button data-testid="login-button">登录</button>';
+    expect((await runtime.read(session.id)).url).toBe(session.url);
+    expect(runtime.list()[0]?.status).toBe("login-required");
+  });
+  it("选中绑定线程时回到原对话；已在原对话时保留网页草稿且不刷新", async () => {
+    managementFixture(f);
+    const session = await runtime.importConversation(
+      "https://chatgpt.com/c/test-conversation",
+      "test-tab",
+    );
+    f.editor.value = "原对话草稿";
+    await runtime.read(session.id, true);
+    expect(f.browser.reload).not.toHaveBeenCalled();
+    expect(f.editor.value).toBe("原对话草稿");
+    f.dom.reconfigure({ url: "https://chatgpt.com/c/older-conversation" });
+    vi.mocked(f.browser.reload).mockImplementation(async (_id, url) => {
+      f.dom.reconfigure({ url });
+    });
+    expect((await runtime.read(session.id, true)).url).toBe(session.url);
+    expect(f.browser.reload).toHaveBeenCalledWith("test-tab", session.url);
+    expect(f.count()).toBe(0);
+  });
+  it("源网页重新绑定后，旧线程迟到的读取不会覆盖解绑状态", async () => {
+    managementFixture(f);
+    const first = await runtime.importConversation(
+      "https://chatgpt.com/c/test-conversation",
+      "test-tab",
+    );
+    const snapshot = f.dom.window.eval(chatGptPageScript("read")) as ChatGptPageSnapshot;
+    let resolveRead!: (value: ChatGptPageSnapshot) => void;
+    vi.mocked(f.browser.execute).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        }),
+    );
+    const reading = runtime.read(first.id);
+    await Promise.resolve();
+    f.dom.reconfigure({ url: "https://chatgpt.com/c/older-conversation" });
+    await runtime.importConversation("https://chatgpt.com/c/older-conversation", "test-tab");
+    resolveRead(snapshot);
+    expect(await reading).toMatchObject({ url: first.url, status: "connecting" });
+    expect(runtime.list().find((s) => s.id === first.id)?.tabId).toBeUndefined();
+  });
+  it("选择线程时等待在途读取，再恢复正确的对话地址", async () => {
+    managementFixture(f);
+    const session = await runtime.importConversation(
+      "https://chatgpt.com/c/test-conversation",
+      "test-tab",
+    );
+    const snapshot = f.dom.window.eval(chatGptPageScript("read")) as ChatGptPageSnapshot;
+    let resolveRead!: (value: ChatGptPageSnapshot) => void;
+    vi.mocked(f.browser.execute).mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveRead = resolve;
+        }),
+    );
+    const reading = runtime.read(session.id);
+    await Promise.resolve();
+    f.dom.reconfigure({ url: "https://chatgpt.com/c/older-conversation" });
+    vi.mocked(f.browser.reload).mockImplementation(async (_id, url) => {
+      f.dom.reconfigure({ url });
+    });
+    const restoring = runtime.read(session.id, true);
+    resolveRead(snapshot);
+    await vi.advanceTimersByTimeAsync(40);
+    await reading;
+    expect((await restoring).url).toBe(session.url);
+    expect(f.browser.reload).toHaveBeenCalledWith("test-tab", session.url);
   });
   it("思考档位来自原生滑杆，读取后恢复偏好，设置后核实标签", async () => {
     const native = managementFixture(f);

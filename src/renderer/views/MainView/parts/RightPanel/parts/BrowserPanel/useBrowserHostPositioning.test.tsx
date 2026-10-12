@@ -5,9 +5,14 @@ import { useBrowserDockStore } from "@/renderer/state/browserDockStore";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useBrowserHostPositioning } from "./useBrowserHostPositioning";
 
-function Harness() {
+function Harness({ conversation = false }: { conversation?: boolean }) {
   const wrapperRef = useRef<HTMLDivElement | null>(null);
-  useBrowserHostPositioning({ wrapperRef, mode: "docked", drawerWidth: 480, dockedVisible: true });
+  useBrowserHostPositioning({
+    wrapperRef,
+    mode: conversation ? "conversation" : "docked",
+    drawerWidth: 480,
+    dockedVisible: !conversation,
+  });
   return <div data-testid="wrapper" ref={wrapperRef} />;
 }
 
@@ -38,7 +43,11 @@ describe("useBrowserHostPositioning", () => {
   afterEach(() => {
     cleanup();
     useSharedSettings.setState({ zoomFactor: 1 });
-    useBrowserDockStore.setState({ slotEl: null });
+    useBrowserDockStore.setState({
+      slotEl: null,
+      conversationSlotEl: null,
+      conversationTabId: undefined,
+    });
     document.body.innerHTML = "";
   });
 
@@ -50,6 +59,15 @@ describe("useBrowserHostPositioning", () => {
     expect(wrapper.style.left).toBe("200px");
     expect(wrapper.style.width).toBe("1000px");
     expect(wrapper.style.height).toBe("500px");
+  });
+
+  it("uses the conversation slot when the sidebar browser is closed", () => {
+    mountSlot({ top: 0, left: 1000, width: 200, height: 600 });
+    const card = mountSlot({ top: 100, left: 200, width: 700, height: 500 });
+    useBrowserDockStore.getState().setConversationSlot(card, "tab-1");
+    const { getByTestId } = render(<Harness conversation />);
+    expect(getByTestId("wrapper").style.left).toBe("200px");
+    expect(getByTestId("wrapper").style.width).toBe("700px");
   });
 
   it("normalizes the zoom-scaled slot rect back to layout pixels", () => {

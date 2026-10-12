@@ -173,6 +173,8 @@ export const MAIN_LOCAL_PROCEDURE_NAMES = [
   "webChatDiscover",
   "webChatImport",
   "webChatDelete",
+  "webChatForget",
+  "webChatRename",
   "webChatReasoning",
   "webChatSetReasoning",
   "browserCreateTab",

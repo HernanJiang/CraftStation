@@ -16,6 +16,7 @@ export type WebChatMessage = z.infer<typeof webChatMessageSchema>;
 export const webChatSessionSchema = z.object({
   id: z.string().uuid(),
   title: z.string(),
+  customTitle: z.string().trim().min(1).max(300).optional(),
   url: z.string(),
   tabId: z.string().optional(),
   status: z.enum(["connecting", "login-required", "ready", "sending", "streaming", "error"]),
@@ -25,6 +26,16 @@ export const webChatSessionSchema = z.object({
 });
 export type WebChatSession = z.infer<typeof webChatSessionSchema>;
 export const webChatIdSchema = z.object({ sessionId: z.string().uuid() });
+export const webChatRenameSchema = webChatIdSchema.extend({
+  title: z.string().trim().min(1).max(300),
+});
+export const webChatReadSchema = webChatIdSchema.extend({
+  restoreBinding: z.boolean().optional(),
+  followNavigation: z.boolean().optional(),
+});
+export const webChatRefreshSchema = webChatIdSchema.extend({
+  followNavigation: z.boolean().optional(),
+});
 export const webChatWidgetRequestSchema = webChatIdSchema.extend({
   widgetId: z.string().min(1).max(500),
 });
@@ -92,6 +103,7 @@ export function chatGptConversationUrl(value: string): string | undefined {
   }
 }
 export const webChatImportSchema = z.object({
+  tabId: z.string().min(1).optional(),
   url: z
     .string()
     .trim()

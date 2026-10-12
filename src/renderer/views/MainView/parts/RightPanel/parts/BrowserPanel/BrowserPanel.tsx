@@ -32,10 +32,17 @@ export function BrowserPanel(props: {
   visible: boolean;
   surface?: "main" | "window";
   showEmbeddedTabStrip?: boolean;
+  conversationTabId?: string | undefined;
+  tabIds?: string[];
 }) {
   const { t } = useLingui();
-  const tabs = useBrowserPanelStore((s) => s.tabs);
-  const activeTabId = useBrowserPanelStore((s) => s.activeTabId);
+  const allTabs = useBrowserPanelStore((s) => s.tabs);
+  const tabs = props.tabIds ? allTabs.filter((tab) => props.tabIds!.includes(tab.tabId)) : allTabs;
+  const selectedTabId = useBrowserPanelStore((s) => s.activeTabId);
+  const activeTabId =
+    props.conversationTabId ??
+    (tabs.some((tab) => tab.tabId === selectedTabId) ? selectedTabId : (tabs[0]?.tabId ?? null));
+  const conversationView = Boolean(props.conversationTabId);
   const browserPanelOpen = usePanelStore((s) => s.browserPanelOpen);
   const browserOverlayOpen = usePanelStore((s) => s.browserOverlayOpen);
   const browserOverlayMaximized = usePanelStore((s) => s.browserOverlayMaximized);
@@ -152,7 +159,7 @@ export function BrowserPanel(props: {
             <div className={macosTrafficLightGutterClass} aria-hidden />
           ) : null}
           {hasWindowHeader ? (
-            <BrowserTabStrip variant="header" onCreateTab={createTab} />
+            <BrowserTabStrip variant="header" onCreateTab={createTab} tabIds={props.tabIds} />
           ) : (
             <div className="text-xs font-medium text-foreground">
               <Trans>Browser</Trans>
@@ -220,36 +227,41 @@ export function BrowserPanel(props: {
           )}
         </div>
       ) : null}
-      <BrowserToolbar
-        onPick={onPick}
-        pickerActive={pickerActive}
-        pickerTargets={threadTargets}
-        hasPendingPick={pendingPickerAttachment !== null}
-        pendingPickAnchor={
-          pendingPickerAttachment &&
-          typeof pendingPickerAttachment.anchorX === "number" &&
-          typeof pendingPickerAttachment.anchorY === "number"
-            ? { x: pendingPickerAttachment.anchorX, y: pendingPickerAttachment.anchorY }
-            : null
-        }
-        onChoosePickTarget={chooseTargetForPendingPick}
-        onCancelPendingPick={cancelPendingPick}
-        onMenuPreviewChange={setMenuPreviewDataUrl}
-      />
-      {hasWindowHeader || !showEmbeddedTabStrip ? null : (
-        <BrowserTabStrip onCreateTab={createTab} />
+      {!conversationView && (
+        <BrowserToolbar
+          activeTabId={activeTabId}
+          onPick={onPick}
+          pickerActive={pickerActive}
+          pickerTargets={threadTargets}
+          hasPendingPick={pendingPickerAttachment !== null}
+          pendingPickAnchor={
+            pendingPickerAttachment &&
+            typeof pendingPickerAttachment.anchorX === "number" &&
+            typeof pendingPickerAttachment.anchorY === "number"
+              ? { x: pendingPickerAttachment.anchorX, y: pendingPickerAttachment.anchorY }
+              : null
+          }
+          onChoosePickTarget={chooseTargetForPendingPick}
+          onCancelPendingPick={cancelPendingPick}
+          onMenuPreviewChange={setMenuPreviewDataUrl}
+        />
       )}
-      <BrowserBookmarkBar />
+      {conversationView || hasWindowHeader || !showEmbeddedTabStrip ? null : (
+        <BrowserTabStrip onCreateTab={createTab} tabIds={props.tabIds} />
+      )}
+      {!conversationView && <BrowserBookmarkBar />}
       <div className="relative flex-1 overflow-hidden bg-[var(--content-background)]">
         {tabs.map((tab) => (
           <BrowserTabWebview
             key={tab.tabId}
             tabId={tab.tabId}
             initialSrc={tab.url}
-            visible={visible && !menuPreviewDataUrl && tab.tabId === activeTabId}
+            visible={
+              visible && (conversationView || !menuPreviewDataUrl) && tab.tabId === activeTabId
+            }
           />
         ))}
-        {menuPreviewDataUrl ? (
+        {!conversationView && menuPreviewDataUrl ? (
           <img
             src={menuPreviewDataUrl}
             alt=""

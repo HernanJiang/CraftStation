@@ -11,7 +11,13 @@ export const HEADLESS_Z = "-1";
 export const HEADLESS_WIDTH = 1280;
 export const HEADLESS_HEIGHT = 800;
 
-export type BrowserHostMode = "hidden" | "background" | "docked" | "drawer" | "fullscreen";
+export type BrowserHostMode =
+  | "hidden"
+  | "background"
+  | "docked"
+  | "conversation"
+  | "drawer"
+  | "fullscreen";
 
 export function useBrowserHostPositioning(input: {
   wrapperRef: RefObject<HTMLDivElement | null>;
@@ -64,7 +70,7 @@ export function useBrowserHostPositioning(input: {
       wrapper.style.zIndex = HEADLESS_Z;
       return;
     }
-    if (!dockedVisible) return;
+    if (mode !== "conversation" && !dockedVisible) return;
 
     let raf = 0;
     let activeTransitions = 0;
@@ -161,7 +167,8 @@ export function useBrowserHostPositioning(input: {
       measure();
     };
     const unsubscribe = useBrowserDockStore.subscribe((state, previousState) => {
-      if (state.slotEl !== previousState.slotEl) observeSlot(state.slotEl);
+      const key = mode === "conversation" ? "conversationSlotEl" : "slotEl";
+      if (state[key] !== previousState[key]) observeSlot(state[key]);
     });
     // A zoom change re-lays the slot out, which normally reaches us through the
     // ResizeObserver; subscribe anyway so alignment never waits on a frame where
@@ -170,7 +177,8 @@ export function useBrowserHostPositioning(input: {
       if (state.zoomFactor !== previousState.zoomFactor) scheduleMeasure();
     });
     window.addEventListener("resize", scheduleMeasure);
-    observeSlot(useBrowserDockStore.getState().slotEl);
+    const slots = useBrowserDockStore.getState();
+    observeSlot(mode === "conversation" ? slots.conversationSlotEl : slots.slotEl);
     return () => {
       unsubscribe();
       unsubscribeZoom();

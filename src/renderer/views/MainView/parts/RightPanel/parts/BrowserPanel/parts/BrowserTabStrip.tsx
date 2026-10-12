@@ -93,10 +93,15 @@ function GroupChip(props: {
  * Grouped tabs are preceded by a colored {@link GroupChip}; collapsing a group
  * hides its tabs behind the chip.
  */
-export function BrowserTabStrip(props: { onCreateTab: () => void; variant?: "row" | "header" }) {
+export function BrowserTabStrip(props: {
+  onCreateTab: () => void;
+  variant?: "row" | "header";
+  tabIds?: string[] | undefined;
+}) {
   const { t } = useLingui();
   const variant = props.variant ?? "row";
-  const tabs = useBrowserPanelStore((s) => s.tabs);
+  const allTabs = useBrowserPanelStore((s) => s.tabs);
+  const tabs = props.tabIds ? allTabs.filter((tab) => props.tabIds!.includes(tab.tabId)) : allTabs;
   const groups = useBrowserPanelStore((s) => s.groups);
   const activeTabId = useBrowserPanelStore((s) => s.activeTabId);
   const attentionTabId = useBrowserPanelStore((s) => s.attentionTabId);

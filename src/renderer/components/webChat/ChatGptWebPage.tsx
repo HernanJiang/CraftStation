@@ -1,14 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import {
-  ArrowLeft,
-  Globe,
-  Plus,
-  ExternalLink,
-  Download,
-  Trash2,
-  Brain,
-  RefreshCw,
-} from "lucide-react";
+import { createPortal } from "react-dom";
+import { Globe, ExternalLink, Trash2, Brain, RefreshCw } from "lucide-react";
 import { Modal } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { Button } from "@/renderer/components/common/Button";
@@ -21,7 +13,15 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { flattenSegments } from "@/renderer/components/composer/serializeMentions";
 import { ItemMarkdown } from "@/renderer/components/thread/ChatPane/parts/items/ItemMarkdown";
 import { useWebChatStore } from "@/renderer/state/webChatStore";
+import { useBrowserPanelStore } from "@/renderer/state/browserPanelStore";
 import { WebChatWidgetCard } from "./WebChatWidgetCard";
+import { WebChatConversationRail } from "./WebChatConversationRail";
+import { WebChatNativeView } from "./WebChatNativeView";
+import { WebChatThreadSidebarDialog } from "./WebChatThreadSidebarDialog";
+import {
+  useLayoutHeaderPortalTarget,
+  WEB_CHAT_HEADER_PORTAL_ID,
+} from "@/renderer/components/layout/layoutHeaderPortals";
 import {
   chatGptConversationUrl,
   type WebChatSession,
@@ -31,8 +31,12 @@ import {
 
 export function ChatGptWebPage() {
   const { t } = useLingui();
+  const headerTarget = useLayoutHeaderPortalTarget(WEB_CHAT_HEADER_PORTAL_ID);
   const draftVersion = useWebChatStore((s) => s.draftVersion);
+  const nativeView = useWebChatStore((s) => s.nativeView);
   const requestedSessionId = useWebChatStore((s) => s.selectedSessionId);
+  const sessionOpenVersion = useWebChatStore((s) => s.sessionOpenVersion);
+  const savedSessions = useWebChatStore((s) => s.sessions);
   const deleteRequestId = useWebChatStore((s) => s.deleteRequestId);
   const webProjectId = useWebChatStore((s) => s.projectId);
   const currentProjectId = useCurrentProjectId();
@@ -40,25 +44,44 @@ export function ChatGptWebPage() {
   const project = useAppStore((s) => s.projects.find((p) => p.id === projectId) ?? s.projects[0]);
   const projectIdRef = useRef(projectId);
   projectIdRef.current = projectId;
-  const [sessions, setSessions] = useState<WebChatSession[]>([]);
   const [session, setSession] = useState<WebChatSession>();
   const [prompt, setPrompt] = useState("");
   const [activeWidgetId, setActiveWidgetId] = useState<string>();
+  const widgetTurnRef = useRef<string | undefined>(undefined);
   const [pending, setPending] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string>();
   const [syncError, setSyncError] = useState<string>();
-  const [dialog, setDialog] = useState<"import" | "reasoning">();
+  const [dialog, setDialog] = useState<"reasoning">();
   const [dialogError, setDialogError] = useState<string>();
-  const [importUrl, setImportUrl] = useState("");
+  const [conversationsOpen, setConversationsOpen] = useState(false);
   const [available, setAvailable] = useState<WebChatConversation[]>([]);
+  const conversations = [
+    ...new Map(
+      [
+        ...savedSessions.flatMap((s) => {
+          const url = chatGptConversationUrl(s.url);
+          return url ? [{ title: s.title, url }] : [];
+        }),
+        ...available,
+      ].map((item) => [item.url, item]),
+    ).values(),
+  ];
+  const [discovering, setDiscovering] = useState(false);
+  const [discoveryError, setDiscoveryError] = useState<string>();
+  const [discoveryVersion, setDiscoveryVersion] = useState(0);
   const [reasoning, setReasoning] = useState<WebChatReasoning>();
   const [effort, setEffort] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<WebChatSession>();
+  const [threadSidebarSession, setThreadSidebarSession] = useState<WebChatSession>();
   const endRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const follow = useRef(true);
-  const selectedId = session?.id;
+  const selectedId = requestedSessionId ?? session?.id;
+  const nativeTabId = (savedSessions.find((s) => s.id === requestedSessionId) ?? session)?.tabId;
+  const nativeLoading = useBrowserPanelStore(
+    (s) => s.tabs.find((tab) => tab.tabId === nativeTabId)?.loading ?? false,
+  );
   const busy = session?.status === "sending" || session?.status === "streaming";
   const tail = session?.messages.at(-1);
   const transcriptTailKey = JSON.stringify([
@@ -69,15 +92,17 @@ export function ChatGptWebPage() {
     tail?.widgets,
   ]);
   useEffect(() => {
-    if (!session || activeWidgetId?.startsWith(`${session.id}:`)) return;
-    const widget = session.messages
-      .flatMap((message) => message.widgets ?? [])
-      .find((w) => w.kind !== "response");
-    if (widget) setActiveWidgetId(`${session.id}:${widget.id}`);
+    if (!session) return;
+    const message = session.messages.findLast((m) => m.widgets?.some((w) => w.kind !== "response"));
+    const widget = message?.widgets?.find((w) => w.kind !== "response");
+    if (!message || !widget) return;
+    const turnKey = `${session.id}:${message.id}`;
+    if (widgetTurnRef.current === turnKey && activeWidgetId?.startsWith(`${session.id}:`)) return;
+    widgetTurnRef.current = turnKey;
+    setActiveWidgetId(`${session.id}:${widget.id}`);
   }, [session, activeWidgetId]);
   const replace = (next: WebChatSession) => {
     setSession(next);
-    setSessions((list) => [next, ...list.filter((s) => s.id !== next.id)]);
     const store = useWebChatStore.getState();
     store.setSessions([next, ...store.sessions.filter((s) => s.id !== next.id)]);
     if (store.selectedSessionId !== next.id) store.selectSession(next.id);
@@ -86,13 +111,33 @@ export function ChatGptWebPage() {
     let cancelled = false;
     void readBridge()
       .webChatList()
-      .then((list) => {
+      .then(async (list) => {
         if (cancelled) return;
-        setSessions(list);
         useWebChatStore.getState().setSessions(list);
         const draft = useWebChatStore.getState().isDraft;
         const requested = useWebChatStore.getState().selectedSessionId;
-        setSession(draft ? undefined : (list.find((s) => s.id === requested) ?? list[0]));
+        let next = draft ? undefined : list.find((s) => s.id === requested);
+        if (!draft && !next && useWebChatStore.getState().nativeView) {
+          const browser = await readBridge().browserGetState();
+          if (cancelled || useWebChatStore.getState().selectedSessionId !== requested) return;
+          const source =
+            browser.tabs.find(
+              (tab) => tab.tabId === browser.activeTabId && chatGptConversationUrl(tab.url),
+            ) ?? browser.tabs.find((tab) => chatGptConversationUrl(tab.url));
+          if (source) {
+            next = await readBridge().webChatImport({
+              url: chatGptConversationUrl(source.url)!,
+              tabId: source.tabId,
+            });
+          }
+        }
+        next ??= draft ? undefined : (list.find((s) => chatGptConversationUrl(s.url)) ?? list[0]);
+        if (!next && useWebChatStore.getState().nativeView) {
+          next = await readBridge().webChatCreate();
+        }
+        if (cancelled || useWebChatStore.getState().selectedSessionId !== requested) return;
+        if (next) replace(next);
+        else setSession(undefined);
         const pid = projectIdRef.current;
         setPrompt(
           draft && useWebChatStore.getState().inheritLocalDraft && pid
@@ -127,10 +172,14 @@ export function ChatGptWebPage() {
     if (!selectedId || pending) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
-    const read = async () => {
+    const read = async (restoreBinding = false) => {
       try {
-        const next = await readBridge().webChatRead({ sessionId: selectedId });
-        if (!cancelled) {
+        const next = await readBridge().webChatRead({
+          sessionId: selectedId,
+          ...(restoreBinding ? { restoreBinding: true } : {}),
+          ...(nativeView ? { followNavigation: true } : {}),
+        });
+        if (!cancelled && useWebChatStore.getState().selectedSessionId === selectedId) {
           replace(next);
           setSyncError(undefined);
           if (next.status === "ready")
@@ -142,30 +191,23 @@ export function ChatGptWebPage() {
             );
         }
       } catch (e) {
-        if (!cancelled) setSyncError(String(e));
+        if (!cancelled && useWebChatStore.getState().selectedSessionId === selectedId)
+          setSyncError(String(e));
       }
       if (!cancelled)
         timer = setTimeout(() => {
           void read();
         }, 300);
     };
-    void read();
+    void read(nativeView);
     return () => {
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [selectedId, pending]);
+  }, [selectedId, pending, nativeView, sessionOpenVersion]);
   useEffect(() => {
     if (follow.current) endRef.current?.scrollIntoView({ block: "end" });
   }, [transcriptTailKey]);
-  const create = () => {
-    if (pending || busy) return;
-    setSession(undefined);
-    setPrompt("");
-    setError(undefined);
-    useWebChatStore.getState().startDraft(project?.id);
-    follow.current = true;
-  };
   // 登录完成前保留输入，不自动重发；浏览器沿用侧边浏览器的持久登录状态。
   const ensureSession = async () => {
     let next = session ?? (await readBridge().webChatCreate());
@@ -200,9 +242,11 @@ export function ChatGptWebPage() {
     setPending(true);
     setError(undefined);
     follow.current = true;
+    let connectedId: string | undefined;
     try {
       const connected = await ensureSession();
       if (!connected) return;
+      connectedId = connected.id;
       replace(
         await readBridge().webChatSend({
           sessionId: connected.id,
@@ -215,6 +259,11 @@ export function ChatGptWebPage() {
       useWebChatStore.getState().selectSession(connected.id);
     } catch (e) {
       setError(String(e));
+      if (connectedId && /\bWEB_LOGIN_REQUIRED\b/.test(String(e))) {
+        await readBridge()
+          .webChatReveal({ sessionId: connectedId })
+          .catch((revealError: unknown) => setSyncError(String(revealError)));
+      }
     } finally {
       setPending(false);
     }
@@ -232,51 +281,61 @@ export function ChatGptWebPage() {
     }
   };
   const reveal = async () => {
+    if (pending) return;
+    setPending(true);
     setError(undefined);
     setSyncError(undefined);
     try {
       const next = session ?? (await readBridge().webChatCreate());
-      if (!session) replace(next);
+      replace(next);
+      useWebChatStore.getState().selectSession(next.id);
       await readBridge().webChatReveal({ sessionId: next.id });
     } catch (e) {
       setError(String(e));
+    } finally {
+      setPending(false);
     }
   };
   const refresh = async () => {
-    if (pending || busy) return;
+    if (pending || (!nativeView && busy)) return;
     setPending(true);
     setRefreshing(true);
     setError(undefined);
     setSyncError(undefined);
+    let targetId = requestedSessionId;
     try {
-      const next = session ?? (await readBridge().webChatCreate());
-      if (!session) replace(next);
-      replace(await readBridge().webChatRefresh({ sessionId: next.id }));
+      const next =
+        savedSessions.find((s) => s.id === targetId) ??
+        session ??
+        (await readBridge().webChatCreate());
+      targetId = next.id;
+      if (!useWebChatStore.getState().selectedSessionId) replace(next);
+      if (useWebChatStore.getState().selectedSessionId === next.id)
+        useWebChatStore.getState().selectSession(next.id);
+      if (nativeView && next.tabId) {
+        await readBridge().browserReload({ tabId: next.tabId });
+        return;
+      }
+      const refreshed = await readBridge().webChatRefresh({
+        sessionId: next.id,
+        ...(nativeView ? { followNavigation: true } : {}),
+      });
+      if (useWebChatStore.getState().selectedSessionId === next.id) replace(refreshed);
+      else {
+        const store = useWebChatStore.getState();
+        store.setSessions(store.sessions.map((s) => (s.id === next.id ? refreshed : s)));
+      }
     } catch (e) {
-      setError(String(e));
+      if (useWebChatStore.getState().selectedSessionId === targetId) setError(String(e));
     } finally {
       setPending(false);
       setRefreshing(false);
     }
   };
-  const openImport = async () => {
-    setDialog("import");
-    setDialogError(undefined);
-    setAvailable([]);
-    setPending(true);
-    try {
-      const connected = await ensureSession();
-      if (connected) setAvailable(await readBridge().webChatDiscover({ sessionId: connected.id }));
-    } catch (e) {
-      setDialogError(String(e));
-    } finally {
-      setPending(false);
-    }
-  };
   const importConversation = async (url: string) => {
-    if (pending) return;
+    if (pending || busy) return;
     setPending(true);
-    setDialogError(undefined);
+    setDiscoveryError(undefined);
     try {
       const imported = await readBridge().webChatImport({ url });
       replace(imported);
@@ -284,11 +343,12 @@ export function ChatGptWebPage() {
       useWebChatStore.getState().selectSession(imported.id);
       setPrompt("");
       setError(undefined);
-      setImportUrl("");
-      setDialog(undefined);
+      setConversationsOpen(false);
+      if (nativeView) useWebChatStore.getState().openSession(imported.id);
+      else await readBridge().webChatReveal({ sessionId: imported.id });
       follow.current = true;
     } catch (e) {
-      setDialogError(String(e));
+      setDiscoveryError(String(e));
     } finally {
       setPending(false);
     }
@@ -337,9 +397,15 @@ export function ChatGptWebPage() {
     try {
       await readBridge().webChatDelete({ sessionId: target.id, url: target.url, confirmed: true });
       const list = await readBridge().webChatList();
-      setSessions(list);
       useWebChatStore.getState().setSessions(list);
-      setSession(list[0]);
+      setAvailable((items) =>
+        items.filter((item) => item.url !== chatGptConversationUrl(target.url)),
+      );
+      if (list[0]) replace(list[0]);
+      else {
+        setSession(undefined);
+        useWebChatStore.getState().startDraft(projectIdRef.current);
+      }
       setPrompt("");
     } catch (e) {
       setError(String(e));
@@ -348,6 +414,39 @@ export function ChatGptWebPage() {
       setPending(false);
     }
   };
+  const canDiscover = Boolean(
+    conversationsOpen && selectedId && session?.status === "ready" && !pending && !busy,
+  );
+  useEffect(() => {
+    if (!selectedId || !canDiscover) return;
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
+    const discover = async () => {
+      setDiscovering(true);
+      try {
+        const list = await readBridge().webChatDiscover({ sessionId: selectedId });
+        if (!cancelled) {
+          setAvailable(list);
+          setDiscoveryError(undefined);
+        }
+      } catch (e) {
+        if (!cancelled) setDiscoveryError(String(e));
+      } finally {
+        if (!cancelled) {
+          setDiscovering(false);
+          timer = setTimeout(() => {
+            void discover();
+          }, 8000);
+        }
+      }
+    };
+    void discover();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+      setDiscovering(false);
+    };
+  }, [selectedId, canDiscover, discoveryVersion]);
   const status = session?.status;
   const statusText = busy
     ? t`正在同步网页回复…`
@@ -359,251 +458,290 @@ export function ChatGptWebPage() {
           ? t`同步中断`
           : t`正在连接网页…`;
   return (
-    <section className="flex h-full min-h-0 flex-col bg-background" data-testid="chatgpt-web-page">
-      <header className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-3">
-        <Button
-          isIconOnly
-          size="sm"
-          variant="tertiary"
-          aria-label={t`返回`}
-          onPress={() => useWebChatStore.getState().setOpen(false)}
-        >
-          <ArrowLeft className="size-4" />
-        </Button>
-        <Globe className="size-5 text-emerald-400" />
-        <h1 className="font-semibold">
-          ChatGPT <Trans>网页</Trans>
-        </h1>
-        <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] text-emerald-400">
-          <Trans>实验</Trans>
-        </span>
-        <div className="ml-auto flex min-w-0 flex-wrap items-center gap-2">
-          {sessions.length > 0 && (
-            <select
-              aria-label={t`网页会话`}
-              className="max-w-40 rounded-lg bg-default px-2 py-1 text-xs"
-              value={selectedId ?? ""}
-              disabled={pending}
-              onChange={(e) => {
-                const next = sessions.find((s) => s.id === e.target.value);
-                setSession(next);
-                setPrompt("");
-                setError(undefined);
-                useWebChatStore.getState().finishDraft();
-                if (next) useWebChatStore.getState().selectSession(next.id);
-                follow.current = true;
-              }}
-            >
-              {sessions.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.title}
-                </option>
-              ))}
-            </select>
-          )}
-          <Button
-            size="sm"
-            variant="tertiary"
-            isDisabled={pending || busy}
-            onPress={() => {
-              void create();
+    <section
+      className="relative flex h-full min-h-0 flex-col bg-background"
+      data-testid="chatgpt-web-page"
+    >
+      <div className="flex min-h-0 flex-1 gap-3 p-3">
+        {nativeView ? (
+          <WebChatNativeView tabId={nativeTabId} />
+        ) : (
+          <div
+            ref={scrollRef}
+            className="min-h-0 min-w-0 flex-1 overflow-y-auto px-2 pb-3"
+            onScroll={() => {
+              const el = scrollRef.current;
+              if (el) follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
             }}
           >
-            <Plus className="size-4" />
-            <Trans>新对话</Trans>
-          </Button>
-          <Button
-            size="sm"
-            variant="tertiary"
-            isDisabled={pending || busy}
-            onPress={() => {
-              void openImport();
-            }}
-          >
-            <Download className="size-4" />
-            <Trans>导入已有对话</Trans>
-          </Button>
-          <Button
-            size="sm"
-            variant="tertiary"
-            isIconOnly
-            aria-label={t`删除账号中的对话`}
-            isDisabled={pending || busy || !session || !chatGptConversationUrl(session.url)}
-            onPress={() => setDeleteTarget(session)}
-          >
-            <Trash2 className="size-4" />
-          </Button>
-          <Button
-            size="sm"
-            variant="secondary"
-            isDisabled={pending}
-            onPress={() => {
-              void reveal();
-            }}
-          >
-            <ExternalLink className="size-4" />
-            <Trans>打开网页</Trans>
-          </Button>
-          <Button
-            size="sm"
-            variant="tertiary"
-            data-testid="webchat-refresh"
-            isDisabled={pending || busy}
-            isPending={refreshing}
-            onPress={() => {
-              void refresh();
-            }}
-          >
-            <RefreshCw className="size-4" />
-            <Trans>刷新重试</Trans>
-          </Button>
-        </div>
-      </header>
-      <div
-        ref={scrollRef}
-        className="min-h-0 flex-1 overflow-y-auto px-5 py-6"
-        onScroll={() => {
-          const el = scrollRef.current;
-          if (el) follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 100;
-        }}
-      >
-        <div className="mx-auto max-w-4xl space-y-7">
-          {!session?.messages.length && (
-            <div className="mx-auto mt-16 max-w-lg text-center">
-              <Globe className="mx-auto mb-4 size-12 text-emerald-400" />
-              <h2 className="mb-3 text-xl font-semibold">
-                <Trans>在这里聊，由 ChatGPT 网页回答</Trans>
-              </h2>
-              <p className="mb-6 text-sm leading-6 text-muted">
-                <Trans>
-                  使用侧边浏览器已登录的 ChatGPT
-                  账号。发送后回复实时显示在这里；尚未登录时会打开官方登录页。
-                </Trans>
-              </p>
-            </div>
-          )}
-          {session?.messages.map((message) => (
-            <article
-              key={message.id}
-              className={
-                message.role === "user"
-                  ? "ml-auto w-fit max-w-[90%] rounded-2xl bg-default px-4 py-3"
-                  : "min-w-0"
-              }
-            >
-              <div className="mb-2 text-xs text-muted">
-                {message.role === "user" ? t`你` : "ChatGPT"}
-              </div>
-              <ItemMarkdown text={message.text} />
-              {message.widgets
-                ?.filter((w) => w.kind !== "response")
-                .map((widget) => (
-                  <WebChatWidgetCard
-                    key={`${session.id}:${widget.id}`}
-                    sessionId={session.id}
-                    widget={widget}
-                    active={activeWidgetId === `${session.id}:${widget.id}`}
-                    onActivate={() => setActiveWidgetId(`${session.id}:${widget.id}`)}
-                    onEdit={() => setPrompt(`请继续修改上面「${widget.title}」这个交互组件：`)}
-                  />
-                ))}
-              {message.widgets
-                ?.filter((w) => w.kind === "response")
-                .map((widget) => (
-                  <WebChatWidgetCard
-                    key={`${session.id}:${widget.id}`}
-                    sessionId={session.id}
-                    widget={widget}
-                    active={activeWidgetId === `${session.id}:${widget.id}`}
-                    onActivate={() => setActiveWidgetId(`${session.id}:${widget.id}`)}
-                    onEdit={() => setPrompt("请继续修改上面的回复和交互组件：")}
-                  />
-                ))}
-            </article>
-          ))}
-          <div ref={endRef} />
-        </div>
-      </div>
-      <footer className="mx-auto w-full max-w-4xl shrink-0 px-4 pb-4">
-        {(error || syncError || session?.error) && (
-          <p
-            role="alert"
-            className="mb-3 break-words rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger"
-          >
-            {error || syncError || session?.error}
-          </p>
-        )}
-        <UniversalDockedChatInput
-          {...(project ? { project } : {})}
-          placement="conversation"
-          craftMode="efficient"
-          onCraftModeChange={() => undefined}
-          runtimeMode="web"
-          {...(!session?.messages.length && !pending && !busy
-            ? {
-                onRuntimeModeChange: (mode: "local" | "web") => {
-                  if (mode === "local") switchToLocal();
-                },
-                onProjectChange: (id: string) => useWebChatStore.getState().setProjectId(id),
-              }
-            : {})}
-          rightActions={
-            session ? (
-              <span className="flex items-center gap-2 text-xs text-muted" role="status">
-                <span
-                  className={`size-1.5 rounded-full ${status === "ready" ? "bg-emerald-400" : "bg-amber-400"}`}
-                />
-                {statusText}
-              </span>
-            ) : undefined
-          }
-        >
-          <ThreadComposer
-            prompt={prompt}
-            placeholder={t`发送到 ChatGPT 网页…`}
-            onPromptChange={setPrompt}
-            onSubmit={() => {
-              void send();
-            }}
-            submitLabel={t`发送`}
-            submitDisabled={pending || busy || !prompt.trim()}
-            submitPending={pending}
-            stopPending={pending}
-            onStop={
-              busy
-                ? () => {
-                    void stop();
+            <div className="mx-auto max-w-4xl space-y-7">
+              {!session?.messages.length && (
+                <div className="mx-auto mt-16 max-w-lg text-center">
+                  <Globe className="mx-auto mb-4 size-12 text-emerald-400" />
+                  <h2 className="mb-3 text-xl font-semibold">
+                    <Trans>在这里聊，由 ChatGPT 网页回答</Trans>
+                  </h2>
+                  <p className="mb-6 text-sm leading-6 text-muted">
+                    <Trans>
+                      使用侧边浏览器已登录的 ChatGPT
+                      账号。发送后回复实时显示在这里；尚未登录时会打开官方登录页。
+                    </Trans>
+                  </p>
+                </div>
+              )}
+              {session?.messages.map((message) => (
+                <article
+                  key={message.id}
+                  className={
+                    message.role === "user"
+                      ? "ml-auto w-fit max-w-[90%] rounded-2xl bg-default px-4 py-3"
+                      : "min-w-0"
                   }
-                : undefined
-            }
-            toolbarLayoutKey={session?.reasoningLabel ?? "web-thinking"}
-            afterControls={
-              <Button
-                size="sm"
-                variant="tertiary"
-                aria-label={t`思考强度`}
-                data-testid="webchat-thinking"
-                className="max-w-28 shrink-0"
-                isDisabled={pending || busy}
-                onPress={() => {
-                  void openReasoning();
+                >
+                  <div className="mb-2 text-xs text-muted">
+                    {message.role === "user" ? t`你` : "ChatGPT"}
+                  </div>
+                  <ItemMarkdown text={message.text} />
+                  {message.widgets
+                    ?.filter((w) => w.kind !== "response")
+                    .map((widget) => (
+                      <WebChatWidgetCard
+                        key={`${session.id}:${widget.id}`}
+                        sessionId={session.id}
+                        widget={widget}
+                        active={activeWidgetId === `${session.id}:${widget.id}`}
+                        onActivate={() => setActiveWidgetId(`${session.id}:${widget.id}`)}
+                        onEdit={() => setPrompt(`请继续修改上面「${widget.title}」这个交互组件：`)}
+                      />
+                    ))}
+                  {message.widgets
+                    ?.filter((w) => w.kind === "response")
+                    .map((widget) => (
+                      <WebChatWidgetCard
+                        key={`${session.id}:${widget.id}`}
+                        sessionId={session.id}
+                        widget={widget}
+                        active={activeWidgetId === `${session.id}:${widget.id}`}
+                        onActivate={() => setActiveWidgetId(`${session.id}:${widget.id}`)}
+                        onEdit={() => setPrompt("请继续修改上面的回复和交互组件：")}
+                      />
+                    ))}
+                </article>
+              ))}
+              <div ref={endRef} />
+            </div>
+          </div>
+        )}
+        {headerTarget &&
+          createPortal(
+            nativeView ? (
+              <div className="craftstation-overlay-header__controls flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="craftstation-overlay-header__controls h-7 gap-2 rounded-full border border-border px-3 text-xs shadow-sm"
+                  data-testid="webchat-header-thread-sidebar"
+                  isDisabled={!selectedId || !nativeTabId}
+                  onPress={() => {
+                    const target = savedSessions.find((item) => item.id === selectedId) ?? session;
+                    if (target) setThreadSidebarSession(target);
+                  }}
+                >
+                  <ExternalLink className="size-3.5" />
+                  <Trans>打开为本地对话侧边栏</Trans>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="craftstation-overlay-header__controls h-7 gap-2 rounded-full border border-border px-3 text-xs shadow-sm"
+                  data-testid="webchat-header-refresh"
+                  aria-label={t`刷新网页`}
+                  isDisabled={pending || nativeLoading || !selectedId}
+                  isPending={refreshing || nativeLoading}
+                  onPress={() => {
+                    void refresh();
+                  }}
+                >
+                  <RefreshCw className="size-3.5" />
+                  <Trans>刷新网页</Trans>
+                </Button>
+              </div>
+            ) : (
+              <WebChatConversationRail
+                conversations={conversations}
+                open={conversationsOpen}
+                onOpenChange={(open) => {
+                  setConversationsOpen(open);
+                  if (open && !session && !pending && !discovering) {
+                    setPending(true);
+                    setDiscovering(true);
+                    void readBridge()
+                      .webChatCreate()
+                      .then(replace)
+                      .catch((e: unknown) => setDiscoveryError(String(e)))
+                      .finally(() => {
+                        setPending(false);
+                        setDiscovering(false);
+                      });
+                  }
                 }}
+                {...(session ? { currentUrl: session.url } : {})}
+                loading={discovering}
+                disabled={pending || busy}
+                {...(discoveryError ? { error: discoveryError } : {})}
+                onRefresh={() => setDiscoveryVersion((v) => v + 1)}
+                onSelect={(url) => {
+                  void importConversation(url);
+                }}
+              />
+            ),
+            headerTarget,
+          )}
+      </div>
+      {threadSidebarSession && (
+        <WebChatThreadSidebarDialog
+          session={threadSidebarSession}
+          onClose={() => setThreadSidebarSession(undefined)}
+        />
+      )}
+      {nativeView && (error || syncError || session?.error) && (
+        <p
+          role="alert"
+          className="absolute inset-x-6 top-6 z-50 rounded-xl bg-danger/90 px-3 py-2 text-sm text-white"
+        >
+          {error || syncError || session?.error}
+        </p>
+      )}
+      {!nativeView && (
+        <footer className="mx-auto w-full max-w-4xl shrink-0 px-4 pb-4">
+          {(error || syncError || session?.error) && (
+            <p
+              role="alert"
+              className="mb-3 break-words rounded-xl bg-danger/10 px-3 py-2 text-sm text-danger"
+            >
+              {error || syncError || session?.error}
+            </p>
+          )}
+          <UniversalDockedChatInput
+            {...(project ? { project } : {})}
+            placement="conversation"
+            craftMode="efficient"
+            onCraftModeChange={() => undefined}
+            runtimeMode="web"
+            {...(!session?.messages.length && !pending && !busy
+              ? {
+                  onRuntimeModeChange: (mode: "local" | "web") => {
+                    if (mode === "local") switchToLocal();
+                  },
+                  onProjectChange: (id: string) => useWebChatStore.getState().setProjectId(id),
+                }
+              : {})}
+            rightActions={
+              <div
+                className="flex min-w-0 flex-wrap items-center justify-end gap-1"
+                data-testid="webchat-controls"
               >
-                <Brain className="size-4" />
-                {session?.reasoningLabel || t`思考强度`}
-              </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-auto min-h-6 max-w-full shrink-0 gap-1.5 whitespace-normal px-1.5 py-1 text-left text-xs"
+                  data-testid="webchat-reveal"
+                  aria-label={t`打开原远程网页对话`}
+                  isDisabled={pending}
+                  onPress={() => {
+                    void reveal();
+                  }}
+                >
+                  <ExternalLink className="size-3.5 shrink-0" />
+                  <Trans>打开原远程网页对话</Trans>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-auto min-h-6 max-w-full shrink-0 gap-1.5 whitespace-normal px-1.5 py-1 text-left text-xs"
+                  data-testid="webchat-refresh"
+                  aria-label={t`刷新网页`}
+                  isDisabled={pending || busy}
+                  isPending={refreshing}
+                  onPress={() => {
+                    void refresh();
+                  }}
+                >
+                  <RefreshCw className="size-3.5 shrink-0" />
+                  <Trans>刷新网页</Trans>
+                </Button>
+                <Button
+                  isIconOnly
+                  size="sm"
+                  variant="ghost"
+                  className="size-6 min-w-6"
+                  aria-label={t`删除账号中的对话`}
+                  isDisabled={pending || busy || !session || !chatGptConversationUrl(session.url)}
+                  onPress={() => setDeleteTarget(session)}
+                >
+                  <Trash2 className="size-3.5" />
+                </Button>
+                <span
+                  className="ml-1 flex min-w-0 items-center gap-2 text-xs text-muted"
+                  role="status"
+                >
+                  <span
+                    className={`size-1.5 shrink-0 rounded-full ${status === "ready" ? "bg-emerald-400" : "bg-amber-400"}`}
+                  />
+                  <span className="max-w-28 truncate">{statusText}</span>
+                </span>
+              </div>
             }
-            controls={[
-              {
-                kind: "static",
-                value: "ChatGPT",
-                icon: <Globe className="size-4" />,
-                hideLabelOnWrap: true,
-              },
-            ]}
-          />
-        </UniversalDockedChatInput>
-      </footer>
+          >
+            {!nativeView && (
+              <ThreadComposer
+                prompt={prompt}
+                placeholder={t`发送到 ChatGPT 网页…`}
+                onPromptChange={setPrompt}
+                onSubmit={() => {
+                  void send();
+                }}
+                submitLabel={t`发送`}
+                submitDisabled={pending || busy || !prompt.trim()}
+                submitPending={pending}
+                stopPending={pending}
+                onStop={
+                  busy
+                    ? () => {
+                        void stop();
+                      }
+                    : undefined
+                }
+                toolbarLayoutKey={session?.reasoningLabel ?? "web-thinking"}
+                afterControls={
+                  <Button
+                    size="sm"
+                    variant="tertiary"
+                    aria-label={t`思考强度`}
+                    data-testid="webchat-thinking"
+                    className="max-w-28 shrink-0"
+                    isDisabled={pending || busy}
+                    onPress={() => {
+                      void openReasoning();
+                    }}
+                  >
+                    <Brain className="size-4" />
+                    {session?.reasoningLabel || t`思考强度`}
+                  </Button>
+                }
+                controls={[
+                  {
+                    kind: "static",
+                    value: "ChatGPT",
+                    icon: <Globe className="size-4" />,
+                    hideLabelOnWrap: true,
+                  },
+                ]}
+              />
+            )}
+          </UniversalDockedChatInput>
+        </footer>
+      )}
       <Modal.Backdrop
         isOpen={Boolean(dialog)}
         onOpenChange={(open) => {
@@ -615,7 +753,7 @@ export function ChatGptWebPage() {
           <Modal.Dialog className="w-full max-w-xl">
             <Modal.CloseTrigger isDisabled={pending} />
             <Modal.Header>
-              <Modal.Heading>{dialog === "import" ? t`导入已有对话` : t`思考强度`}</Modal.Heading>
+              <Modal.Heading>{t`思考强度`}</Modal.Heading>
             </Modal.Header>
             <Modal.Body className="space-y-4">
               {dialogError && (
@@ -623,93 +761,33 @@ export function ChatGptWebPage() {
                   {dialogError}
                 </p>
               )}
-              {dialog === "import" ? (
-                <>
-                  <p className="text-sm text-muted">
-                    <Trans>
-                      从已登录账号选择对话，或粘贴自己的对话链接。导入后可继续原对话；分享链接不支持续聊。
-                    </Trans>
-                  </p>
+              <>
+                <p className="text-sm text-muted">
+                  <Trans>
+                    选项来自当前网页账号和模型。应用后会核实网页档位；模型或套餐变化时，请重新读取选项。
+                  </Trans>
+                </p>
+                {reasoning && (
                   <label className="block space-y-2 text-sm">
                     <span>
-                      <Trans>ChatGPT 对话链接</Trans>
+                      <Trans>网页思考强度</Trans>
                     </span>
-                    <input
-                      aria-label={t`ChatGPT 对话链接`}
-                      className="w-full rounded-lg border border-border bg-default px-3 py-2"
-                      placeholder="https://chatgpt.com/c/…"
-                      value={importUrl}
-                      onChange={(e) => setImportUrl(e.target.value)}
+                    <select
+                      aria-label={t`网页思考强度`}
+                      className="w-full rounded-lg bg-default px-3 py-2"
                       disabled={pending}
-                    />
-                  </label>
-                  <div className="flex items-center justify-between text-sm">
-                    <span>
-                      <Trans>网页已加载的对话</Trans>
-                    </span>
-                    <Button
-                      size="sm"
-                      variant="tertiary"
-                      isDisabled={pending || status !== "ready"}
-                      onPress={() => {
-                        void openImport();
-                      }}
+                      value={effort}
+                      onChange={(e) => setEffort(e.target.value)}
                     >
-                      <Trans>刷新列表</Trans>
-                    </Button>
-                  </div>
-                  <div className="max-h-64 space-y-1 overflow-y-auto">
-                    {available.map((item) => (
-                      <Button
-                        key={item.url}
-                        className="w-full justify-start"
-                        variant="tertiary"
-                        isDisabled={pending}
-                        onPress={() => {
-                          void importConversation(item.url);
-                        }}
-                      >
-                        <span className="truncate">{item.title}</span>
-                      </Button>
-                    ))}
-                    {!pending && available.length === 0 && (
-                      <p className="text-sm text-muted">
-                        <Trans>
-                          没有已加载的对话。可先打开网页登录、加载旧对话，或直接粘贴链接。
-                        </Trans>
-                      </p>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="text-sm text-muted">
-                    <Trans>
-                      选项来自当前网页账号和模型。应用后会核实网页档位；模型或套餐变化时，请重新读取选项。
-                    </Trans>
-                  </p>
-                  {reasoning && (
-                    <label className="block space-y-2 text-sm">
-                      <span>
-                        <Trans>网页思考强度</Trans>
-                      </span>
-                      <select
-                        aria-label={t`网页思考强度`}
-                        className="w-full rounded-lg bg-default px-3 py-2"
-                        disabled={pending}
-                        value={effort}
-                        onChange={(e) => setEffort(e.target.value)}
-                      >
-                        {reasoning.options.map((o) => (
-                          <option key={o.id} value={o.id}>
-                            {o.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  )}
-                </>
-              )}
+                      {reasoning.options.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
+              </>
               {pending && (
                 <p role="status" className="text-sm text-muted">
                   <Trans>正在读取或应用网页设置…</Trans>
@@ -722,15 +800,12 @@ export function ChatGptWebPage() {
               </Button>
               <Button
                 isPending={pending}
-                isDisabled={
-                  pending || (dialog === "import" ? !chatGptConversationUrl(importUrl) : !reasoning)
-                }
+                isDisabled={pending || !reasoning}
                 onPress={() => {
-                  if (dialog === "import") void importConversation(importUrl);
-                  else void applyReasoning();
+                  void applyReasoning();
                 }}
               >
-                {dialog === "import" ? t`导入并继续` : t`应用到网页`}
+                {t`应用到网页`}
               </Button>
             </Modal.Footer>
           </Modal.Dialog>

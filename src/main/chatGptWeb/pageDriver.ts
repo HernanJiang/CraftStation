@@ -32,6 +32,7 @@ export function chatGptPage(action: "read" | "send" | "stop", prompt = "") {
   const markdown = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) return escape(node.textContent ?? "");
     if (!(node instanceof Element)) return "";
+    if (node.hasAttribute("data-craftstation-widget-root")) return "";
     const tag = node.tagName.toLowerCase();
     if (["button", "script", "style", "svg"].includes(tag)) return "";
     const math =
@@ -137,9 +138,28 @@ export function chatGptPage(action: "read" | "send" | "stop", prompt = "") {
     ];
   });
   const reasoningTrigger = find("[data-codex-intelligence-trigger]");
+  const conversationId = /^(?:\/g\/[^/]+)?\/c\/([a-zA-Z0-9-]{8,})\/?$/.exec(location.pathname)?.[1];
+  const documentTitle = document.title.replace(/\s*[-–]\s*ChatGPT$/, "").trim();
+  const conversationLink = conversationId
+    ? [
+        ...document.querySelectorAll<HTMLAnchorElement>(
+          "nav a[href], aside a[href], #sidebar a[href], #stage-slideover-sidebar a[href]",
+        ),
+      ].find((link) => {
+        return (
+          link.origin === location.origin &&
+          /^(?:\/g\/[^/]+)?\/c\/([a-zA-Z0-9-]{8,})\/?$/.exec(link.pathname)?.[1] === conversationId
+        );
+      })
+    : undefined;
+  const conversationTitle = (
+    conversationLink?.querySelector<HTMLElement>('[dir="auto"]')?.textContent ||
+    conversationLink?.getAttribute("title") ||
+    conversationLink?.textContent
+  )?.trim();
   const snapshot = {
     url: location.href,
-    title: document.title.replace(/\s*[-–]\s*ChatGPT$/, ""),
+    title: documentTitle && documentTitle !== "ChatGPT" ? documentTitle : (conversationTitle ?? ""),
     reasoningLabel: (reasoningTrigger?.innerText || reasoningTrigger?.textContent)?.trim(),
     messages,
     generating: Boolean(stop),
@@ -192,7 +212,7 @@ export type ChatGptPageSnapshot = Omit<ReturnType<typeof chatGptPage>, "messages
   }>;
 };
 export const chatGptPageScript = (action: "read" | "send" | "stop", prompt?: string) =>
-  `(() => { const snapshot = (${chatGptPage.toString()})(${JSON.stringify(action)}, ${JSON.stringify(prompt ?? "")}); if (location.origin === "https://chatgpt.com") { const result = ${chatGptWidgetScript("discover")}; snapshot.messages = snapshot.messages.map(m => ({...m, widgets: result.widgets.filter(w => w.messageId === m.id).map(({messageId, ...w}) => w)})); } return snapshot; })()`;
+  `(() => { const result = location.origin === "https://chatgpt.com" ? ${chatGptWidgetScript("discover")} : {widgets: []}; const snapshot = (${chatGptPage.toString()})(${JSON.stringify(action)}, ${JSON.stringify(prompt ?? "")}); snapshot.messages = snapshot.messages.map(m => ({...m, widgets: result.widgets.filter(w => w.messageId === m.id).map(({messageId, ...w}) => w)})); return snapshot; })()`;
 
 /** A separate click after the input event; never retry a possibly accepted click. */
 export const chatGptSubmitScript = `(() => {

@@ -164,6 +164,9 @@ export function WebChatWidgetCard({
       onPointerUp={(e) => {
         if (!pressed.current) return;
         pressed.current = false;
+        // The final move can be throttled during a fast drag. Deliver its
+        // position before releasing so native sliders keep the final value.
+        dispatch({ kind: "pointer", phase: "move", ...point(e.clientX, e.clientY), pressed: true });
         dispatch({ kind: "pointer", phase: "up", ...point(e.clientX, e.clientY), pressed: false });
       }}
       onPointerCancel={(e) => {

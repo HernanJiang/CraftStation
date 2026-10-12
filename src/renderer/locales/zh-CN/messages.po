@@ -16853,3 +16853,105 @@ msgstr "在文件夹中打开"
 #: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
 msgid "Open with default app"
 msgstr "使用默认应用打开"
+
+#: src/renderer/components/webChat/WebChatConversationRail.tsx
+msgid "已有对话"
+msgstr "已有对话"
+
+#: src/renderer/components/webChat/WebChatConversationRail.tsx
+msgid "展开已有对话"
+msgstr "展开已有对话"
+
+#: src/renderer/components/webChat/WebChatConversationRail.tsx
+msgid "收起已有对话"
+msgstr "收起已有对话"
+
+#: src/renderer/components/webChat/WebChatConversationRail.tsx
+msgid "正在读取已有对话…"
+msgstr "正在读取已有对话…"
+
+#: src/renderer/components/webChat/WebChatConversationRail.tsx
+msgid "登录后自动显示网页已加载的对话。"
+msgstr "登录后自动显示网页已加载的对话。"
+
+#: src/renderer/components/webChat/WebChatConversationRail.tsx
+msgid "ChatGPT 对话链接或 ID"
+msgstr "ChatGPT 对话链接或 ID"
+
+#: src/renderer/components/webChat/WebChatConversationRail.tsx
+msgid "对话链接或 ID"
+msgstr "对话链接或 ID"
+
+#: src/renderer/components/webChat/WebChatRemoteDialog.tsx
+msgid "打开原远程网页对话"
+msgstr "打开原远程网页对话"
+
+#: src/renderer/components/webChat/WebChatRemoteDialog.tsx
+msgid "刷新网页"
+msgstr "刷新网页"
+
+#: src/renderer/components/webChat/WebChatRemoteDialog.tsx
+msgid "创建远程对话"
+msgstr "创建远程对话"
+
+#: src/renderer/components/webChat/WebChatRemoteDialog.tsx
+msgid "新建远程网页对话"
+msgstr "新建远程网页对话"
+
+#: src/renderer/components/webChat/WebChatRemoteDialog.tsx
+msgid "从已有对话网页同步"
+msgstr "从已有对话网页同步"
+
+#: src/renderer/components/webChat/WebChatRemoteDialog.tsx
+msgid "在右侧网页侧边栏登录 ChatGPT。"
+msgstr "在右侧网页侧边栏登录 ChatGPT。"
+
+#: src/renderer/components/webChat/WebChatRemoteDialog.tsx
+msgid "在网页中选择并打开要同步的已有对话。"
+msgstr "在网页中选择并打开要同步的已有对话。"
+
+#: src/renderer/components/webChat/WebChatRemoteDialog.tsx
+msgid "回到此弹窗点击“导入”，同步到左侧远程线程。"
+msgstr "回到此弹窗点击“导入”，同步到左侧远程线程。"
+
+#: src/renderer/components/webChat/WebChatRemoteDialog.tsx
+msgid "等待在右侧打开已有对话…"
+msgstr "等待在右侧打开已有对话…"
+
+#: src/renderer/components/webChat/WebChatRemoteDialog.tsx
+msgid "打开右侧网页"
+msgstr "打开右侧网页"
+
+#: src/renderer/components/webChat/WebChatRemoteDialog.tsx
+msgid "请先在右侧网页登录并打开要同步的对话，再点击导入。"
+msgstr "请先在右侧网页登录并打开要同步的对话，再点击导入。"
+
+msgid "移回对话卡片"
+msgstr "移回对话卡片"
+
+msgid "正在打开网页…"
+msgstr "正在打开网页…"
+
+msgid "网页已在独立窗口打开"
+msgstr "网页已在独立窗口打开"
+
+msgid "网页正在侧边栏中显示"
+msgstr "网页正在侧边栏中显示"
+
+msgid "删除对话显示"
+msgstr "删除对话显示"
+
+msgid "打开为本地对话侧边栏"
+msgstr "打开为本地对话侧边栏"
+
+msgid "选择已有本地对话"
+msgstr "选择已有本地对话"
+
+msgid "搜索对话"
+msgstr "搜索对话"
+
+msgid "选择对话后，在其右侧打开当前网页。"
+msgstr "选择对话后，在其右侧打开当前网页。"
+
+msgid "暂无可用的本地对话"
+msgstr "暂无可用的本地对话"

@@ -659,15 +659,19 @@ export function createLocalIpcHandlers(
     webChatWidgetClose: ({ sessionId, widgetId }) =>
       requireWebChat().widgets.close(sessionId, widgetId),
     webChatCreate: () => requireWebChat().create(),
-    webChatRead: ({ sessionId }) => requireWebChat().read(sessionId),
+    webChatRead: ({ sessionId, restoreBinding, followNavigation }) =>
+      requireWebChat().read(sessionId, restoreBinding, followNavigation),
     webChatReveal: ({ sessionId }) => requireWebChat().reveal(sessionId),
-    webChatRefresh: ({ sessionId }) => requireWebChat().refresh(sessionId),
+    webChatRefresh: ({ sessionId, followNavigation }) =>
+      requireWebChat().refresh(sessionId, followNavigation),
     webChatSend: ({ sessionId, prompt, requestId }) =>
       requireWebChat().send(sessionId, prompt, requestId),
     webChatStop: ({ sessionId }) => requireWebChat().stop(sessionId),
     webChatDiscover: ({ sessionId }) => requireWebChat().discover(sessionId),
-    webChatImport: ({ url }) => requireWebChat().importConversation(url),
+    webChatImport: ({ url, tabId }) => requireWebChat().importConversation(url, tabId),
     webChatDelete: ({ sessionId, url }) => requireWebChat().deleteConversation(sessionId, url),
+    webChatForget: ({ sessionId }) => requireWebChat().forget(sessionId),
+    webChatRename: ({ sessionId, title }) => requireWebChat().rename(sessionId, title),
     webChatReasoning: ({ sessionId }) => requireWebChat().reasoning(sessionId),
     webChatSetReasoning: ({ sessionId, option }) =>
       requireWebChat().setReasoning(sessionId, option),

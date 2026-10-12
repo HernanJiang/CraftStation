@@ -29,6 +29,8 @@ import { dispatchWidgetInput } from "./widgetInput";
 export interface WebChatBrowser {
   create(url: string, reveal: boolean): Promise<string>;
   exists(tabId: string): boolean;
+  url?(tabId: string): string | undefined;
+  find?(url: string, excludedTabIds: string[]): string | undefined;
   execute(tabId: string, script: string): Promise<unknown>;
   reload(tabId: string, url: string): Promise<void>;
   reveal(tabId: string): void;
@@ -46,6 +48,13 @@ export function embeddedWebChatBrowser(manager: BrowserPanelManager): WebChatBro
     create: async (url, reveal) =>
       (await manager.createTab({ url, reveal, activate: reveal }, { awaitAttach: false })).tabId,
     exists: (id) => Boolean(manager.getTab(id)),
+    url: (id) => manager.getTab(id)?.snapshot().url,
+    find: (url, excludedTabIds) =>
+      manager
+        .snapshot()
+        .tabs.find(
+          (tab) => !excludedTabIds.includes(tab.tabId) && chatGptConversationUrl(tab.url) === url,
+        )?.tabId,
     reload: async (id, url) => {
       await manager.ensureTabReady(id);
       const tab = manager.getTab(id);
@@ -140,7 +149,6 @@ export class ChatGptWebRuntime {
             if (!isChatGptWebUrl(record.url)) continue;
             this.sessions.set(record.id, {
               ...record,
-              tabId: undefined,
               status: "connecting",
               error: undefined,
               reasoningLabel: undefined,
@@ -206,8 +214,16 @@ export class ChatGptWebRuntime {
         throw new Error(
           "WEB_DISCONNECTED：网页已关闭。请检查网页中的回复，已提交的消息不会自动重发。",
         );
-      session.tabId = await this.browser.create(session.url, reveal);
+      const url = chatGptConversationUrl(session.url);
+      const excludedTabIds = [...this.sessions.values()].flatMap((other) =>
+        other.id !== session.id && other.tabId ? [other.tabId] : [],
+      );
+      const existing = url ? this.browser.find?.(url, excludedTabIds) : undefined;
+      session.tabId = existing ?? (await this.browser.create(session.url, reveal));
+      if (existing && reveal) this.browser.reveal(existing);
       session.status = "connecting";
+      if (this.sessions.has(session.id)) this.persist();
+      this.log(session, "bind", existing ? "reused" : "created");
     } else if (reveal) this.browser.reveal(session.tabId);
     return session.tabId;
   }
@@ -225,19 +241,40 @@ export class ChatGptWebRuntime {
     this.log(session, "create", "ok");
     return this.copy(session);
   }
-  async importConversation(value: string) {
+  async importConversation(value: string, tabId?: string) {
     const url = chatGptConversationUrl(value);
     if (!url)
       throw new Error(
         "WEB_IMPORT_INVALID：请输入自己的 ChatGPT 对话链接，分享链接无法继续原对话。",
       );
+    if (
+      tabId &&
+      (!this.browser.exists(tabId) ||
+        chatGptConversationUrl(this.browser.url?.(tabId) ?? "") !== url)
+    )
+      throw new Error("WEB_IMPORT_PAGE_CHANGED：网页已切换或关闭，请重新打开目标对话后导入。");
+    const previousBindings = tabId
+      ? [...this.sessions.values()].filter(
+          (s) => s.tabId === tabId && chatGptConversationUrl(s.url) !== url,
+        )
+      : [];
+    if (previousBindings.some((s) => this.turns.has(s.id) || s.status === "streaming"))
+      throw new Error("WEB_BUSY：请等待当前回复完成后再绑定其他对话。");
+    for (const previous of previousBindings) {
+      previous.tabId = undefined;
+      previous.status = "connecting";
+      previous.error = undefined;
+      this.log(previous, "unbind", "ok");
+    }
     const existing = [...this.sessions.values()].find((s) => chatGptConversationUrl(s.url) === url);
     if (existing) {
       if (!this.turns.has(existing.id)) {
+        if (tabId) existing.tabId = tabId;
         existing.status = "connecting";
         existing.error = undefined;
       }
       await this.attach(existing, false);
+      this.persist();
       return this.copy(existing);
     }
     const session: WebChatSession = {
@@ -246,6 +283,7 @@ export class ChatGptWebRuntime {
       url,
       status: "connecting",
       messages: [],
+      ...(tabId ? { tabId } : {}),
     };
     await this.attach(session, false);
     this.sessions.set(session.id, session);
@@ -350,6 +388,29 @@ export class ChatGptWebRuntime {
       }
     });
   }
+  rename(id: string, title: string) {
+    const session = this.get(id);
+    const trimmed = title.trim();
+    if (!trimmed || trimmed.length > 300)
+      throw new Error("WEB_TITLE_INVALID：请输入 1 到 300 个字符的对话名称。");
+    session.customTitle = trimmed;
+    session.title = trimmed;
+    this.persist();
+    this.log(session, "rename", "ok");
+    return this.copy(session);
+  }
+  forget(id: string) {
+    const session = this.get(id);
+    if (this.turns.has(id)) throw new Error("WEB_BUSY：请等待当前回复完成。");
+    this.sessions.delete(id);
+    const timer = this.viewTimers.get(id);
+    if (timer) clearTimeout(timer);
+    this.viewTimers.delete(id);
+    this.browser.keepAlive(`view:${id}`, false);
+    this.browser.keepAlive(id, false);
+    this.persist();
+    this.log(session, "forget", "ok");
+  }
   async reveal(id: string) {
     const session = this.get(id);
     const needsLogin = session.status === "login-required";
@@ -367,7 +428,7 @@ export class ChatGptWebRuntime {
       }
     }
   }
-  async refresh(id: string) {
+  async refresh(id: string, followNavigation = false) {
     const session = this.get(id);
     const deadline = Date.now() + 10_000;
     while (this.locks.has(id) && !this.turns.has(id) && Date.now() < deadline) await sleep(30);
@@ -383,7 +444,17 @@ export class ChatGptWebRuntime {
         const snapshot = (await this.browser
           .execute(tabId, chatGptPageScript("read"))
           .catch(() => undefined)) as ChatGptPageSnapshot | undefined;
+        if (session.tabId !== tabId)
+          throw new Error("WEB_BINDING_CHANGED：网页已绑定到其他线程，本次旧刷新已忽略。");
         if (snapshot?.generating) throw new Error("WEB_BUSY：网页正在生成回复。");
+        if (
+          followNavigation &&
+          snapshot &&
+          !snapshot.loginRequired &&
+          snapshot.ready &&
+          isChatGptWebUrl(snapshot.url)
+        )
+          this.apply(session, snapshot, true);
         await this.browser.reload(tabId, session.url);
       }
       session.status = "connecting";
@@ -405,31 +476,29 @@ export class ChatGptWebRuntime {
       tabId,
       chatGptPageScript(action, prompt),
     )) as ChatGptPageSnapshot;
+    if (session.tabId !== tabId)
+      throw new Error("WEB_BINDING_CHANGED：网页已绑定到其他线程，本次旧读取已忽略。");
     if (!isChatGptWebUrl(result.url))
       throw new Error("WEB_PAGE_CHANGED：网页地址已变化，请重新连接。");
     return result;
   }
-  private apply(session: WebChatSession, page: ChatGptPageSnapshot) {
+  private apply(session: WebChatSession, page: ChatGptPageSnapshot, followNavigation = false) {
     const turn = this.turns.get(session.id);
     const previousPath = new URL(session.url).pathname;
     const boundUrl = chatGptConversationUrl(session.url);
-    if (boundUrl && chatGptConversationUrl(page.url) !== boundUrl && !page.loginRequired)
-      throw new Error("WEB_PAGE_CHANGED：网页会话已切换，请打开原对话或导入这个会话。");
-    const urlChanged = session.url !== page.url;
-    session.url = page.url;
-    session.reasoningLabel = page.reasoningLabel;
-    if (chatGptConversationUrl(page.url) && page.title && page.title !== "ChatGPT")
-      session.title = page.title;
-    if (!turn && urlChanged && previousPath.startsWith("/c/")) session.messages = [];
-    // Older turns may leave the webpage DOM while the latest response streams.
-    const messages = [...session.messages];
-    for (const message of page.messages) {
-      const index = messages.findIndex((existing) => existing.id === message.id);
-      if (index === -1) messages.push(message);
-      else messages[index] = message;
+    const nextBoundUrl = chatGptConversationUrl(page.url);
+    const bindingChanged = boundUrl !== nextBoundUrl;
+    if (boundUrl && bindingChanged && !page.loginRequired) {
+      if (!followNavigation || turn)
+        throw new Error("WEB_PAGE_CHANGED：网页会话已切换，请打开原对话或导入这个会话。");
+      // Client-side navigation can expose the next URL before its editor loads.
+      // Keep the saved binding until the actual conversation or new-chat page is ready.
+      if (
+        (!page.ready && !page.generating) ||
+        (!nextBoundUrl && new URL(page.url).pathname !== "/")
+      )
+        return;
     }
-    const messagesChanged = JSON.stringify(session.messages) !== JSON.stringify(messages);
-    if (messagesChanged) session.messages = messages;
     if (page.loginRequired) {
       if (turn)
         throw new Error(
@@ -439,6 +508,33 @@ export class ChatGptWebRuntime {
       session.error = undefined;
       return;
     }
+    const urlChanged = session.url !== page.url;
+    const previousTitle = session.title;
+    session.url = page.url;
+    session.reasoningLabel = page.reasoningLabel;
+    if (bindingChanged && boundUrl) {
+      session.customTitle = undefined;
+      session.title = "新对话";
+    }
+    if (
+      !session.customTitle &&
+      chatGptConversationUrl(page.url) &&
+      page.title &&
+      page.title !== "ChatGPT"
+    )
+      session.title = page.title;
+    if (!turn && bindingChanged && (boundUrl || previousPath.startsWith("/c/")))
+      session.messages = [];
+    if (followNavigation && bindingChanged) this.log(session, "navigate-binding", "ok");
+    // Older turns may leave the webpage DOM while the latest response streams.
+    const messages = [...session.messages];
+    for (const message of page.messages) {
+      const index = messages.findIndex((existing) => existing.id === message.id);
+      if (index === -1) messages.push(message);
+      else messages[index] = message;
+    }
+    const messagesChanged = JSON.stringify(session.messages) !== JSON.stringify(messages);
+    if (messagesChanged) session.messages = messages;
     if (page.error) throw new Error(`WEB_REPLY_FAILED：${page.error}`);
     if (turn) {
       const users = page.messages.filter((m) => m.role === "user");
@@ -472,10 +568,18 @@ export class ChatGptWebRuntime {
       session.status = page.generating ? "streaming" : page.ready ? "ready" : "connecting";
       session.error = undefined;
     }
-    if (urlChanged || (messagesChanged && !page.generating && !turn)) this.persist();
+    if (
+      urlChanged ||
+      session.title !== previousTitle ||
+      (messagesChanged && !page.generating && !turn)
+    )
+      this.persist();
   }
-  async read(id: string) {
+  async read(id: string, restoreBinding = false, followNavigation = false) {
     const session = this.get(id);
+    const deadline = Date.now() + 10_000;
+    if (restoreBinding)
+      while (this.locks.has(id) && !this.turns.has(id) && Date.now() < deadline) await sleep(30);
     // Keep the selected webpage alive between completed turns. Otherwise the
     // hidden automation host unmounts as soon as the turn ends and destroys
     // iframe state before the next poll / component operation.
@@ -491,14 +595,29 @@ export class ChatGptWebRuntime {
     // Re-check an existing webpage after navigation / login / attachment errors.
     // A closed failed turn requires an explicit reconnect instead of opening
     // another webpage in the background.
-    if (session.status === "error" && (!session.tabId || !this.browser.exists(session.tabId)))
+    if (
+      !restoreBinding &&
+      session.status === "error" &&
+      (!session.tabId || !this.browser.exists(session.tabId))
+    )
       return this.copy(session);
     if (!this.turns.has(id) && !this.locks.has(id)) {
       this.locks.add(id);
       try {
-        this.apply(session, await this.page(session, "read"));
+        if (restoreBinding) {
+          const tabId = await this.attach(session, false);
+          const url = this.browser.url?.(tabId);
+          const boundUrl = chatGptConversationUrl(session.url);
+          if (boundUrl && url && isChatGptWebUrl(url) && chatGptConversationUrl(url) !== boundUrl) {
+            await this.browser.reload(tabId, session.url);
+            this.log(session, "restore-binding", "ok");
+          }
+        }
+        this.apply(session, await this.page(session, "read"), followNavigation);
       } catch (error) {
-        this.fail(session, error);
+        if (error instanceof Error && error.message.startsWith("WEB_BINDING_CHANGED"))
+          this.log(session, "sync", "skipped", "WEB_BINDING_CHANGED");
+        else this.fail(session, error);
       } finally {
         this.locks.delete(id);
       }
@@ -545,7 +664,7 @@ export class ChatGptWebRuntime {
         accepted: false,
         stopped: false,
       });
-      session.title = prompt.slice(0, 32);
+      if (!session.customTitle) session.title = prompt.slice(0, 32);
       session.status = "sending";
       session.error = undefined;
       this.persist();

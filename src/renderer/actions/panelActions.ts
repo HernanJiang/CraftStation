@@ -4,6 +4,7 @@ import { friendlyError } from "@/shared/messages";
 import { readBridge } from "@/renderer/bridge";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useWebChatStore } from "@/renderer/state/webChatStore";
+import { openWebChatBeside } from "@/renderer/actions/webChatActions";
 import { useDevTerminalStore } from "@/renderer/state/devTerminalStore";
 import { hasDirtyEditorBuffers } from "@/renderer/state/fileEditorSelectors";
 import { useFileEditorStore } from "@/renderer/state/fileEditorStore";
@@ -161,7 +162,8 @@ export function toggleBrowserPanel(): void {
           useWebChatStore.getState().setSessions([target, ...useWebChatStore.getState().sessions]);
           useWebChatStore.getState().selectSession(target.id);
         }
-        await readBridge().webChatReveal({ sessionId: target.id });
+        if (web.nativeView) await openWebChatBeside(target);
+        else await readBridge().webChatReveal({ sessionId: target.id });
       })().catch((error) => toast.danger(friendlyError(error)));
       return;
     }

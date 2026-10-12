@@ -2383,6 +2383,14 @@ async function runMockGate(client, gate, fixture) {
       assert(fixture.project.id === "smoke-project", "isolated project fixture is not selected");
       return "isolated seeded project was loaded and selected";
     case "provider-live": {
+      // A web conversation can share the same draft navigation key. Leave it
+      // before opening the isolated local provider fixture.
+      await evaluate(client, "window.__craftstationDev.stores.app.getState().openHome()");
+      await waitForValue(
+        () => evaluate(client, "Boolean(document.querySelector('[data-testid=chatgpt-web-page]'))"),
+        (open) => !open,
+        "leaving the web conversation before the local provider fixture",
+      );
       const state = await evaluate(
         client,
         `(() => {

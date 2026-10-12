@@ -1,8 +1,10 @@
-import { cleanup, screen } from "@testing-library/react";
+import { act, cleanup, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import { useBrowserPanelStore } from "@/renderer/state/browserPanelStore";
 import { usePanelStore } from "@/renderer/state/panelStore";
+import { useBrowserDockStore } from "@/renderer/state/browserDockStore";
+import { useWebChatStore } from "@/renderer/state/webChatStore";
 import { BrowserHost } from "./BrowserHost";
 
 vi.mock("@/renderer/state/panelDockSelectors", () => ({
@@ -22,6 +24,8 @@ vi.mock("./BrowserPanel", () => ({
 
 describe("BrowserHost idle lifecycle", () => {
   beforeEach(() => {
+    useWebChatStore.setState({ sessions: [] });
+    useBrowserDockStore.setState({ conversationSlotEl: null, conversationTabId: undefined });
     usePanelStore.setState({
       browserPanelOpen: false,
       browserOverlayOpen: false,
@@ -66,5 +70,38 @@ describe("BrowserHost idle lifecycle", () => {
     render(<BrowserHost />);
 
     expect(screen.getByTestId("browser-panel")).toBeTruthy();
+  });
+
+  it("keeps the conversation mounted while an independent browser opens beside it", () => {
+    useBrowserDockStore.getState().setConversationSlot(document.createElement("div"), "tab-1");
+    render(<BrowserHost />);
+    const browser = screen.getByTestId("browser-panel");
+    expect(browser.closest("[data-browser-host-mode]")).toHaveAttribute(
+      "data-browser-host-mode",
+      "conversation",
+    );
+    act(() => {
+      useBrowserPanelStore.setState((state) => ({
+        tabs: [...state.tabs, { ...state.tabs[0]!, tabId: "tab-2" }],
+        activeTabId: "tab-2",
+      }));
+      usePanelStore.setState({ browserOverlayOpen: true });
+    });
+    expect(screen.getAllByTestId("browser-panel")).toHaveLength(2);
+    expect(browser.closest("[data-browser-host-mode]")).toHaveAttribute(
+      "data-browser-host-mode",
+      "conversation",
+    );
+    const other = screen.getAllByTestId("browser-panel").find((node) => node !== browser)!;
+    expect(other.closest("[data-browser-host-mode]")).toHaveAttribute(
+      "data-browser-host-mode",
+      "drawer",
+    );
+    act(() => usePanelStore.setState({ browserOverlayOpen: false }));
+    expect(screen.getByTestId("browser-panel")).toBe(browser);
+    expect(browser.closest("[data-browser-host-mode]")).toHaveAttribute(
+      "data-browser-host-mode",
+      "conversation",
+    );
   });
 });

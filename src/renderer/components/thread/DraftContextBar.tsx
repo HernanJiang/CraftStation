@@ -72,9 +72,11 @@ export function DraftContextBar(props: {
   return (
     <div
       data-draft-context-bar=""
-      className="relative z-[1] -mb-px mx-auto flex w-[calc(100%-32px)] items-center justify-between rounded-t-lg border border-b-0 border-[var(--hairline)] px-3 py-1.5 text-xs text-muted"
+      className={`relative z-[1] -mb-px mx-auto flex w-[calc(100%-32px)] items-center justify-between rounded-t-lg border border-b-0 border-[var(--hairline)] px-3 py-1.5 text-xs text-muted ${props.runtimeMode === "web" ? "flex-wrap gap-y-1" : ""}`}
     >
-      <div className="flex min-w-0 flex-1 items-center gap-3">
+      <div
+        className={`flex min-w-0 items-center gap-3 ${props.runtimeMode === "web" ? "flex-auto" : "flex-1"}`}
+      >
         <ProjectSwitchMenu
           currentProjectId={props.project.id}
           variant="compact"
@@ -127,7 +129,9 @@ export function DraftContextBar(props: {
         ) : null}
       </div>
 
-      <div className="flex shrink-0 items-center gap-1">
+      <div
+        className={`flex items-center gap-1 ${props.runtimeMode === "web" ? "ml-auto min-w-0 max-w-full flex-wrap" : "shrink-0"}`}
+      >
         {props.rightActions}
         {goalThreadId ? <ThreadRuntimeStatusBar threadId={goalThreadId} /> : null}
         {/* 模式选择已移出聊天框：高效/创造模式改为在模型选择栏直接选对应配方。

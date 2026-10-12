@@ -108,7 +108,9 @@ export async function runWidgetChecks({
     }
   };
   await tapControl("number");
-  const keys = ["Home", "Delete"];
+  // The one-digit number input can place its caret on either side after a click.
+  // Delete both sides; Home/Delete alone can leave 7 and append 9 as 79.
+  const keys = ["Backspace", "Delete"];
   // 原网页输入框获得焦点；本地卡片传回键盘、文本而不读取 iframe DOM。
   for (const key of keys) {
     const frame = await readFrame();
@@ -137,6 +139,9 @@ export async function runWidgetChecks({
   if ((await evalPage("window.widgetState")).node !== "undefined")
     throw Error("组件获得 Node 权限");
   checks.push("滑块按下/拖动/释放改变模拟图表；组件无 Node 权限，公开 MCP Apps 初始化链路保留");
+  await evalApp(
+    `document.querySelector(${JSON.stringify(card)}).scrollIntoView({block:'start',behavior:'instant'})`,
+  );
   await press(card, "展开");
   await wait(async () =>
     Boolean(
@@ -165,4 +170,105 @@ export async function runWidgetChecks({
     "(()=>{const e=document.querySelector('[data-testid=chatgpt-web-page] textarea');Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,'value').set.call(e,'');e.dispatchEvent(new Event('input',{bubbles:true}));})()",
   );
   checks.push("组件展开与关闭、继续修改草稿定位到当前组件");
+
+  // Screenshot regression: native HTML controls with no iframe or special
+  // visualization marker must become live cards instead of flattened text.
+  await evalPage(`(() => {
+    const turn=document.createElement('article');turn.dataset.turnId='inline-widget-turn';
+    turn.innerHTML='<div data-markdown-text-style="assistant-message"><div class="markdown"><p>几个交互小玩意</p><section id="inline-clicker" style="padding:24px;background:#191426;color:white;border-radius:16px;margin:12px 0;min-height:200px"><h2>解压点击器</h2><output id="inline-count">0</output><p><button id="inline-click" style="background:#8b5cf6;color:white;padding:20px;border-radius:40px">给我点！</button></p></section><section id="inline-mood" style="padding:24px;min-height:160px;background:#202030;color:white;border-radius:16px"><h2>心情调节器</h2><input id="inline-slider" type="range" min="0" max="100" value="20" style="width:80%"><output id="inline-mood-value">20</output></section></div></div>';
+    document.querySelector('main').append(turn);
+    document.querySelector('#inline-click').onclick=()=>{const e=document.querySelector('#inline-count');e.textContent=String(Number(e.textContent)+1);};
+    document.querySelector('#inline-slider').oninput=e=>document.querySelector('#inline-mood-value').textContent=e.target.value;
+  })()`);
+  let inlineId;
+  await wait(async () => {
+    const record = await evalApp(
+      `window.craftstation.webChatRead({sessionId:${JSON.stringify(session.id)}})`,
+      true,
+    );
+    inlineId = record.messages
+      .flatMap((m) => m.widgets ?? [])
+      .find((w) => w.title === "解压点击器")?.id;
+    return Boolean(inlineId);
+  });
+  const inlineCard = `[data-widget-id=${JSON.stringify(inlineId)}]`;
+  await wait(
+    async () =>
+      await evalApp(
+        `Boolean(document.querySelector(${JSON.stringify(inlineCard + " [data-testid=webchat-widget-surface] img")}))`,
+      ),
+  );
+  const inlinePoint = async (selector, fraction = 0.5) => {
+    const target = await evalPage(
+      `(() => {const el=document.querySelector(${JSON.stringify(selector)});const r=el.getBoundingClientRect(),s=el.closest('section').getBoundingClientRect();return {x:r.x-s.x+r.width*${fraction},y:r.y-s.y+r.height/2,width:s.width,height:s.height};})()`,
+    );
+    const surfaceSelector = `[data-widget-id=${JSON.stringify(selector === "#inline-click" ? inlineId : moodId)}] [data-testid=webchat-widget-surface]`;
+    await evalApp(
+      `document.querySelector(${JSON.stringify(surfaceSelector)}).scrollIntoView({block:'center',behavior:'instant'})`,
+    );
+    return await evalApp(
+      `(() => {const r=document.querySelector(${JSON.stringify(surfaceSelector)}).getBoundingClientRect();return {x:r.x+r.width*${target.x / target.width},y:r.y+r.height*${target.y / target.height}};})()`,
+    );
+  };
+  const clickPoint = await inlinePoint("#inline-click");
+  for (const type of ["mouseMoved", "mousePressed", "mouseReleased"])
+    await app.send("Input.dispatchMouseEvent", {
+      type,
+      ...clickPoint,
+      button: "left",
+      buttons: type === "mousePressed" ? 1 : 0,
+      clickCount: 1,
+    });
+  await wait(
+    async () => (await evalPage("document.querySelector('#inline-count').textContent")) === "1",
+  );
+  const inlineShot = await app.send("Page.captureScreenshot", { format: "png" });
+  await writeFile(
+    join(outDir, "webchat-inline-clicker.png"),
+    Buffer.from(inlineShot.data, "base64"),
+  );
+  const record = await evalApp(
+    `window.craftstation.webChatRead({sessionId:${JSON.stringify(session.id)}})`,
+    true,
+  );
+  const moodId = record.messages
+    .flatMap((m) => m.widgets ?? [])
+    .find((w) => w.title === "心情调节器")?.id;
+  if (!moodId) throw Error("原生 HTML 滑块未识别");
+  await press(`[data-widget-id=${JSON.stringify(moodId)}]`, "打开交互");
+  await wait(
+    async () =>
+      await evalApp(
+        `Boolean(document.querySelector('[data-widget-id="${moodId}"] [data-testid=webchat-widget-surface] img'))`,
+      ),
+  );
+  const down = await inlinePoint("#inline-slider", 0.2);
+  const up = await inlinePoint("#inline-slider", 0.85);
+  await app.send("Input.dispatchMouseEvent", { type: "mouseMoved", ...down });
+  await app.send("Input.dispatchMouseEvent", {
+    type: "mousePressed",
+    ...down,
+    button: "left",
+    buttons: 1,
+    clickCount: 1,
+  });
+  await app.send("Input.dispatchMouseEvent", {
+    type: "mouseMoved",
+    ...up,
+    button: "left",
+    buttons: 1,
+  });
+  await app.send("Input.dispatchMouseEvent", {
+    type: "mouseReleased",
+    ...up,
+    button: "left",
+    buttons: 0,
+    clickCount: 1,
+  });
+  await wait(
+    async () => Number(await evalPage("document.querySelector('#inline-slider').value")) > 65,
+  );
+  checks.push(
+    "无专用标记的 HTML 小部件自动同步：点击器 0→1，滑块真实拖动更新原网页；新回复自动连接",
+  );
 }

@@ -1,7 +1,10 @@
 import { Folder, Globe, PanelRight } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
 import { ControlTooltip } from "@/renderer/components/common/ControlTooltip";
-import { MAIN_THREAD_HEADER_PORTAL_ID } from "@/renderer/components/layout/layoutHeaderPortals";
+import {
+  MAIN_THREAD_HEADER_PORTAL_ID,
+  WEB_CHAT_HEADER_PORTAL_ID,
+} from "@/renderer/components/layout/layoutHeaderPortals";
 import { useCurrentProjectId, useFocusedThreadId } from "@/renderer/hooks/uiSelectors";
 import { useAppStore } from "@/renderer/state/appStore";
 import { isHomeProjectId } from "@/shared/homeScope";
@@ -60,6 +63,7 @@ export function MainContentHeaderControls() {
         ) : null}
       </div>
 
+      {webChatOpen && <div id={WEB_CHAT_HEADER_PORTAL_ID} className="relative shrink-0" />}
       {isAuxiliaryPanelOpen ? null : (
         <ControlTooltip
           label={t`Show side panel`}

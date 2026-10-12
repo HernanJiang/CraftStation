@@ -42,10 +42,40 @@ export function chatGptWidgets(
     // this assistant turn, never the account sidebar or global page controls.
     const root =
       node.closest<HTMLElement>('[data-testid^="conversation-turn-"], [data-turn-id]') ?? node;
+    root
+      .querySelectorAll("[data-craftstation-widget-root]")
+      .forEach((el) => el.removeAttribute("data-craftstation-widget-root"));
+    // Inline HTML apps have no iframe or provider-specific marker. Only inspect
+    // controls in the assistant body; conversation menus and copy buttons sit
+    // outside it and must never become interactive reply content.
+    const body = node.querySelector<HTMLElement>(".markdown") ?? node;
+    const inline = [
+      ...body.querySelectorAll<HTMLElement>(
+        'button, input:not([type="hidden"]), select, textarea, [role="slider"], [role="switch"], [contenteditable="true"]',
+      ),
+    ].flatMap((control) => {
+      if (
+        control.closest(
+          'pre, code, .katex, [aria-hidden="true"], [data-testid*="copy"], [data-testid*="feedback"]',
+        )
+      )
+        return [];
+      let container = control.parentElement;
+      while (container && container !== body) {
+        if (
+          container.matches("section, article, fieldset") ||
+          container.querySelector("h1,h2,h3,h4,legend")
+        )
+          return [container];
+        container = container.parentElement;
+      }
+      return [body];
+    });
     const candidates = [
       ...root.querySelectorAll<HTMLElement>(
         '[data-dil-root], [data-dil-id], [data-testid*="visualization"], [data-testid*="widget"], [data-testid*="artifact"], iframe, canvas, svg[role="img"]',
       ),
+      ...new Set(inline),
     ].filter(
       (el) =>
         !el.closest('pre, .katex, [data-message-author-role="user"]') &&
@@ -64,12 +94,13 @@ export function chatGptWidgets(
       title: (
         el.getAttribute("title") ||
         el.getAttribute("aria-label") ||
-        el.querySelector("h1,h2,h3")?.textContent ||
+        el.querySelector("h1,h2,h3,h4,legend")?.textContent ||
         `交互组件 ${i + 1}`
       )
         .trim()
         .slice(0, 300),
     }));
+    for (const { el, id } of entries) el.setAttribute("data-craftstation-widget-root", id);
     entries.push({ el: root, id: `${messageId}:response`, kind: "response", title: "原网页回复" });
     for (const { el, id, kind, title } of entries) {
       widgets.push({ id, messageId, kind, title });

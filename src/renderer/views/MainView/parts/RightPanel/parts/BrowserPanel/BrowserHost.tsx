@@ -12,6 +12,9 @@ import { useLingui } from "@lingui/react/macro";
 import { usePanelStore } from "@/renderer/state/panelStore";
 import { useIsPanelTabVisible } from "@/renderer/state/panelDockSelectors";
 import { useBrowserPanelStore } from "@/renderer/state/browserPanelStore";
+import { useBrowserDockStore } from "@/renderer/state/browserDockStore";
+import { useWebChatStore } from "@/renderer/state/webChatStore";
+import { useShallow } from "zustand/react/shallow";
 import { pushEscapeHandler } from "@/renderer/components/layout/overlayEscapeStack";
 import { BrowserPanel } from "./BrowserPanel";
 import {
@@ -28,10 +31,11 @@ const MemoBrowserPanel = memo(BrowserPanel);
 const DRAWER_RESIZE_STEP_PX = 24;
 
 /**
- * Mounts the in-app browser exactly once, in a `document.body` portal, and
+ * Mounts each browser tab once, in persistent remote-page and general-browser hosts, and
  * repositions it per presentation mode (docked over the right-panel slot,
  * floating drawer, or fullscreen). Keeping a single mounted instance is what
- * lets the live page survive every docked↔drawer↔fullscreen transition — each
+ * lets the live page survive every docked↔drawer↔fullscreen transition and stay
+ * in the main card while a separate page opens beside it — each
  * `<webview>` owns its own guest WebContents, so remounting would reload it.
  *
  * Rendering from the body (rather than inside the right panel) is also required
@@ -43,6 +47,15 @@ const DRAWER_RESIZE_STEP_PX = 24;
  * re-renders the embedded webview.
  */
 export function BrowserHost() {
+  return (
+    <>
+      <BrowserHostSurface scope="webchat" />
+      <BrowserHostSurface scope="browser" />
+    </>
+  );
+}
+
+function BrowserHostSurface({ scope }: { scope: "webchat" | "browser" }) {
   const { t } = useLingui();
   const browserPanelOpen = usePanelStore((s) => s.browserPanelOpen);
   const browserOverlayOpen = usePanelStore((s) => s.browserOverlayOpen);
@@ -53,8 +66,29 @@ export function BrowserHost() {
   const setBrowserOverlayMaximized = usePanelStore((s) => s.setBrowserOverlayMaximized);
   const setRightPanelTab = usePanelStore((s) => s.setRightPanelTab);
   const extracted = useBrowserPanelStore((s) => s.extracted);
-  const hasTabs = useBrowserPanelStore((s) => s.tabs.length > 0);
+  const tabs = useBrowserPanelStore((s) => s.tabs);
+  const activeTabId = useBrowserPanelStore((s) => s.activeTabId);
+  const remoteTabIds = useWebChatStore(
+    useShallow((s) => s.sessions.flatMap((session) => (session.tabId ? [session.tabId] : []))),
+  );
   const automationActive = useBrowserPanelStore((s) => s.automationActive);
+  const conversationSlot = useBrowserDockStore((s) => s.conversationSlotEl);
+  const conversationTabId = useBrowserDockStore((s) => s.conversationTabId);
+  // Removing a sidebar listing must not reparent and reload its live browser guest.
+  const reservedRef = useRef(new Set<string>());
+  const reserved = reservedRef.current;
+  for (const id of reserved) if (!tabs.some((tab) => tab.tabId === id)) reserved.delete(id);
+  for (const id of remoteTabIds) reserved.add(id);
+  if (conversationTabId) reserved.add(conversationTabId);
+  const tabIds = tabs
+    .filter((tab) => reserved.has(tab.tabId) === (scope === "webchat"))
+    .map((tab) => tab.tabId);
+  const hasTabs = tabIds.length > 0;
+  const cardVisible = Boolean(conversationSlot && conversationTabId);
+  const ownsSidePanel =
+    scope === "webchat"
+      ? !cardVisible && reserved.has(activeTabId ?? "")
+      : cardVisible || !reserved.has(activeTabId ?? "");
 
   // The browser is painted wherever its dock slot lives: the right panel's
   // active layer, a right-panel split section, or a bottom dock slot. Keying
@@ -62,21 +96,24 @@ export function BrowserHost() {
   // off-screen background mode, leaving an empty section behind.
   const dockedVisible = useIsPanelTabVisible("browser");
 
-  const mode: BrowserHostMode = extracted
-    ? "hidden"
-    : browserOverlayOpen
-      ? browserOverlayMaximized
-        ? "fullscreen"
-        : "drawer"
-      : browserPanelOpen && dockedVisible
-        ? "docked"
-        : (browserPanelOpen && hasTabs) || automationActive
-          ? // Keep an opened browser mounted off-screen. Switching to Files,
-            // another thread, or hiding the rail must not destroy the guest
-            // and force a full reload. Closed panels and idle automation still
-            // unmount.
-            "background"
-          : "hidden";
+  const mode: BrowserHostMode =
+    scope === "webchat" && cardVisible
+      ? "conversation"
+      : extracted
+        ? "hidden"
+        : browserOverlayOpen && ownsSidePanel
+          ? browserOverlayMaximized
+            ? "fullscreen"
+            : "drawer"
+          : browserPanelOpen && dockedVisible && ownsSidePanel
+            ? "docked"
+            : (browserPanelOpen && hasTabs) || automationActive
+              ? // Keep an opened browser mounted off-screen. Switching to Files,
+                // another thread, or hiding the rail must not destroy the guest
+                // and force a full reload. Closed panels and idle automation still
+                // unmount.
+                "background"
+              : "hidden";
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [isResizing, setIsResizing] = useState(false);
@@ -142,8 +179,8 @@ export function BrowserHost() {
   // fixed overlay, the positioning effect lifts it to 55 imperatively (see the
   // docked branch above) so it never re-renders the embedded webview.
   const wrapperClassName =
-    mode === "docked"
-      ? "fixed z-30 flex min-h-0 flex-col overflow-hidden bg-[var(--content-background)]"
+    mode === "docked" || mode === "conversation"
+      ? `fixed flex min-h-0 flex-col overflow-hidden bg-[var(--content-background)] ${mode === "conversation" ? "z-20 rounded-2xl" : "z-30"}`
       : mode === "drawer"
         ? "fixed z-[60] flex min-h-0 flex-col overflow-hidden rounded-3xl border border-border bg-background shadow-2xl"
         : mode === "background"
@@ -193,7 +230,12 @@ export function BrowserHost() {
           aria-hidden
         />
       ) : null}
-      <div ref={wrapperRef} className={wrapperClassName} style={wrapperStyle}>
+      <div
+        ref={wrapperRef}
+        className={wrapperClassName}
+        style={wrapperStyle}
+        data-browser-host-mode={mode}
+      >
         {mode === "drawer" ? (
           <div
             role="separator"
@@ -205,7 +247,12 @@ export function BrowserHost() {
             onKeyDown={handleResizeKeyDown}
           />
         ) : null}
-        <MemoBrowserPanel visible={browserVisible} showEmbeddedTabStrip={mode !== "docked"} />
+        <MemoBrowserPanel
+          visible={browserVisible}
+          showEmbeddedTabStrip={mode !== "docked"}
+          conversationTabId={mode === "conversation" ? conversationTabId : undefined}
+          tabIds={tabIds}
+        />
       </div>
       {isResizing ? (
         <div className="fixed inset-0 z-[100]" style={{ cursor: "ew-resize" }} aria-hidden />

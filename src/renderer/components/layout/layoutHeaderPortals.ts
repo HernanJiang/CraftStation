@@ -1,6 +1,8 @@
 import { useLayoutEffect, useState } from "react";
 
 export const MAIN_THREAD_HEADER_PORTAL_ID = "craftstation-main-thread-header";
+export const WEB_CHAT_HEADER_PORTAL_ID = "craftstation-web-chat-header";
+export const MAIN_CONTENT_DIALOG_PORTAL_ID = "craftstation-main-content-dialog";
 
 /**
  * Resolve one of the persistent workspace-header portal targets after the

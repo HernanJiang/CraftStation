@@ -17,6 +17,7 @@ import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { usePlugins } from "./state/pluginsStore";
 import { useSidebarUiStore } from "@/renderer/state/sidebarUiStore";
 import { useUpdateStore } from "@/renderer/state/updateStore";
+import { useWebChatStore } from "@/renderer/state/webChatStore";
 
 type UpdateStoreState = ReturnType<typeof useUpdateStore.getState>;
 
@@ -36,6 +37,7 @@ export function installDevBridge(): void {
       sidebarUi: useSidebarUiStore,
       sharedSettings: useSharedSettings,
       plugins: usePlugins,
+      webChat: useWebChatStore,
     },
     /** Open Settings; pass a section id (e.g. "about", "usage", "appearance") to deep-link. */
     openSettings: (section?: string) => {

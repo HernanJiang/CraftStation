@@ -32,6 +32,7 @@ const toolbarDropdownButtonClass =
   "size-5 min-w-0 p-0 text-muted hover:text-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-35 [--button-bg-hover:transparent] [--button-bg-pressed:transparent]";
 
 export function BrowserToolbar(props: {
+  activeTabId?: string | null;
   onPick: () => void;
   pickerActive: boolean;
   pickerTargets: PickerThreadTarget[];
@@ -45,8 +46,11 @@ export function BrowserToolbar(props: {
   const { t } = useLingui();
   const { activeTabId, activeTab } = useBrowserPanelStore(
     useShallow((s) => ({
-      activeTabId: s.activeTabId,
-      activeTab: s.activeTabId ? s.tabs.find((tab) => tab.tabId === s.activeTabId) : undefined,
+      activeTabId: props.activeTabId === undefined ? s.activeTabId : props.activeTabId,
+      activeTab: s.tabs.find(
+        (tab) =>
+          tab.tabId === (props.activeTabId === undefined ? s.activeTabId : props.activeTabId),
+      ),
     })),
   );
   const bookmarks = useBrowserPanelStore((s) => s.bookmarks);

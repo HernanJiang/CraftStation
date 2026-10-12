@@ -1,6 +1,9 @@
 import { defineNoArgProcedure, definePayloadProcedure } from "../core";
 import {
   webChatIdSchema,
+  webChatReadSchema,
+  webChatRenameSchema,
+  webChatRefreshSchema,
   webChatSendSchema,
   webChatImportSchema,
   webChatDeleteSchema,
@@ -33,21 +36,21 @@ export const chatGptWebProcedures = {
   >("webChatWidgetClose", "main-local", webChatWidgetRequestSchema),
   webChatList: defineNoArgProcedure<WebChatSession[], "main-local">("webChatList", "main-local"),
   webChatCreate: defineNoArgProcedure<WebChatSession, "main-local">("webChatCreate", "main-local"),
-  webChatRead: definePayloadProcedure<Id, WebChatSession, "main-local">(
-    "webChatRead",
-    "main-local",
-    webChatIdSchema,
-  ),
+  webChatRead: definePayloadProcedure<
+    z.infer<typeof webChatReadSchema>,
+    WebChatSession,
+    "main-local"
+  >("webChatRead", "main-local", webChatReadSchema),
   webChatReveal: definePayloadProcedure<Id, void, "main-local">(
     "webChatReveal",
     "main-local",
     webChatIdSchema,
   ),
-  webChatRefresh: definePayloadProcedure<Id, WebChatSession, "main-local">(
-    "webChatRefresh",
-    "main-local",
-    webChatIdSchema,
-  ),
+  webChatRefresh: definePayloadProcedure<
+    z.infer<typeof webChatRefreshSchema>,
+    WebChatSession,
+    "main-local"
+  >("webChatRefresh", "main-local", webChatRefreshSchema),
   webChatSend: definePayloadProcedure<
     z.infer<typeof webChatSendSchema>,
     WebChatSession,
@@ -73,6 +76,16 @@ export const chatGptWebProcedures = {
     "main-local",
     webChatDeleteSchema,
   ),
+  webChatForget: definePayloadProcedure<Id, void, "main-local">(
+    "webChatForget",
+    "main-local",
+    webChatIdSchema,
+  ),
+  webChatRename: definePayloadProcedure<
+    z.infer<typeof webChatRenameSchema>,
+    WebChatSession,
+    "main-local"
+  >("webChatRename", "main-local", webChatRenameSchema),
   webChatReasoning: definePayloadProcedure<Id, WebChatReasoning, "main-local">(
     "webChatReasoning",
     "main-local",

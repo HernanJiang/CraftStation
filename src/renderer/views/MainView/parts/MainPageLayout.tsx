@@ -19,6 +19,7 @@ import { closeAllPanels, dismissRightOverlay } from "@/renderer/actions/panelAct
 import { setMainPanelDropZoneElement, useIsMainPanelDropActive } from "@/renderer/dnd";
 import { DeferredFileEditorPanel } from "@/renderer/deferredFeatures";
 import { useWebChatStore } from "@/renderer/state/webChatStore";
+import { MAIN_CONTENT_DIALOG_PORTAL_ID } from "@/renderer/components/layout/layoutHeaderPortals";
 
 const ChatGptWebPage = lazy(() =>
   import("@/renderer/components/webChat/ChatGptWebPage").then((module) => ({
@@ -52,6 +53,10 @@ export function MainPageLayout() {
       sidebar={<Sidebar />}
       content={
         <MainPanelDropZone>
+          <div
+            id={MAIN_CONTENT_DIALOG_PORTAL_ID}
+            className="pointer-events-none absolute inset-0 z-30"
+          />
           <ConversationErrorBoundary resetKey={conversationResetKey}>
             {webChatOpen && webChatNavigationKey === conversationResetKey ? (
               <Suspense>
