@@ -1,6 +1,53 @@
 {
   "releases": [
     {
+      "version": "1.10.0",
+      "date": "2026-10-12",
+      "title": "Native ChatGPT pages & thread sidebars",
+      "summary": "ChatGPT conversations now display the original webpage directly in CraftStation, with its own input, messages, and interactive content. Open a page beside an existing local thread and manage remote threads from the sidebar.",
+      "changes": [
+        {
+          "kind": "added",
+          "label": "Web chat",
+          "text": "The conversation card displays the complete ChatGPT webpage with its original composer, login flow, and interactive content, while CraftStation keeps the conversation title and address in sync."
+        },
+        {
+          "kind": "added",
+          "label": "Sidebars",
+          "text": "Open a webpage as a local conversation sidebar, search for an existing thread, and continue with the same live page and unsent draft on its right."
+        },
+        {
+          "kind": "improved",
+          "text": "The Remote plus button opens a new ChatGPT webpage immediately, and the main ChatGPT entry resumes your selected or existing conversation."
+        },
+        {
+          "kind": "improved",
+          "label": "Threads",
+          "text": "Remote rows show pin, more, and hide controls on hover, with inline renaming through the menu or a double-click and local names preserved across refreshes."
+        },
+        {
+          "kind": "improved",
+          "label": "Deletion",
+          "text": "Remove conversation display hides only the local record, while Delete conversation from account remains a separate action requiring confirmation."
+        },
+        {
+          "kind": "fixed",
+          "label": "Refresh",
+          "text": "Refresh webpage responds to real Windows mouse clicks, reloads the current tab, and shows its loading state without resending messages."
+        },
+        {
+          "kind": "fixed",
+          "label": "Browser",
+          "text": "Opening the ordinary browser sidebar keeps the main webpage and its draft visible by opening an independent page at the same address."
+        },
+        {
+          "kind": "fixed",
+          "label": "Navigation",
+          "text": "Each remote thread restores its own conversation, follows navigation in the original webpage, and updates both titles without outdated sync results changing your selection."
+        }
+      ]
+    },
+    {
       "version": "1.9.4",
       "date": "2026-10-11",
       "title": "Chat file opening choices",
