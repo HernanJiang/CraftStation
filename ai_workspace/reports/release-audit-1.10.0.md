@@ -22,3 +22,11 @@
 ## 验证与发布
 
 此前固定网页真实 Electron 18 项及 Win32 原生刷新点击已通过；发布前在 main 复核相关单测、更新记录格式、类型检查和 lint。Windows x64 按安装包、便携版顺序构建；三端由稳定版流水线构建并发布，完成信息维护于 `PROJECT_STATUS.md`。
+
+## 发布验证（2026-10-12）
+
+- `v1.10.0` 指向 `94f71cc1eb0692cb866496e8ca824dca371e05e9`；[稳定版流水线 38251784718](https://github.com/HernanJiang/CraftStation/actions/runs/38251784718) 的三端构建、正式发布及后续版本推进全部成功。
+- [GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.10.0) 为正式非预发布版本，12 项附件全部上传完成并具有 GitHub SHA-256 摘要。Windows x64 提供 NSIS 与便携版，Linux 提供 AppImage/deb，macOS arm64 提供 DMG/ZIP 及对应 blockmap。
+- 三份更新清单均为 1.10.0，其文件引用和大小与发布附件一致；Windows 清单指向 NSIS 安装包，macOS 清单指向更新 ZIP。GitHub 正文与已提交的中文及完整英文发布说明完全一致。
+- 本机按 `pnpm dist:win`、`pnpm dist:win:portable` 顺序完成双包；本地 NSIS 大小及 SHA-512 与本地更新清单一致。GitHub 附件由 CI 从同一发布提交独立构建，不与本地二进制声明字节一致。
+- 工具安全策略拒绝删除清理，因此将中间目录和旧便携版移到仓库外 `D:/Work/CraftStation-release-archives/1.10.0-20261012/`；`release/` 仅保留最新与上一稳定版便携备份，既有 NSIS 安装包和更新资料保留。
