@@ -3,7 +3,7 @@
 - **范围**：直接在 `main` 修复选中代码块中的部分行或行内代码后，粘贴到输入框多出反引号的问题。
 - **定位与实现**：剪贴板 HTML 转文本给 `pre` 添加三反引号、给 `code` 再添加单反引号，导致嵌套包装。取消两种标签添加的分隔符，直接保留选中内容；公式继续恢复 TeX 并显示。
 - **验证**：132 项相关测试、完整类型检查及变更文件两种 lint 通过。隔离 Electron 的 7 项代码、正文与公式粘贴场景通过，原生输入确认公式后的光标位置正确；自动基线、搜索、光标场景及三项 mock 门禁通过，控制台/运行时错误 0。未发起真实账号回合。详见 `ai_workspace/reports/clipboard-text-1.10.3.md`。
-- **状态**：修复与验证完成，正在执行 Windows x64 安装包、便携版构建与发布；已有 lockfile 和临时资料修改保留。
+- **状态**：`main` 与 `v1.10.3` tag 已推送，[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.10.3) 已发布为最新稳定版。Windows x64 安装包、blockmap、`latest.yml` 与便携版四项附件齐备，远端大小与本地一致，双语正文一致。便携版仅保留 1.10.3 与 1.10.2；旧便携版和中间产物已归档至 `D:/Work/CraftStation-release-archives/1.10.3-20261014/`。已有 lockfile 和临时资料修改保留。
 
 ## 1.10.2 聊天流式文本丢字符修复（2026-10-13）
 

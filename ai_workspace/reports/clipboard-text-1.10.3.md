@@ -34,6 +34,11 @@
 - 公式、原文反引号与粘贴提交回归：fold into 输入框修复验证。
 - 版本号和治理报告：omit，发布配套材料。
 
-## 状态
+## 发布结果
 
-修复与验证完成，正在构建 Windows x64 安装包及便携版，并准备发布 `v1.10.3`。原有 lockfile 和临时资料不纳入本次提交。
+- Windows x64 安装包与便携版均构建成功，便携版复用同一份编译产物；包内版本为 `1.10.3`。
+- `latest.yml` 指向本版安装包，声明大小与本地一致；本轮未额外计算 SHA。
+- `main` 与 `v1.10.3` tag 已推送，[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.10.3) 已发布为最新稳定版。
+- 四项附件已核对名称及大小，双语正文与本地说明一致；先完整上传草稿，再发布为最新稳定版。
+- `release/` 便携版仅保留 1.10.3 与 1.10.2。旧便携版和 `win-unpacked`、`builder-debug.yml` 已归档至 `D:/Work/CraftStation-release-archives/1.10.3-20261014/`，未移除 NSIS 或更新附件。
+- 原有 lockfile 和临时资料不纳入本次提交。
