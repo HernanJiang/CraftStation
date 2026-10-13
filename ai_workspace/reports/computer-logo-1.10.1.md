@@ -18,7 +18,7 @@ Claude 遗漏的根因是 `NATIVE_HARNESS_DESCRIPTORS` 没有注册 Claude，因
 
 ## 发布范围核对
 
-此前稳定版为 `v1.10.0`；目标为当前 `main` 的 1.10.1，核对时尚未创建目标 tag。
+此前稳定版为 `v1.10.0`；本版 `v1.10.1` tag 指向修复提交 `7b87f137`，发布范围为 `v1.10.0..v1.10.1`。该修复提交收录于下表的图标和 Claude 两条。
 
 | 提交或变更                                           | 处理 | 原因                                        |
 | ---------------------------------------------------- | ---- | ------------------------------------------- |
@@ -28,3 +28,12 @@ Claude 遗漏的根因是 `NATIVE_HARNESS_DESCRIPTORS` 没有注册 Claude，因
 | 本轮 Claude Harness 补齐                             | 收录 | 恢复官方 Harness 市场、设置和原生匹配入口。 |
 
 已有 `pnpm-lock.yaml` 修改与未跟踪临时材料保留，不纳入本次提交。
+
+## 构建与发布
+
+- `pnpm dist:win`、`pnpm dist:win:portable` 均成功，17 项打包运行依赖与 Windows x64 原生二进制检查通过。
+- NSIS 为 148852740 字节，便携版为 127497816 字节。包内版本为 1.10.1，Claude 官方目录和新的指针图标代码均存在，`app-icon.png` 已包含。
+- `latest.yml` 仍指向 NSIS，版本与安装包大小匹配；没有被便携版清单覆盖。
+- [v1.10.1 GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.10.1) 已正式发布为最新稳定版。四项附件的名称、大小与本地一致，正文与本版中英双语说明一致。
+- 本地便携版保留 1.10.1 与 1.10.0；1.9.4 便携包、`win-unpacked` 和 `builder-debug.yml` 已归档至 `D:/Work/CraftStation-release-archives/1.10.1-20261013/`，各版安装包和更新清单保留。
+- 包验证数据在 `C:/Users/Haona/.craftstation-smoke/claude-settings-20261013/package-verification.json`。

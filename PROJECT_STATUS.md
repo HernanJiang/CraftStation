@@ -4,7 +4,7 @@
 - **Claude**：注册官方 Harness 目录，接入已有安装、更新、状态检测与登录设置；未安装、未选模型时仍显示市场入口。`claude` 与 `anthropic` 统一供应商身份，Claude 原生组合不再要求兼容桥。继续使用现有 Claude Agent SDK 对话实现。
 - **图标**：开发环境使用 `build/icon.png`，打包环境使用既有 `app-icon.png`；生成 80px 内嵌 PNG，以原来的 40px 显示。
 - **验证**：339 项相关测试、完整类型检查与变更文件两种 lint 通过。真实 Electron 指针在开发路径与模拟打包资源路径下均显示正确；Harness 市场中 Claude 官方 Logo、安装入口与 Supervisor 目录往返已验证，基线及三项 mock 门禁通过，控制台/运行时错误 0。完整 Claude 登录与付费对话未在本轮测试。
-- **状态**：Windows x64 NSIS 与便携版构建及发布进行中；本轮保留原有 lockfile 和临时资料修改。
+- **状态**：修复提交 `7b87f137`、`main` 与 `v1.10.1` tag 已推送，[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.10.1) 已发布为最新稳定版。Windows x64 NSIS、blockmap、`latest.yml` 和便携版四项附件齐备，远端大小与本地一致，正文为本版双语说明；包内 Claude 目录、指针资源及安装包更新清单已验证。便携版仅保留 1.10.1 与 1.10.0，旧备份和中间产物归档至 `D:/Work/CraftStation-release-archives/1.10.1-20261013/`。详见 `ai_workspace/reports/computer-logo-1.10.1.md`；原有 lockfile 和临时资料修改保留。
 
 ## 1.10 ChatGPT 网页同步与对话入口（2026-10-11）
 
