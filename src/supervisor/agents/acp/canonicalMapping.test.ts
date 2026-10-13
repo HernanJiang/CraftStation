@@ -25,6 +25,65 @@ function note(update: SessionNotification["update"]): SessionNotification {
 }
 
 describe("mapAcpSessionUpdate", () => {
+  it.each(["agent_message_chunk", "agent_thought_chunk"] as const)(
+    "preserves repeated suffixes and whitespace in %s deltas",
+    (sessionUpdate) => {
+      const cases = [
+        ["`slow.next = slow", ".next", ".next", "`"],
+        ["`slow.next = slow", ".next", "`"],
+        ["`a.b = a", ".b", ".c", "`"],
+        ["as", " ", "slow"],
+        ["as", " `", "slow", "`"],
+        ["as ", " ", "slow"],
+        ["ha", "ha"],
+        ["a", "aa"],
+      ];
+      for (const chunks of cases) {
+        const state = createAcpMapperState("t-preserve-deltas");
+        const events = chunks.flatMap((text) =>
+          mapAcpSessionUpdate(note({ sessionUpdate, content: { type: "text", text } }), state),
+        );
+        const text = events
+          .filter((event) => event.type === "content.delta")
+          .map((event) => event.delta)
+          .join("");
+        expect(text).toBe(chunks.join(""));
+      }
+    },
+  );
+
+  it.each(["agent_message_chunk", "agent_thought_chunk"] as const)(
+    "preserves text across every chunk boundary in %s",
+    (sessionUpdate) => {
+      for (const text of [
+        "`slow.next = slow.next.next`",
+        "`slow.next = slow.next`",
+        "`a.b = a.b.c`",
+        "as slow",
+      ]) {
+        const partitions = [Array.from(text)];
+        for (let split = 1; split < text.length; split++) {
+          partitions.push([text.slice(0, split), text.slice(split)]);
+        }
+        for (const chunks of partitions) {
+          const state = createAcpMapperState("t-chunk-boundaries");
+          const events = chunks.flatMap((chunk) =>
+            mapAcpSessionUpdate(
+              note({ sessionUpdate, content: { type: "text", text: chunk } }),
+              state,
+            ),
+          );
+          expect(
+            events
+              .filter((event) => event.type === "content.delta")
+              .map((event) => event.delta)
+              .join(""),
+          ).toBe(text);
+        }
+      }
+    },
+  );
+
   it("drops Gemini 503 capacity retries instead of painting them as chat or errors", () => {
     const state = createAcpMapperState("t-503");
     expect(

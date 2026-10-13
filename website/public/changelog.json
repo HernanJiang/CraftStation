@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.10.2",
+      "date": "2026-10-13",
+      "title": "聊天正文与思考内容完整保留",
+      "summary": "修复流式对话吞掉重复后缀和 Markdown 分隔符的问题，保留代码链、空格与思考内容。",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "聊天",
+          "text": "流式正文与思考逐片段保留内容，连续的 .next.next、重复文本和多级代码链不再被当成重复输出删掉。"
+        },
+        {
+          "kind": "fixed",
+          "label": "Markdown",
+          "text": "单独传来的反引号及相邻空格不再被误判成技能目录，行内代码与单词间距保持完整。"
+        }
+      ]
+    },
+    {
       "version": "1.10.1",
       "date": "2026-10-13",
       "title": "Claude Harness & CraftStation pointer",

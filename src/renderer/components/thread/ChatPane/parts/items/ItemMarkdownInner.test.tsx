@@ -6,6 +6,11 @@ import { ImageLightboxHost } from "@/renderer/components/composer";
 import { ChatPaneActionsContext, type ChatPaneActions } from "../../chatPaneActionsContext";
 import ItemMarkdownInner from "./ItemMarkdownInner";
 import { LC_SELECTOR_LANG } from "./SelectorBadge";
+import {
+  createAcpMapperState,
+  mapAcpSessionUpdate,
+} from "@/supervisor/agents/acp/canonicalMapping";
+import { appendRuntimeStream } from "@/shared/runtimeStream";
 
 const { codeBlockSpy } = vi.hoisted(() => ({
   codeBlockSpy:
@@ -111,6 +116,66 @@ describe("ItemMarkdownInner", () => {
     expect(screen.queryByTestId("code-block")).not.toBeInTheDocument();
     expect(container.querySelector("code")).toHaveTextContent("const value = 1");
   });
+
+  it("preserves repeated member suffixes and spaces character for character", () => {
+    const snippets = ["slow.next = slow.next.next", "slow.next = slow.next", "a.b = a.b.c"];
+    const text = `${snippets.map((snippet) => `\`${snippet}\``).join("\n\n")}\n\nas slow`;
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={text} />
+      </AppProvider>,
+    );
+
+    expect(Array.from(container.querySelectorAll("code"), (code) => code.textContent)).toEqual(
+      snippets,
+    );
+    expect(container.querySelectorAll("p")[3]?.textContent).toBe("as slow");
+  });
+
+  it.each(["agent_message_chunk", "agent_thought_chunk"] as const)(
+    "renders mapped %s deltas without losing suffixes or spacing",
+    (sessionUpdate) => {
+      const chunks = [
+        "`slow.next = slow",
+        ".next",
+        ".next",
+        "`\n\n",
+        "`slow.next = slow.next`\n\n`a.b = a.b.c`\n\nas",
+        " ",
+        "slow",
+      ];
+      const state = createAcpMapperState("t-render-deltas");
+      let text = "";
+      const { container, rerender } = render(
+        <AppProvider>
+          <ItemMarkdownInner text={text} />
+        </AppProvider>,
+      );
+      for (const chunk of chunks) {
+        const events = mapAcpSessionUpdate(
+          { sessionId: "s1", update: { sessionUpdate, content: { type: "text", text: chunk } } },
+          state,
+        );
+        for (const event of events) {
+          if (event.type === "content.delta")
+            text = appendRuntimeStream(text, event.delta, event.stream);
+        }
+        rerender(
+          <AppProvider>
+            <ItemMarkdownInner text={text} />
+          </AppProvider>,
+        );
+      }
+      // Compare the raw Markdown before parsing as well as the rendered DOM.
+      expect(text).toBe(chunks.join(""));
+      expect(Array.from(container.querySelectorAll("code"), (code) => code.textContent)).toEqual([
+        "slow.next = slow.next.next",
+        "slow.next = slow.next",
+        "a.b = a.b.c",
+      ]);
+      expect(container.querySelectorAll("p")[3]?.textContent).toBe("as slow");
+    },
+  );
 
   it("renders inline and display LaTeX through KaTeX", async () => {
     const { container } = render(

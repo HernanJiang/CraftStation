@@ -208,7 +208,9 @@ export function mapAcpSessionUpdate(
       // so the next thought round cannot append onto the previous chain, and
       // the next answer cannot glue onto the previous bubble.
       if (content?.type === "text") {
-        const assistantDelta = snapshotOrDelta(contentState.assistantAccum, content.text);
+        // Standard ACP chunks are deltas. Matching an earlier prefix/suffix
+        // does not make a chunk a replay (e.g. consecutive `.next` tokens).
+        const assistantDelta = content.text;
         if (!assistantDelta) break;
         events.push(...completeOpenContentItem(contentState, threadId, "reasoning"));
         if (!contentState.openAssistantItemId) {
@@ -286,7 +288,7 @@ export function mapAcpSessionUpdate(
         if (!stripped) break;
         thoughtText = stripped;
       }
-      const thoughtDelta = snapshotOrDelta(contentState.reasoningAccum, thoughtText);
+      const thoughtDelta = thoughtText;
       if (!thoughtDelta) break;
       // A new thought round always seals the live assistant bubble so later
       // answer tokens cannot glue onto the previous paragraph.

@@ -133,9 +133,10 @@ const OPEN_CONTENT_ITEM_KEYS = [
 ] as const;
 
 /**
- * Providers (notably DeepSeek ACP) sometimes replay the full snapshot of a
- * stream instead of a true delta. If `incoming` extends `previous`, emit only
- * the suffix; if it is a duplicate, emit nothing.
+ * Non-standard embedded reasoning fields (notably DeepSeek ACP) sometimes
+ * replay a full snapshot. If `incoming` extends `previous`, emit only the
+ * suffix; if it is a duplicate snapshot, emit nothing. Standard ACP content
+ * chunks are deltas and must never pass through this heuristic.
  */
 export function snapshotOrDelta(previous: string | undefined, incoming: string): string {
   if (!incoming) return "";
@@ -143,7 +144,6 @@ export function snapshotOrDelta(previous: string | undefined, incoming: string):
   if (!prior) return incoming;
   if (incoming === prior) return "";
   if (incoming.startsWith(prior)) return incoming.slice(prior.length);
-  if (prior.endsWith(incoming)) return "";
   return incoming;
 }
 

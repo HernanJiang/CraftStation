@@ -39,7 +39,9 @@ export function classifySkillCatalogText(text: string): SkillCatalogTextKind {
     .map((token) => token.replace(/^[-*`/$]+|[-*`]+$/gu, ""))
     .filter(Boolean);
 
-  if (tokens.length === 0) return "header";
+  // A standalone Markdown delimiter is a valid streamed fragment, not a
+  // skill-catalog header. Dropping it can remove an inline code closer.
+  if (tokens.length === 0) return "prose";
   if (tokens.some((token) => STOPWORD.test(token))) return "prose";
   if (!tokens.every((token) => SKILL_TOKEN.test(token))) return "prose";
   const fromHeader = Boolean(lines[0] && HEADER.test(lines[0]));

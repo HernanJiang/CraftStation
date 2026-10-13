@@ -11,6 +11,14 @@ const GROK_DUMP =
   "skill-creator-craftstation ask-matt ast-grep code-review codebase-design context7-cli diagnosing-bugs domain-modeling grill-me grill-with-docs grilling guizang-ppt-skill handoff implement improve-codebase-architecture keep-codex-fast my-cloud-dev my-explain my-research my-workflow ppt-master prototype repomix-explorer research resolving-merge-conflicts";
 
 describe("isSkillCatalogDump", () => {
+  it.each(["`", " `", "``", "*", "**", "-", "/"])(
+    "preserves standalone streamed Markdown delimiters: %s",
+    (text) => {
+      expect(classifySkillCatalogText(text)).toBe("prose");
+      expect(shouldHoldSkillCatalogChunk(text)).toBe(false);
+    },
+  );
+
   it.each([
     "existing draft\n\nfirst note\n\nsecond note",
     "red green blue orange purple white",
