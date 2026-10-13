@@ -55,6 +55,21 @@ describe("ExecutionRouteResolver", () => {
     expect(decision.isCompatibility).toBe(false);
   });
 
+  it("keeps Claude models on their ready Claude Harness without a compatibility bridge", () => {
+    const decision = resolveExecutionRoute({
+      modelEntry: { ...openaiModel, providerKind: "claude", modelId: "claude-opus-4-6" },
+      harnessRef: {
+        ...codexHarness,
+        harnessItemId: "harness:claude",
+        harnessKind: "claude",
+        vendor: "anthropic",
+      },
+      harnessReady: true,
+      compatibilityBridgeReady: false,
+    });
+    expect(decision).toMatchObject({ routeType: "native", reasonCode: "NATIVE_PAIRING" });
+  });
+
   it("resolves an allowlisted vendor on the OpenCode universal router to native without the bridge", () => {
     const decision = resolveExecutionRoute({
       modelEntry: openaiModel,

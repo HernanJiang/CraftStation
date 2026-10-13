@@ -21,6 +21,7 @@ export function isRetiredHarnessKind(harnessKind: string): boolean {
  * reshapes already-detected AgentStatuses.
  */
 export const NATIVE_HARNESS_AGENT_KINDS: readonly string[] = [
+  "claude",
   "codex",
   "grok",
   "kimi",

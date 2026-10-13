@@ -6,6 +6,7 @@ import { usePanelStore } from "@/renderer/state/panelStore";
  * the usage workspace account pool.
  */
 const NATIVE_AGENT_SETTINGS_KINDS = new Set([
+  "claude",
   "codex",
   "grok",
   "kimi",

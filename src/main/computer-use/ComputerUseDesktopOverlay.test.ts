@@ -69,8 +69,14 @@ const electronMock = vi.hoisted(() => {
 });
 
 vi.mock("electron", () => ({
+  app: { isPackaged: false },
   BrowserWindow: electronMock.BrowserWindow,
   globalShortcut: electronMock.globalShortcut,
+  nativeImage: {
+    createFromPath: () => ({
+      resize: () => ({ toDataURL: () => "data:image/png;base64,craftstation-logo" }),
+    }),
+  },
   screen: electronMock.screen,
 }));
 
@@ -115,7 +121,8 @@ describe("ComputerUseDesktopOverlay", () => {
       expect(overlayHtml).toContain("inset 0 0 48px rgba(92, 167, 255, 0.08)");
       expect(overlayHtml).toContain("CraftStation using your computer | Esc to Exit");
       expect(overlayHtml).toContain("window.__csPointer");
-      expect(overlayHtml).toContain("M352,300 H556");
+      expect(overlayHtml).toContain('src="data:image/png;base64,craftstation-logo"');
+      expect(overlayHtml).toContain('alt="CraftStation"');
       expect(overlayHtml).toContain('id="trail"');
       expect(overlayHtml).not.toContain("<button");
     }
@@ -289,10 +296,7 @@ describe("ComputerUseDesktopOverlay", () => {
       };
     });
     expect(payloads).toEqual(
-      expect.arrayContaining([
-        { kind: "hide" },
-        { kind: "click", x: 80, y: 80, durationMs: 0 },
-      ]),
+      expect.arrayContaining([{ kind: "hide" }, { kind: "click", x: 80, y: 80, durationMs: 0 }]),
     );
 
     overlay.dispose();
@@ -310,8 +314,10 @@ describe("ComputerUseDesktopOverlay", () => {
     await vi.advanceTimersByTimeAsync(1000);
     await second;
 
-    const last = electronMock.BrowserWindow.instances[0]!.webContents.executeJavaScript.mock
-      .calls.at(-1)?.[0] as string;
+    const last =
+      electronMock.BrowserWindow.instances[0]!.webContents.executeJavaScript.mock.calls.at(
+        -1,
+      )?.[0] as string;
     const payload = JSON.parse(last.slice("window.__csPointer(".length, -1)) as {
       kind: string;
       durationMs: number;

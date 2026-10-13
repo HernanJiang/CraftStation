@@ -38,7 +38,7 @@ function entry(
       id: `native-harness:${harnessKind}`,
       harnessKind,
       label,
-      vendor: harnessKind,
+      vendor: harnessKind === "claude" ? "anthropic" : harnessKind,
       official: true,
       transport: harnessKind === "deepseek-api" ? "openai-compatible-http" : "acp-stdio",
       machineFacingBoundary: "native runtime boundary",
@@ -108,6 +108,7 @@ describe("HarnessMapPage", () => {
     bridgeMock.onSupervisorEvent.mockReturnValue(() => undefined);
     bridgeMock.refreshAgentStatuses.mockResolvedValue({ windows: [], wsl: [], fromCache: false });
     bridgeMock.getNativeHarnessControlPlane.mockResolvedValue([
+      entry("claude", "Claude Code Harness", "unavailable"),
       entry("codex", "Codex Harness", "ready"),
       entry("kimi", "Kimi Code Harness", "not-configured"),
       entry("antigravity", "Antigravity Harness", "unavailable"),
@@ -129,6 +130,59 @@ describe("HarnessMapPage", () => {
     expect(installMock.runNativeAgentInstall).toHaveBeenCalledWith(
       expect.objectContaining({ agentKind: "pi", label: "Pi Harness" }),
     );
+  });
+
+  it("offers Claude without selected models and opens its existing installer", async () => {
+    installMock.runNativeAgentInstall.mockReturnValueOnce(true);
+    render(
+      <HarnessMapPage
+        accounts={[]}
+        customModels={[]}
+        configuredProviderIds={[]}
+        providerOrder={[]}
+      />,
+    );
+    const row = await screen.findByTestId("harness-map-orphan-claude");
+    expect(row).toHaveTextContent("Claude Code Harness");
+    expect(row.querySelector('img[data-provider-logo="claude"]')).not.toBeNull();
+    fireEvent.click(screen.getByTestId("harness-cli-install-claude"));
+    expect(installMock.runNativeAgentInstall).toHaveBeenCalledWith(
+      expect.objectContaining({ agentKind: "claude", label: "Claude Code Harness" }),
+    );
+  });
+
+  it("connects selected Claude models to Claude and opens its login settings when needed", async () => {
+    bridgeMock.getNativeHarnessControlPlane.mockResolvedValue([
+      entry("claude", "Claude Code Harness", "not-configured"),
+      entry("opencode", "OpenCode Harness", "ready"),
+    ]);
+    render(
+      <HarnessMapPage
+        accounts={[]}
+        customModels={[
+          {
+            id: "cm-claude",
+            provider: "claude",
+            modelId: "claude-opus-4-6",
+            displayName: "Opus 4.6",
+            contextSize: "",
+          },
+        ]}
+        configuredProviderIds={["claude"]}
+        providerOrder={[]}
+      />,
+    );
+    const node = await screen.findByTestId("harness-map-harness-node-claude");
+    expect(node).toHaveTextContent("Claude Code Harness");
+    expect(screen.queryByTestId("harness-map-orphan-claude")).not.toBeInTheDocument();
+    const page = screen.getByTestId("harness-map-page");
+    await waitFor(() =>
+      expect(
+        page.querySelector('[data-testid^="harness-map-edge-mh-"][data-to="claude"]'),
+      ).not.toBeNull(),
+    );
+    fireEvent.click(screen.getByTestId("harness-cli-row-claude"));
+    expect(usePanelStore.getState().settingsSection).toBe("agents:claude");
   });
 
   it("keeps the marketplace available before the user selects any models", async () => {
@@ -245,7 +299,7 @@ describe("HarnessMapPage", () => {
     const [wslDistros, scope] = bridgeMock.refreshAgentStatuses.mock.calls[0] ?? [];
     expect(wslDistros).toEqual([]);
     expect(scope).toEqual({
-      agentKinds: expect.arrayContaining(["codex", "antigravity", "kimi", "muse"]),
+      agentKinds: expect.arrayContaining(["claude", "codex", "antigravity", "kimi", "muse"]),
     });
     // Stale-while-revalidate: the cached projection is read before detection.
     expect(bridgeMock.getNativeHarnessControlPlane).toHaveBeenCalled();

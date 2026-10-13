@@ -3,6 +3,7 @@ import { brandIdForVendorKind, PROVIDER_BRANDS, PROVIDER_LABELS } from "./provid
 
 describe("brandIdForVendorKind", () => {
   it("maps model vendors to their brand keys", () => {
+    expect(brandIdForVendorKind("anthropic")).toBe("claude");
     expect(brandIdForVendorKind("openai")).toBe("codex");
     expect(brandIdForVendorKind("xai")).toBe("grok");
     expect(brandIdForVendorKind("moonshot")).toBe("kimi");
@@ -27,6 +28,7 @@ describe("brandIdForVendorKind", () => {
 
   it("every mapped target resolves to a real brand or honest fallback", () => {
     for (const target of [
+      "claude",
       "codex",
       "grok",
       "kimi",

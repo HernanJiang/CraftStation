@@ -37,6 +37,23 @@ const COMMON_STRUCTURED_CAPABILITIES = [
   "diagnostics",
 ] as const satisfies readonly NativeHarnessCapability[];
 
+export const CLAUDE_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
+  id: "native-harness:claude",
+  harnessKind: "claude",
+  label: "Claude Code Harness",
+  vendor: "anthropic",
+  official: true,
+  transport: "official-stream-json",
+  machineFacingBoundary: "Claude Agent SDK / Claude Code stream-json",
+  capabilities: capabilityMap([
+    ...COMMON_STRUCTURED_CAPABILITIES,
+    "mcp",
+    "subagents",
+    "context",
+    "compaction",
+  ]),
+};
+
 export const CODEX_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
   id: "native-harness:codex",
   harnessKind: "codex",
@@ -457,6 +474,7 @@ export const PI_NATIVE_HARNESS_DESCRIPTOR: NativeHarnessDescriptor = {
 };
 
 export const NATIVE_HARNESS_DESCRIPTORS = {
+  claude: CLAUDE_NATIVE_HARNESS_DESCRIPTOR,
   codex: CODEX_NATIVE_HARNESS_DESCRIPTOR,
   grok: GROK_NATIVE_HARNESS_DESCRIPTOR,
   kimi: KIMI_NATIVE_HARNESS_DESCRIPTOR,

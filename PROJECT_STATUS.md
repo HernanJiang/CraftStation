@@ -1,3 +1,11 @@
+## 1.10.1 Claude Harness 与电脑操控图标修正（2026-10-13）
+
+- **范围**：直接在 `main` 补齐 Harness 总览遗漏的 Claude Code，并将电脑操控悬浮指针中的旧 `P.` 标志替换为 CraftStation 金色合成台 Logo。
+- **Claude**：注册官方 Harness 目录，接入已有安装、更新、状态检测与登录设置；未安装、未选模型时仍显示市场入口。`claude` 与 `anthropic` 统一供应商身份，Claude 原生组合不再要求兼容桥。继续使用现有 Claude Agent SDK 对话实现。
+- **图标**：开发环境使用 `build/icon.png`，打包环境使用既有 `app-icon.png`；生成 80px 内嵌 PNG，以原来的 40px 显示。
+- **验证**：339 项相关测试、完整类型检查与变更文件两种 lint 通过。真实 Electron 指针在开发路径与模拟打包资源路径下均显示正确；Harness 市场中 Claude 官方 Logo、安装入口与 Supervisor 目录往返已验证，基线及三项 mock 门禁通过，控制台/运行时错误 0。完整 Claude 登录与付费对话未在本轮测试。
+- **状态**：Windows x64 NSIS 与便携版构建及发布进行中；本轮保留原有 lockfile 和临时资料修改。
+
 ## 1.10 ChatGPT 网页同步与对话入口（2026-10-11）
 
 - **工作区**：`dev/1.10-chatgpt-web-sync` / `.worktrees/1.10-chatgpt-web-sync`，基于 1.9.4；本轮仅在该工作树开发。

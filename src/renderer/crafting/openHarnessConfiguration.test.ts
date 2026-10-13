@@ -16,6 +16,10 @@ function resetPanelStore() {
 
 describe("harnessConfigurationTarget", () => {
   it("routes native CLI harnesses to their agent settings page", () => {
+    expect(harnessConfigurationTarget("claude")).toEqual({
+      kind: "agent-settings",
+      section: "agents:claude",
+    });
     expect(harnessConfigurationTarget("kimi")).toEqual({
       kind: "agent-settings",
       section: "agents:kimi",

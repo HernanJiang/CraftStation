@@ -12,6 +12,7 @@ import {
   GROK_NATIVE_HARNESS_DESCRIPTOR,
   KIMI_NATIVE_HARNESS_DESCRIPTOR,
   MUSE_NATIVE_HARNESS_DESCRIPTOR,
+  NATIVE_HARNESS_DESCRIPTORS,
   OPENCODE_NATIVE_HARNESS_DESCRIPTOR,
   PI_NATIVE_HARNESS_DESCRIPTOR,
 } from "./descriptors";
@@ -29,6 +30,25 @@ function status(overrides: Partial<AgentStatus>): AgentStatus {
 }
 
 describe("Native Harness control-plane projection", () => {
+  it("keeps Claude in the public catalog before installation and projects its auth state", () => {
+    for (const [installed, authState, expected] of [
+      [false, "missing", "unavailable"],
+      [true, "missing", "not-configured"],
+      [true, "authenticated", "ready"],
+    ] as const) {
+      const result = projectNativeHarnessControlPlane({
+        descriptors: Object.values(NATIVE_HARNESS_DESCRIPTORS),
+        statuses: [status({ kind: "claude", installed, authState })],
+        profileConfigured: new Set(),
+        environmentKind: "windows",
+      });
+      expect(result.find((entry) => entry.descriptor.harnessKind === "claude")).toMatchObject({
+        descriptor: { label: "Claude Code Harness", vendor: "anthropic", official: true },
+        status: expected,
+      });
+    }
+  });
+
   it("projects Pi install and authentication state through the shared catalog", () => {
     for (const [installed, authState, expected] of [
       [false, "missing", "unavailable"],

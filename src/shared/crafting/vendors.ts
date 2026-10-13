@@ -8,6 +8,8 @@
  * normalized here before any native/compatibility decision.
  */
 const AGENT_KIND_TO_VENDOR: Record<string, string> = {
+  claude: "anthropic",
+  anthropic: "anthropic",
   codex: "openai",
   openai: "openai",
   grok: "xai",

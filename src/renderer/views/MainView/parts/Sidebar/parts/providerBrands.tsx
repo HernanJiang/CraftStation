@@ -67,6 +67,7 @@ export function providerLabel(id: string, fallback?: string): string {
  * back to a monochrome letter badge.
  */
 const VENDOR_KIND_TO_BRAND: Record<string, string> = {
+  anthropic: "claude",
   openai: "codex",
   xai: "grok",
   moonshot: "kimi",

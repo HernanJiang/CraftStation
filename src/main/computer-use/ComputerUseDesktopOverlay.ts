@@ -1,4 +1,13 @@
-import { BrowserWindow, globalShortcut, screen, type Display, type Rectangle } from "electron";
+import { join } from "node:path";
+import {
+  app,
+  BrowserWindow,
+  globalShortcut,
+  nativeImage,
+  screen,
+  type Display,
+  type Rectangle,
+} from "electron";
 import type { ComputerUseActivityEvent } from "./ComputerUseMcpIngress";
 import { isKeyChordToolName } from "./mcp/toolRegistry";
 import { pointerMoveDurationMs, type ComputerUsePointerMotion } from "./pointerMotion";
@@ -77,6 +86,7 @@ const OVERLAY_HTML = `<!doctype html>
         left: 8px;
         width: 40px;
         height: 40px;
+        object-fit: contain;
         transform-origin: top left;
       }
       #pointer.pulse .logo { animation: cs-pulse 180ms ease-out; }
@@ -91,14 +101,7 @@ const OVERLAY_HTML = `<!doctype html>
     <canvas id="trail"></canvas>
     <div id="pointer" aria-hidden="true">
       <div class="hit"></div>
-      <div class="logo">
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="40" height="40">
-          <rect x="32" y="32" width="960" height="960" rx="220" fill="#0E0E14"/>
-          <path fill-rule="evenodd" fill="#EAF0FB"
-            d="M352,300 H556 A152,152 0 0 1 556,604 H472 V730 H352 Z M472,392 H548 A60,60 0 0 1 548,512 H472 Z"/>
-          <circle cx="636" cy="694" r="46" fill="#8B7BFF"/>
-        </svg>
-      </div>
+      <img class="logo" src="__CRAFTSTATION_LOGO__" alt="CraftStation" width="40" height="40">
     </div>
     <div class="badge">CraftStation using your computer | Esc to Exit</div>
     <script>
@@ -200,7 +203,6 @@ const OVERLAY_HTML = `<!doctype html>
     </script>
   </body>
 </html>`;
-const OVERLAY_URL = `data:text/html;charset=utf-8,${encodeURIComponent(OVERLAY_HTML)}`;
 
 interface OverlayWindow {
   loaded: boolean;
@@ -214,7 +216,9 @@ export interface ComputerUseDesktopOverlayOptions {
 }
 
 function containsPoint(bounds: Rectangle, x: number, y: number): boolean {
-  return x >= bounds.x && y >= bounds.y && x < bounds.x + bounds.width && y < bounds.y + bounds.height;
+  return (
+    x >= bounds.x && y >= bounds.y && x < bounds.x + bounds.width && y < bounds.y + bounds.height
+  );
 }
 
 function delay(ms: number): Promise<void> {
@@ -415,7 +419,15 @@ export class ComputerUseDesktopOverlay {
     window.on("closed", () => {
       if (this.windows.get(display.id)?.window === window) this.windows.delete(display.id);
     });
-    void window.loadURL(OVERLAY_URL).then(() => {
+    const iconPath = app.isPackaged
+      ? join(process.resourcesPath, "app-icon.png")
+      : join(__dirname, "..", "..", "build", "icon.png");
+    const logoUrl = nativeImage
+      .createFromPath(iconPath)
+      .resize({ width: 80, height: 80 })
+      .toDataURL();
+    const html = OVERLAY_HTML.replace("__CRAFTSTATION_LOGO__", logoUrl);
+    void window.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`).then(() => {
       overlay.loaded = true;
       resolveReady();
       if (!this.disposed && this.visible && !window.isDestroyed()) {

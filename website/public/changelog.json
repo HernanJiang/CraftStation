@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.10.1",
+      "date": "2026-10-13",
+      "title": "Claude Harness & CraftStation pointer",
+      "summary": "Claude Code now appears in the Harness overview and marketplace. The computer control pointer uses the CraftStation crafting logo.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Claude Code",
+          "text": "Claude Code Harness appears even before selecting models, with installation, status refresh, updates, and a direct link to its login settings. Selected Claude models connect to their native Harness."
+        },
+        {
+          "kind": "fixed",
+          "label": "Crafting",
+          "text": "Claude models paired with Claude Code Harness use the native route without requiring the compatibility bridge."
+        },
+        {
+          "kind": "fixed",
+          "label": "Computer control",
+          "text": "The desktop control pointer uses the CraftStation crafting logo in place of the old Pora icon, with the same size and click animation."
+        }
+      ]
+    },
+    {
       "version": "1.10.0",
       "date": "2026-10-12",
       "title": "Native ChatGPT pages & thread sidebars",
