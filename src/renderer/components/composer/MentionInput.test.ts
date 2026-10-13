@@ -526,6 +526,84 @@ describe("structured segment insertion", () => {
   });
 });
 
+describe("clipboard text", () => {
+  it("pastes selected code lines without adding Markdown fences or inline backticks", () => {
+    const ref = createRef<MentionInputHandle>();
+    const onSubmit = vi.fn<(segments: PromptSegment[]) => void>();
+    render(
+      createElement(MentionInput, {
+        ref,
+        placeholder: "Send a message...",
+        projectLocation: undefined,
+        onTextChange: vi.fn<(hasText: boolean) => void>(),
+        onSubmit,
+      }),
+    );
+    const editor = screen.getByRole("textbox");
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+    const text = "top, bottom = 0, len(matrix) - 1\n        left, right = 0, len(matrix[0]) - 1";
+
+    fireEvent.paste(editor, {
+      clipboardData: {
+        files: [],
+        items: [],
+        getData: (type: string) =>
+          type === "text/html" ? `<pre><code>${text}</code></pre>` : text,
+      },
+    });
+
+    expect(editor.textContent).toBe(text);
+    expect(ref.current?.serialize()).toBe(text);
+    fireEvent.keyDown(editor, { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledWith([{ kind: "text", content: text }]);
+    selection.removeAllRanges();
+  });
+
+  it("pastes rendered math as a formula and submits its TeX source", () => {
+    const ref = createRef<MentionInputHandle>();
+    const onSubmit = vi.fn<(segments: PromptSegment[]) => void>();
+    render(
+      createElement(MentionInput, {
+        ref,
+        placeholder: "Send a message...",
+        projectLocation: undefined,
+        onTextChange: vi.fn<(hasText: boolean) => void>(),
+        onSubmit,
+      }),
+    );
+    const editor = screen.getByRole("textbox");
+    const range = document.createRange();
+    range.selectNodeContents(editor);
+    range.collapse(false);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    fireEvent.paste(editor, {
+      clipboardData: {
+        files: [],
+        items: [],
+        getData: (type: string) =>
+          type === "text/html"
+            ? '<span class="katex"><math><semantics><annotation encoding="application/x-tex">x^2</annotation></semantics></math><span class="katex-html">flattened glyphs</span></span>'
+            : "flattened glyphs",
+      },
+    });
+
+    expect(editor.querySelector<HTMLElement>("[data-math-tex]")?.dataset.mathTex).toBe("x^2");
+    expect(editor.textContent).not.toContain("flattened glyphs");
+    expect(ref.current?.serialize()).toBe("$x^2$");
+    fireEvent.keyDown(editor, { key: "Enter" });
+    expect(onSubmit).toHaveBeenCalledWith([{ kind: "text", content: "$x^2$" }]);
+    selection.removeAllRanges();
+  });
+});
+
 describe("math chips", () => {
   const baseProps = {
     placeholder: "Send a message...",

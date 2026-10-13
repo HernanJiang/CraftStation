@@ -32,7 +32,7 @@ describe("htmlClipboardToText", () => {
     const text = htmlClipboardToText(html);
     expect(text).toContain("### 步骤");
     expect(text).toContain("- 分词 **tokenizer**");
-    expect(text).toContain("- 投影 `W_t` 见 链接 (https://x.dev)");
+    expect(text).toContain("- 投影 W_t 见 链接 (https://x.dev)");
   });
 
   it("serializes table rows as pipe-separated lines", () => {
@@ -47,10 +47,29 @@ describe("htmlClipboardToText", () => {
     expect(htmlClipboardToText(html)).toBe("正文");
   });
 
-  it("keeps pre content verbatim inside a fence", () => {
+  it("keeps selected pre content verbatim without adding a fence", () => {
     const html = `<pre>def f():\n    return  1</pre>`;
     const text = htmlClipboardToText(html);
-    expect(text).toContain("```\ndef f():\n    return  1\n```");
+    expect(text).toBe("def f():\n    return  1");
+  });
+
+  it("pastes selected highlighted code without adding nested backticks", () => {
+    const html = `<pre><code><span>top, bottom = 0, len(matrix) - 1</span>\n        <span>left, right = 0, len(matrix[0]) - 1</span></code></pre>`;
+    expect(htmlClipboardToText(html)).toBe(
+      "top, bottom = 0, len(matrix) - 1\n        left, right = 0, len(matrix[0]) - 1",
+    );
+  });
+
+  it("copies inline code as its selected text", () => {
+    expect(htmlClipboardToText("<p>检查 <code>matrix[0]</code> 的长度</p>")).toBe(
+      "检查 matrix[0] 的长度",
+    );
+  });
+
+  it("preserves backticks that are part of the selected code", () => {
+    expect(htmlClipboardToText("<pre><code>const text = `hello`;</code></pre>")).toBe(
+      "const text = `hello`;",
+    );
   });
 
   it("returns empty string for structureless html", () => {

@@ -100,12 +100,11 @@ function walkElement(el: Element, out: string[], state: WalkState) {
   } else if (tag === "TD" || tag === "TH") {
     push(out, "| ");
   } else if (tag === "PRE") {
-    ensureNewline(out);
-    push(out, "```\n");
+    // A clipboard fragment carries the selected contents, not the original
+    // Markdown delimiters. Keep code as text in the plain-text composer.
     const next: WalkState = { ...state, inPre: true };
     for (const child of el.childNodes) walkNode(child, out, next);
     ensureNewline(out);
-    push(out, "```\n");
     return;
   } else if (tag === "STRONG" || tag === "B") {
     push(out, "**");
@@ -118,9 +117,7 @@ function walkElement(el: Element, out: string[], state: WalkState) {
     push(out, "*");
     return;
   } else if (tag === "CODE") {
-    push(out, "`");
     for (const child of el.childNodes) walkNode(child, out, state);
-    push(out, "`");
     return;
   } else if (tag === "A") {
     for (const child of el.childNodes) walkNode(child, out, state);
