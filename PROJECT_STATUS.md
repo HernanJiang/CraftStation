@@ -4,7 +4,7 @@
 - **定位**：Kimi 原生记录中的正文与思考完整，CraftStation 渲染前与入库内容已经损坏。标准 ACP chunk 被快照去重误判；技能目录过滤又吞掉了仅包含 Markdown 分隔符的片段。
 - **实现**：标准正文、思考原样追加增量；非标准嵌入式推理保留快照兼容，取消后缀去重；分隔符片段保留为普通内容。
 - **验证**：774 项相关测试、完整类型检查及变更文件两种 lint 通过。隔离真实 Electron 验证行内代码、空格、折叠/展开思考、粗体、列表、表格和代码块；自动基线及三项 mock 门禁通过。未发起真实账号付费回合，未重写历史消息。详见 `ai_workspace/reports/markdown-stream-1.10.2.md`。
-- **状态**：修复与验收完成，正在执行 Windows x64 安装包、便携版构建与发布；已有 lockfile 和临时资料修改保留。
+- **状态**：修复提交 `10753835`、`main` 与 `v1.10.2` tag 已推送，[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.10.2) 已发布为最新稳定版。Windows x64 安装包、blockmap、`latest.yml` 与便携版四项附件齐备，远端大小与本地一致，双语正文逐字符一致。便携版仅保留 1.10.2 与 1.10.1；旧包和中间产物因删除被自动审批拦截，已安全归档至 `D:/Work/CraftStation-release-archives/1.10.2-20261013/`。已有 lockfile 和临时资料修改保留。
 
 ## 1.10.1 Claude Harness 与电脑操控图标修正（2026-10-13）
 

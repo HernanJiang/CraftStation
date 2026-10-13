@@ -57,3 +57,12 @@
 ## 边界
 
 修复后新消息逐字符保留；已持久化的损坏旧消息不会自动恢复，本轮未重写真实数据库。
+
+## 发布结果
+
+- 修复提交：`10753835`；`main` 与 `v1.10.2` 已推送。
+- Windows x64 NSIS 与便携版构建成功；后者复用同一次编译输出。
+- 包内版本为 `1.10.2`，包含 Supervisor 与渲染入口；`latest.yml` 正确指向安装包，声明大小与本地一致。
+- [GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.10.2) 为最新稳定版，安装包、blockmap、更新清单和便携版四项远端附件大小与本地一致，正文与本版双语说明一致。未额外计算 SHA。
+- `release/` 便携版仅保留 1.10.2 与 1.10.1。自动审批拒绝删除旧包及中间产物，改用可逆归档，移至 `D:/Work/CraftStation-release-archives/1.10.2-20261013/`；未删除 NSIS 或更新附件。
+- 本次提交不含原有 `pnpm-lock.yaml` 修改及其他临时、研究资料。
