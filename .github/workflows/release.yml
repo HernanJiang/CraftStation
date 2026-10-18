@@ -192,20 +192,6 @@ jobs:
       - name: List release assets
         run: ls -lh "${{ runner.temp }}/release-assets"
 
-      - name: Generate release notes
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
-          SOURCE_REF: ${{ needs.prepare.outputs.source_ref }}
-        run: |
-          gh api repos/${{ github.repository }}/releases/generate-notes \
-            -f "tag_name=$RELEASE_TAG" \
-            -f "target_commitish=$SOURCE_REF" \
-            --jq .body > "$RUNNER_TEMP/release-notes.md"
-
-      # electron-updater treats bare semver tags in GitHub's releases.atom feed
-      # as releases. Use a deliberately non-semver tag while draft assets upload
-      # so the final tag is created only with a complete, published release.
       - name: Checkout release commit
         uses: actions/checkout@v6
         with:
@@ -213,6 +199,25 @@ jobs:
           fetch-depth: 0
           ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
 
+      - name: Generate release notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.prepare.outputs.tag }}
+          SOURCE_REF: ${{ needs.prepare.outputs.source_ref }}
+        run: |
+          notes_path="ai_workspace/release-notes-${RELEASE_TAG#v}.md"
+          if [ -f "$notes_path" ]; then
+            cp "$notes_path" "$RUNNER_TEMP/release-notes.md"
+          else
+            gh api repos/${{ github.repository }}/releases/generate-notes \
+              -f "tag_name=$RELEASE_TAG" \
+              -f "target_commitish=$SOURCE_REF" \
+              --jq .body > "$RUNNER_TEMP/release-notes.md"
+          fi
+
+      # electron-updater treats bare semver tags in GitHub's releases.atom feed
+      # as releases. Use a deliberately non-semver tag while draft assets upload
+      # so the final tag is created only with a complete, published release.
       - name: Create and push staging tag
         env:
           DRAFT_TAG: release-draft-${{ github.run_id }}

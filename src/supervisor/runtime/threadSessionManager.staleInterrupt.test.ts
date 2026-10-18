@@ -255,8 +255,11 @@ describe("ThreadSessionManager structured stale-interrupt watchdog", () => {
       manager.sessions.set(THREAD_ID, session);
 
       await expect(manager.interruptThread({ threadId: THREAD_ID })).rejects.toBe(error);
-      expect(session.structuredTurnInterruptRequested).toBe(false);
-      expect(session.structuredInterruptWatchdog).toBeUndefined();
+      expect(session.structuredTurnInterruptRequested).toBe(true);
+      expect(session.structuredInterruptWatchdog).toBeDefined();
+      vi.advanceTimersByTime(STRUCTURED_INTERRUPT_FORCE_STOP_MS);
+      expect(session.status).toBe("idle");
+      expect(structuredSession.dispose).toHaveBeenCalledOnce();
     }
   });
 
@@ -391,6 +394,53 @@ describe("ThreadSessionManager structured stale-interrupt watchdog", () => {
       pending: null,
     });
     expect(manager.sessions.get(THREAD_ID)?.structuredSession).toBe(replacementSession);
+  });
+
+  it("drains a pending steer after the provider rejects the interrupt", async () => {
+    const interruptError = new Error("provider cancel transport closed");
+    const structuredSession = createStructuredSession({
+      startTurn: vi.fn<NonNullable<StructuredSessionHandle["startTurn"]>>(async () => undefined),
+      interruptTurn: vi
+        .fn<NonNullable<StructuredSessionHandle["interruptTurn"]>>()
+        .mockRejectedValue(interruptError),
+    });
+    const adapter = createAdapter(structuredSession);
+    const { manager, events } = createManager(adapter);
+    const session = createWorkingSession(adapter, structuredSession);
+    manager.sessions.set(THREAD_ID, session);
+    const replacementSession = createStructuredSession({
+      startTurn: vi.fn<NonNullable<StructuredSessionHandle["startTurn"]>>(async () => undefined),
+    });
+    vi.mocked(adapter.createStructuredSession).mockResolvedValue(replacementSession);
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      await manager.setPendingSteer({
+        threadId: THREAD_ID,
+        prompt: "replacement guidance",
+        config: { model: `${AGENT_KIND}/model` },
+      });
+      await vi.advanceTimersByTimeAsync(STRUCTURED_INTERRUPT_FORCE_STOP_MS - 1);
+      expect(structuredSession.interruptTurn).toHaveBeenCalledOnce();
+      expect(session.pendingSteer?.prompt).toBe("replacement guidance");
+      expect(replacementSession.startTurn).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(2);
+
+      expect(session.pendingSteer).toBeUndefined();
+      expect(structuredSession.dispose).toHaveBeenCalledOnce();
+      expect(replacementSession.startTurn).toHaveBeenCalledExactlyOnceWith(
+        "replacement guidance",
+        { model: `${AGENT_KIND}/model` },
+        undefined,
+        expect.objectContaining({ userMessageItemId: expect.any(String) }),
+      );
+      expect(events).toContainEqual({
+        type: "thread-pending-steer",
+        threadId: THREAD_ID,
+        pending: null,
+      });
+    } finally {
+      consoleError.mockRestore();
+    }
   });
 
   it("clears the watchdog when the manager is disposed", async () => {

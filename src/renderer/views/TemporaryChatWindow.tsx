@@ -82,7 +82,10 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
       const project: Project = {
         id: HOME_PROJECT_ID,
         name: "临时对话",
-        location: { kind: "windows", path: readBridge().homeDir ?? "" },
+        location: {
+          kind: readBridge().platform === "win32" ? "windows" : "posix",
+          path: readBridge().homeDir ?? "",
+        },
         createdAt: new Date().toISOString(),
         ...(draftConfig ? { lastDraftConfig: draftConfig } : {}),
       };

@@ -65,8 +65,9 @@ export class StructuredInterruptWatchdog {
         this.ctx.completeForcedInterrupt(session);
         return;
       }
-      session.structuredTurnInterruptRequested = false;
-      this.clearStructuredInterruptWatchdog(session);
+      // Cancellation errors are not an acknowledgement that the turn stopped.
+      // Keep the deadline armed so Stop and pending guidance can still recover
+      // if the provider never emits a settled state after the failed request.
       throw error;
     }
   }
