@@ -1,7 +1,11 @@
 import { msg } from "@lingui/core/macro";
 import type { MessageDescriptor } from "@lingui/core";
 import type { KeybindingEntry } from "@/shared/keybindings";
-import { DEFAULT_KEYBINDINGS, QUICK_COMPOSER_COMMAND_ID } from "@/shared/keybindings";
+import {
+  DEFAULT_KEYBINDINGS,
+  QUICK_COMPOSER_COMMAND_ID,
+  TEMPORARY_CHAT_COMMAND_ID,
+} from "@/shared/keybindings";
 import { COMPOSER_CONTROL_COMMANDS } from "./composerCommands";
 import { bindingForPlatform, formatKeybinding, type PlatformName } from "./keybindingMatcher";
 import type { AppCommand } from "./registry";
@@ -171,6 +175,7 @@ export const LOCAL_SHORTCUTS: readonly LocalShortcut[] = [
 ];
 
 const SYSTEM_SHORTCUTS = [
+  { id: TEMPORARY_CHAT_COMMAND_ID, title: msg`临时对话弹窗`, description: msg`Global` },
   {
     id: QUICK_COMPOSER_COMMAND_ID,
     title: msg`Toggle Quick Composer`,

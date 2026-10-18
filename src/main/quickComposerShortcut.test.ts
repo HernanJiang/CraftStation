@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   QUICK_COMPOSER_COMMAND_ID,
+  TEMPORARY_CHAT_COMMAND_ID,
+  DEFAULT_KEYBINDINGS,
   QUICK_COMPOSER_DEFAULT_BINDING,
   type KeybindingsFile,
 } from "@/shared/keybindings";
@@ -122,4 +124,29 @@ describe("QuickComposerShortcutManager", () => {
     expect(manager.active).toEqual([]);
     expect(onChanged).toHaveBeenLastCalledWith(null);
   });
+});
+
+it("registers and rebinds temporary chat independently of Quick Composer", () => {
+  const registry = {
+    register: vi.fn<(key: string, cb: () => void) => boolean>(() => true),
+    unregister: vi.fn<(key: string) => void>(),
+  };
+  const manager = new QuickComposerShortcutManager(
+    registry,
+    "win32",
+    () => {},
+    () => {},
+    TEMPORARY_CHAT_COMMAND_ID,
+    "temporary-chat-shortcut-unavailable",
+  );
+  manager.apply(DEFAULT_KEYBINDINGS);
+  expect(manager.active).toEqual(["Alt+Space"]);
+  manager.apply({
+    version: 1,
+    keybindings: [{ command: TEMPORARY_CHAT_COMMAND_ID, key: "Ctrl+Shift+T" }],
+  });
+  expect(registry.unregister).toHaveBeenCalledWith("Alt+Space");
+  expect(manager.active).toEqual(["Ctrl+Shift+T"]);
+  manager.dispose();
+  expect(registry.unregister).toHaveBeenCalledWith("Ctrl+Shift+T");
 });

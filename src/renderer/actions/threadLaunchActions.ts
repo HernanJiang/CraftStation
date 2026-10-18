@@ -305,10 +305,18 @@ interface ThreadLaunchRequest {
   readonly worktreeProvisioning?: boolean;
   readonly userMessageItemId?: string;
   readonly isNewWorktree: boolean;
-  readonly options: { replacePaneId?: string; preserveActiveGroup?: boolean };
+  readonly options: ThreadDraftLaunchOptions;
 }
 
-export interface CraftedSessionLaunchOptions {
+export interface ThreadDraftLaunchOptions {
+  replacePaneId?: string;
+  preserveActiveGroup?: boolean;
+  /** Auxiliary windows supply an owned, memory-only thread identity. */
+  threadId?: string;
+  isEphemeral?: boolean;
+}
+
+export interface CraftedSessionLaunchOptions extends ThreadDraftLaunchOptions {
   permissionConfig?: PermissionConfig;
   replacePaneId?: string;
   preserveActiveGroup?: boolean;
@@ -458,7 +466,7 @@ function applyAutoDraftLaunch(
 export async function startThreadFromDraft(
   project: Project,
   input: DraftStartInput,
-  options: { replacePaneId?: string; preserveActiveGroup?: boolean } = {},
+  options: ThreadDraftLaunchOptions = {},
 ): Promise<void> {
   const recipeIntent = useCraftingWorkbenchStore.getState().pendingRecipeIntent;
   if (recipeIntent) {
@@ -931,7 +939,10 @@ function createThreadRow(launch: ThreadLaunchRequest): Thread {
       : launch.config;
 
   const thread = store.createThread({
-    ...(launch.threadId ? { threadId: launch.threadId } : {}),
+    ...((launch.threadId ?? launch.options.threadId)
+      ? { threadId: launch.threadId ?? launch.options.threadId }
+      : {}),
+    ...(launch.options.isEphemeral ? { isEphemeral: true } : {}),
     projectId: launch.project.id,
     agentKind: launch.agentKind,
     config,
@@ -949,7 +960,7 @@ function createThreadRow(launch: ThreadLaunchRequest): Thread {
     ...(activeGroup?.groupId ? { groupId: activeGroup.groupId } : {}),
     ...(activeGroup?.groupName ? { groupName: activeGroup.groupName } : {}),
   });
-  if (!launch.remoteServerId) {
+  if (!launch.remoteServerId && !thread.isEphemeral) {
     generateTitleAsync(
       thread.id,
       launch.project.location,
@@ -1052,7 +1063,7 @@ export async function startThreadFromCraft(
     throw new Error(errorMsg);
   }
 
-  const threadId = planThreadId(craftResult.craftPlan.threadId);
+  const threadId = options.threadId ?? planThreadId(craftResult.craftPlan.threadId);
   const projectLocation = resolveProjectLocation(project.location, undefined);
   const originalPlan = craftResult.craftPlan;
   const runtimeConfig = nativeRuntimeExecutionConfigForPlan(originalPlan);
@@ -1106,8 +1117,10 @@ export async function startThreadFromCraft(
     // before starting the runtime so composition provenance survives an
     // immediate restart and remains attached to this exact thread row.
     await bridge.dbUpsertThread(thread);
-    const store = configureProvenanceStore(bridge);
-    await store.saveProvenanceAsync(threadId, craftResult.resultItem.provenance);
+    if (!thread.isEphemeral) {
+      const store = configureProvenanceStore(bridge);
+      await store.saveProvenanceAsync(threadId, craftResult.resultItem.provenance);
+    }
     // Account-row selection is a one-shot override for the next new Session.
     // It is intentionally resolved here, at the product launch boundary, rather
     // than inferred from the legacy `selected` marker in the Supervisor. An

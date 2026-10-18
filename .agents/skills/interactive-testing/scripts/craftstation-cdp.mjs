@@ -20,7 +20,7 @@
  *   node craftstation-cdp.mjs shot <selector|-> <out>    # element (CSS selector) or full-viewport (-) PNG
  *   node craftstation-cdp.mjs click <selector>            # click an element through CDP input
  *   node craftstation-cdp.mjs type <selector> <text>      # focus and insert text
- *   --windowKind <main|quickComposer|browserExtract>  # select a renderer surface
+ *   --windowKind <main|quickComposer|browserExtract|temporaryChat>  # select a renderer surface
  *   node craftstation-cdp.mjs nav <section>              # open Settings deep-linked (e.g. about, usage) [needs bridge]
  *   node craftstation-cdp.mjs back                       # close Settings overlay [needs bridge]
  *   node craftstation-cdp.mjs update '<json>'            # patch the app-update store [needs bridge]

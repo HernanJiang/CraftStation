@@ -261,12 +261,23 @@ export function ModelManagementPage(props: {
   const filteredChannelModels = useMemo(() => {
     if (!selectedAgentChannel) return [];
     const query = modelQuery.trim().toLowerCase();
-    if (!query) return selectedAgentChannel.models;
-    return selectedAgentChannel.models.filter(
-      (model) =>
-        model.id.toLowerCase().includes(query) || model.label.toLowerCase().includes(query),
+    const hidden = new Set(
+      resolveHiddenModelIds(
+        selectedAgentChannel.capabilities,
+        hiddenModels[selectedAgentChannel.hiddenKey],
+        shownModels[selectedAgentChannel.hiddenKey],
+      ),
     );
-  }, [selectedAgentChannel, modelQuery]);
+    // 只调整展示顺序，不修改目录；取消勾选后自然恢复目录中的原始位置。
+    return selectedAgentChannel.models
+      .filter(
+        (model) =>
+          !query ||
+          model.id.toLowerCase().includes(query) ||
+          model.label.toLowerCase().includes(query),
+      )
+      .toSorted((a, b) => Number(hidden.has(a.id)) - Number(hidden.has(b.id)));
+  }, [selectedAgentChannel, modelQuery, hiddenModels, shownModels]);
 
   const fetchChannelModels = async (kind: string, label?: string) => {
     if (refreshingKinds[kind]) return;
@@ -929,45 +940,50 @@ export function ModelManagementPage(props: {
 
             {selected?.kind === "recipes" ? (
               <ul className="mt-3 flex flex-col gap-1" data-testid="recipe-rows">
-                {recipes.map((recipe) => {
-                  const isVisible = recipe.homepageVisible === true;
-                  const name = recipe.alias?.trim() || recipe.systemName;
-                  const sub = [
-                    recipe.lastKnownModel?.displayName,
-                    recipe.lastKnownHarness?.displayName,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ");
-                  return (
-                    <li key={recipe.id}>
-                      <button
-                        type="button"
-                        role="checkbox"
-                        aria-checked={isVisible}
-                        onClick={() => setRecipeHomepageVisible(recipe.id, !isVisible)}
-                        className="flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2.5 text-left hover:border-[color:var(--hairline)] hover:bg-[var(--row-hover)]"
-                      >
-                        <Check
-                          className={`size-4 shrink-0 ${
-                            isVisible ? "text-emerald-400" : "text-muted"
-                          }`}
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span
-                            className={`block truncate text-sm ${
-                              isVisible ? "text-foreground" : "text-muted"
+                {recipes
+                  .toSorted(
+                    (a, b) =>
+                      Number(b.homepageVisible === true) - Number(a.homepageVisible === true),
+                  )
+                  .map((recipe) => {
+                    const isVisible = recipe.homepageVisible === true;
+                    const name = recipe.alias?.trim() || recipe.systemName;
+                    const sub = [
+                      recipe.lastKnownModel?.displayName,
+                      recipe.lastKnownHarness?.displayName,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ");
+                    return (
+                      <li key={recipe.id}>
+                        <button
+                          type="button"
+                          role="checkbox"
+                          aria-checked={isVisible}
+                          onClick={() => setRecipeHomepageVisible(recipe.id, !isVisible)}
+                          className="flex w-full items-center gap-2.5 rounded-xl border border-transparent px-3 py-2.5 text-left hover:border-[color:var(--hairline)] hover:bg-[var(--row-hover)]"
+                        >
+                          <Check
+                            className={`size-4 shrink-0 ${
+                              isVisible ? "text-emerald-400" : "text-muted"
                             }`}
-                          >
-                            {name}
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span
+                              className={`block truncate text-sm ${
+                                isVisible ? "text-foreground" : "text-muted"
+                              }`}
+                            >
+                              {name}
+                            </span>
+                            {sub ? (
+                              <span className="block truncate text-[11px] text-muted">{sub}</span>
+                            ) : null}
                           </span>
-                          {sub ? (
-                            <span className="block truncate text-[11px] text-muted">{sub}</span>
-                          ) : null}
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
+                        </button>
+                      </li>
+                    );
+                  })}
                 {recipes.length === 0 ? (
                   <li className="px-3 py-2 text-[11px] text-muted">
                     {t`还没有保存的配方。去「合成台 / Harness」合成并保存后，可在这里勾选进首页模型选择器。`}

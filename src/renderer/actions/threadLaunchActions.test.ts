@@ -234,6 +234,7 @@ describe("startThreadFromDraft host transport", () => {
         agentKind: values.agentKind ?? "codex",
         archived: false,
         config: values.config ?? {},
+        ...(values.isEphemeral ? { isEphemeral: true } : {}),
         ...(values.compositionProvenance
           ? { compositionProvenance: values.compositionProvenance }
           : {}),
@@ -760,6 +761,25 @@ describe("startThreadFromDraft host transport", () => {
     );
   });
 
+  it("launches temporary chats with the owned identity and ephemeral flag", async () => {
+    await startThreadFromDraft(
+      localProject,
+      {
+        agentKind: "codex",
+        config: { model: "gpt-5.6" },
+        prompt: "temporary",
+        presentationMode: "gui",
+      },
+      { threadId: "temporary-chat-owned", isEphemeral: true },
+    );
+    expect(mocks.appState.createThread).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "temporary-chat-owned", isEphemeral: true }),
+    );
+    expect(mocks.bridge.startThread).toHaveBeenCalledWith(
+      expect.objectContaining({ threadId: "temporary-chat-owned" }),
+    );
+  });
+
   it("launches a local non-worktree thread inline over the bridge", async () => {
     await startThreadFromDraft(localProject, {
       agentKind: "codex",
@@ -1174,56 +1194,71 @@ describe("startThreadFromDraft host transport", () => {
     expect(mocks.bridge.startThread.mock.calls[0]?.[0]).not.toHaveProperty("thirdPartyAccountId");
   });
 
-  it("does not ride a leftover Chiral account onto an OpenCode Gemini recipe", async () => {
-    useUsageAccountsStore.getState().setNextSessionAccount("openai-compatible:chiral");
-    mocks.sharedSettings.customModels = [
-      { provider: "codex", accountId: "openai-compatible:chiral", modelId: "gpt-5.6-sol" },
-    ];
-    useCraftingWorkbenchStore.setState({
-      recipes: [
-        {
-          id: "recipe:harness:opencode:agent:antigravity:gui:gemini-3.8-flash",
-          version: "1.0.0",
-          systemName: "OpenCode Harness · Gemini 3.8 Flash",
-          modelEntryRef: "agent:antigravity:gui:gemini-3.8-flash",
-          harnessRef: "harness:opencode",
-          homepageVisible: true,
-          compatibility: { uiStatus: "NATIVE" },
-          createdAt: "2026-01-01T00:00:00.000Z",
-          updatedAt: "2026-01-01T00:00:00.000Z",
-          lastKnownModel: {
-            displayName: "Gemini 3.8 Flash",
-            modelId: "gemini-3.8-flash",
-            providerLabel: "Antigravity",
+  it.each([false, true])(
+    "does not ride a leftover Chiral account onto an OpenCode Gemini recipe (temporary=%s)",
+    async (temporary) => {
+      useUsageAccountsStore.getState().setNextSessionAccount("openai-compatible:chiral");
+      mocks.sharedSettings.customModels = [
+        { provider: "codex", accountId: "openai-compatible:chiral", modelId: "gpt-5.6-sol" },
+      ];
+      useCraftingWorkbenchStore.setState({
+        recipes: [
+          {
+            id: "recipe:harness:opencode:agent:antigravity:gui:gemini-3.8-flash",
+            version: "1.0.0",
+            systemName: "OpenCode Harness · Gemini 3.8 Flash",
+            modelEntryRef: "agent:antigravity:gui:gemini-3.8-flash",
+            harnessRef: "harness:opencode",
+            homepageVisible: true,
+            compatibility: { uiStatus: "NATIVE" },
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+            lastKnownModel: {
+              displayName: "Gemini 3.8 Flash",
+              modelId: "gemini-3.8-flash",
+              providerLabel: "Antigravity",
+            },
+            lastKnownHarness: {
+              displayName: "OpenCode Harness",
+              harnessKind: "opencode",
+            },
           },
-          lastKnownHarness: {
-            displayName: "OpenCode Harness",
-            harnessKind: "opencode",
-          },
+        ],
+        pendingRecipeIntent: {
+          recipeId: "recipe:harness:opencode:agent:antigravity:gui:gemini-3.8-flash",
         },
-      ],
-      pendingRecipeIntent: {
-        recipeId: "recipe:harness:opencode:agent:antigravity:gui:gemini-3.8-flash",
-      },
-    });
+      });
 
-    await startThreadFromDraft(localProject, {
-      agentKind: "antigravity",
-      config: { model: "gemini-3.8-flash" },
-      prompt: "hello from gemini recipe",
-      presentationMode: "gui",
-    });
+      await startThreadFromDraft(
+        localProject,
+        {
+          agentKind: "antigravity",
+          config: { model: "gemini-3.8-flash" },
+          prompt: "hello from gemini recipe",
+          presentationMode: "gui",
+        },
+        temporary ? { threadId: "temporary-chat-recipe", isEphemeral: true } : {},
+      );
 
-    expect(mocks.bridge.startThread).toHaveBeenCalledWith(
-      expect.objectContaining({
-        agentKind: "opencode",
-        config: expect.objectContaining({ model: "gemini-3.8-flash" }),
-      }),
-    );
-    expect(mocks.bridge.startThread.mock.calls[0]?.[0]).not.toHaveProperty("accountId");
-    expect(mocks.bridge.startThread.mock.calls[0]?.[0]).not.toHaveProperty("thirdPartyAccountId");
-    expect(useCraftingWorkbenchStore.getState().pendingRecipeIntent).toBeUndefined();
-  });
+      expect(mocks.bridge.startThread).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentKind: "opencode",
+          config: expect.objectContaining({ model: "gemini-3.8-flash" }),
+        }),
+      );
+      expect(mocks.bridge.startThread.mock.calls[0]?.[0]).not.toHaveProperty("accountId");
+      expect(mocks.bridge.startThread.mock.calls[0]?.[0]).not.toHaveProperty("thirdPartyAccountId");
+      expect(mocks.bridge.startThread).toHaveBeenCalledWith(
+        expect.objectContaining(temporary ? { threadId: "temporary-chat-recipe" } : {}),
+      );
+      expect(mocks.appState.createThread).toHaveBeenCalledWith(
+        expect.objectContaining(
+          temporary ? { threadId: "temporary-chat-recipe", isEphemeral: true } : {},
+        ),
+      );
+      expect(useCraftingWorkbenchStore.getState().pendingRecipeIntent).toBeUndefined();
+    },
+  );
 
   it("still launches an explicit Chiral GPT pick on the third-party account", async () => {
     mocks.sharedSettings.customModels = [

@@ -18,6 +18,7 @@ export const QUICK_COMPOSER_HEIGHT = 470;
 
 export interface CreateQuickComposerWindowOptions {
   title: string;
+  windowKind?: "quickComposer" | "temporaryChat";
   isDev: boolean;
   channel: CraftStationChannel;
   preloadPath: string;
@@ -80,12 +81,24 @@ export function createQuickComposerWindow(
   const bounds = resolveQuickComposerBounds(
     screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea,
   );
+  const temporary = options.windowKind === "temporaryChat";
+  if (temporary) {
+    bounds.height = Math.min(
+      640,
+      screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea.height,
+    );
+    bounds.y = Math.max(
+      screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea.y,
+      bounds.y - 85,
+    );
+  }
   const window = new BrowserWindow({
-    title: `${options.title} Quick Composer`,
+    title: `${options.title} ${temporary ? "临时对话" : "Quick Composer"}`,
     show: false,
     frame: false,
     transparent: true,
-    resizable: false,
+    resizable: temporary,
+    ...(temporary ? { minWidth: 400, minHeight: 440 } : {}),
     movable: true,
     minimizable: false,
     maximizable: false,
@@ -104,7 +117,7 @@ export function createQuickComposerWindow(
       additionalArguments: buildRendererAdditionalArguments({
         appVersion: options.appVersion,
         isDev: options.isDev,
-        windowKind: "quickComposer",
+        windowKind: options.windowKind ?? "quickComposer",
         channel: options.channel,
         posthogEnableDev: options.posthogEnableDev,
         posthogEnabled: options.posthogEnabled,

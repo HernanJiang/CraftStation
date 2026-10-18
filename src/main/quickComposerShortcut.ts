@@ -40,8 +40,8 @@ const NAMED_ACCELERATOR_PARTS: Record<string, string> = {
 };
 
 export class QuickComposerShortcutUnavailableError extends Error {
-  constructor(accelerator: string) {
-    super(`${QUICK_COMPOSER_SHORTCUT_UNAVAILABLE_CODE}:${accelerator}`);
+  constructor(accelerator: string, code = QUICK_COMPOSER_SHORTCUT_UNAVAILABLE_CODE) {
+    super(`${code}:${accelerator}`);
     this.name = "QuickComposerShortcutUnavailableError";
   }
 }
@@ -49,14 +49,16 @@ export class QuickComposerShortcutUnavailableError extends Error {
 export function resolveQuickComposerAccelerators(
   file: KeybindingsFile,
   platform: NodeJS.Platform,
+  commandId = QUICK_COMPOSER_COMMAND_ID,
+  errorCode = QUICK_COMPOSER_SHORTCUT_UNAVAILABLE_CODE,
 ): string[] {
   const accelerators = new Set<string>();
   for (const binding of file.keybindings) {
-    if (binding.command !== QUICK_COMPOSER_COMMAND_ID) continue;
+    if (binding.command !== commandId) continue;
     const raw = bindingForPlatform(binding, platform);
     if (!raw) continue;
     const accelerator = toElectronAccelerator(raw);
-    if (!accelerator) throw new QuickComposerShortcutUnavailableError(raw);
+    if (!accelerator) throw new QuickComposerShortcutUnavailableError(raw, errorCode);
     accelerators.add(accelerator);
   }
   return [...accelerators];
@@ -70,6 +72,8 @@ export class QuickComposerShortcutManager {
     private readonly platform: NodeJS.Platform,
     private readonly onToggle: () => void,
     private readonly onChanged: (accelerator: string | null) => void,
+    private readonly commandId = QUICK_COMPOSER_COMMAND_ID,
+    private readonly errorCode = QUICK_COMPOSER_SHORTCUT_UNAVAILABLE_CODE,
   ) {}
 
   get active(): readonly string[] {
@@ -77,7 +81,12 @@ export class QuickComposerShortcutManager {
   }
 
   apply(file: KeybindingsFile): void {
-    const next = resolveQuickComposerAccelerators(file, this.platform);
+    const next = resolveQuickComposerAccelerators(
+      file,
+      this.platform,
+      this.commandId,
+      this.errorCode,
+    );
     if (
       next.length === this.activeAccelerators.length &&
       next.every((accelerator, index) => accelerator === this.activeAccelerators[index])
@@ -92,7 +101,7 @@ export class QuickComposerShortcutManager {
     try {
       for (const accelerator of next) {
         if (!this.registry.register(accelerator, this.onToggle)) {
-          throw new QuickComposerShortcutUnavailableError(accelerator);
+          throw new QuickComposerShortcutUnavailableError(accelerator, this.errorCode);
         }
         registered.push(accelerator);
       }

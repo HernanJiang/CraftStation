@@ -37,6 +37,12 @@ export function bindingForPlatform(
   return binding.linux ?? binding.key;
 }
 
+export const TEMPORARY_CHAT_COMMAND_ID = "temporary-chat.toggle";
+export const TEMPORARY_CHAT_DEFAULT_BINDING: KeybindingEntry = {
+  command: TEMPORARY_CHAT_COMMAND_ID,
+  key: "Alt+Space",
+};
+
 export const QUICK_COMPOSER_COMMAND_ID = "quick-composer.toggle";
 export const QUICK_COMPOSER_SHORTCUT_UNAVAILABLE_CODE = "quick-composer-shortcut-unavailable";
 
@@ -85,6 +91,7 @@ export const COMPOSER_CONTROL_COMMAND_IDS = [
 export const BACKFILL_COMMAND_IDS = [
   ...COMPOSER_CONTROL_COMMAND_IDS,
   QUICK_COMPOSER_COMMAND_ID,
+  TEMPORARY_CHAT_COMMAND_ID,
   "thread.new",
   "thread.new.panel",
   "sidebar.toggle",
@@ -121,6 +128,7 @@ export const DEFAULT_KEYBINDINGS: KeybindingsFile = {
   version: 1,
   keybindings: [
     QUICK_COMPOSER_DEFAULT_BINDING,
+    TEMPORARY_CHAT_DEFAULT_BINDING,
     {
       command: "palette.open",
       key: "Ctrl+Shift+P",

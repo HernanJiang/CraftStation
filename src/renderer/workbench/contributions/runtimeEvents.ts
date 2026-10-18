@@ -178,7 +178,10 @@ export const runtimeEventsContribution: WorkbenchContribution<WorkbenchServices>
       }
 
       if (event.type === "thread-state") {
-        const shouldCheckNotifications = isReady() && shouldInspectThreadStateForNotification();
+        const shouldCheckNotifications =
+          services.bridge.windowKind === "main" &&
+          isReady() &&
+          shouldInspectThreadStateForNotification();
         const appStore = useAppStore.getState();
         const oldThread = shouldCheckNotifications
           ? appStore.threads.find((t) => t.id === event.threadId)

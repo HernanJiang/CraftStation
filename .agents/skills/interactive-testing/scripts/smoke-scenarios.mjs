@@ -192,6 +192,13 @@ export const functionalAreas = [
     manual: ["visual-a11y"],
   },
   {
+    id: "temporary-chat",
+    title: "临时对话弹窗、全局快捷键、独立模型记忆与关闭删除",
+    patterns: [/TemporaryChat/i, /temporaryChat/i],
+    automated: ["baseline"],
+    manual: ["temporary-chat"],
+  },
+  {
     id: "quick-composer",
     title: "Global quick composer window, motion, dragging, and thread handoff",
     patterns: [/QuickComposer/i, /quickComposer/i],
@@ -227,6 +234,8 @@ export const manualGates = {
   "native-auth-update": "Verify changed native login/update/notification flows on the target OS.",
   "project-mutations":
     "Create or select an isolated project/worktree and verify persistence after reload.",
+  "temporary-chat":
+    "呼出置顶临时窗；修改全局快捷键；选择受模型管理过滤的模型并关闭重开；验证多轮对话、主历史隔离和工作中关闭清理。",
   "quick-composer":
     "Invoke the global composer, drag and reopen it, exercise controls and dismissal motion, then submit and verify the new thread opens in the main window.",
   "provider-live":

@@ -51,7 +51,7 @@ const dbStorageBackend = {
       return;
     }
     if (name === APP_STORE_NAME) {
-      if (isQuickComposerWindow()) return;
+      if (isQuickComposerWindow() || readBridge().windowKind === "temporaryChat") return;
       return saveAppStore(value);
     }
     readBridge()

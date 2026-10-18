@@ -35,8 +35,10 @@ describe("registerIpcHandlers agent-status resilience", () => {
     const refreshStatuses = ipcHandlers.get(ipcProcedureMap.refreshAgentStatuses.channel);
     if (!getStatuses || !refreshStatuses) throw new Error("missing agent-status IPC handlers");
 
-    await expect(getStatuses(undefined, [])).resolves.toEqual(cached);
-    await expect(refreshStatuses(undefined, [], { agentKinds: ["codex"] })).resolves.toEqual({
+    await expect(getStatuses({ sender: { id: 1 } }, [])).resolves.toEqual(cached);
+    await expect(
+      refreshStatuses({ sender: { id: 1 } }, [], { agentKinds: ["codex"] }),
+    ).resolves.toEqual({
       ...cached,
       fromCache: true,
       degraded: {
@@ -58,6 +60,8 @@ describe("registerIpcHandlers agent-status resilience", () => {
     const refreshStatuses = ipcHandlers.get(ipcProcedureMap.refreshAgentStatuses.channel);
     if (!refreshStatuses) throw new Error("missing refresh IPC handler");
 
-    await expect(refreshStatuses(undefined, [], { agentKinds: ["codex"] })).rejects.toBe(failure);
+    await expect(
+      refreshStatuses({ sender: { id: 1 } }, [], { agentKinds: ["codex"] }),
+    ).rejects.toBe(failure);
   });
 });

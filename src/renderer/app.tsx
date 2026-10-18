@@ -11,6 +11,7 @@ import { AppProvider } from "./components/ui/provider";
 import { ImageLightboxHost } from "./components/composer/ImageLightbox";
 import { ZoomIndicator } from "./components/common/ZoomIndicator";
 import { MainView } from "./views/MainView/MainView";
+import { TemporaryChatWindow } from "./views/TemporaryChatWindow";
 import { QuickComposerOverlay } from "./views/QuickComposerOverlay/QuickComposerOverlay";
 import { useCommandPaletteStore } from "./commands/commandPaletteStore";
 import { BrowserPanel } from "./views/MainView/parts/RightPanel/parts/BrowserPanel/BrowserPanel";
@@ -30,6 +31,7 @@ export function App({ workbench }: { workbench: Workbench }) {
   if (isBrowserExtractWindow) {
     return <BrowserExtractApp />;
   }
+  if (windowKind === "temporaryChat") return <TemporaryChatApp workbench={workbench} />;
   if (isQuickComposerWindow) {
     return <QuickComposerApp workbench={workbench} />;
   }
@@ -65,6 +67,18 @@ function QuickComposerApp({ workbench }: { workbench: Workbench }) {
       ) : (
         <QuickComposerOverlay />
       )}
+      <ImageLightboxHost />
+    </AppProvider>
+  );
+}
+
+function TemporaryChatApp({ workbench }: { workbench: Workbench }) {
+  useEffect(() => window.__craftstationRemoveBootSplash?.(), []);
+  const { initialLoading } = useAppHydration({ runtimeOwner: false });
+  useWorkbenchLifecycle(workbench, !initialLoading, !initialLoading);
+  return (
+    <AppProvider contentReady={!initialLoading} syncWindowChrome={false}>
+      <TemporaryChatWindow loading={initialLoading} />
       <ImageLightboxHost />
     </AppProvider>
   );

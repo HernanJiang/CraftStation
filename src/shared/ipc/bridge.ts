@@ -23,7 +23,12 @@ import type {
 } from "./events";
 import type { QuickComposerSubmission } from "./schemas";
 
-export const CRAFTSTATION_WINDOW_KINDS = ["main", "browserExtract", "quickComposer"] as const;
+export const CRAFTSTATION_WINDOW_KINDS = [
+  "main",
+  "browserExtract",
+  "quickComposer",
+  "temporaryChat",
+] as const;
 export type CraftStationWindowKind = (typeof CRAFTSTATION_WINDOW_KINDS)[number];
 
 type ProcedureArgs<Name extends IpcProcedureName> =
@@ -72,6 +77,9 @@ export type CraftStationBridge = CraftStationInvokeBridge & {
   /** Live PR state observed by the PR-watch loop, so watched PRs stay fresh. */
   onPrWatchStatus(listener: (event: PrWatchStatusEvent) => void): () => void;
   onThreadOpenRequested(listener: (event: ThreadOpenRequestedEvent) => void): () => void;
+  openTemporaryChat(): Promise<void>;
+  getTemporaryChatThreadId(): Promise<string>;
+  closeTemporaryChat(): Promise<void>;
   submitQuickComposer(submission: QuickComposerSubmission): Promise<void>;
   dismissQuickComposer(): Promise<void>;
   pickQuickComposerFiles(): Promise<string[] | null>;
@@ -155,6 +163,9 @@ export const IPC_EVENT_CHANNELS = {
 } as const;
 
 export const IPC_WINDOW_CHANNELS = {
+  temporaryChatOpen: createChannel("temporaryChatOpen"),
+  temporaryChatContext: createChannel("temporaryChatContext"),
+  temporaryChatClose: createChannel("temporaryChatClose"),
   quickComposerSubmit: createChannel("quickComposerWindowSubmit"),
   quickComposerDismiss: createChannel("quickComposerWindowDismiss"),
   quickComposerPickFiles: createChannel("quickComposerWindowPickFiles"),

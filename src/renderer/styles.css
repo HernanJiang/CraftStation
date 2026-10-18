@@ -4463,3 +4463,20 @@ html[data-craftstation-drag-active="true"] [data-craftstation-chat-scroller="tru
 .craftstation-composer-toggle[data-selected="true"] .craftstation-composer-permission-icon {
   color: #ea8e3b !important;
 }
+
+.temporary-chat-titlebar {
+  -webkit-app-region: drag;
+}
+.temporary-chat-titlebar button {
+  -webkit-app-region: no-drag;
+}
+/* Portal menus can cover the title bar in a narrow window. */
+html[data-window-kind="temporaryChat"] .craftstation-composer-menu-surface {
+  -webkit-app-region: no-drag;
+}
+.temporary-chat-window .quick-composer-control-surface {
+  -webkit-app-region: no-drag;
+}
+.temporary-chat-window .craftstation-composer-shell {
+  min-width: 0;
+}

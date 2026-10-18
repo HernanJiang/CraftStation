@@ -83,6 +83,12 @@ import { createMainWindowCloseLifecycle } from "./window/mainWindowClose";
 import { createTray, type TrayHandle } from "./tray";
 import { readKeybindingsFile } from "./keybindingsFile";
 import { QuickComposerShortcutManager } from "./quickComposerShortcut";
+import { TEMPORARY_CHAT_COMMAND_ID } from "@/shared/keybindings";
+import {
+  TemporaryChatSession,
+  isTemporaryChatThread,
+  routeTemporaryChatEvent,
+} from "./temporaryChatSession";
 import { shouldStartMinimized, syncWindowsStartupRegistration } from "./startupSettings";
 import { type CraftStationPaths, resolveCraftStationBaseDir } from "@/shared/craftstationPaths";
 import {
@@ -99,6 +105,7 @@ import {
   quickComposerSubmissionSchema,
   type PrWatchStatusEvent,
   type QuickComposerSubmission,
+  type IpcProcedurePayload,
   type SupervisorEvent,
   type UpdateStatus,
 } from "@/shared/ipc";
@@ -231,6 +238,9 @@ const WINDOW_CHROME_HEIGHT = 38;
 
 let mainWindow: BrowserWindow | null = null;
 let quickComposerWindow: BrowserWindow | null = null;
+let temporaryChatWindow: BrowserWindow | null = null;
+let temporaryChatSession: TemporaryChatSession | null = null;
+let temporaryChatShortcutManager: QuickComposerShortcutManager | null = null;
 let quickComposerDialogOpen = false;
 let quickComposerDismissTimer: ReturnType<typeof setTimeout> | null = null;
 let revealMainAfterQuickComposerDismiss = false;
@@ -256,7 +266,7 @@ let isQuitting = false;
 
 function captureRendererProcessGone(
   details: RenderProcessGoneDetails,
-  featureArea: "browser" | "quick-composer" | "renderer",
+  featureArea: "browser" | "quick-composer" | "temporary-chat" | "renderer",
   intent?: RendererProcessGoneIntent,
 ): void {
   const diagnostic = classifyRendererProcessGone(
@@ -359,6 +369,9 @@ function syncStartupSettings(settings?: SharedSettings): void {
 function handleSharedSettingsChanged(settings: SharedSettings): void {
   primeBrowserAllowFlags(settings);
   syncStartupSettings(settings);
+  if (temporaryChatWindow && !temporaryChatWindow.isDestroyed()) {
+    temporaryChatWindow.webContents.send(IPC_EVENT_CHANNELS.sharedSettingsChanged, settings);
+  }
 }
 
 function recordOwnSubagentsSelectionPreference(
@@ -547,6 +560,37 @@ function commonAppWindowOptions() {
     openDevTools: process.env.CRAFTSTATION_OPEN_DEVTOOLS === "1",
     ...(process.env.VITE_DEV_SERVER_URL ? { devServerUrl: process.env.VITE_DEV_SERVER_URL } : {}),
   };
+}
+
+function toggleTemporaryChatWindow(): void {
+  if (temporaryChatWindow && !temporaryChatWindow.isDestroyed()) {
+    if (temporaryChatWindow.isVisible() && temporaryChatWindow.isFocused())
+      temporaryChatWindow.hide();
+    else showQuickComposerWindow(temporaryChatWindow);
+    return;
+  }
+  const session = temporaryChatSession;
+  if (!session) return;
+  const threadId = session.begin();
+  const window = createQuickComposerWindow({
+    ...commonAppWindowOptions(),
+    windowKind: "temporaryChat",
+    onClosed: () => {
+      if (temporaryChatWindow === window) temporaryChatWindow = null;
+      void session.close(threadId).catch((error) => {
+        console.error(
+          "[temporary-chat] phase=lifecycle operation=close status=error code=cleanup-failed",
+          threadId,
+          error,
+        );
+      });
+    },
+    onRendererProcessGone: (details, intent) => {
+      captureRendererProcessGone(details, "temporary-chat", intent);
+      window.destroy();
+    },
+  });
+  temporaryChatWindow = window;
 }
 
 function createQuickComposerAppWindow(): BrowserWindow {
@@ -973,8 +1017,34 @@ if (!hasSingleInstanceLock) {
               });
             return;
           }
-          persistSupervisorEvent(event);
           handleSupervisorEventForSleep(event);
+          const publicEvent = routeTemporaryChatEvent(event, (privateEvent) => {
+            const ownerId = temporaryChatSession?.threadId;
+            if (!ownerId || !temporaryChatWindow || temporaryChatWindow.isDestroyed()) return;
+            if (privateEvent.type === "thread-runtime-events-multi") {
+              const batches = privateEvent.batches.filter((batch) => batch.threadId === ownerId);
+              if (batches.length)
+                temporaryChatWindow.webContents.send(IPC_EVENT_CHANNELS.supervisorEvent, {
+                  ...privateEvent,
+                  batches,
+                });
+            } else if ("threadId" in privateEvent && privateEvent.threadId === ownerId) {
+              temporaryChatWindow.webContents.send(
+                IPC_EVENT_CHANNELS.supervisorEvent,
+                privateEvent,
+              );
+            }
+          });
+          if (!publicEvent) return;
+          event = publicEvent;
+          if (
+            isAgentStatusSupervisorEvent(event) &&
+            temporaryChatWindow &&
+            !temporaryChatWindow.isDestroyed()
+          ) {
+            temporaryChatWindow.webContents.send(IPC_EVENT_CHANNELS.supervisorEvent, event);
+          }
+          persistSupervisorEvent(event);
           taskbarAttention?.observeSupervisorEvent(event);
           appControlsMcpIngress?.observeSupervisorEvent(event);
           scheduleRunCoordinator?.observeSupervisorEvent(event);
@@ -1377,6 +1447,32 @@ if (!hasSingleInstanceLock) {
       });
       remoteAccessController = controller;
 
+      temporaryChatSession = new TemporaryChatSession(async (threadId) => {
+        try {
+          await supervisorClient.call("closeThread", { threadId });
+        } finally {
+          dbDeleteThread(threadId);
+        }
+      });
+      temporaryChatShortcutManager = new QuickComposerShortcutManager(
+        globalShortcut,
+        process.platform,
+        toggleTemporaryChatWindow,
+        () => {},
+        TEMPORARY_CHAT_COMMAND_ID,
+        "temporary-chat-shortcut-unavailable",
+      );
+      try {
+        temporaryChatShortcutManager.apply(
+          readKeybindingsFile(requireCraftStationPaths().keybindingsPath).file,
+        );
+      } catch (error) {
+        console.warn(
+          "[temporary-chat] phase=shortcut operation=register status=error code=shortcut-unavailable; change it in Settings > Shortcuts",
+          error,
+        );
+      }
+
       quickComposerShortcutManager = new QuickComposerShortcutManager(
         globalShortcut,
         process.platform,
@@ -1412,7 +1508,16 @@ if (!hasSingleInstanceLock) {
           autoUpdater: autoUpdaterController,
           onSharedSettingsChanged: handleSharedSettingsChanged,
           onShowNotification: showInAppNotification,
-          onKeybindingsChanged: (file) => quickComposerShortcutManager?.apply(file),
+          onKeybindingsChanged: (file) => {
+            const previous = readKeybindingsFile(requireCraftStationPaths().keybindingsPath).file;
+            temporaryChatShortcutManager?.apply(file);
+            try {
+              quickComposerShortcutManager?.apply(file);
+            } catch (error) {
+              temporaryChatShortcutManager?.apply(previous);
+              throw error;
+            }
+          },
           setGlobalShortcutsSuspended: (suspended) => globalShortcut.setSuspended(suspended),
           onRemoteGitSummaries: controller.updateGitSummaries,
           extractBrowserToWindow,
@@ -1427,7 +1532,42 @@ if (!hasSingleInstanceLock) {
           getThreadCollaborationService: () =>
             appControlsMcpIngress?.getThreadCollaborationService() ?? null,
         }),
-        callSupervisor: (name, payload) => supervisorClient.call(name, payload),
+        callSupervisor: async (name, payload, senderId) => {
+          if (name === "startThread" || name === "craftAgent") {
+            const threadId =
+              name === "startThread"
+                ? (payload as IpcProcedurePayload<"startThread">).threadId
+                : (payload as IpcProcedurePayload<"craftAgent">).craftPlan.threadId;
+            if (threadId && isTemporaryChatThread(threadId)) {
+              if (
+                !temporaryChatWindow ||
+                temporaryChatWindow.webContents.id !== senderId ||
+                !temporaryChatSession
+              )
+                throw new Error("temporary-chat-closed");
+              return temporaryChatSession.start(threadId, () =>
+                supervisorClient.call(name, payload),
+              );
+            }
+          }
+          return supervisorClient.call(name, payload);
+        },
+      });
+
+      ipcMain.handle(IPC_WINDOW_CHANNELS.temporaryChatOpen, (event) => {
+        if (BrowserWindow.fromWebContents(event.sender) === mainWindow) toggleTemporaryChatWindow();
+      });
+      ipcMain.handle(IPC_WINDOW_CHANNELS.temporaryChatContext, (event) => {
+        if (
+          BrowserWindow.fromWebContents(event.sender) !== temporaryChatWindow ||
+          !temporaryChatSession?.threadId
+        )
+          throw new Error("temporary-chat-unavailable");
+        return temporaryChatSession.threadId;
+      });
+      ipcMain.handle(IPC_WINDOW_CHANNELS.temporaryChatClose, (event) => {
+        if (BrowserWindow.fromWebContents(event.sender) === temporaryChatWindow)
+          temporaryChatWindow?.close();
       });
 
       ipcMain.handle(IPC_WINDOW_CHANNELS.quickComposerSubmit, (event, payload: unknown) => {
@@ -1568,6 +1708,9 @@ if (!hasSingleInstanceLock) {
 
       app.on("before-quit", () => {
         isQuitting = true;
+        temporaryChatShortcutManager?.dispose();
+        temporaryChatShortcutManager = null;
+        temporaryChatWindow?.close();
         quickComposerShortcutManager?.dispose();
         quickComposerShortcutManager = null;
         if (quickComposerDismissTimer) clearTimeout(quickComposerDismissTimer);

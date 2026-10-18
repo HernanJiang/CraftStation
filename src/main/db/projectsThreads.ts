@@ -85,6 +85,8 @@ export function dbUpdateProject(project: Project): void {
 }
 
 export function dbUpsertThread(thread: Thread, sortOrder: number): void {
+  // Auxiliary chats and Side Chat branches exist only in their owning renderer.
+  if (thread.isEphemeral) return;
   const db = getDb();
   // A row main inserts on its own is invisible to the renderer's store until the
   // forwarded command reaches it, so shield it from `dbSyncAll`'s delete pass

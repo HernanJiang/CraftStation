@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createDbStorage } from "./dbStorage";
 
 const bridge = vi.hoisted(() => ({
-  windowKind: "main" as "main" | "quickComposer",
+  windowKind: "main" as "main" | "quickComposer" | "temporaryChat",
   dbGetProjects: vi.fn<() => Promise<[]>>(),
   dbGetThreads: vi.fn<() => Promise<[]>>(),
   dbGetState: vi.fn<(key: string) => Promise<string | null>>(),
@@ -79,22 +79,25 @@ describe("createDbStorage", () => {
     expect(bridge.dbSetState).toHaveBeenCalledTimes(1);
   });
 
-  it("never writes the shared app snapshot from the quick composer window", async () => {
-    bridge.windowKind = "quickComposer";
-    const storage = createDbStorage();
+  it.each(["quickComposer", "temporaryChat"] as const)(
+    "never writes the shared app snapshot from %s",
+    async (kind) => {
+      bridge.windowKind = kind;
+      const storage = createDbStorage();
 
-    await storage.setItem("craftstation-app-v2", {
-      state: {
-        projects: [{ id: "quick-composer-only" }],
-        threads: [],
-        view: { kind: "home" },
-        groupLayouts: {},
-      },
-      version: 4,
-    } as never);
+      await storage.setItem("craftstation-app-v2", {
+        state: {
+          projects: [{ id: "quick-composer-only" }],
+          threads: [],
+          view: { kind: "home" },
+          groupLayouts: {},
+        },
+        version: 4,
+      } as never);
 
-    expect(bridge.dbSyncAll).not.toHaveBeenCalled();
-  });
+      expect(bridge.dbSyncAll).not.toHaveBeenCalled();
+    },
+  );
 
   it("filters memory-only Side Chat branches out of the dbSyncAll payload", async () => {
     const storage = createDbStorage<{

@@ -104,6 +104,12 @@ describe("projectsThreads (real sqlite round-trip)", () => {
     delete process.env.CRAFTSTATION_BETTER_SQLITE3_NATIVE_BINDING;
   });
 
+  it("never persists a memory-only temporary thread through explicit upsert", () => {
+    dbUpsertThread(testThread({ id: "temporary-chat-test", isEphemeral: true }), 0);
+    expect(dbGetThread("temporary-chat-test")).toBeNull();
+    expect(dbGetThreads()).toHaveLength(0);
+  });
+
   it("round-trips threadStatusSource through the threads table", () => {
     dbUpsertThread(testThread({ threadStatusSource: "server" }), 0);
     expect(dbGetThread("thread-1")?.threadStatusSource).toBe("server");

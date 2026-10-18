@@ -187,6 +187,15 @@ export function ThreadDraftView(props: {
   lastDraftConfig?: ProjectDraftConfig;
   compact?: boolean;
   quickComposer?: boolean;
+  hideProjectSelector?: boolean;
+  initialAccountId?: string;
+  initialPresentationMode?: ThreadPresentationMode;
+  onModelSelectionChange?: (selection: {
+    agentKind: string;
+    model: string;
+    accountId?: string;
+    presentationMode: ThreadPresentationMode;
+  }) => void;
   composerPlaceholder?: string;
   restoreWorktreeSelectionToken?: number;
   /** Override whether unmodified Enter submits instead of inserting a newline. */
@@ -219,6 +228,7 @@ export function ThreadDraftView(props: {
     agentStatuses,
     lastDraftConfig,
     onStart,
+    onModelSelectionChange,
     headerNeedsTrafficLightPad = false,
   } = props;
   const gitBranch = useGitStore((s) => s.statuses[project.id]?.branch);
@@ -263,7 +273,9 @@ export function ThreadDraftView(props: {
     useSharedSettings.getState().defaultModels,
   );
   const [agentKind, setAgentKind] = useState<AgentStatus["kind"] | undefined>(preferredAgentKind);
-  const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>();
+  const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(
+    props.initialAccountId,
+  );
   const effectiveAgentKind = pickerInstalledAgents.some((status) => status.kind === agentKind)
     ? agentKind
     : preferredAgentKind;
@@ -315,8 +327,10 @@ export function ThreadDraftView(props: {
   // Persistent composer MCP enablement (standing defaults across new threads).
   const enabledMcpServers = useSharedSettings((s) => s.enabledMcpServers);
   const disabledBuiltInMcpServers = useSharedSettings((s) => s.disabledBuiltInMcpServers);
-  const [presentationMode, setPresentationMode] = useState<ThreadPresentationMode>(() =>
-    resolveInitialPresentationMode(selectedAgent, lastPresentationModeByAgent),
+  const [presentationMode, setPresentationMode] = useState<ThreadPresentationMode>(
+    () =>
+      props.initialPresentationMode ??
+      resolveInitialPresentationMode(selectedAgent, lastPresentationModeByAgent),
   );
   const selectedAgentForConfig = useMemo(() => {
     if (!selectedAgent) return undefined;
@@ -1281,7 +1295,8 @@ export function ThreadDraftView(props: {
       );
       persistProviderConfig(actualKind, resolved);
       // Explicit menu pick → this provider's draft default from now on.
-      if (!nextAccountId) useSharedSettings.getState().setDefaultModel(actualKind, resolved.model);
+      if (!nextAccountId && readBridge().windowKind !== "temporaryChat")
+        useSharedSettings.getState().setDefaultModel(actualKind, resolved.model);
       setModel(resolved.model);
       setEffort(resolved.effort);
       setContextSize(resolved.contextSize);
@@ -1356,7 +1371,7 @@ export function ThreadDraftView(props: {
         persistProviderConfig(effectiveAgentKind, resolved);
         // Same-agent explicit pick → draft default (skipped for account
         // surfaces, whose models belong to the account, not the provider).
-        if (!nextAccountId) {
+        if (!nextAccountId && readBridge().windowKind !== "temporaryChat") {
           useSharedSettings.getState().setDefaultModel(effectiveAgentKind, resolved.model);
         }
         persistProjectDraftConfig({
@@ -1409,6 +1424,16 @@ export function ThreadDraftView(props: {
     presentationMode,
     selectedAccountId,
   ]);
+
+  useEffect(() => {
+    if (!effectiveAgentKind || !model) return;
+    onModelSelectionChange?.({
+      agentKind: effectiveAgentKind,
+      model,
+      ...(selectedAccountId ? { accountId: selectedAccountId } : {}),
+      presentationMode,
+    });
+  }, [effectiveAgentKind, model, selectedAccountId, presentationMode, onModelSelectionChange]);
 
   const providerDraftControls = useMemo(() => {
     if (!selectedAgent || !selectedAgentForConfig) return [];
@@ -1709,7 +1734,7 @@ export function ThreadDraftView(props: {
           ref={compactComposer ? undefined : anchorBlockRef}
           className={`${compactComposer ? alignClass : "mx-auto shrink-0"} w-full ${blockMaxWidthClass} ${props.quickComposer ? "quick-composer-control-surface" : ""}`}
         >
-          {!props.compact && !props.quickComposer ? null : (
+          {props.hideProjectSelector || (!props.compact && !props.quickComposer) ? null : (
             <div data-draft-controls="" className="mb-1 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <ProjectSwitchMenu

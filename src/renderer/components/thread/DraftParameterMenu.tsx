@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Button, Dropdown, Input, Label, Modal, TextField } from "@heroui/react";
+import { Button, Dropdown, Input, Label, Modal, TextField, useMediaQuery } from "@heroui/react";
 import { Check, ChevronDown, Cpu, Gauge, Sparkles, Zap } from "lucide-react";
 import { MenuSwitch } from "@/renderer/components/common/MenuSwitch";
 import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
@@ -30,6 +30,8 @@ import { useLingui } from "@lingui/react/macro";
 
 export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
   const { t } = useLingui();
+  // 窄窗口无法并排容纳两级菜单，子菜单向上叠放并交给 Popover 限制在视口内。
+  const compactMenu = useMediaQuery("(max-width: 760px)");
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
   const currentProjectId = useCurrentProjectId();
@@ -283,7 +285,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   <Dropdown.SubmenuIndicator />
                 </Dropdown.Item>
                 <Dropdown.Popover
-                  placement="left top"
+                  placement={compactMenu ? "top end" : "left top"}
                   className={withOverlayClass(
                     "craftstation-composer-menu-surface w-max min-w-[16rem] max-w-[min(28rem,calc(100vw-1.5rem))] rounded-[14px]",
                     overlayZoom.root,
@@ -338,7 +340,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   <Dropdown.SubmenuIndicator />
                 </Dropdown.Item>
                 <Dropdown.Popover
-                  placement="left top"
+                  placement={compactMenu ? "top end" : "left top"}
                   className={withOverlayClass(
                     "craftstation-composer-menu-surface max-h-[420px] w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]",
                     overlayZoom.root,
@@ -455,7 +457,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                   <Dropdown.SubmenuIndicator />
                 </Dropdown.Item>
                 <Dropdown.Popover
-                  placement="left top"
+                  placement={compactMenu ? "top end" : "left top"}
                   className={withOverlayClass(
                     "craftstation-composer-menu-surface w-max min-w-[12rem] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-[14px]",
                     overlayZoom.root,
@@ -530,7 +532,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                     <Dropdown.SubmenuIndicator />
                   </Dropdown.Item>
                   <Dropdown.Popover
-                    placement="left top"
+                    placement={compactMenu ? "top end" : "left top"}
                     className={withOverlayClass(
                       "craftstation-composer-menu-surface w-max min-w-[12rem] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-[14px]",
                       overlayZoom.root,

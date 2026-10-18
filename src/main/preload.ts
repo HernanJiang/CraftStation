@@ -228,6 +228,9 @@ const bridge: CraftStationBridge = {
       ipcRenderer.removeListener(IPC_EVENT_CHANNELS.threadOpenRequested, handler);
     };
   },
+  openTemporaryChat: () => ipcRenderer.invoke(IPC_WINDOW_CHANNELS.temporaryChatOpen),
+  getTemporaryChatThreadId: () => ipcRenderer.invoke(IPC_WINDOW_CHANNELS.temporaryChatContext),
+  closeTemporaryChat: () => ipcRenderer.invoke(IPC_WINDOW_CHANNELS.temporaryChatClose),
   submitQuickComposer(submission) {
     return ipcRenderer.invoke(IPC_WINDOW_CHANNELS.quickComposerSubmit, submission);
   },

@@ -3,6 +3,7 @@ import {
   COMPOSER_CONTROL_COMMAND_IDS,
   DEFAULT_KEYBINDINGS,
   QUICK_COMPOSER_COMMAND_ID,
+  TEMPORARY_CHAT_COMMAND_ID,
 } from "@/shared/keybindings";
 import { getCurrentProjectId } from "@/renderer/actions/currentProject";
 import { useAppStore } from "@/renderer/state/appStore";
@@ -50,7 +51,10 @@ describe("default keybindings", () => {
     for (const binding of DEFAULT_KEYBINDINGS.keybindings) {
       // Composer controls are dispatched locally by the focused composer, and
       // Quick Composer is registered globally by the main process.
-      if (isComposerScoped(binding.command) || binding.command === QUICK_COMPOSER_COMMAND_ID) {
+      if (
+        isComposerScoped(binding.command) ||
+        [QUICK_COMPOSER_COMMAND_ID, TEMPORARY_CHAT_COMMAND_ID].includes(binding.command)
+      ) {
         continue;
       }
       expect(commandIds.has(binding.command)).toBe(true);
