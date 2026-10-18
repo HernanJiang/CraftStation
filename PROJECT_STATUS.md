@@ -1,12 +1,20 @@
-## 1.11.1 远程对话与渠道删除修复（发布准备，2026-10-18）
+## 1.11.3 临时对话预热与闲置退出（2026-10-19，发布中）
+
+- **用户要求**：临时对话每次都要先打开 CLI 再加载模型，等待比回答还久。随后要求两小时以上未使用就关掉后台 CLI。
+- **实现**：应用就绪约 1.5 秒后，若已记住临时对话模型，隐藏窗口预先打开对应 CLI 并加载模型。发送复用该会话。未发送就关闭只隐藏窗口；已有对话后关闭会结束该会话并预热下一场。窗口可见不算闲置；收起或关闭超过两小时后只关掉 CLI，藏着的对话一并清掉，下次打开再准备。
+- **验证**：`temporaryChat.test.ts`、`temporaryChatSession.test.ts`、`createQuickComposerWindow.test.ts` 共 18 项通过，`tsc --noEmit` 通过。未启动真实 Kimi CLI，未在本机重打安装包。正式 Windows 包由稳定版流水线构建。
+- **发布**：补丁版本 `1.11.3`，只发布 Windows x64。双语说明见 `ai_workspace/release-notes-1.11.3.md`。无关 lockfile 与 `ai_workspace` 临时资料不进入发布提交。
+
+## 1.11.1 远程对话与渠道删除修复（2026-10-18，已发布）
 
 - **用户要求**：点击左侧远程对话后自动打开对应网页；网页标签已关闭时自动恢复保存的网址，无需再次点击“打开新选项卡”。
 - **定位与实现**：延迟正文同步的回归用例复现了新标签已经创建、卡片仍绑定旧标签的问题。新增主进程 `webChatOpen`，先恢复并返回网页绑定，再同步正文；同一线程的并发打开合并，重复点击复用原网页与草稿。打开暂时失败时继续重试，切换线程后忽略旧打开结果，不抢回选中项。
 - **代码验证**：6 个文件共 83 项相关回归、完整类型检查、变更文件普通 lint 与类型感知 lint 通过；延迟同步的新增用例已确认修复前失败、修复后通过。
 - **界面验证**：最终隔离 Electron 已重启并确认新预加载接口可用，20 项固定网页检查通过、运行错误 0，覆盖关闭标签后真实点击恢复、原网址与线程保持、重复点击复用同一 WebContents 和草稿，以及双线程切换、名称同步、刷新和本地侧栏。截图已查看，最终证据位于 `C:/Users/Haona/.craftstation-smoke/remote-auto-open-1.11.0a-final-20261018/artifacts/native/`（`report.json`、`remote-auto-open.png`）。常规 changed-scope 烟测的界面基线、两个 mock 门禁通过、控制台/运行时错误 0；网页导入仍命中既有“源网页未复用线程或标签”断言失败（脚本第 222 行），未修改此范围、不声明整套通过。对应 `artifacts/integration/smoke-report.json` 已保留；未验证真实账号回合。两轮隔离实例均已重置并关闭。
 - **发布规则**：用户要求立即上传，后续修复验证后直接发布正式补丁版本，取消 `a/b/c` 内部累计规则；本批使用 `1.11.1`，同步更新 `AGENTS.md`。
-- **渠道删除追加**：用户在上传前反馈已删除 Devin 渠道但参数菜单仍显示 SWE。状态变更驱动的实际菜单用例确认复现；根因是参数菜单直接遍历 CLI 模型目录，漏掉普通选择器已有的未配置渠道过滤。现已共用过滤规则，6 个文件共 93 项相关回归通过。隔离 Electron 模拟 Devin 登录状态删除后，已打开菜单立即移除 SWE，重新打开不恢复，Codex 保留、运行错误 0；相关界面基线、设置、搜索、输入框及 4 项 mock 门禁通过。证据位于 `C:/Users/Haona/.craftstation-smoke/deleted-channel-1.11.1-20261018/artifacts/`（`channel-report.json`、`channel-before.png`、`channel-after.png`、`channel-reopened.png`、`integration/smoke-report.json`），截图已查看，隔离实例已重置关闭。正在按追加源码重新打包。
-- **状态**：修复及已有验证收口为正式 `1.11.1`，正在准备 Windows x64 安装包、便携版与双语发布说明；现有 lockfile 和临时研究资料修改保留，不进入发布提交。本轮内存检查仅为只读诊断，没有加入内存优化改动。
+- **渠道删除追加**：用户在上传前反馈已删除 Devin 渠道但参数菜单仍显示 SWE。状态变更驱动的实际菜单用例确认复现；根因是参数菜单直接遍历 CLI 模型目录，漏掉普通选择器已有的未配置渠道过滤。现已共用过滤规则，6 个文件共 93 项相关回归通过。隔离 Electron 模拟 Devin 登录状态删除后，已打开菜单立即移除 SWE，重新打开不恢复，Codex 保留、运行错误 0；相关界面基线、设置、搜索、输入框及 4 项 mock 门禁通过。证据位于 `C:/Users/Haona/.craftstation-smoke/deleted-channel-1.11.1-20261018/artifacts/`（`channel-report.json`、`channel-before.png`、`channel-after.png`、`channel-reopened.png`、`integration/smoke-report.json`），截图已查看，隔离实例已重置关闭。
+- **发布状态**：`main` 已包含两项修复并推送，正式 tag `v1.11.1` 指向 `17245404`。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/39114275882) 全部成功，补丁版只构建 Windows。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.1) 已发布为最新稳定版，非草稿、非预发布。4 项附件齐备：NSIS 133162715 字节、blockmap 138677 字节、便携版 112374581 字节、`latest.yml` 364 字节。双语正文与 `ai_workspace/release-notes-1.11.1.md` 一致。`latest.yml` 版本为 `1.11.1`，指向 NSIS 安装包，清单大小与附件一致。正式双包、blockmap 和清单已下载覆盖本地 `release/`。未验证真实账号模型回合。
+- **本地收尾**：渠道修复后的本地便携版构建日志已正常结束；正式附件以流水线产物为准并已覆盖本地包。便携版只保留 1.11.1 与 1.11.0，1.10.3 便携版、`win-unpacked/` 和 `builder-debug.yml` 已归档至 `D:/Work/CraftStation-release-archives/1.11.1-20261018/`。流水线已将 main 开发版本推进到 1.11.2（`d1ba53bd`）。已有 lockfile 与临时资料修改保留，不进入发布提交。本轮没有加入内存优化改动。
 
 ## 1.11.0 集中发布（2026-10-18，已发布）
 

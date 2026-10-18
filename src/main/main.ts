@@ -18,6 +18,7 @@ import { isThreadTurnActive, type RemoteThreadCommand } from "@/shared/contracts
 import {
   closeDatabase,
   dbDeleteThread,
+  dbGetState,
   dbGetProject,
   dbGetProjectNotes,
   dbGetProjects,
@@ -85,6 +86,11 @@ import { createTray, type TrayHandle } from "./tray";
 import { readKeybindingsFile } from "./keybindingsFile";
 import { QuickComposerShortcutManager } from "./quickComposerShortcut";
 import { TEMPORARY_CHAT_COMMAND_ID } from "@/shared/keybindings";
+import {
+  shouldExpireTemporaryChatWarm,
+  TEMPORARY_CHAT_IDLE_MS,
+  TEMPORARY_CHAT_MODEL_STATE_KEY,
+} from "@/shared/temporaryChat";
 import {
   TemporaryChatSession,
   isTemporaryChatThread,
@@ -242,6 +248,8 @@ let quickComposerWindow: BrowserWindow | null = null;
 let temporaryChatWindow: BrowserWindow | null = null;
 let temporaryChatSession: TemporaryChatSession | null = null;
 let temporaryChatShortcutManager: QuickComposerShortcutManager | null = null;
+let temporaryChatWarmTimer: ReturnType<typeof setTimeout> | null = null;
+let temporaryChatIdleTimer: ReturnType<typeof setTimeout> | null = null;
 let quickComposerDialogOpen = false;
 let quickComposerDismissTimer: ReturnType<typeof setTimeout> | null = null;
 let revealMainAfterQuickComposerDismiss = false;
@@ -563,25 +571,74 @@ function commonAppWindowOptions() {
   };
 }
 
-function toggleTemporaryChatWindow(): void {
-  if (temporaryChatWindow && !temporaryChatWindow.isDestroyed()) {
-    if (temporaryChatWindow.isVisible() && temporaryChatWindow.isFocused())
-      temporaryChatWindow.hide();
-    else showQuickComposerWindow(temporaryChatWindow);
+function clearTemporaryChatIdle(): void {
+  if (!temporaryChatIdleTimer) return;
+  clearTimeout(temporaryChatIdleTimer);
+  temporaryChatIdleTimer = null;
+}
+
+/** A hidden window is unused. Showing it cancels the clock; hiding it starts a new one. */
+function armTemporaryChatIdle(): void {
+  clearTemporaryChatIdle();
+  temporaryChatIdleTimer = setTimeout(() => {
+    temporaryChatIdleTimer = null;
+    void expireTemporaryChatIfIdle();
+  }, TEMPORARY_CHAT_IDLE_MS);
+}
+
+async function expireTemporaryChatIfIdle(): Promise<void> {
+  const window = temporaryChatWindow;
+  const session = temporaryChatSession;
+  if (isQuitting || !window || window.isDestroyed() || !session) return;
+  const visible = window.isVisible();
+  if (!shouldExpireTemporaryChatWarm({ visible, hasThread: session.threadId !== null })) {
+    if (visible) armTemporaryChatIdle();
     return;
   }
+  let released = false;
+  try {
+    released = await session.releaseProcess();
+  } catch (error) {
+    console.error(
+      "[temporary-chat] phase=idle operation=release status=error code=release-failed",
+      error,
+    );
+  }
+  if (isQuitting || temporaryChatWindow !== window || window.isDestroyed()) return;
+  if (!released) {
+    if (!window.isVisible()) armTemporaryChatIdle();
+    return;
+  }
+  console.info("[temporary-chat] phase=idle operation=release status=ok");
+  window.webContents.send(IPC_EVENT_CHANNELS.temporaryChatIdleExpired, window.isVisible());
+}
+
+function bindTemporaryChatIdle(window: BrowserWindow): void {
+  window.on("show", () => {
+    clearTemporaryChatIdle();
+  });
+  window.on("hide", () => {
+    if (isQuitting || window.isDestroyed()) return;
+    armTemporaryChatIdle();
+  });
+}
+
+function createTemporaryChatWindow(show: boolean): void {
   const session = temporaryChatSession;
-  if (!session) return;
-  const threadId = session.begin();
+  if (!session || (temporaryChatWindow && !temporaryChatWindow.isDestroyed())) return;
+  const threadId = session.threadId ?? session.begin();
   const window = createQuickComposerWindow({
     ...commonAppWindowOptions(),
     windowKind: "temporaryChat",
+    initiallyHidden: !show,
     onClosed: () => {
+      clearTemporaryChatIdle();
       if (temporaryChatWindow === window) temporaryChatWindow = null;
-      void session.close(threadId).catch((error) => {
+      const closingId = session.threadId ?? threadId;
+      void session.close(closingId).catch((error) => {
         console.error(
           "[temporary-chat] phase=lifecycle operation=close status=error code=cleanup-failed",
-          threadId,
+          closingId,
           error,
         );
       });
@@ -592,6 +649,37 @@ function toggleTemporaryChatWindow(): void {
     },
   });
   temporaryChatWindow = window;
+  bindTemporaryChatIdle(window);
+  if (!show) armTemporaryChatIdle();
+}
+
+function toggleTemporaryChatWindow(): void {
+  if (temporaryChatWindow && !temporaryChatWindow.isDestroyed()) {
+    if (temporaryChatWindow.isVisible() && temporaryChatWindow.isFocused())
+      temporaryChatWindow.hide();
+    else showQuickComposerWindow(temporaryChatWindow);
+    return;
+  }
+  createTemporaryChatWindow(true);
+}
+
+/** Prepare the last temporary-chat model before the first Alt+Space of this session. */
+function scheduleTemporaryChatWarm(): void {
+  if (temporaryChatWarmTimer) return;
+  temporaryChatWarmTimer = setTimeout(() => {
+    temporaryChatWarmTimer = null;
+    if (isQuitting || (temporaryChatWindow && !temporaryChatWindow.isDestroyed())) return;
+    try {
+      if (!dbGetState(TEMPORARY_CHAT_MODEL_STATE_KEY)) return;
+    } catch (error) {
+      console.warn(
+        "[temporary-chat] phase=warm operation=read-model status=error code=model-memory-unreadable",
+        error,
+      );
+      return;
+    }
+    createTemporaryChatWindow(false);
+  }, 1500);
 }
 
 function createQuickComposerAppWindow(): BrowserWindow {
@@ -1474,6 +1562,7 @@ if (!hasSingleInstanceLock) {
           dbDeleteThread(threadId);
         }
       });
+      scheduleTemporaryChatWarm();
       temporaryChatShortcutManager = new QuickComposerShortcutManager(
         globalShortcut,
         process.platform,
@@ -1589,6 +1678,20 @@ if (!hasSingleInstanceLock) {
       ipcMain.handle(IPC_WINDOW_CHANNELS.temporaryChatClose, (event) => {
         if (BrowserWindow.fromWebContents(event.sender) === temporaryChatWindow)
           temporaryChatWindow?.close();
+      });
+      ipcMain.handle(IPC_WINDOW_CHANNELS.temporaryChatHide, (event) => {
+        if (BrowserWindow.fromWebContents(event.sender) === temporaryChatWindow)
+          temporaryChatWindow?.hide();
+      });
+      ipcMain.handle(IPC_WINDOW_CHANNELS.temporaryChatRearm, (event) => {
+        if (
+          BrowserWindow.fromWebContents(event.sender) !== temporaryChatWindow ||
+          !temporaryChatSession?.threadId
+        )
+          throw new Error("temporary-chat-unavailable");
+        const nextId = temporaryChatSession.rearm();
+        temporaryChatWindow?.hide();
+        return nextId;
       });
 
       ipcMain.handle(IPC_WINDOW_CHANNELS.quickComposerSubmit, (event, payload: unknown) => {
@@ -1729,6 +1832,11 @@ if (!hasSingleInstanceLock) {
 
       app.on("before-quit", () => {
         isQuitting = true;
+        if (temporaryChatWarmTimer) {
+          clearTimeout(temporaryChatWarmTimer);
+          temporaryChatWarmTimer = null;
+        }
+        clearTemporaryChatIdle();
         temporaryChatShortcutManager?.dispose();
         temporaryChatShortcutManager = null;
         temporaryChatWindow?.close();

@@ -123,5 +123,31 @@ describe("quick composer window", () => {
         skipTaskbar: true,
       }),
     );
+    expect(electronMock.window.once).toHaveBeenCalledWith("ready-to-show", expect.any(Function));
+  });
+
+  it("stays hidden when asked to prepare before the user opens it", () => {
+    createQuickComposerWindow({
+      title: "CraftStation",
+      isDev: false,
+      channel: "stable",
+      preloadPath: "preload.cjs",
+      rendererHtmlPath: "index.html",
+      appVersion: "1.0.0",
+      posthogEnableDev: false,
+      posthogEnabled: false,
+      posthogHost: "",
+      posthogKey: "",
+      sentryEnabled: false,
+      browserUserAgent: "CraftStation",
+      initiallyHidden: true,
+      onClosed: vi.fn<() => void>(),
+    });
+
+    expect(electronMock.window.once).not.toHaveBeenCalledWith(
+      "ready-to-show",
+      expect.any(Function),
+    );
+    expect(electronMock.window.show).not.toHaveBeenCalled();
   });
 });

@@ -31,6 +31,8 @@ export interface CreateQuickComposerWindowOptions {
   sentryEnabled: boolean;
   browserUserAgent: string;
   onClosed(): void;
+  /** Keep the window hidden after the renderer loads. Used to prepare a CLI before the user opens it. */
+  initiallyHidden?: boolean;
   onRendererProcessGone?: (
     details: RenderProcessGoneDetails,
     intent: RendererProcessGoneIntent | undefined,
@@ -139,7 +141,9 @@ export function createQuickComposerWindow(
     ...(options.devServerUrl ? { devServerUrl: options.devServerUrl } : {}),
   });
 
-  window.once("ready-to-show", () => showQuickComposerWindow(window));
+  if (!options.initiallyHidden) {
+    window.once("ready-to-show", () => showQuickComposerWindow(window));
+  }
 
   const loadRenderer = () => {
     if (options.isDev) {

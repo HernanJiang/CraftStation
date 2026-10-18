@@ -80,6 +80,18 @@ export type CraftStationBridge = CraftStationInvokeBridge & {
   openTemporaryChat(): Promise<void>;
   getTemporaryChatThreadId(): Promise<string>;
   closeTemporaryChat(): Promise<void>;
+  /** Hide the temporary chat without ending its prepared CLI. */
+  hideTemporaryChat(): Promise<void>;
+  /**
+   * Delete the current temporary conversation, hide the window, and return the
+   * next thread id. The hidden window prepares that id's CLI for the next open.
+   */
+  rearmTemporaryChat(): Promise<string>;
+  /**
+   * The temporary chat's CLI was closed after sitting unused.
+   * `visible` is true when the window was opened again while that close finished.
+   */
+  onTemporaryChatIdleExpired(listener: (visible: boolean) => void): () => void;
   submitQuickComposer(submission: QuickComposerSubmission): Promise<void>;
   dismissQuickComposer(): Promise<void>;
   pickQuickComposerFiles(): Promise<string[] | null>;
@@ -160,12 +172,15 @@ export const IPC_EVENT_CHANNELS = {
   threadOpenRequested: createChannel("threadOpenRequested"),
   quickComposerSubmit: createChannel("quickComposerSubmit"),
   quickComposerDismissRequested: createChannel("quickComposerDismissRequested"),
+  temporaryChatIdleExpired: createChannel("temporaryChatIdleExpired"),
 } as const;
 
 export const IPC_WINDOW_CHANNELS = {
   temporaryChatOpen: createChannel("temporaryChatOpen"),
   temporaryChatContext: createChannel("temporaryChatContext"),
   temporaryChatClose: createChannel("temporaryChatClose"),
+  temporaryChatHide: createChannel("temporaryChatHide"),
+  temporaryChatRearm: createChannel("temporaryChatRearm"),
   quickComposerSubmit: createChannel("quickComposerWindowSubmit"),
   quickComposerDismiss: createChannel("quickComposerWindowDismiss"),
   quickComposerPickFiles: createChannel("quickComposerWindowPickFiles"),

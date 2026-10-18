@@ -5,22 +5,65 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { HOME_PROJECT_ID } from "@/shared/homeScope";
 import type { Project, ProjectDraftConfig, ThreadPresentationMode } from "@/shared/contracts";
 import { projectDraftConfigSchema } from "@/shared/contracts/config";
+import { makeThreadTitle } from "@/shared/threadTitle";
+import {
+  createExclusiveQueue,
+  shouldSendIntoTemporaryChatWarm,
+  TEMPORARY_CHAT_MODEL_STATE_KEY,
+  temporaryChatWarmKey,
+} from "@/shared/temporaryChat";
 import { readBridge } from "@/renderer/bridge";
 import { PixelLoader } from "@/renderer/components/common/PixelLoader";
 import { ThreadDraftView } from "@/renderer/components/thread/ThreadDraftView";
+import type { DraftStartInput } from "@/renderer/components/thread/ThreadDraftComposerArea";
 import { startThreadFromDraft } from "@/renderer/actions/threadLaunchActions";
+import { submitThreadInput } from "@/renderer/actions/threadRuntimeActions";
 import { applyExternalSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import { ThreadPane } from "./MainView/parts/AppContent/parts/ThreadPane";
 
-const MODEL_MEMORY_KEY = "temporary-chat-model";
 type ModelSelection = {
   agentKind: string;
   model: string;
   accountId?: string;
   presentationMode: ThreadPresentationMode;
 };
+
+type WarmState = {
+  threadId: string;
+  key: string;
+  phase: "starting" | "ready" | "failed";
+};
+
+const launchOptions = {
+  isEphemeral: true,
+  preserveActiveGroup: false,
+} as const;
+
+function warmDraftInput(draft: ProjectDraftConfig, selection: ModelSelection): DraftStartInput {
+  const { agentKind, worktreeMode: _worktreeMode, ...config } = draft;
+  return {
+    agentKind,
+    config,
+    prompt: "",
+    presentationMode: selection.presentationMode,
+    ...(selection.accountId ? { accountId: selection.accountId } : {}),
+  };
+}
+
+function selectionFromDraft(
+  draft: ProjectDraftConfig,
+  accountId: string | undefined,
+  presentationMode: ThreadPresentationMode | undefined,
+): ModelSelection {
+  return {
+    agentKind: draft.agentKind,
+    model: draft.model,
+    ...(accountId ? { accountId } : {}),
+    presentationMode: presentationMode ?? "gui",
+  };
+}
 
 export function TemporaryChatWindow({ loading }: { loading: boolean }) {
   const [context, setContext] = useState<{
@@ -30,10 +73,89 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
     presentationMode?: ThreadPresentationMode;
   }>();
   const [error, setError] = useState("");
+  const [engaged, setEngaged] = useState(false);
+  const contextRef = useRef(context);
+  contextRef.current = context;
   const selectionRef = useRef<ModelSelection | undefined>(undefined);
+  const engagedRef = useRef(false);
+  const generationRef = useRef(0);
+  const warmRef = useRef<WarmState | null>(null);
+  const idleHeldRef = useRef(false);
+  const warmTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const enqueueRef = useRef(createExclusiveQueue());
   const threads = useAppStore((state) => state.threads);
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const activeThread = context && threads.find((thread) => thread.id === context.threadId);
+
+  const ensureWarm = useCallback(
+    (selection: ModelSelection, immediate: boolean) => {
+      const run = () => {
+        if (!context || engagedRef.current || idleHeldRef.current) return;
+        const draft = useAppStore
+          .getState()
+          .projects.find((project) => project.id === HOME_PROJECT_ID)?.lastDraftConfig;
+        if (
+          !draft?.model ||
+          draft.agentKind !== selection.agentKind ||
+          draft.model !== selection.model
+        )
+          return;
+        const threadId = context.threadId;
+        const key = temporaryChatWarmKey(selection);
+        const existing = warmRef.current;
+        if (existing?.threadId === threadId && existing.key === key && existing.phase !== "failed")
+          return;
+        const generation = ++generationRef.current;
+        warmRef.current = { threadId, key, phase: "starting" };
+        void enqueueRef.current(async () => {
+          if (generationRef.current !== generation) return;
+          if (useAppStore.getState().threads.some((thread) => thread.id === threadId)) {
+            await readBridge()
+              .closeThread({ threadId })
+              .catch(() => undefined);
+            if (generationRef.current !== generation) return;
+            useAppStore.getState().deleteThread(threadId);
+          }
+          if (generationRef.current !== generation) return;
+          try {
+            await startThreadFromDraft(context.project, warmDraftInput(draft, selection), {
+              ...launchOptions,
+              threadId,
+            });
+          } catch (cause: unknown) {
+            console.error(
+              "[temporary-chat] operation=warm status=error code=prepare-failed",
+              cause,
+            );
+            if (generationRef.current === generation)
+              warmRef.current = { threadId, key, phase: "failed" };
+            return;
+          }
+          if (generationRef.current !== generation) {
+            // A newer prepare for this same id owns the process. Closing here
+            // would kill that prepare. Rearm changes the id, so the old one
+            // still has to be discarded.
+            if (warmRef.current?.threadId !== threadId) {
+              await readBridge()
+                .closeThread({ threadId })
+                .catch(() => undefined);
+              if (useAppStore.getState().threads.some((thread) => thread.id === threadId)) {
+                useAppStore.getState().deleteThread(threadId);
+              }
+            }
+            return;
+          }
+          warmRef.current = { threadId, key, phase: "ready" };
+        });
+      };
+      if (warmTimerRef.current) clearTimeout(warmTimerRef.current);
+      if (immediate) run();
+      else warmTimerRef.current = setTimeout(run, 400);
+    },
+    [context],
+  );
+  const ensureWarmRef = useRef(ensureWarm);
+  ensureWarmRef.current = ensureWarm;
 
   const remember = useCallback((selection: ModelSelection, draftConfig?: ProjectDraftConfig) => {
     selectionRef.current = selection;
@@ -43,7 +165,10 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
     if (!config || config.model !== selection.model || config.agentKind !== selection.agentKind)
       return;
     void readBridge()
-      .dbSetState(MODEL_MEMORY_KEY, JSON.stringify({ draftConfig: config, ...selection }))
+      .dbSetState(
+        TEMPORARY_CHAT_MODEL_STATE_KEY,
+        JSON.stringify({ draftConfig: config, ...selection }),
+      )
       .catch((cause: unknown) => {
         console.error(
           "[temporary-chat] operation=remember-model status=error code=model-memory-failed",
@@ -59,7 +184,7 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
     void (async () => {
       const [threadId, memory, statuses] = await Promise.all([
         readBridge().getTemporaryChatThreadId(),
-        readBridge().dbGetState(MODEL_MEMORY_KEY),
+        readBridge().dbGetState(TEMPORARY_CHAT_MODEL_STATE_KEY),
         readBridge().getAgentStatuses([]),
       ]);
       if (!active) return;
@@ -89,6 +214,9 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
         createdAt: new Date().toISOString(),
         ...(draftConfig ? { lastDraftConfig: draftConfig } : {}),
       };
+      if (draftConfig) {
+        selectionRef.current = selectionFromDraft(draftConfig, accountId, presentationMode);
+      }
       useAppStore.setState({ projects: [project], threads: [], view: { kind: "home" } });
       useAgentStatusesStore
         .getState()
@@ -112,6 +240,53 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
   }, [loading]);
 
   useEffect(() => readBridge().onSharedSettingsChanged(applyExternalSharedSettings), []);
+
+  useEffect(() => {
+    if (!context || engaged) return;
+    const selection = selectionRef.current;
+    if (selection?.model) ensureWarm(selection, true);
+  }, [context, engaged, ensureWarm]);
+
+  useEffect(() => {
+    return readBridge().onTemporaryChatIdleExpired((visible) => {
+      if (warmTimerRef.current) clearTimeout(warmTimerRef.current);
+      idleHeldRef.current = !visible;
+      generationRef.current += 1;
+      warmRef.current = null;
+      engagedRef.current = false;
+      setEngaged(false);
+      const threadId = contextRef.current?.threadId;
+      if (threadId && useAppStore.getState().threads.some((thread) => thread.id === threadId)) {
+        useAppStore.getState().deleteThread(threadId);
+      }
+      if (!visible) return;
+      const selection = selectionRef.current;
+      if (selection?.model) ensureWarmRef.current(selection, true);
+    });
+  }, []);
+
+  useEffect(() => {
+    const rewarm = () => {
+      if (!idleHeldRef.current || engagedRef.current) return;
+      if (document.visibilityState !== "visible" && !document.hasFocus()) return;
+      idleHeldRef.current = false;
+      const selection = selectionRef.current;
+      if (selection?.model) ensureWarmRef.current(selection, true);
+    };
+    document.addEventListener("visibilitychange", rewarm);
+    window.addEventListener("focus", rewarm);
+    return () => {
+      document.removeEventListener("visibilitychange", rewarm);
+      window.removeEventListener("focus", rewarm);
+    };
+  }, []);
+
+  useEffect(
+    () => () => {
+      if (warmTimerRef.current) clearTimeout(warmTimerRef.current);
+    },
+    [],
+  );
 
   useEffect(
     () =>
@@ -147,9 +322,117 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
     [context, remember],
   );
 
-  const close = () => {
-    void readBridge().closeTemporaryChat();
+  const dismiss = () => {
+    idleHeldRef.current = false;
+    if (warmTimerRef.current) clearTimeout(warmTimerRef.current);
+    if (!engagedRef.current) {
+      void readBridge().hideTemporaryChat();
+      return;
+    }
+    const generation = ++generationRef.current;
+    warmRef.current = null;
+    engagedRef.current = false;
+    setEngaged(false);
+    void readBridge()
+      .rearmTemporaryChat()
+      .then((nextId) => {
+        if (generationRef.current !== generation) return;
+        const draft = useAppStore
+          .getState()
+          .projects.find((project) => project.id === HOME_PROJECT_ID)?.lastDraftConfig;
+        const selection = selectionRef.current;
+        useAppStore.setState({ threads: [], view: { kind: "home" } });
+        setContext((current) =>
+          current
+            ? {
+                ...current,
+                threadId: nextId,
+                ...(selection ? { presentationMode: selection.presentationMode } : {}),
+                ...(selection?.accountId ? { accountId: selection.accountId } : {}),
+                project: {
+                  ...current.project,
+                  ...(draft ? { lastDraftConfig: draft } : {}),
+                },
+              }
+            : current,
+        );
+      })
+      .catch((cause: unknown) => {
+        console.error("[temporary-chat] operation=rearm status=error code=rearm-failed", cause);
+        setError("临时对话关闭失败，请重试。");
+      });
   };
+
+  const send = (input: DraftStartInput) => {
+    if (!context) return;
+    idleHeldRef.current = false;
+    if (warmTimerRef.current) clearTimeout(warmTimerRef.current);
+    engagedRef.current = true;
+    const generation = generationRef.current;
+    const threadId = context.threadId;
+    const project = context.project;
+    return enqueueRef
+      .current(async () => {
+        if (generationRef.current !== generation) return;
+        const thread = useAppStore.getState().threads.find((item) => item.id === threadId);
+        const reusable =
+          thread &&
+          shouldSendIntoTemporaryChatWarm({
+            warm: warmRef.current,
+            threadId,
+            threadStatus: thread.status,
+            threadAgentKind: thread.agentKind,
+            threadModel: thread.config.model,
+            threadSourceProviderKind: thread.config.sourceProviderKind,
+            threadPresentationMode: thread.presentationMode,
+            threadAccountId: thread.accountBinding?.accountId,
+            launchAgentKind: input.agentKind,
+            launchModel: input.config.model,
+            launchPresentationMode: input.presentationMode,
+            launchAccountId: input.accountId,
+            hasGoal: Boolean(input.goal),
+            hasWorktree: Boolean(input.worktreeBranch),
+          });
+        if (reusable) {
+          useAppStore.getState().updateThreadConfig(threadId, input.config);
+          useAppStore.getState().renameThread(threadId, makeThreadTitle(input.prompt));
+          setEngaged(true);
+          await submitThreadInput(
+            threadId,
+            input.prompt,
+            input.segments ? [...input.segments] : undefined,
+          );
+          return;
+        }
+        if (useAppStore.getState().threads.some((item) => item.id === threadId)) {
+          await readBridge()
+            .closeThread({ threadId })
+            .catch(() => undefined);
+          useAppStore.getState().deleteThread(threadId);
+        }
+        warmRef.current = null;
+        await startThreadFromDraft(project, input, { ...launchOptions, threadId });
+        if (generationRef.current !== generation) return;
+        setEngaged(true);
+      })
+      .catch((cause: unknown) => {
+        if (generationRef.current === generation) {
+          engagedRef.current = false;
+          setEngaged(false);
+        }
+        throw cause;
+      });
+  };
+
+  const preparing =
+    !engaged && activeThread
+      ? activeThread.status === "error"
+        ? "模型准备失败，发送时会重新打开。"
+        : activeThread.status === "idle" || activeThread.status === "needs_reply"
+          ? "模型已就绪，发送后直接回答。"
+          : "正在打开 CLI 并加载模型，可以先输入。"
+      : "";
+
   return (
     <main
       className="temporary-chat-window flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-background text-foreground"
@@ -164,7 +447,7 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
           size="sm"
           variant="ghost"
           aria-label="关闭并删除临时对话"
-          onPress={close}
+          onPress={dismiss}
         >
           <X size={16} />
         </Button>
@@ -174,19 +457,24 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
           {error}
         </p>
       )}
+      {preparing && (
+        <p className="px-4 pt-2 text-xs text-muted" aria-live="polite">
+          {preparing}
+        </p>
+      )}
       <div className="flex min-h-0 flex-1 flex-col">
         {!context ? (
           <div className="flex flex-1 items-center justify-center">
             <PixelLoader size="sm" />
           </div>
-        ) : activeThread ? (
+        ) : engaged && activeThread ? (
           <DragDropProvider>
             <ThreadPane
               threadId={context.threadId}
               paneCount={1}
               paneAlign="center"
               portalThreadHeader={false}
-              onClose={close}
+              onClose={dismiss}
             />
           </DragDropProvider>
         ) : (
@@ -205,14 +493,11 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
                 ? { initialPresentationMode: context.presentationMode }
                 : {})}
               composerPlaceholder="发送消息…"
-              onModelSelectionChange={remember}
-              onStart={(input) =>
-                startThreadFromDraft(context.project, input, {
-                  threadId: context.threadId,
-                  isEphemeral: true,
-                  preserveActiveGroup: false,
-                })
-              }
+              onModelSelectionChange={(selection) => {
+                remember(selection);
+                if (!engagedRef.current) ensureWarmRef.current(selection, false);
+              }}
+              onStart={send}
             />
           </div>
         )}
