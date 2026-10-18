@@ -1,9 +1,9 @@
-## 1.11.3 临时对话预热与闲置退出（2026-10-19，发布中）
+## 1.11.3 临时对话预热与闲置退出（2026-10-19，已发布）
 
 - **用户要求**：临时对话每次都要先打开 CLI 再加载模型，等待比回答还久。随后要求两小时以上未使用就关掉后台 CLI。
 - **实现**：应用就绪约 1.5 秒后，若已记住临时对话模型，隐藏窗口预先打开对应 CLI 并加载模型。发送复用该会话。未发送就关闭只隐藏窗口；已有对话后关闭会结束该会话并预热下一场。窗口可见不算闲置；收起或关闭超过两小时后只关掉 CLI，藏着的对话一并清掉，下次打开再准备。
-- **验证**：`temporaryChat.test.ts`、`temporaryChatSession.test.ts`、`createQuickComposerWindow.test.ts` 共 18 项通过，`tsc --noEmit` 通过。未启动真实 Kimi CLI，未在本机重打安装包。正式 Windows 包由稳定版流水线构建。
-- **发布**：补丁版本 `1.11.3`，只发布 Windows x64。双语说明见 `ai_workspace/release-notes-1.11.3.md`。无关 lockfile 与 `ai_workspace` 临时资料不进入发布提交。
+- **验证**：`temporaryChat.test.ts`、`temporaryChatSession.test.ts`、`createQuickComposerWindow.test.ts` 共 18 项通过，`tsc --noEmit` 通过。未启动真实 Kimi CLI。未验证真实账号模型回合。
+- **发布状态**：`main` 已推送，正式 tag `v1.11.3` 指向 `a10c747d`。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/39145609151) 成功，补丁版只构建 Windows。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.3) 已发布为最新稳定版，非草稿、非预发布。4 项附件齐备：NSIS 133168446 字节、blockmap 137879 字节、便携版 112377795 字节、`latest.yml` 364 字节。`latest.yml` 版本为 `1.11.3`，指向 NSIS 安装包，清单大小与附件一致。双语正文与 `ai_workspace/release-notes-1.11.3.md` 一致。流水线已将 main 开发版本推进到 1.11.4。无关 lockfile 与临时资料未进入发布提交。
 
 ## 1.11.1 远程对话与渠道删除修复（2026-10-18，已发布）
 
