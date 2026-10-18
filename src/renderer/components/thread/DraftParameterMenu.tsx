@@ -3,6 +3,7 @@ import { Button, Dropdown, Input, Label, Modal, TextField, useMediaQuery } from 
 import { Check, ChevronDown, Cpu, Gauge, Sparkles, Zap } from "lucide-react";
 import { MenuSwitch } from "@/renderer/components/common/MenuSwitch";
 import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
+import { filterConfiguredModelProviders } from "@/renderer/components/common/ProviderModelMenu/parts/buildItems";
 import { overlayZoomClasses, withOverlayClass } from "@/renderer/components/common/overlayZoom";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
@@ -50,6 +51,14 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
     [projectLocation, agentStatuses, wslAgentStatuses],
   );
   const modelControl = props.controls.find((control) => control.kind === "provider-model");
+  const modelProviders = modelControl
+    ? filterConfiguredModelProviders(modelControl.providers, {
+        currentAgentKind: modelControl.currentAgentKind,
+        ...(modelControl.currentAccountId
+          ? { currentAccountId: modelControl.currentAccountId }
+          : {}),
+      })
+    : [];
   const effortControl = props.controls.find((control) => control.kind === "effort-context");
   // The Fast toggle arrives as a generic toggle control; in menu mode it is a
   // row with a switch, parallel to 模型列表 / 推理强度.
@@ -392,7 +401,7 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                         </Dropdown.Item>
                       );
                     })}
-                    {modelControl.providers.flatMap((provider, providerIndex) =>
+                    {modelProviders.flatMap((provider, providerIndex) =>
                       provider.capabilities.models.map((model) => {
                         const isCurrent =
                           provider.kind === modelControl.currentAgentKind &&

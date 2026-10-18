@@ -1,11 +1,16 @@
-import { act, fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import { useCraftingWorkbenchStore } from "@/renderer/state/craftingWorkbenchStore";
 import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
+import { useUsageAccountsStore } from "@/renderer/state/usageAccountsStore";
+import { useUsageLoginStateStore } from "@/renderer/state/usageLoginStateStore";
+import { useProviderUsageStore } from "@/renderer/state/providerUsageStore";
+import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import type { AgentStatus } from "@/shared/contracts";
 import type { ComposerControl } from "./ThreadComposer";
 import { DraftParameterMenu } from "./DraftParameterMenu";
+import { useManagedComposerProviders } from "./useManagedComposerProviders";
 
 function installedStatus(kind: string, label: string): AgentStatus {
   return {
@@ -138,6 +143,62 @@ describe("DraftParameterMenu", () => {
     expect(document.querySelector('[role="menu"][aria-label="Model list"]')).toBeInTheDocument();
     expect(screen.getByRole("menuitem", { name: /ChatGPT-5.6-Luna/ })).toBeInTheDocument();
     expect(document.querySelector(".craftstation-composer-menu-surface")).toBeInTheDocument();
+  });
+
+  it("删除 Devin 渠道后，已打开的模型菜单立即移除 SWE，重新打开也不恢复", async () => {
+    vi.useFakeTimers();
+    const codex = installedStatus("codex", "Codex");
+    const devin = installedStatus("devin", "Devin");
+    codex.capabilities.models = [{ id: "gpt-5.6-sol", label: "ChatGPT-5.6-Sol" }];
+    devin.capabilities.models = [{ id: "swe-1.6", label: "SWE-1.6" }];
+    useAgentStatusesStore.setState({ agentStatuses: [codex, devin] });
+    useUsageAccountsStore.getState().reset();
+    useUsageLoginStateStore.setState({ stored: { codex: true, devin: true } });
+    useProviderUsageStore.setState({ snapshots: {} });
+    useSharedSettings.setState({
+      disabledAgents: [],
+      hiddenModels: {},
+      shownModels: {},
+      customModels: [],
+    });
+    const control = makeModelControl();
+    if (control.kind !== "provider-model") throw new Error("Expected model control");
+    const modelControl = control;
+    function ManagedMenu() {
+      const providers = useManagedComposerProviders({ presentationMode: "gui" });
+      return <DraftParameterMenu controls={[{ ...modelControl, providers }]} />;
+    }
+    const openModels = async () => {
+      fireEvent.click(screen.getByRole("button", { name: /ChatGPT-5.6-Sol/ }));
+      fireEvent.pointerEnter(screen.getByRole("menuitem", { name: /Model list/ }));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+    };
+    let view: ReturnType<typeof render> | undefined;
+    try {
+      view = render(<ManagedMenu />);
+      await openModels();
+      expect(screen.getByRole("menuitem", { name: /SWE-1.6/ })).toBeInTheDocument();
+      act(() => useUsageLoginStateStore.getState().setStored("devin", false));
+      expect(screen.queryByRole("menuitem", { name: /SWE-1.6/ })).not.toBeInTheDocument();
+      const submenu = document.querySelector<HTMLElement>('[role="menu"][aria-label="Model list"]');
+      expect(submenu).toBeInTheDocument();
+      expect(
+        within(submenu!).getByRole("menuitem", { name: /ChatGPT-5.6-Sol/ }),
+      ).toBeInTheDocument();
+      view.unmount();
+      view = render(<ManagedMenu />);
+      await openModels();
+      expect(screen.queryByRole("menuitem", { name: /SWE-1.6/ })).not.toBeInTheDocument();
+      expect(control.onChange).not.toHaveBeenCalled();
+    } finally {
+      view?.unmount();
+      act(() => {
+        useUsageLoginStateStore.setState({ stored: {} });
+        useProviderUsageStore.setState({ snapshots: {} });
+      });
+    }
   });
 
   it("shows Harness + Model identities in Auto Mode with a Native route tooltip", () => {

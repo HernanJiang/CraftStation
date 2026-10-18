@@ -384,6 +384,20 @@ function resolveModelRef(
   return resolved;
 }
 
+/** Keep configured channels and the current session's provider in every model menu. */
+export function filterConfiguredModelProviders(
+  providers: readonly ProviderModelMenuProvider[],
+  current: Pick<BuildProviderModelItemsInput, "currentAgentKind" | "currentAccountId">,
+): ProviderModelMenuProvider[] {
+  return providers.filter(
+    (provider) =>
+      !provider.unconfigured ||
+      (current.currentAgentKind !== undefined &&
+        provider.kind === current.currentAgentKind &&
+        (provider.accountId ?? undefined) === (current.currentAccountId ?? undefined)),
+  );
+}
+
 export function buildProviderModelItems(input: BuildProviderModelItemsInput): ProviderModelItem[] {
   const {
     providers,
@@ -402,14 +416,10 @@ export function buildProviderModelItems(input: BuildProviderModelItemsInput): Pr
   // Channels the user never configured stay out of the picker — an installed
   // CLI alone is not a channel. The current selection is exempt so switching
   // models inside an open thread never hides the row being edited.
-  const isCurrentProvider = (provider: ProviderModelMenuProvider): boolean =>
-    currentAgentKind !== undefined &&
-    provider.kind === currentAgentKind &&
-    (provider.accountId ?? undefined) === (input.currentAccountId ?? undefined);
   const visibleProviders = (
     lockedAgentKind
       ? providers.filter((p) => p.kind === lockedAgentKind)
-      : providers.filter((p) => !p.unconfigured || isCurrentProvider(p))
+      : filterConfiguredModelProviders(providers, input)
   )
     .slice()
     .sort((a, b) => providerSortKey(a.kind) - providerSortKey(b.kind));
