@@ -9,10 +9,7 @@ export type StatusTone =
   | "attention"
   | "done";
 
-export function getStatusTone(
-  thread: Pick<Thread, "status" | "done">,
-  opts?: { hasBackgroundActivity?: boolean },
-): StatusTone {
+export function getStatusTone(thread: Pick<Thread, "status" | "done">): StatusTone {
   if (thread.done) {
     return "done";
   }
@@ -29,12 +26,9 @@ export function getStatusTone(
     return "working";
   }
 
-  // Live background work keeps a settled thread visually working without
-  // changing `thread.status`. Keep it below error/attention and do not mask an
-  // explicitly inactive thread.
-  if (opts?.hasBackgroundActivity && (thread.status === "idle" || thread.status === "finished")) {
-    return "working";
-  }
+  // A settled turn stays settled. Detached sub-agents keep their own
+  // "N Agents working" count inside the thread; they must not put the
+  // sidebar, header, or provider icon back on a spinner after 已完成.
 
   if (thread.status === "finished") {
     return "finished";

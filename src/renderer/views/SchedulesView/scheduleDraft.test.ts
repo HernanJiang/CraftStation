@@ -61,6 +61,15 @@ describe("scheduleDraft projectId", () => {
     });
   });
 
+  it("keeps a per-run spend cap when the draft is saved again", () => {
+    const draft = taskScheduleDraft({
+      ...baseTask,
+      config: { ...baseTask.config, maxCostUsd: 2 },
+    });
+    expect(draft.maxCostUsd).toBe(2);
+    expect(scheduleDraftInput(draft).config).toMatchObject({ maxCostUsd: 2 });
+  });
+
   it("rejects an invalid time zone", () => {
     const draft = { ...newScheduleDraft(undefined), timezone: "Not/AZone" };
     expect(scheduleDraftIsValid(draft)).toBe(false);
@@ -78,8 +87,6 @@ describe("scheduleDraft projectId", () => {
       everyMinutes: 10,
     });
     expect(scheduleDraftIsValid(draft)).toBe(true);
-    expect(
-      scheduleDraftIsValid({ ...draft, everyMinutes: 0 }),
-    ).toBe(false);
+    expect(scheduleDraftIsValid({ ...draft, everyMinutes: 0 })).toBe(false);
   });
 });

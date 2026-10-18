@@ -49,33 +49,15 @@ describe("getStatusTone", () => {
     }
   });
 
-  it("shows live background activity as working over a settled status", () => {
-    for (const status of ["idle", "finished"] as const) {
-      expect(getStatusTone({ done: false, status }, { hasBackgroundActivity: true })).toBe(
-        "working",
-      );
-    }
-  });
-
-  it("never lets background activity mask error or attention statuses", () => {
-    expect(getStatusTone({ done: false, status: "error" }, { hasBackgroundActivity: true })).toBe(
-      "error",
-    );
-    expect(
-      getStatusTone({ done: false, status: "needs_approval" }, { hasBackgroundActivity: true }),
-    ).toBe("attention");
-    expect(
-      getStatusTone({ done: false, status: "inactive" }, { hasBackgroundActivity: true }),
-    ).toBe("inactive");
-    expect(getStatusTone({ done: true, status: "idle" }, { hasBackgroundActivity: true })).toBe(
-      "done",
-    );
-  });
-
-  it("is unchanged when no background activity flag is passed", () => {
+  it("keeps a settled turn settled even when background agents are still open", () => {
+    expect(getStatusTone({ done: false, status: "idle" })).toBe("active");
     expect(getStatusTone({ done: false, status: "finished" })).toBe("finished");
-    expect(getStatusTone({ done: false, status: "idle" }, { hasBackgroundActivity: false })).toBe(
-      "active",
-    );
+  });
+
+  it("never lets a settled status mask error or attention", () => {
+    expect(getStatusTone({ done: false, status: "error" })).toBe("error");
+    expect(getStatusTone({ done: false, status: "needs_approval" })).toBe("attention");
+    expect(getStatusTone({ done: false, status: "inactive" })).toBe("inactive");
+    expect(getStatusTone({ done: true, status: "idle" })).toBe("done");
   });
 });

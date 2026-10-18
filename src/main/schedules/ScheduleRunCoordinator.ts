@@ -25,6 +25,11 @@ import {
 } from "./ScheduleExecutionResolver";
 import { scheduleThreadTarget } from "@/shared/schedules";
 import { readScheduleSelfStop, type ScheduleSelfStopAction } from "./scheduleSelfStop";
+import {
+  scheduleSessionPolicy,
+  withScheduleSessionPolicy,
+  type CraftPolicyLimits,
+} from "@/shared/crafting/craftPolicy";
 
 /**
  * A `thread-state` transition ends the run only once the turn fully settles.
@@ -78,7 +83,12 @@ export interface ScheduleRunCoordinatorDeps {
    * absent — or when the bound thread is missing/busy/archived — the run
    * falls back to a fresh thread with inherited context text.
    */
-  sendFollowUp?(input: { threadId: string; prompt: string; config: ThreadConfig }): Promise<void>;
+  sendFollowUp?(input: {
+    threadId: string;
+    prompt: string;
+    config: ThreadConfig;
+    sessionPolicy?: CraftPolicyLimits;
+  }): Promise<void>;
   /**
    * Native CraftPlan launcher. When omitted, even a native-resolved plan falls
    * back to the isolated legacy startThread path.
@@ -283,7 +293,7 @@ export class ScheduleRunCoordinator {
       this.bindRunThreadAddressAsync(threadId);
       try {
         const result = await this.deps.craftAgent({
-          craftPlan: launch.craftPlan,
+          craftPlan: withScheduleSessionPolicy(launch.craftPlan, task.config),
           projectLocation: project.location,
           prompt,
           ...(mcpSnapshot.mcpServers ? { mcpServers: mcpSnapshot.mcpServers } : {}),
@@ -322,6 +332,7 @@ export class ScheduleRunCoordinator {
       });
     });
 
+    const sessionPolicy = scheduleSessionPolicy(task.config);
     const startPayload: StartThreadPayload = {
       threadId,
       projectLocation: project.location,
@@ -331,6 +342,7 @@ export class ScheduleRunCoordinator {
       initialSize: DEFAULT_TERMINAL_SIZE,
       presentationMode: "gui",
       ...mcpSnapshot,
+      ...(sessionPolicy ? { sessionPolicy } : {}),
     };
 
     try {
@@ -498,7 +510,7 @@ export class ScheduleRunCoordinator {
           project.mcpServers ?? [],
         );
         const result = await this.deps.craftAgent({
-          craftPlan: launch.craftPlan,
+          craftPlan: withScheduleSessionPolicy(launch.craftPlan, effectiveTask.config),
           projectLocation: project.location,
           prompt: launch.prompt,
           ...(mcpSnapshot.mcpServers ? { mcpServers: mcpSnapshot.mcpServers } : {}),
@@ -533,7 +545,13 @@ export class ScheduleRunCoordinator {
       });
     });
     try {
-      await this.deps.sendFollowUp!({ threadId, prompt: launch.prompt, config });
+      const sessionPolicy = scheduleSessionPolicy(effectiveTask.config);
+      await this.deps.sendFollowUp!({
+        threadId,
+        prompt: launch.prompt,
+        config,
+        ...(sessionPolicy ? { sessionPolicy } : {}),
+      });
     } catch (error) {
       this.pending.delete(threadId);
       // Delivery failed (unknown/stale session, busy runtime, ...). Record the
@@ -567,6 +585,9 @@ export class ScheduleRunCoordinator {
         ...(boundThread.config.effort !== undefined ? { effort: boundThread.config.effort } : {}),
         ...(boundThread.config.fast !== undefined ? { fast: boundThread.config.fast } : {}),
         harnessItemId: null,
+        ...(typeof task.config.maxCostUsd === "number"
+          ? { maxCostUsd: task.config.maxCostUsd }
+          : {}),
       },
     };
   }

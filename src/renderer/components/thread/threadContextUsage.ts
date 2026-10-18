@@ -84,10 +84,14 @@ export function resolveThreadContextUsageSummary(input: {
     : undefined;
   const configuredMaxTokens = inferConfiguredContextLimit(thread, capabilities);
   const usedTokens = reportedUsage?.usedTokens;
-  const maxTokens = preferAdvertisedContextWindow(reportedUsage?.maxTokens, configuredMaxTokens, {
-    usedTokens,
-    reportedIsCompactThreshold: thread.agentKind === "grok",
-  });
+  // A CLI window that matches the model id (`k3-256k` → 256×1024) is the
+  // product contract. Do not replace it with a stored size from another vendor.
+  const maxTokens = reportedWindowMatchesModel(thread.config?.model, reportedUsage?.maxTokens)
+    ? reportedUsage?.maxTokens
+    : preferAdvertisedContextWindow(reportedUsage?.maxTokens, configuredMaxTokens, {
+        usedTokens,
+        reportedIsCompactThreshold: thread.agentKind === "grok",
+      });
   const percent =
     usedTokens !== undefined && maxTokens !== undefined && maxTokens > 0
       ? Math.max(0, Math.min(100, Math.round((usedTokens / maxTokens) * 100)))
@@ -243,14 +247,14 @@ export function contextUsageSourceLabel(source: NonNullable<ThreadContextUsage["
 }
 
 /**
- * 256Ki/256K placeholders yield to a larger advertised model window (DeepSeek V4 = 1M).
- * Two more reports also cannot be the session's real capacity and yield the
- * same way: a "window" smaller than the tokens currently occupying it, and
- * Grok's `context_window`, which Grok's own docs define as the auto-compact
- * trigger ("tells Grok when to trigger auto-compaction") while the CLI ignores
- * window downgrades from the server — so a smaller Grok report is a threshold,
- * never a legitimately smaller window. Near-miss reports like Codex's 95%
- * compact limit (258400 under a configured 272k) stay as reported.
+ * A provider-reported window is the session's capacity. Two reports are not:
+ * a window smaller than the tokens already in it, and Grok's `context_window`,
+ * which Grok's own docs define as the auto-compact trigger. A 128K/256K/256Ki
+ * figure yields only to a model window at least twice as large (DeepSeek V4's
+ * 1M family placeholder). A nearby configured size — Codex's 272k stored on a
+ * Kimi thread — is not that window, so the CLI report stays. Codex's own 95%
+ * compact limit (258400 under a configured 272k) is not in the placeholder set
+ * and stays as reported.
  */
 function preferAdvertisedContextWindow(
   reported: number | undefined,
@@ -259,10 +263,10 @@ function preferAdvertisedContextWindow(
 ): number | undefined {
   if (reported === undefined) return advertised;
   if (advertised === undefined || advertised <= reported) return reported;
-  const stock = reported === 262_144 || reported === 256_000 || reported === 128_000;
-  if (stock) return advertised;
   if (options.reportedIsCompactThreshold) return advertised;
   if (options.usedTokens !== undefined && options.usedTokens > reported) return advertised;
+  const stock = reported === 262_144 || reported === 256_000 || reported === 128_000;
+  if (stock && advertised >= reported * 2) return advertised;
   return reported;
 }
 
@@ -276,6 +280,7 @@ function inferConfiguredContextLimit(
   const contextId = modelAllowsContextSize(model, configured, capabilities)
     ? configured
     : (parseContextSizeParam(model) ??
+      modelContextSuffix(model) ??
       modelSize ??
       capabilities?.defaultContextSize ??
       (capabilities?.contextSizes?.length === 1 ? capabilities.contextSizes[0]?.id : undefined));
@@ -300,14 +305,53 @@ function modelAllowsContextSize(
   if (!contextId) return false;
   const allowed = modelContextSizeList(model, capabilities);
   if (allowed && allowed.length > 0) {
-    return allowed.some((id) => id === contextId);
+    return allowed.some((id) => contextIdsEquivalent(id, contextId));
   }
   if (capabilities?.contextSizes && capabilities.contextSizes.length > 0) {
     return capabilities.contextSizes.some(
-      (candidate) => candidate.id === contextId || candidate.label === contextId,
+      (candidate) =>
+        candidate.id === contextId ||
+        candidate.label === contextId ||
+        contextIdsEquivalent(candidate.id, contextId) ||
+        contextIdsEquivalent(candidate.label, contextId),
     );
   }
+  // No catalog: a `-256k` model id is the product window. Another vendor's
+  // stored size (Codex 272k on a Kimi thread) is not a choice this model offers.
+  const suffix = modelContextSuffix(model);
+  if (suffix) return contextIdsEquivalent(suffix, contextId);
   return true;
+}
+
+function contextIdsEquivalent(left: string, right: string): boolean {
+  if (left.toLowerCase() === right.toLowerCase()) return true;
+  const a = parseContextTokenLimit(left);
+  const b = parseContextTokenLimit(right);
+  return a !== undefined && a === b;
+}
+
+/** `kimi-code/k3-256k` → `256k`. Effort and bracket params are not a window. */
+function modelContextSuffix(modelId: string | undefined): string | undefined {
+  if (!modelId) return undefined;
+  const bare = modelId.split("[", 1)[0]?.trim();
+  if (!bare) return undefined;
+  const match = /-(\d+(?:\.\d+)?)([km])$/i.exec(bare);
+  if (!match?.[1] || !match[2]) return undefined;
+  return `${match[1]}${match[2].toLowerCase()}`;
+}
+
+function reportedWindowMatchesModel(
+  model: string | undefined,
+  reported: number | undefined,
+): reported is number {
+  if (reported === undefined) return false;
+  const suffix = modelContextSuffix(model);
+  if (!suffix) return false;
+  const amount = Number.parseFloat(suffix);
+  if (!Number.isFinite(amount) || amount <= 0) return false;
+  const decimal = suffix.endsWith("m") ? amount * 1_000_000 : amount * 1_000;
+  const binary = suffix.endsWith("m") ? amount * 1024 * 1024 : amount * 1024;
+  return reported === decimal || reported === binary;
 }
 
 function normalizeContextModelId(model: string): string {

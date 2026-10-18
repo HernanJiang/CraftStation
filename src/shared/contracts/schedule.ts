@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { agentKindSchema } from "./common";
+import { maxCostUsdSchema } from "../crafting/craftPolicy";
 
 const localTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/u);
 
@@ -47,6 +48,8 @@ export const scheduledTaskConfigSchema = z.object({
    * CraftPlan; never a process handle or native session.
    */
   harnessItemId: z.string().trim().min(1).max(160).nullable().optional(),
+  /** 这一次触发单独的花费上限（美元）。不设则不限制。重叠触发仍由调度器直接跳过。 */
+  maxCostUsd: maxCostUsdSchema.optional(),
 });
 export type ScheduledTaskConfig = z.infer<typeof scheduledTaskConfigSchema>;
 

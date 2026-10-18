@@ -111,6 +111,19 @@ export interface AcpMapperState {
    * same `_meta.totalTokens` on every thought/tool/message chunk; skip repeats.
    */
   lastContextOccupancySignature?: string;
+  /**
+   * Kimi streams compaction bookkeeping as text (`Messages compacted`,
+   * `Tokens before/after`). Hold one tool row until the CLI's after-count
+   * arrives, then settle it.
+   */
+  kimiCompaction?: {
+    itemId: string;
+    before?: number;
+    after?: number;
+    opened: boolean;
+    /** CLI already said compaction finished; counts may still be streaming. */
+    settleOnNextText: boolean;
+  };
 }
 
 export function createAcpMapperState(threadId: string): AcpMapperState {

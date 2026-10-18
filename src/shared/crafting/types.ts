@@ -2,6 +2,8 @@
 
 import { nativeHarnessEnvironmentSchema } from "./nativeHarness";
 import { permissionConfigSchema } from "../contracts/config";
+import { craftPolicyLimitsSchema, type CraftPolicyLimits } from "./craftPolicy";
+import type { HarnessContractRequirement } from "./harnessContract";
 
 export const compatibilityStatusSchema = z.enum([
   "NATIVE",
@@ -154,6 +156,10 @@ export const craftPlanSchema = z.object({
   threadId: z.string().optional(),
   createdAt: z.string().min(1),
   overrides: runtimeOverridesSchema.optional(),
+  /** Recipe 上的策略快照。运行时和全局、当次会话叠在一起，任一层拒绝就停。 */
+  policy: craftPolicyLimitsSchema.optional(),
+  /** 这一次启动或这一次计划触发挂上的会话层，不写回 Recipe。 */
+  sessionPolicy: craftPolicyLimitsSchema.optional(),
 });
 export type CraftPlan = z.infer<typeof craftPlanSchema>;
 
@@ -206,6 +212,10 @@ export interface Recipe {
   modelVendors?: readonly string[];
   matches(ingredients: Record<string, Item>): boolean;
   compile(ingredients: Record<string, Item>, context: CraftContext): CraftPlan;
+  /** 目标 Harness 声明里少了这里的任一轴，编译拒绝。 */
+  requiredContract?: HarnessContractRequirement;
+  /** 跟 Recipe 走的策略。不读厂商权限弹窗。 */
+  policy?: CraftPolicyLimits;
 }
 
 export const craftingPhaseSchema = z.enum([

@@ -11,11 +11,7 @@ import { InlineRenameInput } from "../InlineRenameInput";
 import { ThreadItemSuffix } from "./parts/ThreadItemSuffix";
 import type { ContextMenuOpenRequest } from "@/renderer/components/common/ContextMenu";
 import { RelativeTime } from "@/renderer/components/common/RelativeTime";
-import {
-  useIsCurrentThread,
-  useThreadHasBackgroundActivity,
-  useThreadHasDraft,
-} from "@/renderer/hooks/uiSelectors";
+import { useIsCurrentThread, useThreadHasDraft } from "@/renderer/hooks/uiSelectors";
 import { openThread, renameThread } from "@/renderer/actions/threadActions";
 import {
   selectThreadHasUnreadNotification,
@@ -96,8 +92,7 @@ export function SortableThreadItem(props: {
 
   const isDragging = useIsDraggingThread(thread.id);
 
-  const hasBackgroundActivity = useThreadHasBackgroundActivity(thread.id);
-  const statusTone = getStatusTone(thread, { hasBackgroundActivity });
+  const statusTone = getStatusTone(thread);
 
   const stacked = projectTag != null;
   const isEditing = editingThreadId === editKey;

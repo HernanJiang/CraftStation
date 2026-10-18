@@ -9,6 +9,8 @@ export * from "./provenanceStore";
 export * from "./recipes/openaiCodexRecipe";
 export * from "./recipes/nativeHarnessRecipe";
 export * from "./recipes/compatibilityRecipe";
+export * from "./harnessContract";
+export * from "./craftPolicy";
 export * from "./executionRoute";
 export * from "./compatibilityCraft";
 export * from "./compatibility";

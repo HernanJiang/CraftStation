@@ -70,18 +70,21 @@ import type {
   NativeSessionPathResult,
 } from "@/shared/contracts";
 import { resolveNativeSessionPath } from "./runtime/nativeSessionPaths";
-import type {
-  CraftRequestResolution,
-  CraftSession,
-  CraftingDiscoveredModel,
-  CraftingModelInventory,
-  CraftingModelInventoryPayload,
-  HarnessRuntimeAdapter,
-  NativeHarnessDiagnostic,
-  NativeHarnessControlPlaneEntry,
-  NativeHarnessControlPlanePayload,
-  PromptResult,
-  TurnResult,
+import {
+  type CraftRequestResolution,
+  type CraftSession,
+  type CraftingDiscoveredModel,
+  type CraftingModelInventory,
+  type CraftingModelInventoryPayload,
+  type HarnessRuntimeAdapter,
+  type NativeHarnessDiagnostic,
+  type NativeHarnessControlPlaneEntry,
+  type NativeHarnessControlPlanePayload,
+  type PromptResult,
+  type TurnResult,
+  craftPlanSchema,
+  nativeRuntimeExecutionConfigForPlan,
+  type CraftPlan,
 } from "@/shared/crafting";
 import {
   resolveCompatibility,
@@ -93,7 +96,7 @@ import {
   compatibilityBridgeStatusSchema,
   type CompatibilityBridgeStatusView,
 } from "@/shared/crafting/compatibilityBridge";
-import { craftPlanSchema, nativeRuntimeExecutionConfigForPlan } from "@/shared/crafting";
+import { policyGate } from "./runtime/craftHarness/policyGate";
 import { resolveCompatibilityFamily } from "@/shared/harnessCompatibility";
 import {
   isThirdPartyAccountId,
@@ -1617,6 +1620,7 @@ export class SupervisorRuntime {
       this.goalConfigByThread.set(payload.threadId, payload.config);
       this.goals.onUserInput(payload.threadId);
       this.goals.restore(payload.threadId);
+      this.bindCraftPolicy(payload.threadId, { sessionPolicy: payload.sessionPolicy }, "reset");
     }
     try {
       return await this.threadSessionManager.startThread(payload);
@@ -1627,6 +1631,16 @@ export class SupervisorRuntime {
   }
 
   async sendThreadInput(payload: SendThreadInputPayload, automaticGoal = false): Promise<void> {
+    if (payload.sessionPolicy) {
+      this.bindCraftPolicy(
+        payload.threadId,
+        {
+          policy: this.craftedPlansByThread.get(payload.threadId)?.policy,
+          sessionPolicy: payload.sessionPolicy,
+        },
+        "reset",
+      );
+    }
     if (!automaticGoal && this.craftedSessionsByThread.has(payload.threadId)) {
       this.craftedFailoverEpochByThread.set(
         payload.threadId,
@@ -2709,6 +2723,7 @@ export class SupervisorRuntime {
       if (craftedThreadId) {
         this.craftMcpCandidatesByThread.set(craftedThreadId, payload.mcpServers ?? []);
         this.craftProjectLocationByThread.set(craftedThreadId, payload.projectLocation);
+        this.bindCraftPolicy(craftedThreadId, plan, "reset");
       }
       this.registerCraftedSession(
         craftedThreadId,
@@ -3000,6 +3015,7 @@ export class SupervisorRuntime {
       if (craftedThreadId) {
         this.craftMcpCandidatesByThread.set(craftedThreadId, payload.mcpServers ?? []);
         this.craftProjectLocationByThread.set(craftedThreadId, payload.projectLocation);
+        this.bindCraftPolicy(craftedThreadId, plan, "keep");
       }
       this.registerCraftedSession(
         craftedThreadId,
@@ -4517,7 +4533,26 @@ export class SupervisorRuntime {
     }
   }
 
+  private bindCraftPolicy(
+    threadId: string | undefined,
+    source: Pick<CraftPlan, "policy" | "sessionPolicy"> | undefined,
+    mode: "reset" | "keep",
+  ): void {
+    if (!threadId) return;
+    const global = this.sharedSettingsCache.read().craftPolicy;
+    policyGate.bind(
+      threadId,
+      {
+        ...(global && Object.keys(global).length > 0 ? { global } : {}),
+        ...(source?.policy ? { recipe: source.policy } : {}),
+        ...(source?.sessionPolicy ? { session: source.sessionPolicy } : {}),
+      },
+      mode,
+    );
+  }
+
   private releaseCraftedSession(threadId: string): void {
+    policyGate.clear(threadId);
     for (const unsubscribe of this.craftedSessionUnsubscribers.get(threadId)?.values() ?? []) {
       unsubscribe();
     }

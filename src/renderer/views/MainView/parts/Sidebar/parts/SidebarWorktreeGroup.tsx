@@ -45,7 +45,6 @@ export function SidebarWorktreeGroup(props: {
   project: Project;
   sortableGroup: string;
   sortDisabled?: boolean;
-  liveBackgroundThreadIds: ReadonlySet<string>;
   /** Trailing project label for cross-project (flat) lists. */
   projectTag?: React.ReactNode;
 }) {
@@ -59,11 +58,7 @@ export function SidebarWorktreeGroup(props: {
   const isBusyTerminal = useIsWorktreeTerminalBusy(group.worktreePath);
   const isActiveFiles = useIsWorktreeFilesPanelActive(group.worktreePath);
   const collapsedStatusTone = getWorktreeGroupStatusTone(
-    group.threads.map((thread) =>
-      getStatusTone(thread, {
-        hasBackgroundActivity: props.liveBackgroundThreadIds.has(thread.id),
-      }),
-    ),
+    group.threads.map((thread) => getStatusTone(thread)),
   );
   const runningActionIds = useRunningProjectActionIds(project.id, group.worktreePath);
   const runActionItems: ContextMenuItem[] = [];

@@ -1,5 +1,6 @@
 import type { CreateElicitationRequest, RequestPermissionRequest } from "@agentclientprotocol/sdk";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { policyGate } from "../../runtime/craftHarness/policyGate";
 import type { RuntimeEvent, ThreadConfig } from "@/shared/contracts";
 import { createAcpMapperState } from "./canonicalMapping";
 import { AcpSessionRequests } from "./sessionRequests";
@@ -154,6 +155,10 @@ function makeRequests(
 }
 
 describe("AcpSessionRequests permissions", () => {
+  afterEach(() => {
+    policyGate.reset();
+  });
+
   it("maps Qwen AskUserQuestion permissions to a reply form and returns indexed answers", async () => {
     const { emitRuntimeEvents, requests, setRequestAttention } = makeRequests({
       config: { model: "model-a", mode: "agent", approvalPolicy: "never" },
@@ -638,5 +643,47 @@ describe("AcpSessionRequests cancellation", () => {
     requests.completeElicitation({ elicitationId: "elicit-1" });
     requests.cancelPending();
     expect(emitRuntimeEvents).not.toHaveBeenCalled();
+  });
+
+  it("cancels a tool once the bound call cap is reached and still asks before shell", async () => {
+    policyGate.bind("thread-1", { session: { maxToolCalls: 1, askBeforeShell: true } });
+    const { emitRuntimeEvents, requests, setRequestAttention } = makeRequests({
+      config: { model: "model-a", mode: "agent", approvalPolicy: "never" },
+      availableModeIds: ["agent"],
+    });
+
+    const asked = requests.requestPermission(permissionRequest());
+    expect(setRequestAttention).toHaveBeenCalledExactlyOnceWith("needs_approval");
+    requests.resolve("acp-perm-0", { optionId: "once" });
+    await expect(asked).resolves.toEqual({ outcome: { outcome: "selected", optionId: "once" } });
+
+    emitRuntimeEvents.mockClear();
+    await expect(requests.requestPermission(permissionRequest())).resolves.toEqual({
+      outcome: { outcome: "cancelled" },
+    });
+    expect(emitRuntimeEvents).toHaveBeenCalledWith([
+      expect.objectContaining({
+        type: "warning",
+        threadId: "thread-1",
+        message: expect.stringContaining("工具调用次数"),
+      }),
+    ]);
+  });
+
+  it("does not spend the tool cap on a question", async () => {
+    policyGate.bind("thread-1", { global: { maxToolCalls: 1 } });
+    const { requests, setRequestAttention } = makeRequests({
+      config: { model: "model-a", mode: "agent", approvalPolicy: "never" },
+      availableModeIds: ["agent"],
+    });
+
+    const question = requests.requestPermission(questionPermissionRequest());
+    expect(setRequestAttention).toHaveBeenCalledWith("needs_reply");
+    requests.resolve("acp-perm-0", { optionId: "proceed_once" });
+    await question;
+
+    await expect(requests.requestPermission(permissionRequest())).resolves.toEqual({
+      outcome: { outcome: "selected", optionId: "always" },
+    });
   });
 });

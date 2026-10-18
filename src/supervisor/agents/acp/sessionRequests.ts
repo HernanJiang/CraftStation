@@ -30,6 +30,7 @@ import {
   normalizeAcpQuestionPermissionResponse,
   parseAcpPermissionQuestions,
 } from "./acpQuestionPermissions";
+import { isShellToolCall, policyGate } from "../../runtime/craftHarness/policyGate";
 
 type RequestAttention = "needs_approval" | "needs_reply" | "working";
 
@@ -73,7 +74,24 @@ export class AcpSessionRequests {
 
   requestPermission(params: RequestPermissionRequest): Promise<RequestPermissionResponse> {
     const isQuestion = parseAcpPermissionQuestions(params).length > 0;
-    if (!isQuestion && this.shouldAutoApproveSyntheticPermissionRequest()) {
+    let forceAsk = false;
+    if (!isQuestion) {
+      const decision = policyGate.decide(this.options.threadId, {
+        shell: isShellToolCall(params.toolCall),
+      });
+      if (decision.action === "deny") {
+        this.options.emitRuntimeEvents([
+          {
+            type: "warning",
+            threadId: this.options.threadId,
+            message: decision.message,
+          },
+        ]);
+        return Promise.resolve({ outcome: { outcome: "cancelled" } });
+      }
+      forceAsk = decision.action === "ask";
+    }
+    if (!isQuestion && !forceAsk && this.shouldAutoApproveSyntheticPermissionRequest()) {
       const optionId = selectAutoApprovedPermissionOption(params);
       if (optionId) {
         return Promise.resolve({ outcome: { outcome: "selected", optionId } });

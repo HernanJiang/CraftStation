@@ -183,7 +183,6 @@ export function SidebarThreadRow(props: {
           project={project}
           sortableGroup={row.sortableGroup}
           sortDisabled={row.sortDisabled}
-          liveBackgroundThreadIds={row.liveBackgroundThreadIds}
           {...(projectTag !== undefined ? { projectTag } : {})}
         />
       ) : row.kind === "thread-group" ? (

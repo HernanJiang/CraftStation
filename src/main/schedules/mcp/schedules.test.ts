@@ -97,6 +97,28 @@ describe("Schedule MCP tools", () => {
     );
   });
 
+  it("stores a per-run spend cap on the task config", async () => {
+    const create = vi.fn<(input: unknown) => ScheduledTask>(
+      (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,
+    );
+    const service = { create } as unknown as ScheduleCapability;
+    await scheduleTools.handlers.create!(
+      {
+        name: "capped",
+        prompt: "Check the job.",
+        recurrence: { kind: "interval", everyMinutes: 10 },
+        continueInCurrentThread: false,
+        maxCostUsd: "1.5",
+      },
+      ctx(service),
+    );
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        config: expect.objectContaining({ maxCostUsd: 1.5 }),
+      }),
+    );
+  });
+
   it("binds to the calling thread by default", async () => {
     const create = vi.fn<(input: unknown) => ScheduledTask>(
       (input) => ({ id: "created", ...(input as object) }) as ScheduledTask,

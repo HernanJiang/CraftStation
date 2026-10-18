@@ -25,6 +25,7 @@ import {
 import { DEFAULT_SEARCH_EXCLUDE } from "./searchExclude";
 import { AI_LANGUAGE_VALUES, LOCALE_SETTING_VALUES } from "./locale";
 import { QWEN_DEFAULT_MODEL_ID, QWEN_RETIRED_PREVIEW_MODEL_ID } from "./agents/qwenModels";
+import { craftPolicyLimitsSchema } from "./crafting/craftPolicy";
 
 export const WINDOWS_SHELL_AUTO = "auto";
 export const WINDOWS_SHELL_ARGUMENTS_MAX = 8_192;
@@ -437,6 +438,11 @@ export const sharedSettingsSchema = z.object({
   /** Seconds to wait between automatic turn retry attempts. */
   turnRetryIntervalSeconds: z.number().int().min(1).max(300),
   /**
+   * Craft-Harness 策略的全局层：花费上限、工具调用次数、执行 shell 前先问。
+   * 缺省不设限。和 Recipe、当次会话叠在一起，任一层拒绝就停。
+   */
+  craftPolicy: craftPolicyLimitsSchema.default({}),
+  /**
    * 自动更新各 agent CLI：版本检查发现更新时自动执行该 CLI 的更新管线
    * （与右上角手动更新同一通道）。默认开启；关闭后仍可手动更新。
    */
@@ -809,6 +815,7 @@ export const defaultSharedSettings: SharedSettings = {
   staleThreadUnloadMinutes: 60,
   turnRetryMaxAttempts: 2,
   turnRetryIntervalSeconds: 5,
+  craftPolicy: {},
   autoUpdateAgentClis: true,
   autoArchiveDoneAfterDays: 3,
   archiveRetention: "7d",

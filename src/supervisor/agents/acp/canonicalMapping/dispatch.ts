@@ -15,7 +15,7 @@ import {
   shouldHoldSkillCatalogChunk,
 } from "@/shared/skillCatalogDump";
 import { stripGeminiHarnessNoise } from "@/shared/geminiHarnessNoise";
-import { stripKimiHarnessNoise } from "@/shared/kimiHarnessNoise";
+import { readKimiCompactionNotice, stripKimiHarnessNoise } from "@/shared/kimiHarnessNoise";
 import {
   isRetryableCapacityError,
   stripRetryableCapacityNoise,
@@ -187,9 +187,10 @@ export function mapAcpSessionUpdate(
         }
       }
       if (content?.type === "text") {
-        const withoutHarness = stripKimiHarnessNoise(stripGeminiHarnessNoise(content.text) ?? "");
-        if (!withoutHarness) break;
-        content = { ...content, text: withoutHarness };
+        const folded = foldKimiCompaction(state, stripGeminiHarnessNoise(content.text) ?? "");
+        events.push(...folded.events);
+        if (!folded.text) break;
+        content = { ...content, text: folded.text };
         if (isRetryableCapacityError(content.text)) break;
         if (content.text.split(/\r?\n/).some((line) => isRetryableCapacityError(line))) {
           const stripped = stripRetryableCapacityNoise(content.text);
@@ -278,9 +279,10 @@ export function mapAcpSessionUpdate(
       }
       let thoughtText = thoughtContent?.type === "text" ? thoughtContent.text : "";
       if (thoughtText) {
-        const withoutHarness = stripKimiHarnessNoise(stripGeminiHarnessNoise(thoughtText) ?? "");
-        if (!withoutHarness) break;
-        thoughtText = withoutHarness;
+        const folded = foldKimiCompaction(state, stripGeminiHarnessNoise(thoughtText) ?? "");
+        events.push(...folded.events);
+        if (!folded.text) break;
+        thoughtText = folded.text;
       }
       if (thoughtText && isRetryableCapacityError(thoughtText)) break;
       if (thoughtText.split(/\r?\n/).some((line) => isRetryableCapacityError(line))) {
@@ -781,6 +783,90 @@ const ACP_OCCUPANCY_SESSION_UPDATES = new Set([
   "tokenUsage",
   "usage",
 ]);
+
+/**
+ * Kimi prints compaction as assistant text. Keep the counts — they are the
+ * CLI's own before/after — and drop the lines from the chat bubble.
+ */
+function foldKimiCompaction(
+  state: AcpMapperState,
+  text: string,
+): { text: string | undefined; events: RuntimeEvent[] } {
+  const notice = readKimiCompactionNotice(text);
+  const stripped = stripKimiHarnessNoise(text);
+  const events: RuntimeEvent[] = [];
+  if (!notice) {
+    if (state.kimiCompaction?.settleOnNextText && stripped) {
+      events.push(...finishKimiCompaction(state));
+    }
+    return { text: stripped, events };
+  }
+  const hasCounts = notice.before !== undefined || notice.after !== undefined;
+  if (notice.phase === "blocked" && !hasCounts) {
+    return { text: stripped, events };
+  }
+  const current = state.kimiCompaction ?? {
+    itemId: newItemId("compact"),
+    opened: false,
+    settleOnNextText: false,
+  };
+  if (notice.before !== undefined) current.before = notice.before;
+  if (notice.after !== undefined) current.after = notice.after;
+  if (notice.phase === "completed") current.settleOnNextText = true;
+  state.kimiCompaction = current;
+  if (current.after !== undefined) {
+    events.push(...finishKimiCompaction(state));
+    return { text: stripped, events };
+  }
+  if (!current.opened && notice.phase === "running") {
+    current.opened = true;
+    events.push({
+      type: "item.started",
+      threadId: state.threadId,
+      itemId: current.itemId,
+      itemType: "tool_call",
+      payload: { name: "ContextCompaction", status: "running" },
+    });
+  }
+  return { text: stripped, events };
+}
+
+function finishKimiCompaction(state: AcpMapperState): RuntimeEvent[] {
+  const current = state.kimiCompaction;
+  if (!current) return [];
+  delete state.kimiCompaction;
+  const args = {
+    trigger: "auto" as const,
+    ...(current.before !== undefined ? { pre_tokens: current.before } : {}),
+    ...(current.after !== undefined ? { post_tokens: current.after } : {}),
+  };
+  const payload = { name: "ContextCompaction", status: "success" as const, args };
+  const events: RuntimeEvent[] = [];
+  if (!current.opened) {
+    events.push({
+      type: "item.started",
+      threadId: state.threadId,
+      itemId: current.itemId,
+      itemType: "tool_call",
+      payload,
+    });
+  }
+  events.push({
+    type: "item.completed",
+    threadId: state.threadId,
+    itemId: current.itemId,
+    payload,
+  });
+  if (current.after !== undefined && current.after > 0) {
+    const usage = createContextUsageEvent(state.threadId, {
+      usedTokens: current.after,
+      source: "provider-reported",
+      breakdown: [{ id: "current-context", label: "Current context", tokens: current.after }],
+    });
+    if (usage) events.push(usage);
+  }
+  return events;
+}
 
 function mapAcpContextOccupancy(update: SessionUpdate, state: AcpMapperState): RuntimeEvent[] {
   const rec = update as unknown as Record<string, unknown>;

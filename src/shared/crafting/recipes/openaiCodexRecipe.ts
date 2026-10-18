@@ -1,5 +1,8 @@
 ﻿import { sha256Hex } from "../webCrypto";
 import { CraftingError } from "../errors";
+import { assertHarnessContract, requiredContractFor } from "../harnessContract";
+import type { CraftPolicyLimits } from "../craftPolicy";
+import type { HarnessContractRequirement } from "../harnessContract";
 import type {
   CraftContext,
   CraftPlan,
@@ -19,6 +22,8 @@ export class OpenAICodexNativeRecipe implements Recipe {
   readonly description =
     "Native composition running OpenAI Models through the Codex Harness runtime.";
   readonly compatibilityStatus = "NATIVE" as const;
+  readonly requiredContract: HarnessContractRequirement = requiredContractFor("codex");
+  policy?: CraftPolicyLimits;
 
   readonly requirements: Record<string, RecipeSlotRequirement> = {
     model: {
@@ -64,6 +69,7 @@ export class OpenAICodexNativeRecipe implements Recipe {
         "Ensure the model is an OpenAI model and the harness is Codex.",
       );
     }
+    assertHarnessContract(harness, this.requiredContract);
 
     // Extract runtime modelId from model capability component if present
     const modelCapability = model.components.find(
@@ -113,6 +119,7 @@ export class OpenAICodexNativeRecipe implements Recipe {
       ...(context.threadId ? { threadId: context.threadId } : {}),
       createdAt: now,
       ...(context.overrides ? { overrides: context.overrides } : {}),
+      ...(this.policy ? { policy: this.policy } : {}),
     };
 
     return craftPlan;

@@ -182,6 +182,9 @@ function collectAllAgentCapsuleEntries(
   for (const id of ids) {
     const item = items[id];
     if (!item || item.type !== "tool_call" || item.parentItemId) continue;
+    // Replayed rows belong to a process that is gone. Only agents streamed
+    // this session may count as still working.
+    if (item.observedLive !== true) continue;
     const payload = getRuntimeItemPayload<ToolCallPayload>(item, "tool_call");
     if (!payload || !isDelegatedAgentTool(payload)) continue;
     const display = deriveToolDisplay(payload);

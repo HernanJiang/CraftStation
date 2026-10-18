@@ -840,6 +840,7 @@ describe("chatPaneSelectors", () => {
         id: "agent-running",
         type: "tool_call",
         state: "started",
+        observedLive: true,
         payload: {
           name: "Agent",
           status: "running",
@@ -895,6 +896,28 @@ describe("chatPaneSelectors", () => {
     expect(selectActiveSubAgentParentItemIds(settledState, "t1")).toEqual(["workflow-completed"]);
     expect(selectThreadHasActiveNativeSubAgent(settledState, "t1")).toBe(false);
 
+    const replayed = {
+      runtimeItemIdsByThread: { t1: ["agent-replayed"] },
+      runtimeItemsByIdByThread: {
+        t1: {
+          "agent-replayed": {
+            id: "agent-replayed",
+            type: "tool_call",
+            state: "updated",
+            payload: {
+              name: "Agent",
+              status: "running",
+              args: { subagent_type: "coder" },
+            },
+            streams: {},
+          },
+        },
+      },
+      runtimeStructuralVersionByThread: { t1: 3 },
+    } as unknown as AppStoreState;
+    expect(selectThreadHasActiveNativeSubAgent(replayed, "t1")).toBe(false);
+    expect(selectActiveSubAgentParentItemIds(replayed, "t1")).toEqual([]);
+
     const projectThreads = [{ id: "t1" }] as Thread[];
     expect(selectActiveNativeSubAgentThreadIds(activeState, projectThreads)).toEqual(["t1"]);
     const settledThreadIds = selectActiveNativeSubAgentThreadIds(settledState, projectThreads);
@@ -943,6 +966,7 @@ describe("chatPaneSelectors", () => {
             id: "sub:run-1",
             type: "tool_call",
             state: "started",
+            observedLive: true,
             payload: {
               name: "Codex · GPT-5.5",
               status: "running",

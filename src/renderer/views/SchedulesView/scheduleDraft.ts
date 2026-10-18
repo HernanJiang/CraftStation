@@ -1,7 +1,14 @@
 import type { AgentStatus, ScheduledTask, ScheduledTaskInput } from "@/shared/contracts";
 import { resolveHighestCompatibleEffort } from "@/shared/agentSelection";
 
-export type RepeatMode = "hourly" | "interval" | "daily" | "weekdays" | "weekly" | "custom" | "once";
+export type RepeatMode =
+  | "hourly"
+  | "interval"
+  | "daily"
+  | "weekdays"
+  | "weekly"
+  | "custom"
+  | "once";
 
 export interface ScheduleDraft {
   id?: string;
@@ -29,6 +36,8 @@ export interface ScheduleDraft {
   runAt: string;
   /** Minutes between runs when repeatMode === "interval" (1–1440). */
   everyMinutes: number;
+  /** 这一次触发的花费上限（美元）。界面不编辑它，保存时原样保留。 */
+  maxCostUsd?: number;
 }
 
 function localDateTimeInputValue(date: Date): string {
@@ -100,6 +109,7 @@ export function taskScheduleDraft(task: ScheduledTask): ScheduleDraft {
     timezone: task.timezone ?? "",
     recipeId: task.recipeId ?? "",
     targetThreadId: task.targetThreadId ?? null,
+    ...(typeof task.config.maxCostUsd === "number" ? { maxCostUsd: task.config.maxCostUsd } : {}),
     repeatMode,
     days: task.recurrence.kind === "weekly" ? task.recurrence.days : [1, 2, 3, 4, 5],
     everyMinutes: task.recurrence.kind === "interval" ? task.recurrence.everyMinutes : 10,
@@ -136,6 +146,7 @@ export function scheduleDraftInput(draft: ScheduleDraft): ScheduledTaskInput {
       model: draft.model,
       ...(draft.effort ? { effort: draft.effort } : {}),
       ...(draft.fast ? { fast: true } : {}),
+      ...(typeof draft.maxCostUsd === "number" ? { maxCostUsd: draft.maxCostUsd } : {}),
     },
     recurrence:
       draft.repeatMode === "once"
@@ -168,7 +179,9 @@ export function scheduleDraftIsValid(draft: ScheduleDraft): boolean {
     (draft.repeatMode === "once"
       ? Number.isFinite(new Date(draft.runAt).getTime())
       : draft.repeatMode === "interval"
-        ? Number.isFinite(draft.everyMinutes) && draft.everyMinutes >= 1 && draft.everyMinutes <= 1440
+        ? Number.isFinite(draft.everyMinutes) &&
+          draft.everyMinutes >= 1 &&
+          draft.everyMinutes <= 1440
         : draft.repeatMode === "custom" || draft.repeatMode === "weekly"
           ? draft.days.length > 0 && draft.time
           : draft.time),

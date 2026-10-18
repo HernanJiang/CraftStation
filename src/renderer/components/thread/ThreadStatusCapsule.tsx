@@ -25,7 +25,7 @@ import { MAIN_THREAD_HEADER_PORTAL_ID } from "@/renderer/components/layout/layou
 import { useAppStore } from "@/renderer/state/appStore";
 import { useGitStore } from "@/renderer/state/gitStore";
 import { refreshGitProject } from "@/renderer/state/gitRefresh";
-import { useThreadHasBackgroundActivity } from "@/renderer/hooks/uiSelectors";
+
 import { CapsuleBranchView } from "./CapsuleBranchView";
 import { CapsuleCommitView } from "./CapsuleCommitView";
 import {
@@ -165,7 +165,6 @@ export function ThreadStatusCapsule(props: ThreadStatusCapsuleProps) {
   );
   const project = useAppStore((s) => s.projects.find((p) => p.id === projectId));
   const thread = useAppStore((s) => s.threads.find((item) => item.id === threadId));
-  const hasBackgroundActivity = useThreadHasBackgroundActivity(threadId);
   const todoState = useAppStore((s) => selectThreadTodoDockState(s, threadId));
   // Sub-agent state is owned by the composer capsule's selector; the top-right
   // capsule only reads it (never recomputes) so both surfaces stay in lockstep.
@@ -391,7 +390,7 @@ export function ThreadStatusCapsule(props: ThreadStatusCapsuleProps) {
     t,
   ]);
 
-  const isWorking = thread?.status === "working" || hasBackgroundActivity;
+  const isWorking = thread?.status === "working";
   const hasConflict = Boolean(
     effectiveStatus?.mergeInProgress || (effectiveStatus?.conflictFiles?.length ?? 0) > 0,
   );

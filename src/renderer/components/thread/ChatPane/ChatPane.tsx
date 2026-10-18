@@ -7,7 +7,6 @@ import { isHomeProjectId } from "@/shared/homeScope";
 import { resolveLocalFileUrlPath } from "@/shared/promptContent";
 import { readBridge } from "@/renderer/bridge";
 import { useScrollFade } from "@/renderer/hooks/useScrollFade";
-import { useThreadHasBackgroundActivity } from "@/renderer/hooks/uiSelectors";
 import { useAppStore } from "@/renderer/state/appStore";
 import {
   hydrateThreadRuntimeItems,
@@ -332,12 +331,10 @@ export function ChatPane(props: ChatPaneProps) {
     (s) => s.provisioningWorktreeThreadIds[threadId] === true && status === "launching",
   );
   const isConnecting = useAppStore((s) => s.connectingThreadIds[threadId] !== undefined);
-  // Detached background work keeps the thread doing real work after the
-  // foreground turn settles. Treat that as "still working" for the tail-loader
-  // timer (so it keeps ticking "Working for ...") without touching `status` -
-  // composer interrupt/steer and notifications stay on the raw status.
-  const hasBackgroundActivity = useThreadHasBackgroundActivity(threadId);
-  const showWorkingTimer = isLive || hasBackgroundActivity;
+  // The tail timer follows the foreground turn only. Detached sub-agents stay
+  // on their own capsule count; they must not keep "Working for…" ticking
+  // after the status bar already says completed.
+  const showWorkingTimer = isLive;
   const hasOpenRuntimeRequest = useAppStore(
     (s) => (s.runtimeRequestsByThread[threadId]?.length ?? 0) > 0,
   );
@@ -368,10 +365,7 @@ export function ChatPane(props: ChatPaneProps) {
   // time when the thread is idle and no newer timeline row exists. Once an
   // optimistic next prompt is appended, keep the completed indicator inline at
   // its anchor so the prompt does not briefly occupy the old footer position.
-  // When detached background work keeps the timer live after the foreground
-  // turn settles, the ticking "Working for" reseeds from that turn's start —
-  // its window subsumes the frozen "Worked for" record, so render only the
-  // live timer, never both at once.
+  // A live foreground turn that overlaps that window keeps one ticking timer.
   const liveTimerContinuesCompletedTurn =
     turn !== null &&
     turn.endedAt === null &&
@@ -379,14 +373,14 @@ export function ChatPane(props: ChatPaneProps) {
     turn.startedAt <= mostRecentDisplayableCompletedTurn.startedAt;
   // Completed durations live at the turn's anchor bar (the same inline position
   // as the live "Working" bar, divider included) — never duplicated in the tail
-  // footer. Only the still-ticking background live timer suppresses its anchor
-  // bar, because the footer then owns the one honest "still working" readout.
+  // footer. A live foreground timer that overlaps that window suppresses the
+  // frozen anchor so only one readout is on screen.
   const suppressTurnHeaderAnchorId = liveTimerContinuesCompletedTurn
     ? mostRecentCompletedTurnAnchor
     : null;
   // The inline status bar under the live turn's user bubble owns the live
   // timer once the turn has rows; the tail only ticks before the first row
-  // lands (or while detached background work runs after the turn settles).
+  // lands. A settled turn does not keep a tail spinner for detached agents.
   // Completed turns render their frozen duration at the turn anchor — the
   // tail footer remains only for legacy threads without a persisted turn
   // record (no anchor row exists to attach the duration to), or when that

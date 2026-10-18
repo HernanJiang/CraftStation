@@ -281,7 +281,7 @@ function applyRuntimeEventToRuntimeState(
         return {
           ...closeTurnPatch,
           ...segmentPatch,
-          ...completeOpenReasoningItems(state, threadId),
+          ...completeOpenForegroundItems(state, threadId),
         };
       }
       return {
@@ -766,7 +766,7 @@ function coalesceRuntimeEvents(events: RuntimeEvent[]): RuntimeEvent[] {
   return coalesced;
 }
 
-function completeOpenReasoningItems(
+function completeOpenForegroundItems(
   state: RuntimeEventState,
   threadId: string,
 ): Partial<RuntimeEventState> {
@@ -775,7 +775,17 @@ function completeOpenReasoningItems(
   let changed = false;
   const nextItems: Record<string, RuntimeChatItem> = { ...items };
   for (const [id, item] of Object.entries(items)) {
-    if (item.type !== "reasoning" || item.state === "completed") continue;
+    if (item.state === "completed" || item.parentItemId) continue;
+    // Detached sub-agents outlive the foreground turn on purpose. Everything
+    // else that is still open (reasoning, a command, a file edit) would keep
+    // its own spinner after the status bar already says completed.
+    const settle =
+      item.type === "reasoning" ||
+      item.type === "command_execution" ||
+      item.type === "file_change" ||
+      (item.type === "tool_call" &&
+        !isDelegatedAgentTool(item.payload as ToolCallPayload | undefined));
+    if (!settle) continue;
     changed = true;
     nextItems[id] = {
       ...item,

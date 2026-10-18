@@ -1,5 +1,6 @@
 import { randomUUID } from "./webCrypto";
 import { CraftingError } from "./errors";
+import { assertHarnessContract } from "./harnessContract";
 import { logCraftingEvent } from "./logging";
 import { getDefaultRegistry, ItemRegistry } from "./registry";
 import type {
@@ -216,7 +217,13 @@ export class Crafter {
     try {
       const recipe = validation.matchedRecipe;
       const ingredients = validation.resolvedIngredients;
+      if (ingredients.harness) {
+        assertHarnessContract(ingredients.harness, recipe.requiredContract);
+      }
       const craftPlan = recipe.compile(ingredients, context);
+      if (recipe.policy && craftPlan.policy === undefined) {
+        craftPlan.policy = recipe.policy;
+      }
 
       if (craftPlan.runtimeBinding.harnessKind === "opencode") {
         const query: OpenCodeExecutableReadinessQuery = {

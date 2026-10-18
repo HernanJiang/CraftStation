@@ -254,6 +254,7 @@ export async function createHeadlessRemoteHost(
         threadId: input.threadId,
         prompt: input.prompt,
         config: input.config,
+        ...(input.sessionPolicy ? { sessionPolicy: input.sessionPolicy } : {}),
       }),
     craftAgent: (payload) => supervisorClient.call("craftAgent", payload),
     getAgentStatuses: (wslDistros) => supervisorClient.call("getAgentStatuses", { wslDistros }),

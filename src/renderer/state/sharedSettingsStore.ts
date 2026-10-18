@@ -1124,6 +1124,7 @@ function selectSharedSettings(state: SharedSettingsState): SharedSettingsInput {
     staleThreadUnloadMinutes: state.staleThreadUnloadMinutes,
     turnRetryMaxAttempts: state.turnRetryMaxAttempts,
     turnRetryIntervalSeconds: state.turnRetryIntervalSeconds,
+    craftPolicy: state.craftPolicy,
     autoUpdateAgentClis: state.autoUpdateAgentClis,
     autoArchiveDoneAfterDays: state.autoArchiveDoneAfterDays,
     archiveRetention: state.archiveRetention,

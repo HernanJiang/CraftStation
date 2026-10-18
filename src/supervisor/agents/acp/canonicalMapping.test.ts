@@ -25,6 +25,49 @@ function note(update: SessionNotification["update"]): SessionNotification {
 }
 
 describe("mapAcpSessionUpdate", () => {
+  it("records Kimi's official compaction counts and drops the status lines", () => {
+    const state = createAcpMapperState("t-kimi-compact");
+    const events = mapAcpSessionUpdate(
+      note({
+        sessionUpdate: "agent_message_chunk",
+        content: {
+          type: "text",
+          text: [
+            "结果如下",
+            "• Messages compacted: 113",
+            "• Tokens before: 210,977",
+            "• Tokens after: 109,566",
+          ].join("\n"),
+        },
+      }),
+      state,
+    );
+    const text = events
+      .filter((event) => event.type === "content.delta")
+      .map((event) => event.delta)
+      .join("");
+    expect(text).toBe("结果如下");
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "item.completed",
+          payload: {
+            name: "ContextCompaction",
+            status: "success",
+            args: { trigger: "auto", pre_tokens: 210_977, post_tokens: 109_566 },
+          },
+        }),
+        expect.objectContaining({
+          type: "context.updated",
+          usage: expect.objectContaining({
+            usedTokens: 109_566,
+            source: "provider-reported",
+          }),
+        }),
+      ]),
+    );
+  });
+
   it.each(["agent_message_chunk", "agent_thought_chunk"] as const)(
     "preserves repeated suffixes and whitespace in %s deltas",
     (sessionUpdate) => {

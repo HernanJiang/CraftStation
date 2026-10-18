@@ -5,10 +5,6 @@ import { useAppStore } from "@/renderer/state/appStore";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
 import { ThreadHeaderStatusButton } from "./ThreadHeaderStatus";
 
-const { useThreadHasBackgroundActivityMock } = vi.hoisted(() => ({
-  useThreadHasBackgroundActivityMock: vi.fn<(threadId: string) => boolean>(),
-}));
-
 vi.mock("@heroui/react", () => ({
   Tooltip: Object.assign((props: { children: ReactNode }) => <>{props.children}</>, {
     Trigger: (props: { children: ReactNode }) => <>{props.children}</>,
@@ -20,11 +16,6 @@ vi.mock("@/renderer/components/providers/ProviderIcon", () => ({
   ProviderIcon: (props: { tone: string }) => (
     <span data-testid="provider-status" data-tone={props.tone} />
   ),
-}));
-
-vi.mock("@/renderer/hooks/uiSelectors", () => ({
-  useThreadHasBackgroundActivity: (threadId: string) =>
-    useThreadHasBackgroundActivityMock(threadId),
 }));
 
 vi.mock("@/renderer/state/useThread", () => ({
@@ -52,31 +43,43 @@ function makeThread(status: "idle" | "finished"): Thread {
 describe("ThreadHeaderStatusButton", () => {
   beforeEach(() => {
     useAppStore.setState({ connectingThreadIds: {} });
-    useThreadHasBackgroundActivityMock.mockReset();
-    useThreadHasBackgroundActivityMock.mockReturnValue(true);
   });
 
-  it.each(["idle", "finished"] as const)(
-    "shows a %s thread as working while background activity remains",
-    (status) => {
-      const thread = makeThread(status);
+  it("shows a settled idle thread as idle", () => {
+    const thread = makeThread("idle");
 
-      const { getByRole, getByTestId } = render(
-        <ThreadHeaderStatusButton
-          threadId={thread.id}
-          fallbackThread={thread}
-          fallbackAgentKind="claude"
-          agentLabel="Claude"
-        />,
-      );
+    const { getByRole, getByTestId } = render(
+      <ThreadHeaderStatusButton
+        threadId={thread.id}
+        fallbackThread={thread}
+        fallbackAgentKind="claude"
+        agentLabel="Claude"
+      />,
+    );
 
-      expect(
-        getByRole("button", { name: "Claude: Working. Hover for status details." }),
-      ).toBeInTheDocument();
-      expect(getByTestId("provider-status")).toHaveAttribute("data-tone", "working");
-      expect(useThreadHasBackgroundActivityMock).toHaveBeenCalledOnce();
-    },
-  );
+    expect(
+      getByRole("button", { name: "Claude: Idle. Hover for status details." }),
+    ).toBeInTheDocument();
+    expect(getByTestId("provider-status")).toHaveAttribute("data-tone", "active");
+  });
+
+  it("shows a settled finished thread as finished", () => {
+    const thread = makeThread("finished");
+
+    const { getByRole, getByTestId } = render(
+      <ThreadHeaderStatusButton
+        threadId={thread.id}
+        fallbackThread={thread}
+        fallbackAgentKind="claude"
+        agentLabel="Claude"
+      />,
+    );
+
+    expect(
+      getByRole("button", { name: "Claude: Finished. Hover for status details." }),
+    ).toBeInTheDocument();
+    expect(getByTestId("provider-status")).toHaveAttribute("data-tone", "finished");
+  });
 
   it("shows connecting while a stored GUI session reconnects", () => {
     const thread = makeThread("idle");

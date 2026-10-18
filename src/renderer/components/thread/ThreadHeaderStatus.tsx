@@ -5,7 +5,6 @@ import type { Thread, ThreadStatusSource } from "@/shared/contracts";
 import { isRetryableCapacityError } from "@/shared/retryableCapacityError";
 import { ProviderIcon } from "@/renderer/components/providers/ProviderIcon";
 import { getStatusTone } from "@/renderer/components/providers/statusTone";
-import { useThreadHasBackgroundActivity } from "@/renderer/hooks/uiSelectors";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useThread } from "@/renderer/state/useThread";
 import type { TranslateFn } from "@/renderer/i18n/i18n";
@@ -13,20 +12,18 @@ import type { TranslateFn } from "@/renderer/i18n/i18n";
 export function threadRuntimeStatusLabel(
   thread: Thread,
   t: TranslateFn,
-  opts?: { hasBackgroundActivity?: boolean; isConnecting?: boolean },
+  opts?: { isConnecting?: boolean },
 ): string {
   if (opts?.isConnecting) return t(msg`Connecting…`);
   const { status, attention } = thread;
   if (status === "launching") return t(msg`Launching…`);
   if (status === "inactive") return t(msg`Inactive`);
   if (status === "error") return t(msg`Error`);
-  // A settled thread with live background work still reads as "Working".
-  if (status === "finished")
-    return opts?.hasBackgroundActivity ? t(msg`Working`) : t(msg`Finished`);
+  if (status === "finished") return t(msg`Finished`);
   if (status === "needs_approval" || attention === "needs_approval") return t(msg`Needs approval`);
   if (status === "needs_reply" || attention === "needs_reply") return t(msg`Needs reply`);
   if (status === "working" || attention === "working") return t(msg`Working`);
-  if (status === "idle") return opts?.hasBackgroundActivity ? t(msg`Working`) : t(msg`Idle`);
+  if (status === "idle") return t(msg`Idle`);
   return status;
 }
 
@@ -74,14 +71,10 @@ function ThreadStatusSupportDetail({ source }: { source: ThreadStatusSource | un
   }
 }
 
-function ThreadHeaderStatusTooltipBody(props: {
-  thread: Thread;
-  hasBackgroundActivity: boolean;
-  isConnecting: boolean;
-}) {
-  const { thread, hasBackgroundActivity, isConnecting } = props;
+function ThreadHeaderStatusTooltipBody(props: { thread: Thread; isConnecting: boolean }) {
+  const { thread, isConnecting } = props;
   const { t } = useLingui();
-  const runtime = threadRuntimeStatusLabel(thread, t, { hasBackgroundActivity, isConnecting });
+  const runtime = threadRuntimeStatusLabel(thread, t, { isConnecting });
   const source = thread.threadStatusSource;
   const isServer = source === "server";
   const errorMessage =
@@ -135,15 +128,11 @@ export function ThreadHeaderStatusButton(props: {
 }) {
   const { t } = useLingui();
   const thread = useThread(props.threadId) ?? props.fallbackThread;
-  const hasBackgroundActivity = useThreadHasBackgroundActivity(props.threadId);
   const isConnecting = useAppStore(
     (state) => state.connectingThreadIds[props.threadId] !== undefined,
   );
   const agentLabel = props.agentLabel ?? props.fallbackAgentKind;
-  const statusLabel = threadRuntimeStatusLabel(thread, t, {
-    hasBackgroundActivity,
-    isConnecting,
-  });
+  const statusLabel = threadRuntimeStatusLabel(thread, t, { isConnecting });
 
   return (
     <Tooltip delay={0}>
@@ -160,7 +149,7 @@ export function ThreadHeaderStatusButton(props: {
             kind={thread.agentKind}
             {...(props.agentIcon ? { icon: props.agentIcon } : {})}
             fallbackLabel={props.agentLabel}
-            tone={getStatusTone(thread, { hasBackgroundActivity })}
+            tone={getStatusTone(thread)}
             className="size-3.5 shrink-0"
           />
         </button>
@@ -171,11 +160,7 @@ export function ThreadHeaderStatusButton(props: {
         showArrow
         className="max-w-[min(22rem,calc(100vw-2rem))] text-left [overflow-wrap:break-word] [word-break:normal] hyphens-none"
       >
-        <ThreadHeaderStatusTooltipBody
-          thread={thread}
-          hasBackgroundActivity={hasBackgroundActivity}
-          isConnecting={isConnecting}
-        />
+        <ThreadHeaderStatusTooltipBody thread={thread} isConnecting={isConnecting} />
       </Tooltip.Content>
     </Tooltip>
   );

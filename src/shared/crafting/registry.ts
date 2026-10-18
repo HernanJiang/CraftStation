@@ -1,4 +1,5 @@
 import type { Item, ItemKind, Recipe, SlotSelection } from "./types";
+import { harnessContractComponent } from "./harnessContract";
 import { NativeHarnessRecipe } from "./recipes/nativeHarnessRecipe";
 import { OpenAICodexNativeRecipe } from "./recipes/openaiCodexRecipe";
 import { CompatibilityBridgeRecipe } from "./recipes/compatibilityRecipe";
@@ -520,6 +521,7 @@ export const BUILTIN_CODEX_HARNESS_ITEM: Item = {
       supportedVendors: ["openai", "codex"],
       executionMode: "structured_session",
     },
+    harnessContractComponent("codex")!,
   ],
 };
 
@@ -550,6 +552,7 @@ export const BUILTIN_OPENCODE_HARNESS_ITEM: Item = {
       ],
       executionMode: "structured_session",
     },
+    harnessContractComponent("opencode")!,
   ],
 };
 
@@ -581,6 +584,7 @@ function createNativeHarnessItem(input: {
         supportedVendors: [input.vendor],
         executionMode: input.executionMode,
       },
+      harnessContractComponent(input.id.replace(/^harness:/, ""))!,
     ],
   };
 }

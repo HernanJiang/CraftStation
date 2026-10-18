@@ -518,6 +518,37 @@ describe("runtimeEventSlice.applyRuntimeEvent", () => {
     expect(store.getState().runtimeItemsByIdByThread["t1"]?.["reason-1"]?.state).toBe("completed");
   });
 
+  it("closes leftover commands when the turn completes and leaves background agents open", () => {
+    apply("t1", {
+      type: "item.started",
+      threadId: "t1",
+      itemId: "cmd-1",
+      itemType: "command_execution",
+      payload: { command: "python migrate.py", status: "running" },
+    });
+    apply("t1", {
+      type: "item.started",
+      threadId: "t1",
+      itemId: "agent-1",
+      itemType: "tool_call",
+      payload: {
+        name: "Agent",
+        status: "running",
+        isSubAgent: true,
+        args: { subagent_type: "coder", description: "upload" },
+      },
+    });
+    apply("t1", {
+      type: "turn.completed",
+      threadId: "t1",
+      turnId: "turn-1",
+      state: "completed",
+    });
+    const items = store.getState().runtimeItemsByIdByThread["t1"];
+    expect(items?.["cmd-1"]?.state).toBe("completed");
+    expect(items?.["agent-1"]?.state).toBe("started");
+  });
+
   it("preserves Copilot-style subagent children when the parent completes", () => {
     apply("t1", {
       type: "item.started",

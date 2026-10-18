@@ -10,14 +10,25 @@
  *   formatTokenCount(1_000_000)  -> "1M"
  *   formatTokenCount(24_767_000) -> "24.8M"
  */
+/** Exact binary windows the CLIs label as 128K / 256K / 512K (n × 1024). */
+const BINARY_WINDOW_K = new Set([128, 256, 512]);
+
 export function formatTokenCount(tokens: number): string {
   if (tokens >= 1_000_000) {
     return formatTokenUnit(tokens / 1_000_000, "M");
   }
+  const binary = binaryWindowLabel(tokens);
+  if (binary) return binary;
   if (tokens >= 1_000) {
     return formatTokenUnit(tokens / 1_000, "K");
   }
   return String(tokens);
+}
+
+function binaryWindowLabel(tokens: number): string | undefined {
+  if (tokens < 1024 || tokens % 1024 !== 0) return undefined;
+  const k = tokens / 1024;
+  return BINARY_WINDOW_K.has(k) ? `${k}K` : undefined;
 }
 
 function formatTokenUnit(value: number, unit: "K" | "M"): string {

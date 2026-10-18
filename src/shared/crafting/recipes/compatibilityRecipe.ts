@@ -1,5 +1,8 @@
 import { sha256Hex } from "../webCrypto";
 import { CraftingError } from "../errors";
+import { assertHarnessContract, COMPATIBILITY_REQUIRED_CONTRACT } from "../harnessContract";
+import type { CraftPolicyLimits } from "../craftPolicy";
+import type { HarnessContractRequirement } from "../harnessContract";
 import type {
   CraftContext,
   CraftPlan,
@@ -21,6 +24,8 @@ export class CompatibilityBridgeRecipe implements Recipe {
   readonly description =
     "Cross-pairing Model and Harness execution routed through the CLIProxyAPI Compatibility Bridge.";
   readonly compatibilityStatus = "SUPPORTED" as const;
+  readonly requiredContract: HarnessContractRequirement = COMPATIBILITY_REQUIRED_CONTRACT;
+  policy?: CraftPolicyLimits;
 
   readonly requirements: Record<string, RecipeSlotRequirement> = {
     model: {
@@ -85,6 +90,7 @@ export class CompatibilityBridgeRecipe implements Recipe {
     );
 
     const harnessKind = harnessComp?.harnessKind ?? harness.metadata.id.replace(/^harness:/, "");
+    assertHarnessContract(harness, this.requiredContract);
     const modelId = modelCap?.modelId ?? model.metadata.id.replace(/^[^:]+:/, "");
 
     let compatibilityProtocol = "openai-compatible";
@@ -148,6 +154,7 @@ export class CompatibilityBridgeRecipe implements Recipe {
       ...(context.threadId ? { threadId: context.threadId } : {}),
       createdAt: now,
       ...(context.overrides ? { overrides: context.overrides } : {}),
+      ...(this.policy ? { policy: this.policy } : {}),
     };
   }
 }

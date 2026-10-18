@@ -18,7 +18,6 @@ const {
   sortableOptionsMock,
   contextMenuItemsMock,
   getStatusToneMock,
-  useThreadHasBackgroundActivityMock,
   useThreadHasDraftMock,
   toggleStarThreadMock,
   archiveThreadMock,
@@ -27,9 +26,7 @@ const {
   sortableHandleRefMock: vi.fn<(element: HTMLElement | null) => void>(),
   sortableOptionsMock: vi.fn<(options: unknown) => void>(),
   contextMenuItemsMock: vi.fn<(items: MockContextMenuItem[]) => void>(),
-  getStatusToneMock:
-    vi.fn<(thread: Thread, opts?: { hasBackgroundActivity?: boolean }) => string>(),
-  useThreadHasBackgroundActivityMock: vi.fn<(threadId: string) => boolean>(),
+  getStatusToneMock: vi.fn<(thread: Thread) => string>(),
   useThreadHasDraftMock: vi.fn<(threadId: string) => boolean>(),
   toggleStarThreadMock: vi.fn<(threadId: string) => void>(),
   archiveThreadMock: vi.fn<(threadId: string) => void>(),
@@ -88,8 +85,6 @@ vi.mock("@/renderer/hooks/uiSelectors", () => ({
   useCurrentThreadIdsCount: () => 1,
   useProjectAgentStatuses: () => [],
   useIsCurrentThread: () => false,
-  useThreadHasBackgroundActivity: (threadId: string) =>
-    useThreadHasBackgroundActivityMock(threadId),
   useThreadHasDraft: (threadId: string) => useThreadHasDraftMock(threadId),
   useIsProjectFilesPanelActive: () => false,
   useIsProjectGitPanelActive: () => false,
@@ -211,16 +206,13 @@ describe("SortableThreadItem", () => {
     archiveThreadMock.mockClear();
     getStatusToneMock.mockReset();
     getStatusToneMock.mockReturnValue("default");
-    useThreadHasBackgroundActivityMock.mockReset();
-    useThreadHasBackgroundActivityMock.mockReturnValue(false);
     useThreadHasDraftMock.mockReset();
     useThreadHasDraftMock.mockReturnValue(false);
     useScheduleStore.setState({ tasks: [], loading: false, focusedScheduleId: null });
   });
 
-  it("keeps the row visually working while the thread has background activity", () => {
+  it("tones the row from the thread itself, not from background agents", () => {
     const thread = makeThread();
-    useThreadHasBackgroundActivityMock.mockReturnValue(true);
 
     render(
       <SortableThreadItem
@@ -235,7 +227,7 @@ describe("SortableThreadItem", () => {
       />,
     );
 
-    expect(getStatusToneMock).toHaveBeenCalledWith(thread, { hasBackgroundActivity: true });
+    expect(getStatusToneMock).toHaveBeenCalledWith(thread);
   });
 
   it("keeps the thread title on a single truncated line", () => {

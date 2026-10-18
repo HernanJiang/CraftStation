@@ -59,6 +59,9 @@ describe("threadContextUsage", () => {
     expect(formatTokenCount(595)).toBe("595");
     expect(formatTokenCount(8_400)).toBe("8.4K");
     expect(formatTokenCount(200_000)).toBe("200K");
+    expect(formatTokenCount(262_144)).toBe("256K");
+    expect(formatTokenCount(272_000)).toBe("272K");
+    expect(formatTokenCount(258_400)).toBe("258K");
     expect(formatTokenCount(1_000_000)).toBe("1M");
     expect(formatTokenCount(1_500_000)).toBe("1.5M");
     expect(formatTokenCount(24_767_000)).toBe("24.8M");
@@ -255,6 +258,40 @@ describe("threadContextUsage", () => {
     });
     expect(summary.maxTokens).toBe(1_000_000);
     expect(shouldShowContextUsageDock(summary)).toBe(true);
+  });
+
+  it("keeps Kimi's official 256K window instead of a stored Codex 272k", () => {
+    const summary = resolveThreadContextUsageSummary({
+      thread: {
+        ...baseThread,
+        agentKind: "kimi",
+        config: { model: "kimi-code/k3-256k", contextSize: "272k" },
+      },
+      agentStatus: undefined,
+      reportedUsage: {
+        usedTokens: 210_977,
+        maxTokens: 262_144,
+        source: "provider-reported",
+      },
+    });
+    expect(summary.maxTokens).toBe(262_144);
+    expect(summary.maxLabel).toBe("256K");
+    expect(summary.usedLabel).toBe("211K");
+    expect(summary.percent).toBe(80);
+  });
+
+  it("does not use another vendor's stored window when Kimi has not reported one yet", () => {
+    const summary = resolveThreadContextUsageSummary({
+      thread: {
+        ...baseThread,
+        agentKind: "kimi",
+        config: { model: "kimi-code/k3-256k", contextSize: "272k" },
+      },
+      agentStatus: undefined,
+      reportedUsage: { usedTokens: 10_000 },
+    });
+    expect(summary.maxTokens).toBe(256_000);
+    expect(summary.maxLabel).toBe("256K");
   });
 
   it("replaces a 256Ki placeholder window with DeepSeek's advertised 1M", () => {

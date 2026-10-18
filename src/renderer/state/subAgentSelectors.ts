@@ -19,8 +19,12 @@ function classifyActiveSubAgent(item: RuntimeChatItem): "workflow" | "native" | 
   // it sees a terminal status. Only for items streamed live THIS session:
   // a workflow replayed from history on thread reopen belongs to a process
   // that is gone (or long finished) and must not resurrect the composer dock.
+  // History replay has no live process behind it. A native Agent row left
+  // `updated` (Kimi/Grok/Qwen keep a background launch open) must not spin the
+  // parent thread after reopen. Same rule as workflow tools.
+  if (item.observedLive !== true) return null;
   if (isWorkflowTool(payload)) {
-    if (payload.status === "error" || item.observedLive !== true) return null;
+    if (payload.status === "error") return null;
     return "workflow";
   }
   if (item.state === "completed") return null;

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { getDefaultRegistry } from "@/shared/crafting";
+import { maxCostUsdSchema } from "@/shared/crafting/craftPolicy";
 import { isHomeProjectId } from "@/shared/homeScope";
 import { parseThreadUuidReference } from "@/shared/nativeThreads";
 import {
@@ -67,6 +68,8 @@ const numberArg = <S extends z.ZodTypeAny>(schema: S) =>
     const numeric = Number(trimmed);
     return Number.isFinite(numeric) ? numeric : value;
   }, schema);
+
+const maxCostUsdArg = nullishArg(numberArg(z.union([maxCostUsdSchema, z.null()]).optional()));
 
 /**
  * Some agent bridges serialize nested object params into JSON strings before
@@ -180,6 +183,7 @@ const createArgsSchema = z.object({
   threadTarget: threadTargetArgSchema.optional(),
   continueInCurrentThread: booleanArg(z.boolean()).optional(),
   harnessItemId: harnessItemIdSchema,
+  maxCostUsd: maxCostUsdArg,
   projectId: projectIdSchema,
 });
 
@@ -198,6 +202,7 @@ const updateArgsSchema = z.object({
   threadTarget: threadTargetArgSchema.optional(),
   continueInCurrentThread: booleanArg(z.boolean()).optional(),
   harnessItemId: harnessItemIdSchema,
+  maxCostUsd: maxCostUsdArg,
   projectId: projectIdSchema,
 });
 
@@ -314,6 +319,12 @@ function scheduleExtraJsonSchema(): Record<string, unknown> {
       type: ["string", "null"],
       description: "Opaque harness Item id, e.g. harness:codex.",
     },
+    maxCostUsd: {
+      type: ["number", "null"],
+      exclusiveMinimum: 0,
+      description:
+        "Per-run spend cap in USD. Each firing gets this budget again. Null or omitted means no cap. Overlapping firings are still skipped.",
+    },
     projectId: {
       type: ["string", "null"],
       description: "Workspace project id; null means Home scope.",
@@ -407,6 +418,7 @@ function createSchedule(args: unknown, ctx: ScheduleToolContext): unknown {
         : {}),
       ...(sourceThread?.config.fast !== undefined ? { fast: sourceThread.config.fast } : {}),
       ...(parsed.harnessItemId !== undefined ? { harnessItemId: parsed.harnessItemId } : {}),
+      ...(typeof parsed.maxCostUsd === "number" ? { maxCostUsd: parsed.maxCostUsd } : {}),
     },
   };
   return serializeTask(ctx.scheduleService.create(input), ctx);
@@ -471,6 +483,13 @@ function updateSchedule(args: unknown, ctx: ScheduleToolContext): unknown {
           : current.config.harnessItemId
             ? { harnessItemId: current.config.harnessItemId }
             : {}),
+        ...(parsed.maxCostUsd === null
+          ? {}
+          : typeof parsed.maxCostUsd === "number"
+            ? { maxCostUsd: parsed.maxCostUsd }
+            : typeof current.config.maxCostUsd === "number"
+              ? { maxCostUsd: current.config.maxCostUsd }
+              : {}),
       },
     }),
     ctx,

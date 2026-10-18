@@ -4,10 +4,7 @@ import {
   useAgentStatusesStore,
 } from "@/renderer/state/agentStatusesStore";
 import { useProject } from "@/renderer/state/useThread";
-import {
-  useProjectAgentStatuses,
-  useThreadHasBackgroundActivity,
-} from "@/renderer/hooks/uiSelectors";
+import { useProjectAgentStatuses } from "@/renderer/hooks/uiSelectors";
 import { ProviderIcon } from "./ProviderIcon";
 import { getStatusTone, type StatusTone } from "./statusTone";
 
@@ -38,14 +35,10 @@ export function ThreadProviderIcon(props: {
   const pending = useAgentStatusesStore((s) =>
     location ? isDetectingAgentsForLocation(s, location) : false,
   );
-  // Detached background work (native sub-agents, live workflows) must read as
-  // "working" on every surface, not just the sidebar — otherwise the home
-  // page's recent-threads list shows the same thread as idle.
-  const hasBackgroundActivity = useThreadHasBackgroundActivity(thread.id);
   return (
     <ProviderIcon
       kind={thread.agentKind}
-      tone={props.tone ?? getStatusTone(thread, { hasBackgroundActivity })}
+      tone={props.tone ?? getStatusTone(thread)}
       pending={pending}
       fallbackLabel={agent?.label}
       {...(agent?.icon ? { icon: agent.icon } : {})}

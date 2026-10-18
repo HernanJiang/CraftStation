@@ -31,7 +31,6 @@ export type SidebarRow =
       entryIndex: number;
       sortableGroup: string;
       sortDisabled: boolean;
-      liveBackgroundThreadIds: ReadonlySet<string>;
     }
   | {
       kind: "thread-group";
@@ -155,7 +154,6 @@ function pushEntryRows(
       entryIndex,
       sortableGroup: input.dndGroup,
       sortDisabled: input.dndDisabled,
-      liveBackgroundThreadIds: input.liveBackgroundThreadIds,
     });
     if (!input.isCollapsed(entry.group.worktreePath)) {
       entry.group.threads.forEach((thread, threadIndex) => {

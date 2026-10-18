@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stripKimiHarnessNoise } from "./kimiHarnessNoise";
+import { readKimiCompactionNotice, stripKimiHarnessNoise } from "./kimiHarnessNoise";
 
 const COMPACTION_BLOCK = [
   "Compacting conversation context…",
@@ -24,6 +24,20 @@ describe("stripKimiHarnessNoise", () => {
   it("drops a single streamed compaction line on its own", () => {
     expect(stripKimiHarnessNoise("Messages compacted: 327")).toBeUndefined();
     expect(stripKimiHarnessNoise("Tokens after: 65,863")).toBeUndefined();
+  });
+
+  it("drops bullet-prefixed compaction lines and keeps the counts", () => {
+    const text = [
+      "• Messages compacted: 113",
+      "• Tokens before: 210,977",
+      "• Tokens after: 109,566",
+    ].join("\n");
+    expect(stripKimiHarnessNoise(text)).toBeUndefined();
+    expect(readKimiCompactionNotice(text)).toEqual({
+      messages: 113,
+      before: 210_977,
+      after: 109_566,
+    });
   });
 
   it("leaves ordinary text untouched", () => {

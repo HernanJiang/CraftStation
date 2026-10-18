@@ -72,7 +72,7 @@ function makeThread(id: string, status: Thread["status"]): Thread {
   };
 }
 
-function renderGroup(threads: Thread[], liveBackgroundThreadIds: ReadonlySet<string>) {
+function renderGroup(threads: Thread[]) {
   const group: WorktreeThreadGroup = {
     kind: "worktree",
     threads,
@@ -85,26 +85,19 @@ function renderGroup(threads: Thread[], liveBackgroundThreadIds: ReadonlySet<str
       entryIndex={0}
       project={project}
       sortableGroup="project:p1"
-      liveBackgroundThreadIds={liveBackgroundThreadIds}
     />,
   );
 }
 
 describe("SidebarWorktreeGroup status tone", () => {
-  it("shows working when a settled child has live background activity", () => {
-    renderGroup(
-      [makeThread("live", "idle"), makeThread("inactive", "inactive")],
-      new Set(["live"]),
-    );
+  it("does not show working for a settled child", () => {
+    renderGroup([makeThread("live", "idle"), makeThread("inactive", "inactive")]);
 
-    expect(screen.getByTestId("group-status")).toHaveTextContent("working");
+    expect(screen.getByTestId("group-status")).toHaveTextContent("none");
   });
 
-  it("keeps finished priority over a child with live background activity", () => {
-    renderGroup(
-      [makeThread("live", "idle"), makeThread("finished", "finished")],
-      new Set(["live"]),
-    );
+  it("keeps finished priority when another child is idle", () => {
+    renderGroup([makeThread("live", "idle"), makeThread("finished", "finished")]);
 
     expect(screen.getByTestId("group-status")).toHaveTextContent("finished");
   });
@@ -120,7 +113,7 @@ describe("SidebarWorktreeGroup Run menu", () => {
   });
 
   it("offers a scoped Stop action for a running worktree command", async () => {
-    renderGroup([makeThread("t1", "inactive")], new Set());
+    renderGroup([makeThread("t1", "inactive")]);
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "worktree" }));
     fireEvent.pointerEnter(screen.getByRole("menuitem", { name: "Run" }));
@@ -137,7 +130,7 @@ describe("SidebarWorktreeGroup Run menu", () => {
 describe("SidebarWorktreeGroup Git menu", () => {
   it("opens GitHub Actions for the project", async () => {
     usePanelStore.setState({ githubActionsContext: null });
-    renderGroup([makeThread("t1", "inactive")], new Set());
+    renderGroup([makeThread("t1", "inactive")]);
 
     fireEvent.contextMenu(screen.getByRole("button", { name: "worktree" }));
     fireEvent.pointerEnter(screen.getByRole("menuitem", { name: "Git" }));

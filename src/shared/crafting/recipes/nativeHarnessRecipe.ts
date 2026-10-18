@@ -1,5 +1,8 @@
 import { sha256Hex } from "../webCrypto";
 import { CraftingError } from "../errors";
+import { assertHarnessContract, requiredContractFor } from "../harnessContract";
+import type { CraftPolicyLimits } from "../craftPolicy";
+import type { HarnessContractRequirement } from "../harnessContract";
 import type {
   CompatibilityStatus,
   CraftContext,
@@ -24,6 +27,7 @@ export interface NativeHarnessRecipeOptions {
   /** OpenCode provider identity, kept separate from the harness vendor. */
   providerID?: string;
   compatibilityStatus?: CompatibilityStatus;
+  policy?: CraftPolicyLimits;
 }
 
 const SENSITIVE_RUNTIME_KEY =
@@ -84,6 +88,8 @@ export class NativeHarnessRecipe implements Recipe {
   readonly harnessVendors: readonly string[];
   readonly providerID: string | undefined;
   readonly requirements: Record<string, RecipeSlotRequirement>;
+  readonly requiredContract: HarnessContractRequirement;
+  readonly policy?: CraftPolicyLimits;
 
   constructor(options: NativeHarnessRecipeOptions) {
     this.id = options.id;
@@ -98,6 +104,8 @@ export class NativeHarnessRecipe implements Recipe {
     this.modelItemIds = [...(options.modelItemIds ?? [])];
     this.harnessVendors = [...(options.harnessVendors ?? options.modelVendors)];
     this.providerID = options.providerID;
+    this.requiredContract = requiredContractFor(this.harnessKind);
+    if (options.policy) this.policy = options.policy;
     this.requirements = {
       model: {
         slot: "model",
@@ -153,6 +161,7 @@ export class NativeHarnessRecipe implements Recipe {
         "Select the model family and native Harness Item registered for the same provider.",
       );
     }
+    assertHarnessContract(harness, this.requiredContract);
 
     const modelCapability = model.components.find(
       (component): component is ModelCapabilityComponent => component.kind === "model_capability",
@@ -220,6 +229,7 @@ export class NativeHarnessRecipe implements Recipe {
       ...(context.threadId ? { threadId: context.threadId } : {}),
       createdAt: new Date().toISOString(),
       ...(safeOverrides ? { overrides: safeOverrides } : {}),
+      ...(this.policy ? { policy: this.policy } : {}),
     };
   }
 }

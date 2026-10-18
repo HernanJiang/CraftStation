@@ -14,7 +14,6 @@ import type { Project, Thread } from "@/shared/contracts";
 import { getBasename } from "@/shared/pathUtils";
 import { RelativeTime } from "@/renderer/components/common/RelativeTime";
 import { ThreadProviderIcon, getStatusTone } from "@/renderer/components/providers";
-import { useThreadHasBackgroundActivity } from "@/renderer/hooks/uiSelectors";
 import {
   entryIsDone,
   entryIsStarred,
@@ -105,8 +104,7 @@ function ThreadRow(props: {
 }) {
   const { thread } = props;
   const { t } = useLingui();
-  const hasBackgroundActivity = useThreadHasBackgroundActivity(thread.id);
-  const tone = getStatusTone(thread, { hasBackgroundActivity });
+  const tone = getStatusTone(thread);
   const live = tone !== "inactive" && tone !== "done";
   const worktreeName =
     !props.hideWorktree && thread.worktreePath ? getBasename(thread.worktreePath) : undefined;

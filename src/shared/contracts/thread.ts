@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { craftPolicyLimitsSchema } from "../crafting/craftPolicy";
 import { compositionProvenanceSchema } from "../crafting/types";
 import { accountBindingSchema } from "./accountBinding";
 import { agentSlashCommandSchema } from "./agent";
@@ -266,6 +267,8 @@ export const startThreadPayloadSchema = z.object({
    * {@link sendThreadInputPayloadSchema.goalContext}.
    */
   goalContext: z.string().min(1).optional(),
+  /** 这一次启动挂上的 Craft-Harness 会话层策略。 */
+  sessionPolicy: craftPolicyLimitsSchema.optional(),
 });
 export type StartThreadPayload = z.infer<typeof startThreadPayloadSchema>;
 
@@ -288,6 +291,8 @@ export const sendThreadInputPayloadSchema = z.object({
    * supervisor keeps no goal state. Omitted for native-goal threads.
    */
   goalContext: z.string().min(1).optional(),
+  /** 计划任务再次触发时换上的当次花费上限。普通用户消息不带这个字段。 */
+  sessionPolicy: craftPolicyLimitsSchema.optional(),
 });
 export type SendThreadInputPayload = z.infer<typeof sendThreadInputPayloadSchema>;
 
