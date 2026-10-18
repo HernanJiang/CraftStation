@@ -32,9 +32,20 @@ function makeTempDir(): string {
 }
 
 afterEach(() => {
+  vi.unstubAllEnvs();
+  vi.restoreAllMocks();
   for (const dir of tempDirs.splice(0)) {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+it("skips every WSL adapter probe until startup is authorized", async () => {
+  vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+  vi.stubEnv("CRAFTSTATION_WSL_STARTUP_ALLOWED", "0");
+  const detectInstall = vi.fn<AgentAdapter["detectInstall"]>();
+  const adapter = makeAdapter("muse", "Muse", detectInstall);
+  expect(await detectWslAgentStatuses([adapter], ["Ubuntu"])).toEqual([]);
+  expect(detectInstall).not.toHaveBeenCalled();
 });
 
 const capabilities: AgentStatus["capabilities"] = {

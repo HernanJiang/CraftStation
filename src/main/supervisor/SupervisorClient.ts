@@ -5,6 +5,13 @@ import type { CraftStationDiagnosticTags } from "@/shared/diagnostics/sentryPriv
 import { terminateChildProcessTree } from "@/shared/processTree";
 import { serializeSecretStorageFallbackKeys } from "@/shared/secretStorage";
 import type { StartThreadPayload } from "@/shared/contracts";
+import { WSL_STARTUP_ALLOWED_ENV } from "@/supervisor/wsl/startupAccess";
+import {
+  requiresWslStartupConfirmation,
+  usesWsl,
+  WSL_LOCAL_FILE_OPERATIONS,
+  WslStartupConsent,
+} from "./wslStartup";
 import type {
   IpcProcedurePayload,
   IpcProcedureResult,
@@ -84,6 +91,7 @@ export interface SupervisorClientOptions {
   resolveExtraEnv?: () => Record<string, string>;
   /** Apply main-process launch invariants before any start reaches the supervisor. */
   prepareStartThread?(payload: StartThreadPayload): StartThreadPayload;
+  confirmWslStartup?(): Promise<boolean>;
   assignPid?(pid: number): Promise<void>;
   reportError?(error: unknown, tags?: CraftStationDiagnosticTags): void;
   onEvent(event: SupervisorEvent): void;
@@ -98,6 +106,7 @@ export interface SupervisorClientOptions {
 }
 
 export class SupervisorClient {
+  private readonly wslStartupConsent: WslStartupConsent;
   private child: ChildProcess | null = null;
   private baseDir: string | null = null;
   private disposed = false;
@@ -115,6 +124,7 @@ export class SupervisorClient {
   >();
 
   constructor(private readonly options: SupervisorClientOptions) {
+    this.wslStartupConsent = new WslStartupConsent(options.confirmWslStartup);
     this.startedGate = new Promise<void>((resolve) => {
       this.resolveStartedGate = resolve;
     });
@@ -166,6 +176,7 @@ export class SupervisorClient {
           ? { CRAFTSTATION_BUNDLED_PLUGINS_DIR: this.options.bundledPluginsDir }
           : {}),
         ...extraEnv,
+        [WSL_STARTUP_ALLOWED_ENV]: this.wslStartupConsent.granted ? "1" : "0",
       },
     });
 
@@ -254,6 +265,32 @@ export class SupervisorClient {
   }
 
   async call<Name extends SupervisorProcedureName>(
+    type: Name,
+    payload: IpcProcedurePayload<Name>,
+  ): Promise<IpcProcedureResult<Name>> {
+    if (process.platform === "win32" && requiresWslStartupConfirmation(type, payload)) {
+      await this.wslStartupConsent.ensure(() => this.sendRequest("enableWsl", {}));
+      if (type === "enableWsl") return undefined as IpcProcedureResult<Name>;
+    }
+    return this.sendRequest(type, payload);
+  }
+
+  async prepareLocalRequest(operation: string, payload: unknown): Promise<void> {
+    if (
+      process.platform !== "win32" ||
+      this.wslStartupConsent.granted ||
+      !WSL_LOCAL_FILE_OPERATIONS.has(operation) ||
+      !usesWsl(payload)
+    )
+      return;
+    if (requiresWslStartupConfirmation(operation, payload)) {
+      await this.wslStartupConsent.ensure(() => this.sendRequest("enableWsl", {}));
+      return;
+    }
+    throw new Error("WSL_STARTUP_CONFIRMATION_REQUIRED: 请先确认允许 CraftStation 启动 WSL。");
+  }
+
+  private async sendRequest<Name extends SupervisorProcedureName>(
     type: Name,
     payload: IpcProcedurePayload<Name>,
   ): Promise<IpcProcedureResult<Name>> {

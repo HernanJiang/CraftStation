@@ -165,6 +165,7 @@ export const appProcedures = {
     "main-local"
   >("createProjectDirectory", "main-local", createProjectDirectoryPayloadSchema),
   listWslDistros: defineNoArgProcedure<string[], "supervisor">("listWslDistros", "supervisor"),
+  enableWsl: defineNoArgProcedure<void, "supervisor">("enableWsl", "supervisor"),
   openExternal: defineIpcProcedure<[string], string, void, "main-local">(
     "openExternal",
     "main-local",

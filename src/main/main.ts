@@ -4,6 +4,7 @@ import { join } from "node:path";
 import {
   app,
   BrowserWindow,
+  dialog,
   globalShortcut,
   ipcMain,
   Menu,
@@ -946,6 +947,24 @@ if (!hasSingleInstanceLock) {
         bundledPluginsDir,
         secretStorageKey,
         secretStorageKeyFallbacks: secretStorageKeychain.fallbacks,
+        confirmWslStartup: async () => {
+          const options = {
+            type: "question" as const,
+            title: "启动 WSL",
+            message: "允许 CraftStation 启动 WSL 吗？",
+            detail:
+              "WSL 将运行 Linux 环境并占用额外内存。允许后仅在本次应用运行期间有效，退出应用后需要重新确认。",
+            buttons: ["取消", "允许启动 WSL"],
+            defaultId: 0,
+            cancelId: 0,
+            noLink: true,
+          };
+          const result =
+            mainWindow && !mainWindow.isDestroyed()
+              ? await dialog.showMessageBox(mainWindow, options)
+              : await dialog.showMessageBox(options);
+          return result.response === 1;
+        },
         resolveExtraEnv: () => {
           const env: Record<string, string> = {};
           const browserInfo = browserMcpIngress?.getInfo();
@@ -1493,6 +1512,7 @@ if (!hasSingleInstanceLock) {
       }
 
       registerIpcHandlers({
+        beforeLocalCall: (name, payload) => supervisorClient.prepareLocalRequest(name, payload),
         localHandlers: createLocalIpcHandlers({
           getMainWindow: () => mainWindow,
           getBrowserPanelManager: () => browserPanelManager,

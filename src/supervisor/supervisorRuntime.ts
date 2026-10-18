@@ -185,6 +185,7 @@ import { hookDebugEnvelope, isCraftStationHookDebug } from "./runtime/hookDebug"
 import { SupervisorSharedSettingsCache } from "./runtime/supervisorSharedSettings";
 import { WslBridgeServer } from "./wsl/bridge";
 import { WslBridgeClient } from "./wsl/bridge/client";
+import { isWslStartupAllowed, WSL_STARTUP_ALLOWED_ENV } from "./wsl/startupAccess";
 import { resolveWslHelpersDir } from "./wsl/wslDeploy";
 import { resolveWslHostAccess } from "./wsl/hostAccess";
 import { McpOAuthService } from "./mcp/McpOAuthService";
@@ -754,6 +755,12 @@ export class SupervisorRuntime {
   private wslBridgeClient: WslBridgeClient | undefined;
 
   constructor(emitToParent: (event: SupervisorEvent) => void) {
+    process.env[WSL_STARTUP_ALLOWED_ENV] ??= "0";
+    if (!isWslStartupAllowed()) {
+      console.info(
+        "[supervisor] phase=wsl operation=startup-policy status=blocked code=WSL_STARTUP_CONFIRMATION_REQUIRED",
+      );
+    }
     const emit = (event: SupervisorEvent): void => {
       emitToParent(event);
       this.goals?.observe(event);
@@ -2421,7 +2428,7 @@ export class SupervisorRuntime {
           (descriptor) => descriptor.harnessKind === payload.harnessKind,
         )
       : Object.values(NATIVE_HARNESS_DESCRIPTORS);
-    const wslDistros = await this.agentStatusService.listWslDistros();
+    const wslDistros = isWslStartupAllowed() ? await this.agentStatusService.listWslDistros() : [];
     const { windows, wsl } = await this.agentStatusService.getAgentStatuses({ wslDistros });
     const statuses = [...windows, ...wsl];
     // An empty account record is only a pending profile shell. Do not expose

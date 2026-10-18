@@ -11,6 +11,7 @@ import {
 } from "../wslDeploy";
 import { resolveNodeForDistro, type ResolvedNode } from "../runtime";
 import { attachLineSplitter, spawnWslLineChild, type WslLineChildOpts } from "../wslChild";
+import { isWslStartupAllowed } from "../startupAccess";
 
 export type HookEventReceiver = (event: AgentEventEnvelope) => void;
 
@@ -142,7 +143,7 @@ export class WslBridgeServer {
    * caller should silently fall back to L2 (TUI parsing).
    */
   async ensureBridge(distro: string): Promise<BridgeHandle | undefined> {
-    if (this.isDisposed) return undefined;
+    if (this.isDisposed || !isWslStartupAllowed()) return undefined;
     const existing = this.bridges.get(distro);
     if (existing) {
       const helpersDir = this.options.helpersDir ?? resolveWslHelpersDir();

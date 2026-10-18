@@ -1,5 +1,6 @@
 ﻿import { defineSupervisorIpcHandlers, type SupervisorIpcHandlerMap } from "@/shared/ipc";
 import type { SupervisorRuntime } from "./supervisorRuntime";
+import { allowWslStartup } from "./wsl/startupAccess";
 
 /**
  * Maps IPC procedures straight onto the runtime's services. Payload → argument
@@ -29,6 +30,7 @@ export function createSupervisorIpcHandlers(runtime: SupervisorRuntime): Supervi
     userPluginsDir: pluginRegistry.ensureUserPluginsDir(),
   });
   return defineSupervisorIpcHandlers({
+    enableWsl: () => allowWslStartup(),
     confirmOwnSubagentsRoutingOverride: (payload) =>
       runtime.confirmOwnSubagentsRoutingOverride(payload),
     getOwnSubagentsRouting: () => runtime.getOwnSubagentsRoutingSnapshot(),

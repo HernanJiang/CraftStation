@@ -29,6 +29,7 @@
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { promisify } from "node:util";
+import { isWslStartupAllowed } from "./startupAccess";
 
 const execFileAsync = promisify(execFile);
 
@@ -72,7 +73,7 @@ export function clearWslHostAccessCache(): void {
  * short TTL. Returns `undefined` on non-Windows hosts and when nothing worked.
  */
 export async function resolveWslHostAccess(distro: string): Promise<WslHostAccess | undefined> {
-  if (process.platform !== "win32") return undefined;
+  if (process.platform !== "win32" || !isWslStartupAllowed()) return undefined;
   const now = Date.now();
   const cached = cache.get(distro);
   if (cached && cached.expiresAt > now) return cached.value;

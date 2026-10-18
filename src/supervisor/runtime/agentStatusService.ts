@@ -26,6 +26,7 @@ import {
 } from "../agents/base";
 import { clearFastModeCache } from "../agents/claude/fastModeCache";
 import { readSupervisorSharedSettings } from "./supervisorSharedSettings";
+import { isWslStartupAllowed } from "../wsl/startupAccess";
 
 const execFileAsync = promisify(execFile);
 
@@ -192,6 +193,7 @@ export async function detectWslAgentStatuses(
   onStatus?: (status: AgentStatus) => void,
   agentSettings?: Readonly<Record<string, Record<string, boolean | string>>>,
 ): Promise<AgentStatus[]> {
+  if (!isWslStartupAllowed()) return [];
   const adapterList = [...adapters];
   const statuses = await Promise.all(
     distros.map(async (distro) => {
@@ -346,7 +348,7 @@ export class AgentStatusService {
   }
 
   async getAgentStatuses(payload: GetAgentStatusesPayload): Promise<AgentStatusesResponse> {
-    const wslDistros = [...new Set(payload.wslDistros)];
+    const wslDistros = isWslStartupAllowed() ? [...new Set(payload.wslDistros)] : [];
     const cached = this.readCachedStatuses(wslDistros);
     this.detectStartupAgentStatusesBackground(wslDistros);
     return cached;
@@ -387,7 +389,7 @@ export class AgentStatusService {
   }
 
   async refreshAgentStatuses(payload: GetAgentStatusesPayload): Promise<AgentStatusesResponse> {
-    const wslDistros = [...new Set(payload.wslDistros)];
+    const wslDistros = isWslStartupAllowed() ? [...new Set(payload.wslDistros)] : [];
     // An explicit refresh is the signal that something changed on disk (an
     // install/update just ran), so bypass the binary-path TTL cache and re-read
     // PATH (including the registry-backed Windows user/machine PATH) fresh.
@@ -469,7 +471,7 @@ export class AgentStatusService {
     wslDistros: readonly string[],
   ): RefreshAgentScopeEnv[] {
     if (envs && envs.length > 0) {
-      return envs;
+      return envs.filter((env) => env.kind !== "wsl" || isWslStartupAllowed());
     }
     const nativeEnv: RefreshAgentScopeEnv = { kind: "native" };
     return [

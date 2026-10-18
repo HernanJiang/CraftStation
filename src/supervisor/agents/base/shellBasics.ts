@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { assertWslStartupAllowed } from "../../wsl/startupAccess";
 
 function getWindowsSystemCommand(name: string): string {
   const systemRoot = process.env.SystemRoot ?? process.env.windir ?? "C:\\Windows";
@@ -6,6 +7,7 @@ function getWindowsSystemCommand(name: string): string {
 }
 
 export function getWslCommand(): string {
+  assertWslStartupAllowed();
   return getWindowsSystemCommand("wsl.exe");
 }
 

@@ -2,6 +2,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { normalizeWslListOutput } from "@/shared/wsl";
 import { batchWslCommandsAsync, getWslCommand } from "../agents/base";
+import { isWslStartupAllowed } from "../wsl/startupAccess";
 
 const execFileAsync = promisify(execFile);
 
@@ -53,6 +54,7 @@ async function listWslDistros(): Promise<string[]> {
 
 /** Run a read command in each distro; return the first non-empty stdout. */
 async function readFromAnyWslDistro(command: string): Promise<string | undefined> {
+  if (!isWslStartupAllowed()) return undefined;
   if (hasActiveWslContext && !hasActiveWslContext()) return undefined;
   for (const distro of await listWslDistros()) {
     try {

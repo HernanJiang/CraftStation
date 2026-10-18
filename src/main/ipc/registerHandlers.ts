@@ -12,6 +12,7 @@ import {
 
 interface RegisterIpcHandlersOptions {
   localHandlers: MainLocalIpcHandlerMap;
+  beforeLocalCall?(name: IpcProcedureName, payload: unknown): Promise<void>;
   callSupervisor<Name extends SupervisorProcedureName>(
     name: Name,
     payload: IpcProcedurePayload<Name>,
@@ -27,6 +28,7 @@ export function registerIpcHandlers(options: RegisterIpcHandlersOptions): void {
     ipcMain.handle(procedure.channel, async (event, ...args: unknown[]) => {
       const payload = parseIpcProcedureArgs(name, args);
       if (procedure.transport === "main-local") {
+        await options.beforeLocalCall?.(name, payload);
         const handler = options.localHandlers[name as keyof MainLocalIpcHandlerMap] as (
           payload: unknown,
         ) => unknown;

@@ -42,6 +42,7 @@ import {
   updateAcpRegistryAgent as updateAcpRegistryAgentFromRegistry,
 } from "../agents/acpRegistry";
 import { pruneAcpRegistryPendingDeletes } from "../agents/acpRegistryInstallDir";
+import { assertWslStartupAllowed } from "../wsl/startupAccess";
 import {
   detectProbeLocation,
   readDetectedVersion,
@@ -261,6 +262,12 @@ export class AgentRegistryService {
   }
 
   async updateAgentBinary(payload: UpdateAgentBinaryPayload): Promise<UpdateAgentBinaryResult> {
+    if (
+      payload.envKind === "wsl" ||
+      (process.platform === "win32" && payload.agentKind === "muse")
+    ) {
+      assertWslStartupAllowed();
+    }
     const adapter = this.deps.adapters.get(payload.agentKind);
     if (!adapter) {
       return {

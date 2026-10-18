@@ -37,7 +37,9 @@ function makeFakeChild(): FakeChild {
   return child;
 }
 
-function makeClient(options: Pick<SupervisorClientOptions, "prepareStartThread"> = {}) {
+function makeClient(
+  options: Pick<SupervisorClientOptions, "prepareStartThread" | "confirmWslStartup"> = {},
+) {
   const child = makeFakeChild();
   forkMock.mockReturnValue(child);
   const client = new SupervisorClient({
@@ -75,6 +77,62 @@ describe("SupervisorClient.call", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("does not send WSL launch or local UNC reads when the user cancels", async () => {
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    const confirmWslStartup = vi.fn<() => Promise<boolean>>(async () => false);
+    const { client, child } = makeClient({ confirmWslStartup });
+    await expect(
+      client.call("startThread", {
+        projectLocation: { kind: "wsl", distro: "Ubuntu" },
+      } as never),
+    ).rejects.toThrow("WSL_STARTUP_CANCELLED");
+    expect(child.send).not.toHaveBeenCalled();
+    await expect(
+      client.prepareLocalRequest("readLocalImageFile", {
+        path: "\\\\wsl.localhost\\Ubuntu\\home\\image.png",
+      }),
+    ).rejects.toThrow("WSL_STARTUP_CONFIRMATION_REQUIRED");
+    expect(confirmWslStartup).toHaveBeenCalledTimes(1);
+    expect(forkMock.mock.calls[0]?.[2]).toMatchObject({
+      env: { CRAFTSTATION_WSL_STARTUP_ALLOWED: "0" },
+    });
+  });
+
+  it("waits for main-process confirmation before authorizing the supervisor and forwarding a launch", async () => {
+    vi.spyOn(process, "platform", "get").mockReturnValue("win32");
+    let accept!: (value: boolean) => void;
+    const confirmWslStartup = vi.fn<() => Promise<boolean>>(
+      () =>
+        new Promise<boolean>((resolve) => {
+          accept = resolve;
+        }),
+    );
+    const { client, child } = makeClient({ confirmWslStartup });
+    const sent: string[] = [];
+    child.send.mockImplementation((message, callback) => {
+      const request = message as { id: string; type: string };
+      sent.push(request.type);
+      callback?.();
+      queueMicrotask(() =>
+        child.emit("message", { replyTo: request.id, ok: true, data: undefined }),
+      );
+      return true;
+    });
+    const first = client.call("startThread", {
+      projectLocation: { kind: "windows", path: "D:/repo" },
+      agentKind: "muse",
+    } as never);
+    expect(child.send).not.toHaveBeenCalled();
+    accept(true);
+    await first;
+    await client.call("startShell", {
+      projectLocation: { kind: "wsl", distro: "Ubuntu" },
+    } as never);
+    expect(sent).toEqual(["enableWsl", "startThread", "startShell"]);
+    expect(confirmWslStartup).toHaveBeenCalledTimes(1);
   });
 
   it("rejects (does not orphan the caller) when send fails with EPIPE", async () => {
