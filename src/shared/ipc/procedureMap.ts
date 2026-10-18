@@ -162,6 +162,7 @@ export const MAIN_LOCAL_PROCEDURE_NAMES = [
   "browserGetState",
   "webChatList",
   "webChatCreate",
+  "webChatOpen",
   "webChatRead",
   "webChatWidgetFrame",
   "webChatWidgetInput",

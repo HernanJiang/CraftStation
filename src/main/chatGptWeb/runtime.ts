@@ -131,6 +131,7 @@ export class ChatGptWebRuntime {
   private readonly locks = new Set<string>();
   private readonly requestIds = new Set<string>();
   private readonly viewTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private readonly openings = new Map<string, Promise<WebChatSession>>();
   private readonly timer: ReturnType<typeof setInterval>;
   private polling = false;
 
@@ -240,6 +241,25 @@ export class ChatGptWebRuntime {
     this.persist();
     this.log(session, "create", "ok");
     return this.copy(session);
+  }
+  /** Publish the live binding before slow page loading or transcript reads. */
+  open(id: string): Promise<WebChatSession> {
+    const pending = this.openings.get(id);
+    if (pending) return pending;
+    const session = this.get(id);
+    const opening = this.attach(session, false)
+      .then(() => {
+        this.log(session, "open", "ok");
+        return this.copy(session);
+      })
+      .catch((error: unknown) => {
+        const code = error instanceof Error ? /^WEB_[A-Z_]+/.exec(error.message)?.[0] : undefined;
+        this.log(session, "open", "failed", code ?? "WEB_OPEN_FAILED");
+        throw error;
+      })
+      .finally(() => this.openings.delete(id));
+    this.openings.set(id, opening);
+    return opening;
   }
   async importConversation(value: string, tabId?: string) {
     const url = chatGptConversationUrl(value);

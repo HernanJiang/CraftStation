@@ -36,6 +36,11 @@ export const chatGptWebProcedures = {
   >("webChatWidgetClose", "main-local", webChatWidgetRequestSchema),
   webChatList: defineNoArgProcedure<WebChatSession[], "main-local">("webChatList", "main-local"),
   webChatCreate: defineNoArgProcedure<WebChatSession, "main-local">("webChatCreate", "main-local"),
+  webChatOpen: definePayloadProcedure<Id, WebChatSession, "main-local">(
+    "webChatOpen",
+    "main-local",
+    webChatIdSchema,
+  ),
   webChatRead: definePayloadProcedure<
     z.infer<typeof webChatReadSchema>,
     WebChatSession,

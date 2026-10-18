@@ -65,6 +65,7 @@ try {
   await app.send("Runtime.enable");
   app.on("Runtime.exceptionThrown", (e) => errors.push(e.exceptionDetails.text));
   if (args.nativeOnly === "true") {
+    await evalApp("window.__craftstationDev.stores.webChat.getState().setNativeView(true)");
     await app.send("Emulation.setDeviceMetricsOverride", {
       width: 1440,
       height: 900,
@@ -1040,6 +1041,59 @@ try {
     "选择已有本地线程后切到目标线程，在右侧打开当前网页；复用原实例和草稿，不新增本地线程、不发送消息、不移除远程记录",
   );
   firstPage.close();
+  // Opening a saved remote must publish its new binding before page reads finish.
+  await evalApp("window.__craftstationDev.stores.webChat.getState().setOpen(false)");
+  await evalApp("window.__craftstationDev.stores.app.getState().openHome()");
+  const remoteBeforeClose = (await evalApp("window.craftstation.webChatList()", true)).find(
+    (record) => record.id === firstSession.id,
+  );
+  const remoteCount = (await evalApp("window.craftstation.webChatList()", true)).length;
+  await evalApp(
+    `window.craftstation.browserCloseTab({tabId:${JSON.stringify(remoteBeforeClose.tabId)}})`,
+    true,
+  );
+  await click(`[data-webchat-sidebar-session="${firstSession.id}"] [role="button"]`);
+  await wait(
+    async () =>
+      await evalApp(`(()=>{
+      const record=window.__craftstationDev.stores.webChat.getState().sessions.find(s=>s.id===${JSON.stringify(firstSession.id)});
+      const guest=document.querySelector('[data-browser-host-mode=conversation] webview[style*=flex]');
+      return record?.tabId&&record.tabId!==${JSON.stringify(remoteBeforeClose.tabId)}&&guest?.getAttribute('data-tab-id')===record.tabId;
+    })()`),
+    "点击已关闭网页的远程线程没有自动显示恢复的网页",
+  );
+  session = (await evalApp("window.craftstation.webChatList()", true)).find(
+    (record) => record.id === firstSession.id,
+  );
+  const recoveredBrowser = await evalApp("window.craftstation.browserGetState()", true);
+  if (
+    recoveredBrowser.tabs.find((tab) => tab.tabId === session.tabId)?.url !==
+      remoteBeforeClose.url ||
+    (await evalApp("window.craftstation.webChatList()", true)).length !== remoteCount
+  )
+    throw Error("自动恢复未打开保存的远程网址，或额外创建了远程线程");
+  checks.push("网页标签关闭后，真实点击左侧远程线程自动恢复原网址并显示网页，无需再点打开新选项卡");
+  await attachFixture(remoteBeforeClose.url);
+  await hideBrowser();
+  await evalPage("document.querySelector('.ProseMirror').innerText='重复点击保留的草稿'");
+  const recoveredGuestId = await evalApp(
+    `document.querySelector('webview[data-tab-id="${session.tabId}"]').getWebContentsId()`,
+  );
+  await click(`[data-webchat-sidebar-session="${session.id}"] [role="button"]`);
+  await evalApp("new Promise(done=>setTimeout(done,350))", true);
+  if (
+    (await evalApp("window.craftstation.browserGetState()", true)).tabs.length !==
+      recoveredBrowser.tabs.length ||
+    (await evalApp(
+      `document.querySelector('webview[data-tab-id="${session.tabId}"]').getWebContentsId()`,
+    )) !== recoveredGuestId ||
+    (await evalPage("document.querySelector('.ProseMirror').innerText")) !== "重复点击保留的草稿" ||
+    (await evalPage("window.webchatSends")) !== 0
+  )
+    throw Error("重复点击远程线程重建了网页、丢失草稿或自动发送消息");
+  checks.push("重复点击远程线程复用同一网页实例与草稿，不新建标签或发送消息");
+  const recoveredShot = await app.send("Page.captureScreenshot", { format: "png" });
+  await writeFile(join(outDir, "remote-auto-open.png"), Buffer.from(recoveredShot.data, "base64"));
   if (errors.length) throw new Error(errors.join("\n"));
   console.log(JSON.stringify({ status: "passed", mode: "fixture", checks, errors }, null, 2));
   await writeFile(

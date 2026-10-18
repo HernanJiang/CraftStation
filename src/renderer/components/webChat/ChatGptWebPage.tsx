@@ -172,11 +172,19 @@ export function ChatGptWebPage() {
     if (!selectedId || pending) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout>;
-    const read = async (restoreBinding = false) => {
+    let restoreBinding = nativeView;
+    const read = async () => {
       try {
+        if (restoreBinding && nativeView) {
+          const opened = await readBridge().webChatOpen({ sessionId: selectedId });
+          if (cancelled || useWebChatStore.getState().selectedSessionId !== selectedId) return;
+          replace(opened);
+        }
+        const restore = restoreBinding;
+        restoreBinding = false;
         const next = await readBridge().webChatRead({
           sessionId: selectedId,
-          ...(restoreBinding ? { restoreBinding: true } : {}),
+          ...(restore ? { restoreBinding: true } : {}),
           ...(nativeView ? { followNavigation: true } : {}),
         });
         if (!cancelled && useWebChatStore.getState().selectedSessionId === selectedId) {
@@ -199,7 +207,7 @@ export function ChatGptWebPage() {
           void read();
         }, 300);
     };
-    void read(nativeView);
+    void read();
     return () => {
       cancelled = true;
       clearTimeout(timer);

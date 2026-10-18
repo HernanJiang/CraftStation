@@ -8,12 +8,15 @@ import { ChatGptWebPage } from "./ChatGptWebPage";
 import { useWebChatStore, WEB_REMOTE_SCOPE } from "@/renderer/state/webChatStore";
 import { useSidebarUiStore } from "@/renderer/state/sidebarUiStore";
 import { WEB_CHAT_HEADER_PORTAL_ID } from "@/renderer/components/layout/layoutHeaderPortals";
+import { useBrowserDockStore } from "@/renderer/state/browserDockStore";
+import { useBrowserPanelStore } from "@/renderer/state/browserPanelStore";
 
 const bridge = vi.hoisted(() => ({
   webChatList: vi.fn<() => Promise<WebChatSession[]>>(),
   browserGetState: vi.fn<() => Promise<BrowserState>>(),
   browserReload: vi.fn<(request: { tabId: string }) => Promise<void>>(),
   webChatCreate: vi.fn<() => Promise<WebChatSession>>(),
+  webChatOpen: vi.fn<(request: { sessionId: string }) => Promise<WebChatSession>>(),
   webChatRead:
     vi.fn<
       (request: {
@@ -43,6 +46,11 @@ beforeEach(() => {
   bridge.browserGetState.mockResolvedValue({ tabs: [], activeTabId: null });
   bridge.browserReload.mockResolvedValue(undefined);
   bridge.webChatReveal.mockResolvedValue(undefined);
+  bridge.webChatOpen.mockImplementation(async ({ sessionId }) => {
+    const session = useWebChatStore.getState().sessions.find((item) => item.id === sessionId);
+    if (!session) throw new Error("WEB_SESSION_NOT_FOUND");
+    return session;
+  });
 });
 vi.mock("@/renderer/bridge", () => ({ readBridge: () => bridge }));
 vi.mock("@/renderer/hooks/uiSelectors", () => ({ useCurrentProjectId: () => undefined }));
@@ -130,6 +138,104 @@ const connected: WebChatSession = {
   status: "ready",
   messages: [],
 };
+
+it("点击远程线程先显示恢复的网页，不等待正文同步结束", async () => {
+  const saved = { ...connected, tabId: "closed-tab", status: "error" as const };
+  const opened = { ...saved, tabId: "reopened-tab", status: "connecting" as const };
+  const publishTab = () => {
+    useBrowserPanelStore.setState({
+      tabs: [
+        {
+          tabId: opened.tabId,
+          url: saved.url,
+          title: saved.title,
+          loading: true,
+          canGoBack: false,
+          canGoForward: false,
+        },
+      ],
+    });
+  };
+  let finishRead!: (value: WebChatSession) => void;
+  const reading = new Promise<WebChatSession>((resolve) => {
+    finishRead = resolve;
+  });
+  bridge.webChatList.mockResolvedValue([saved]);
+  bridge.webChatOpen.mockImplementation(async () => {
+    publishTab();
+    return opened;
+  });
+  bridge.webChatRead.mockImplementation(() => {
+    publishTab();
+    return reading;
+  });
+  useWebChatStore.setState({ nativeView: true, sessions: [saved], selectedSessionId: undefined });
+  renderWithI18n(<ChatGptWebPage />);
+  act(() => useWebChatStore.getState().openSession(saved.id));
+  try {
+    await waitFor(() =>
+      expect(useBrowserDockStore.getState().conversationTabId).toBe(opened.tabId),
+    );
+    expect(
+      useBrowserPanelStore
+        .getState()
+        .tabs.some((tab) => tab.tabId === useBrowserDockStore.getState().conversationTabId),
+    ).toBe(true);
+    expect(useWebChatStore.getState().selectedSessionId).toBe(saved.id);
+    expect(bridge.webChatCreate).not.toHaveBeenCalled();
+    expect(bridge.webChatReveal).not.toHaveBeenCalled();
+  } finally {
+    await act(async () => {
+      finishRead(opened);
+    });
+    useBrowserPanelStore.setState({ tabs: [] });
+  }
+});
+
+it("远程网页首次打开暂时失败后自动重试，无需再点击选项卡", async () => {
+  const saved = { ...connected, tabId: "closed-tab" };
+  const opened = { ...saved, tabId: "reopened-tab" };
+  bridge.webChatList.mockResolvedValue([saved]);
+  bridge.webChatOpen.mockRejectedValueOnce(new Error("WEB_DISCONNECTED"));
+  bridge.webChatOpen.mockResolvedValue(opened);
+  bridge.webChatRead.mockResolvedValue(opened);
+  useWebChatStore.setState({ nativeView: true, sessions: [saved], selectedSessionId: saved.id });
+  renderWithI18n(<ChatGptWebPage />);
+  await waitFor(() => expect(useBrowserDockStore.getState().conversationTabId).toBe(opened.tabId));
+  expect(bridge.webChatOpen).toHaveBeenCalledTimes(2);
+  expect(bridge.webChatReveal).not.toHaveBeenCalled();
+});
+
+it("切换远程线程后，旧的打开请求晚到不会抢回选中项或网页", async () => {
+  const first = { ...connected, tabId: "closed-tab" };
+  const second = { ...connected, id: "00000000-0000-4000-8000-000000000002", tabId: "second-tab" };
+  let finishOpen!: (value: WebChatSession) => void;
+  const opening = new Promise<WebChatSession>((resolve) => {
+    finishOpen = resolve;
+  });
+  bridge.webChatList.mockResolvedValue([first, second]);
+  bridge.webChatOpen.mockImplementation(({ sessionId }) =>
+    sessionId === first.id ? opening : Promise.resolve(second),
+  );
+  bridge.webChatRead.mockResolvedValue(second);
+  useWebChatStore.setState({
+    nativeView: true,
+    sessions: [first, second],
+    selectedSessionId: first.id,
+  });
+  renderWithI18n(<ChatGptWebPage />);
+  await waitFor(() => expect(bridge.webChatOpen).toHaveBeenCalledWith({ sessionId: first.id }));
+  act(() => useWebChatStore.getState().openSession(second.id));
+  await waitFor(() => expect(useBrowserDockStore.getState().conversationTabId).toBe(second.tabId));
+  await act(async () => {
+    finishOpen({ ...first, tabId: "reopened-first-tab" });
+  });
+  expect(useWebChatStore.getState().selectedSessionId).toBe(second.id);
+  expect(useBrowserDockStore.getState().conversationTabId).toBe(second.tabId);
+  expect(bridge.webChatRead).not.toHaveBeenCalledWith(
+    expect.objectContaining({ sessionId: first.id }),
+  );
+});
 
 it("原样网页新建会话，不显示下方输入框、控制栏或视图切换按钮", async () => {
   useWebChatStore.setState({

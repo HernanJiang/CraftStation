@@ -412,6 +412,39 @@ describe("ChatGPT 网页同步", () => {
     expect(runtime.list()).toHaveLength(0);
     expect(f.browser.create).not.toHaveBeenCalled();
   });
+  it("点击已关闭网页的远程线程先恢复标签，不等待或重发网页消息", async () => {
+    const session = await runtime.create();
+    f.detach();
+    vi.mocked(f.browser.execute).mockImplementation(() => new Promise(() => {}));
+    const opened = await runtime.open(session.id);
+    expect(opened.id).toBe(session.id);
+    expect(opened.tabId).toBe("test-tab");
+    expect(f.browser.create).toHaveBeenCalledTimes(2);
+    expect(f.browser.execute).not.toHaveBeenCalled();
+    expect(f.browser.reveal).not.toHaveBeenCalled();
+    expect(f.browser.reload).not.toHaveBeenCalled();
+    expect(runtime.list()).toHaveLength(1);
+    expect(f.count()).toBe(0);
+  });
+  it("重复和并发打开同一远程线程复用网页，保留草稿", async () => {
+    const session = await runtime.create();
+    f.detach();
+    f.editor.value = "未发送的草稿";
+    await Promise.all([runtime.open(session.id), runtime.open(session.id)]);
+    await runtime.open(session.id);
+    expect(f.browser.create).toHaveBeenCalledTimes(2);
+    expect(f.browser.reload).not.toHaveBeenCalled();
+    expect(f.editor.value).toBe("未发送的草稿");
+    expect(f.count()).toBe(0);
+  });
+  it("打开远程线程失败后仍可重试", async () => {
+    const session = await runtime.create();
+    f.detach();
+    vi.mocked(f.browser.create).mockRejectedValueOnce(new Error("WEB_OPEN_FAILED"));
+    await expect(runtime.open(session.id)).rejects.toThrow("WEB_OPEN_FAILED");
+    expect((await runtime.open(session.id)).tabId).toBe("test-tab");
+    expect(f.browser.create).toHaveBeenCalledTimes(3);
+  });
   it("重启恢复绑定时复用相同对话的浏览器标签，不再创建网页", async () => {
     managementFixture(f);
     const dir = mkdtempSync(join(tmpdir(), "craftstation-webchat-"));
@@ -428,6 +461,7 @@ describe("ChatGPT 网页同步", () => {
     f.browser.exists = (id) => id === "restored-tab";
     f.browser.find = vi.fn<NonNullable<WebChatBrowser["find"]>>(() => "restored-tab");
     runtime = new ChatGptWebRuntime(f.browser, file);
+    expect((await runtime.open(session.id)).tabId).toBe("restored-tab");
     expect((await runtime.read(session.id)).tabId).toBe("restored-tab");
     expect(f.browser.find).toHaveBeenCalledWith(session.url, []);
     expect(f.browser.create).not.toHaveBeenCalled();

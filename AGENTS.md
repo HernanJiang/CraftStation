@@ -154,9 +154,9 @@ gh search repos "关键词" --limit 20 --json fullName,url,description,updatedAt
 - 默认每次发版同时打便携版与 NSIS 安装包（均为 x64）：先 `pnpm dist:win` 再 `pnpm dist:win:portable`，产物均位于 `D:\Work\CraftStation\release\`。注意不要用 `pnpm dist:win:all`——它会连带打 arm64，本机 node-gyp 编不过。
 - `release\` 下便携版仅保留最新和上一个版本稳定版共两份备份；旧版本目录（`release-portable*`）、中间产物（`win-unpacked/`、`builder-debug.yml` 等）打包完成后即删除。
 - NSIS 安装包（`CraftStation-Setup-*.exe`）连同 `latest.yml` / blockmap 随版本发布到 GitHub Release（updater feed 所需），不属于便携版备份计数，不得顺手删除。
-- 用户确认的 main 修复、缺陷与 hotfix 收口后，默认执行双包构建；用户只说“打包”时同样默认双包，不再单独确认 NSIS。
+- 用户确认的 main 修复、缺陷与 hotfix 完成验证后，直接发布下一个正式补丁版本；使用 `X.Y.Z`，进展与验证维护在 `PROJECT_STATUS.md`，不再累计 `a/b/c` 字母后缀内部版本。用户只要求“打包”时同样默认构建 Windows x64 NSIS 与便携版双包。
 - **发布平台策略**：补丁版本（`X.Y.Z` 且 `Z>0`）只构建发布 Windows 端；次版本（`X.Y.0`，第二位变化）才构建发布 Windows+Linux+macOS 三端。`Release (stable)` workflow 的 `platforms` 输入留空即按该规则自动推导，可显式传 `win,linux,mac` 覆盖；`_build.yml` 的 `platforms` 输入默认三端，nightly 与手动调用不受影响。
-- 双包打完后默认推到 GitHub，不再单独确认：`main`、`vX.Y.Z` tag，以及 GitHub Release（NSIS、blockmap、`latest.yml`、便携版，正文用当版双语 release notes）。研究笔记不进入这次提交。
+- 双包完成后默认推送 `main`、`vX.Y.Z` tag 与 GitHub Release（NSIS、blockmap、`latest.yml`、便携版，正文用当版双语 release notes），无需重复确认。用户明确只要求本地打包时保留本地产物；研究笔记不进入发布提交。
 - Release notes 默认中英双语：`ai_workspace/release-notes-X.Y.Z.md` 与 GitHub Release body 均为中文正文在前、`---` 分隔后接完整英文译文（`User-facing` / `Implementation` / `Verification` 对应 `用户可见` / `实现` / `验证`）。历史版本发布时已补齐英文段；新发布不再单独确认双语。
 
 ## Assistant Knowledge Capture

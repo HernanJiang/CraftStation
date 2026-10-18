@@ -659,6 +659,7 @@ export function createLocalIpcHandlers(
     webChatWidgetClose: ({ sessionId, widgetId }) =>
       requireWebChat().widgets.close(sessionId, widgetId),
     webChatCreate: () => requireWebChat().create(),
+    webChatOpen: ({ sessionId }) => requireWebChat().open(sessionId),
     webChatRead: ({ sessionId, restoreBinding, followNavigation }) =>
       requireWebChat().read(sessionId, restoreBinding, followNavigation),
     webChatReveal: ({ sessionId }) => requireWebChat().reveal(sessionId),
