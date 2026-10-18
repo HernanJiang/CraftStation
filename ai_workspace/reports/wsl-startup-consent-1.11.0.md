@@ -20,4 +20,4 @@
 
 证据目录：`C:/Users/Haona/.craftstation-smoke/wsl-consent-1.11.0-20261018/artifacts/`。原生框截图为 `wsl-native-consent.png`；完整模拟记录为 `smoke-report.json`。测试及类型/lint 日志保留于 `ai_workspace/*-1.11.0-wsl.log`。
 
-Windows 首轮双包生成后用户追加本项，因此发布前必须从更新后的源码重新构建 NSIS 与便携版。
+Windows 首轮双包生成后用户追加本项，已从更新后的源码重新构建 NSIS 与便携版并核验包内门禁；正式三端流水线与 1.11.0 发布完成。发布记录见 `ai_workspace/reports/release-1.11.0.md`。
