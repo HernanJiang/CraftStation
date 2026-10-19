@@ -260,6 +260,8 @@ export interface CreateStructuredSessionInput {
    * fails instead of continuing on the runtime default model.
    */
   strictModelResolution?: boolean;
+  /** Bound provider in ACP [provider, model] values; never match another route. */
+  acpModelProviderId?: string;
   /**
    * Translate a vendor ACP extension notification into a standard
    * `session/update` before canonical mapping. This is for providers that put

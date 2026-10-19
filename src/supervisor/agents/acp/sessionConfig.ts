@@ -2,7 +2,7 @@ import type { ThreadConfig } from "@/shared/contracts";
 import { isBypassApprovalPolicy } from "@/shared/agentSelection";
 import { foreignAcpModelId, normalizeCommandCodeModelId } from "@/shared/thirdPartyRouting";
 import { fastVariantModelId } from "@/shared/fastModelVariants";
-import { resolveOfficialDshModelId } from "../deepseek/modelIds";
+import { parseDshAcpModelWireValue, resolveOfficialDshModelId } from "../deepseek/modelIds";
 import { normalizeAcpModeId } from "./probe";
 import { findThoughtLevelConfigOption } from "./thoughtLevel";
 
@@ -372,6 +372,7 @@ export function resolveModelConfigValue(
   config: ThreadConfig,
   configOptions: unknown,
   fastVariantByBase?: Record<string, string>,
+  modelProviderId?: string,
 ): { configId: string; value: string; currentValue?: string } | undefined {
   const targets = modelConfigTargetAliases(config, fastVariantByBase);
   if (targets.length === 0) {
@@ -382,7 +383,13 @@ export function resolveModelConfigValue(
     return undefined;
   }
 
-  const candidates = flattenSelectOptions(option.options);
+  // Account routing wins over display-name aliases and official model ids.
+  // A missing bound route must fail closed, even when another provider offers
+  // a matching model name.
+  const candidates = flattenSelectOptions(option.options).filter(
+    (candidate) =>
+      !modelProviderId || parseDshAcpModelWireValue(candidate.value)?.provider === modelProviderId,
+  );
   const match = targets
     .map((target) =>
       candidates.find((candidate) =>

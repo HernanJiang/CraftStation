@@ -900,11 +900,17 @@ describe("switchThreadProvider transactional lifecycle", () => {
         expect.objectContaining({ provider: "deepseek", thirdPartyAccountId: "acc-1" }),
       );
       const firstCall = adapter.createStructuredSession.mock.calls[0] as unknown[] | undefined;
-      const spawnArg = firstCall?.[0] as { baseSpawnEnv?: Record<string, string> } | undefined;
+      const spawnArg = firstCall?.[0] as
+        | {
+            baseSpawnEnv?: Record<string, string>;
+            acpModelProviderId?: string;
+          }
+        | undefined;
       expect(spawnArg?.baseSpawnEnv?.DSH_HOME).toBe(isolationDir);
       expect(spawnArg?.baseSpawnEnv?.DEEPSEEK_BASE_URL).toBe("https://relay.example.com/v1");
       const settings = readFileSync(join(isolationDir, "settings.yaml"), "utf8");
       const providerId = model.includes("/") ? "openai" : "craftstation";
+      expect(spawnArg?.acpModelProviderId).toBe(providerId);
       expect(settings).toContain(`    ${providerId}:`);
       expect(settings).toContain("'gpt-5'");
       expect(settings).toContain("'https://relay.example.com/v1'");

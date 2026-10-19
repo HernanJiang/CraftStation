@@ -41,6 +41,8 @@ export interface AcpSessionConfigSyncOptions {
    * of continuing on a different model.
    */
   strictModelResolution?: boolean;
+  /** Restrict tuple resolution to the provider selected by the bound account. */
+  modelProviderId?: string;
   /**
    * Catalog-derived base -> fast-variant model ids (e.g. `grok-4.7` →
    * `grok-4.7-build-fast`). Consulted before the vendor naming heuristic when
@@ -188,6 +190,7 @@ export class AcpSessionConfigSync {
       nextConfig,
       this.currentConfigOptions,
       this.options.fastVariantByBase,
+      this.options.modelProviderId,
     );
     // `fast` toggles the wire model id itself (variant suffix / service tier
     // selection), so a same-model fast flip must re-drive model application.

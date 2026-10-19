@@ -1913,7 +1913,7 @@ export class SpawnPipeline {
     sourceProviderKind?: string | undefined;
     thirdPartyAccountId?: string | undefined;
     projectLocation?: ProjectLocation;
-  }): Promise<{ env?: Record<string, string>; cleanup?: () => void }> {
+  }): Promise<{ env?: Record<string, string>; modelProviderId?: string; cleanup?: () => void }> {
     if (baseAgentKind(input.agentKind) !== "deepseek") return {};
     const model = (input.model ?? "").trim();
     if (modelProviderPrefix(model) === OPENCODE_GO_DSH_PROVIDER_ID) {
@@ -1956,7 +1956,10 @@ export class SpawnPipeline {
           ...(accountBaseUrl ? { baseUrl: accountBaseUrl } : {}),
         });
       }
-      return { env: openCodeGoDshCompatEnv(apiKey, isolationDir, accountBaseUrl) };
+      return {
+        env: openCodeGoDshCompatEnv(apiKey, isolationDir, accountBaseUrl),
+        modelProviderId: OPENCODE_GO_DSH_PROVIDER_ID,
+      };
     }
     if (input.thirdPartyAccountId) {
       // Any bound third-party account rides an isolated dsh home so strict
@@ -2002,7 +2005,10 @@ export class SpawnPipeline {
           modelId: leaf,
         });
       }
-      return { env: dshForeignCompatEnv(apiKey, isolationDir, baseUrl) };
+      return {
+        env: dshForeignCompatEnv(apiKey, isolationDir, baseUrl),
+        modelProviderId: providerId,
+      };
     }
     const source =
       (input.sourceProviderKind ?? "").trim().toLowerCase() || modelCatalogChannel(model) || "";
@@ -2048,6 +2054,7 @@ export class SpawnPipeline {
     }
     return {
       env: commandCodeCompatEnv(apiKey, isolationDir, baseUrl),
+      modelProviderId: "commandcode",
       ...(cleanup ? { cleanup } : {}),
     };
   }
@@ -2321,6 +2328,9 @@ export class SpawnPipeline {
           config,
           agentSettings: this.ctx.resolveAgentSettings(adapter),
           ...(baseSpawnEnv ? { baseSpawnEnv } : {}),
+          ...(deepseekPrepared.modelProviderId
+            ? { acpModelProviderId: deepseekPrepared.modelProviderId }
+            : {}),
           ...(mcpIdentity ? { mcpIdentity } : {}),
           ...(mcpServers.length > 0 || adapter.capabilities.mcpConfigSource === "agentSettings"
             ? { mcpServers }

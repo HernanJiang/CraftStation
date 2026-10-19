@@ -8,7 +8,7 @@ import {
 
 export const CRAFT_RETRY_CONTEXT =
   "[CraftStation Craft-Harness auto-retry] The previous attempt of this turn was " +
-  "interrupted by a network/transport failure before completing. Continue the task " +
+  "interrupted by a network/transport failure or a temporary model/service outage before completing. Continue the task " +
   "from where it stopped; if the previous attempt never actually started, simply " +
   "carry out the original request normally.";
 
@@ -24,7 +24,11 @@ export function isCraftRetryable(error: unknown): boolean {
     )
   )
     return false;
-  return classifyStructuredFailure(error) === "transport" || isNativeNetworkErrorMessage(message);
+  return (
+    classifyStructuredFailure(error) === "transport" ||
+    isNativeNetworkErrorMessage(message) ||
+    /\b(?:requested model|model|service) is temporarily unavailable\b/i.test(message)
+  );
 }
 
 export async function runWithCraftRetry<T>(ctx: {
@@ -50,7 +54,7 @@ export async function runWithCraftRetry<T>(ctx: {
         attempt: attempt + 1,
         maxAttempts: policy.maxAttempts,
         delaySeconds: Math.round(policy.intervalMs / 1000),
-        reason: "网络或传输中断",
+        reason: "网络、传输或模型服务暂时不可用",
       });
       console.info("[craft-harness]", {
         phase: "turn",

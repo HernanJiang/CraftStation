@@ -36,8 +36,8 @@ export interface TurnRetryCoordinatorContext {
 
 /**
  * Craft-Harness: the cross-harness outer-runtime retry layer. When a
- * structured turn dies on a network error or an unexpected transport
- * interruption, CraftStation itself waits the configured interval and replays
+ * structured turn dies on a network error, an unexpected transport
+ * interruption, or a temporary model outage, CraftStation waits and replays
  * the turn with an invisible continuation note — no per-agent adaptation.
  *
  * Deliberately NOT retried here (each already has an owner or is intentional):

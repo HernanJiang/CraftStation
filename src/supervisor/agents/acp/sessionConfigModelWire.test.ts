@@ -48,6 +48,33 @@ function config(model: string, sourceProviderKind?: string): ThreadConfig {
 }
 
 describe("dsh ACP model wire values", () => {
+  it.each(["deepseek-v4.1-flash", "deepseek-v4-flash"])(
+    "keeps the bound third-party provider for %s when official models are listed first",
+    (model) => {
+      const options = {
+        ...DSH_MODEL_OPTION,
+        options: [
+          ...DSH_MODEL_OPTION.options,
+          { value: JSON.stringify(["craftstation", model]), name: model },
+        ],
+      };
+      expect(
+        resolveModelConfigValue(config(model), [options], undefined, "craftstation")?.value,
+      ).toBe(JSON.stringify(["craftstation", model]));
+    },
+  );
+
+  it("fails closed when the bound provider is absent instead of using an official alias", () => {
+    expect(
+      resolveModelConfigValue(
+        config("deepseek-v4.1-flash"),
+        [DSH_MODEL_OPTION],
+        undefined,
+        "craftstation",
+      ),
+    ).toBeUndefined();
+  });
+
   it("resolves the catalog id deepseek-flash to the exact advertised tuple", () => {
     const resolved = resolveModelConfigValue(config("deepseek-flash"), [DSH_MODEL_OPTION]);
     expect(resolved).toEqual({
@@ -129,7 +156,7 @@ describe("dsh ACP model wire values", () => {
 });
 
 describe("AcpSessionConfigSync strict model binding", () => {
-  function makeStrictSync(configOptions: unknown[]) {
+  function makeStrictSync(configOptions: unknown[], modelProviderId?: string) {
     const connection = {
       setSessionMode: vi
         .fn<(...args: unknown[]) => Promise<unknown>>()
@@ -141,6 +168,7 @@ describe("AcpSessionConfigSync strict model binding", () => {
     };
     const sync = new AcpSessionConfigSync(connection as unknown as ClientSideConnection, {
       strictModelResolution: true,
+      ...(modelProviderId ? { modelProviderId } : {}),
     });
     sync.rememberOptions(["agent"], configOptions);
     return { connection, sync };
@@ -152,6 +180,23 @@ describe("AcpSessionConfigSync strict model binding", () => {
     mode: "agent",
     approvalPolicy: "default",
   };
+
+  it("sends the bound CodeKey channel tuple instead of the official DeepSeek alias", async () => {
+    const options = {
+      ...DSH_MODEL_OPTION,
+      options: [
+        ...DSH_MODEL_OPTION.options,
+        { value: '["craftstation","deepseek-v4.1-flash"]', name: "deepseek-v4.1-flash" },
+      ],
+    };
+    const { connection, sync } = makeStrictSync([options], "craftstation");
+    await sync.applyTurnConfig("session-1", config("deepseek-v4.1-flash"), previousConfig);
+    expect(connection.setSessionConfigOption).toHaveBeenCalledWith({
+      sessionId: "session-1",
+      configId: "model",
+      value: '["craftstation","deepseek-v4.1-flash"]',
+    });
+  });
 
   it("sets the exact tuple wire value for an advertised catalog id", async () => {
     const { connection, sync } = makeStrictSync([DSH_MODEL_OPTION]);

@@ -9,6 +9,7 @@ import {
 } from "@agentclientprotocol/sdk";
 import type { CreateStructuredSessionInput } from "../base";
 import type { ThreadConfig } from "@/shared/contracts";
+import { runWithCraftRetry } from "../../runtime/craftHarness/turnRetry";
 import {
   AcpStructuredSession,
   DEFAULT_ORPHAN_TURN_COMPLETION_DELAY_MS,
@@ -542,6 +543,58 @@ describe("resolveAcpPromptFailureMessage — prompt rejection after agent-surfac
 });
 
 describe("ACP prompt error observer", () => {
+  it("recovers the DeepSeek reply after a transient RPC failure without another user message", async () => {
+    const { connection, listener, session } = makeConfigSyncSession();
+    connection.prompt
+      .mockRejectedValueOnce(
+        new RequestError(-32603, "Internal error", {
+          details: "turn failed: The requested model is temporarily unavailable",
+        }),
+      )
+      .mockImplementationOnce(async () => {
+        session.handleSessionUpdate({
+          update: {
+            sessionUpdate: "agent_message_chunk",
+            content: { type: "text", text: "DEEPSEEK_RECOVERED" },
+          },
+        });
+        return { stopReason: "end_turn" };
+      });
+    const sleep = vi.fn<(ms: number) => Promise<void>>(async () => undefined);
+    await runWithCraftRetry({
+      threadId: "thread-1",
+      policy: () => ({ maxAttempts: 5, intervalMs: 5000 }),
+      isCurrent: () => true,
+      emit: () => {},
+      run: () =>
+        session.startTurn("111", { model: "model-a" }, undefined, {
+          userMessageItemId: "user-1",
+        }),
+      sleep,
+    });
+
+    expect(connection.prompt).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledWith(5000);
+    expect(JSON.stringify(listener.onRuntimeEvent.mock.calls)).toContain("DEEPSEEK_RECOVERED");
+    expect(listener.onRuntimeEvent.mock.calls.at(-1)?.[0]).toMatchObject({
+      type: "turn.completed",
+      state: "completed",
+    });
+  });
+
+  it("propagates the DeepSeek temporary model outage to the supervisor retry seam", async () => {
+    const { connection, session } = makeConfigSyncSession();
+    const error = new RequestError(-32603, "Internal error", {
+      details: "turn failed: The requested model is temporarily unavailable",
+    });
+    connection.prompt.mockRejectedValueOnce(error);
+
+    await expect(session.startTurn("111", { model: "model-a" })).rejects.toMatchObject({
+      message: "turn failed: The requested model is temporarily unavailable",
+      cause: error,
+    });
+  });
+
   it("observes the raw Grok quota error before projecting the renderer error", async () => {
     const { connection, listener, session } = makeConfigSyncSession();
     const onPromptError = vi.fn<(error: unknown) => void>();
@@ -569,13 +622,13 @@ describe("ACP prompt error observer", () => {
     );
   });
 
-  it("still resolves non-quota prompt rejections exactly as before", async () => {
+  it("propagates non-quota prompt failures after notifying the observer", async () => {
     const { connection, listener, session } = makeConfigSyncSession();
     const onPromptError = vi.fn<(error: unknown) => void>();
     (session as unknown as Record<string, unknown>)["onPromptError"] = onPromptError;
     connection.prompt.mockRejectedValueOnce(new Error("tunnel hiccup"));
 
-    await session.startTurn("hello", { model: "model-a" });
+    await expect(session.startTurn("hello", { model: "model-a" })).rejects.toThrow("tunnel hiccup");
 
     expect(onPromptError).toHaveBeenCalledOnce();
     expect(listener.onRuntimeEvent).toHaveBeenCalledWith(
@@ -615,7 +668,7 @@ describe("ACP prompt error observer", () => {
     expect(failedTurns).toHaveLength(1);
   });
 
-  it("still resolves non-quota in-stream failures exactly as before", async () => {
+  it("propagates non-quota in-stream failures without duplicating completion", async () => {
     const { connection, listener, session } = makeConfigSyncSession();
     connection.prompt.mockImplementationOnce(async () => {
       (session as unknown as Record<string, unknown>)["agentSurfacedErrorMessage"] =
@@ -623,7 +676,7 @@ describe("ACP prompt error observer", () => {
       return { stopReason: "end_turn" };
     });
 
-    await session.startTurn("hello", { model: "model-a" });
+    await expect(session.startTurn("hello", { model: "model-a" })).rejects.toThrow("tunnel hiccup");
 
     expect(listener.onRuntimeEvent).toHaveBeenCalledWith(
       expect.objectContaining({ type: "turn.completed", state: "failed" }),
@@ -664,7 +717,9 @@ describe("ACP empty-response provider guard", () => {
       return { stopReason: "end_turn" };
     });
 
-    await session.startTurn("hello", { model: "model-a" });
+    await expect(session.startTurn("hello", { model: "model-a" })).rejects.toThrow(
+      "credential file is locked",
+    );
 
     expect(resolver).toHaveBeenCalledWith({
       stopReason: "end_turn",
@@ -3409,12 +3464,14 @@ describe("ACP turn config sync", () => {
     const { connection, listener, session } = makeConfigSyncSession();
     connection.prompt.mockRejectedValueOnce(new Error("Request was aborted."));
 
-    await session.startTurn("hello", {
-      model: "model-a",
-      effort: "low",
-      mode: "agent",
-      approvalPolicy: "default",
-    });
+    await expect(
+      session.startTurn("hello", {
+        model: "model-a",
+        effort: "low",
+        mode: "agent",
+        approvalPolicy: "default",
+      }),
+    ).rejects.toThrow("Request was aborted.");
 
     expect(listener.onRuntimeEvent).toHaveBeenCalledWith({
       type: "error",

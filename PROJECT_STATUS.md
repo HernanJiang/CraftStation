@@ -1,3 +1,10 @@
+## 1.11.6 DeepSeek 第三方模型绑定与失败重试（2026-10-20，准备发布）
+
+- **用户问题**：v1.11.5 的 DeepSeek 已改写标题，但 `111` 的正文为空，约 38 秒后出现 `The requested model is temporarily unavailable`。
+- **根因与实现**：真实 ACP 验证发现 `deepseek-v4.1-flash` 被官方 `deepseek-flash` 别名抢先匹配，进入官方 Messages 协议。启动时显式传递第三方 provider，并把模型匹配限制在该 provider 内。另修复 ACP 吞掉普通失败、导致 Craft-Harness 收不到拒绝，以及重试分类不识别明确临时模型服务故障的问题。
+- **验证**：ACP、DeepSeek、Craft-Harness、启动、回合队列与 lifecycle 共 660 项通过。WSL 命令单测在测试进程内启用模拟启动门禁，未修改实际应用的同意状态。类型检查与变更文件常规/类型感知 lint 通过。真实 dsh 经 ACP factory 注入 6 次模型暂不可用 HTTP 503，Craft-Harness 接管 1 次重试后，CodeKey 连续返回 `DEEPSEEK_RECOVERY_OK` 与 `DEEPSEEK_FOLLOWUP_OK`；全部请求均为 `/chat/completions`、`deepseek-v4.1-flash`。最终隔离 Electron 回归 6 个场景与 4 项 mock gate 通过，控制台/运行时错误 0；证据位于 `C:/Users/Haona/.craftstation-smoke/automated-1792425622902-30704/artifacts/`。真实供应商验证在 ACP factory 完成，未向用户现有会话发送测试消息；未执行完整供应商 UI 功能矩阵。
+- **发布状态**：准备发布 Windows x64 双包补丁 `1.11.6`。无关 lockfile 和临时资料保留，不纳入发布提交。
+
 ## 1.11.5 DeepSeek MCP 准备失败（2026-10-19，已发布）
 
 - **用户要求**：临时对话一直显示模型准备失败。正式会话报 `Invalid params: mcpServers[0].command must be an absolute path`。按 CodeKey 第三方 API 接到 DeepSeek Harness 做真实验收，有问题就修，然后打包上传 GitHub。

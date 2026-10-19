@@ -87,6 +87,18 @@ const GEMINI_TCP_ERROR = new Error(
 const TRANSPORT_ERROR = new Error("ACP connection closed unexpectedly.");
 
 describe("TurnRetryCoordinator", () => {
+  it("retries the DeepSeek temporary model outage using the configured interval", async () => {
+    const h = makeHarness();
+    const session = { ...guiSession(), agentKind: "deepseek" } as SessionRuntime;
+    const turn = makeTurn();
+    const error = new Error("turn failed: The requested model is temporarily unavailable");
+
+    expect(await h.coordinator.tryTurnRetry(session, turn, error)).toBe(true);
+    expect(h.sleeps).toEqual([5000]);
+    expect(h.startTurn).toHaveBeenCalledOnce();
+    expect(turn.turnRetryAttempt).toBe(1);
+  });
+
   it("re-sends a turn-class network failure on the same session with a continuation note", async () => {
     const h = makeHarness();
     const session = guiSession();
@@ -168,7 +180,7 @@ describe("TurnRetryCoordinator", () => {
     expect(turn.historyPreface).toBe("transcript preface");
     expect(turn.retryContext).toBe(
       "[CraftStation Craft-Harness auto-retry] The previous attempt of this turn was " +
-        "interrupted by a network/transport failure before completing. Continue the task " +
+        "interrupted by a network/transport failure or a temporary model/service outage before completing. Continue the task " +
         "from where it stopped; if the previous attempt never actually started, simply " +
         "carry out the original request normally.",
     );

@@ -120,8 +120,6 @@ import {
   appendInterruptAckTextTail,
   createAcpPromptUsageSpentEvent,
   isAcpPromptCancellationError,
-  isGrokPoolQuotaError,
-  isKimiPoolQuotaError,
   normalizeAcpStopReason,
   resolveAcpPromptResponseUsage,
   resolveAcpPromptFailureMessage,
@@ -277,6 +275,8 @@ export interface AcpStructuredSessionOptions {
    * runtime default model.
    */
   strictModelResolution?: boolean;
+  /** Provider selected by the account projection, independent of model aliases. */
+  modelProviderId?: string;
   /**
    * Catalog-derived base -> fast-variant model ids for the unstable
    * `session/set_model` path (see `acpFastVariantByBase` on
@@ -358,6 +358,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
 
   private readonly goalCommands: boolean;
   private readonly strictModelResolution: boolean;
+  private readonly modelProviderId: string | undefined;
   private readonly fastVariantByBase: Record<string, string> | undefined;
 
   private extensionNotificationHandler?: import("../base/types").AcpExtensionNotificationHandler;
@@ -482,6 +483,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     if (!this._sessionConfigSync) {
       this._sessionConfigSync = new AcpSessionConfigSync(this.connection, {
         strictModelResolution: this.strictModelResolution,
+        ...(this.modelProviderId ? { modelProviderId: this.modelProviderId } : {}),
         ...(this.fastVariantByBase ? { fastVariantByBase: this.fastVariantByBase } : {}),
       });
     }
@@ -558,6 +560,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
     this.autonomousPrompt = options?.autonomousPrompt === true;
     this.goalCommands = options?.goalCommands === true;
     this.strictModelResolution = options?.strictModelResolution === true;
+    this.modelProviderId = options?.modelProviderId;
     this.fastVariantByBase = options?.fastVariantByBase;
     if (options?.extensionSessionUpdateTransform) {
       this.extensionSessionUpdateTransform = options.extensionSessionUpdateTransform;
@@ -1209,10 +1212,9 @@ export class AcpStructuredSession implements StructuredSessionHandle {
       this.agentPromptCapabilities,
     );
 
-    // Set when the in-stream branch below rethrows: the failure events and
-    // the quota write-back are already done there, so the catch must not
-    // repeat them (duplicate error items) — only let the rejection through.
-    let inStreamQuotaError: Error | undefined;
+    // In-stream failures already emitted their events and notified the account
+    // observer. Only propagate them to the supervisor, without reporting twice.
+    let inStreamTurnError: Error | undefined;
     try {
       this.promptInFlight = true;
       // If `interruptTurn()` was called between `startTurn` entry and this
@@ -1309,31 +1311,16 @@ export class AcpStructuredSession implements StructuredSessionHandle {
           }
           this.emitTurnStatusAfterPrompt(normalizedStopReason);
           this.completeTurn(mapperState, turnState);
-          // A pool-quota in-stream failure must reject like an RPC quota
-          // rejection: resolving here leaves the dead session current, so every
-          // later turn reuses the exhausted account forever while usable pool
-          // accounts wait. The failure events above are already emitted (same as
-          // the RPC-rejection path), so callers only gain the rejection — the
-          // supervisor's failover-or-fail machinery runs for both shapes.
-          // Gated on pool-quota shapes only (Grok/Kimi today): any other
-          // in-stream failure keeps resolving exactly as before.
-          if (
-            turnState === "failed" &&
-            this.agentSurfacedErrorMessage &&
-            (isGrokPoolQuotaError(new Error(this.agentSurfacedErrorMessage)) ||
-              isKimiPoolQuotaError(new Error(this.agentSurfacedErrorMessage)))
-          ) {
-            inStreamQuotaError = new Error(this.agentSurfacedErrorMessage);
-            throw inStreamQuotaError;
+          // The supervisor owns retry and pool failover for every failed turn.
+          if (turnState === "failed" && this.agentSurfacedErrorMessage) {
+            inStreamTurnError = new Error(this.agentSurfacedErrorMessage);
+            throw inStreamTurnError;
           }
         }
       }
     } catch (error) {
       if (this.isDisposed) return;
-      // The in-stream quota rethrow above already emitted its failure events
-      // and ran the quota write-back: don't duplicate them here, only let
-      // the rejection reach the supervisor's failover-or-fail machinery.
-      if (error === inStreamQuotaError) throw error;
+      if (error === inStreamTurnError) throw error;
       if (isAcpPromptCancellationError(error, this.currentTurnInterruptRequested)) {
         this.emitListenerUpdate({ status: "idle", attention: "none" });
         this.completeTurn(this.ensureMapperState(), "cancelled");
@@ -1346,16 +1333,11 @@ export class AcpStructuredSession implements StructuredSessionHandle {
           console.warn("[acp] prompt error observer failed:", callbackError);
         }
         this.emitPromptFailure(error);
-        // Mirror of the in-stream gate above: a pool-quota RPC rejection must
-        // reject (not resolve) so the supervisor's failover-or-fail machinery
-        // runs. Without this the dead session stays current and every later
-        // turn reuses the exhausted account forever. Gated on pool-quota
-        // shapes only (Grok/Kimi today) — every other rejection keeps
-        // resolving exactly as before. Rejects with the projected message
-        // (not the raw "Internal error") so downstream banners stay
-        // actionable.
-        if (isGrokPoolQuotaError(error) || isKimiPoolQuotaError(error)) {
-          throw new Error(resolveAcpPromptRpcErrorMessage(error), { cause: error });
+        const message = resolveAcpPromptFailureMessage(error, this.agentSurfacedErrorMessage);
+        // Capacity retry chatter is filtered by the existing event path.
+        // Actual failures must reject so Craft-Harness can apply its policy.
+        if (!isRetryableCapacityError(message)) {
+          throw new Error(message, { cause: error });
         }
       }
     } finally {

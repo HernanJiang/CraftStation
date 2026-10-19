@@ -60,6 +60,10 @@ describe("Craft-Harness turn retry", () => {
     "usage limit exceeded",
     "invalid API key",
     "HTTP 400 invalid model",
+    "model not found",
+    "The requested model is unavailable",
+    "401 unauthorized: The requested model is temporarily unavailable",
+    "429 quota exhausted: service is temporarily unavailable",
   ])("does not retry %s", (message) => {
     expect(isCraftRetryable(new Error(message))).toBe(false);
   });
