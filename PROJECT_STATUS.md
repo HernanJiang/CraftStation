@@ -1,9 +1,10 @@
-## 1.11.5 DeepSeek MCP 准备失败（2026-10-19，准备发布）
+## 1.11.5 DeepSeek MCP 准备失败（2026-10-19，已发布）
 
 - **用户要求**：临时对话一直显示模型准备失败。正式会话报 `Invalid params: mcpServers[0].command must be an absolute path`。按 CodeKey 第三方 API 接到 DeepSeek Harness 做真实验收，有问题就修，然后打包上传 GitHub。
 - **实现**：DeepSeek 启动前把 Windows npm `.cmd` 解开成绝对 `node.exe` 加脚本路径。`session/new` 被点名的 MCP 拒绝时丢掉该项再开一次。未点名的错误仍失败。`craft_goal` 不静默丢弃。
-- **验证**：`mcpCommand.test.ts`、`mcpStartupRetry.test.ts` 共 12 项通过，变更文件类型感知 lint 通过。真实 dsh 同时带上 `notion` 与 `notion-oauth`：第一次失败并点名 `notion-oauth`，同一进程去掉它后 `session/new` 成功。CodeKey 的 `deepseek-v4.1-flash` 回答了模型名称，`stop` 为 `end_turn`。正在运行的 v1.11.4 窗口未加载这版源码。
-- **发布状态**：准备推送 `main` 并触发 Windows 稳定版流水线，版本 `1.11.5`。
+- **验证**：`mcpCommand.test.ts`、`mcpStartupRetry.test.ts` 与 `changelog.test.ts` 共 28 项通过。提交钩子里的类型检查通过。真实 dsh 同时带上 `notion` 与 `notion-oauth`：第一次失败并点名 `notion-oauth`，同一进程去掉它后 `session/new` 成功。CodeKey 的 `deepseek-v4.1-flash` 回答了模型名称，`stop` 为 `end_turn`。正在运行的 v1.11.4 窗口未加载这版源码。
+- **发布状态**：`main` 已推送，正式 tag `v1.11.5` 指向包含发布说明的提交。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/39271686048) 成功，补丁版只构建 Windows。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.5) 已发布为最新稳定版，非草稿、非预发布。4 项附件齐备：NSIS 133169843 字节、blockmap 138335 字节、便携版 112389371 字节、`latest.yml` 364 字节。`latest.yml` 版本为 `1.11.5`，指向 NSIS 安装包，清单大小与附件一致。双语正文与 `ai_workspace/release-notes-1.11.5.md` 一致。流水线已将 main 开发版本推进到 1.11.6（`bdfd92e6`）。无关 lockfile 与临时资料未进入发布提交。
+- **本地收尾**：正式 1.11.5 的 NSIS、blockmap、便携版和 `latest.yml` 已下载到本地 `release/`，大小与 GitHub 附件一致。便携版只保留 1.11.5 与 1.11.4。1.11.3 便携版已归档至 `D:/Work/CraftStation-release-archives/1.11.5-20261019/`。
 
 ## 1.11.4 临时对话打开即预热、收进工作区（2026-10-19，已发布）
 
