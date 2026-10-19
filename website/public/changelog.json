@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.11.5",
+      "date": "2026-10-19",
+      "title": "DeepSeek 能越过坏掉的 MCP 完成准备",
+      "summary": "DeepSeek 不再因为 Notion 命令不是绝对路径而准备失败。某一个 MCP 启动失败时，会跳过它并继续打开模型。",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "DeepSeek 准备",
+          "text": "Windows 上的 npm 命令会换成 node.exe 和绝对路径脚本，DeepSeek 可以完成模型准备。"
+        },
+        {
+          "kind": "fixed",
+          "label": "单个 MCP 失败",
+          "text": "某个 MCP 在启动时被拒绝后，会丢掉这一项并重新打开会话，不再让整次准备停在失败。"
+        }
+      ]
+    },
+    {
       "version": "1.11.4",
       "date": "2026-10-19",
       "title": "临时对话打开即用、收进工作区",

@@ -129,6 +129,7 @@ import {
   rewriteLoadSessionError,
   shouldEmitAcpPromptRpcErrorItem,
 } from "./sessionErrors";
+import { openDroppingRejectedMcpServers } from "./mcpStartupRetry";
 import { AcpSessionRequests } from "./sessionRequests";
 import {
   buildAcpMcpServers,
@@ -938,6 +939,19 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         );
     };
     requireGoalService(attempted);
+    const openAllowingMcpRejects = async (servers: ProtocolMcpServer[]): Promise<T> => {
+      const opened = await openDroppingRejectedMcpServers(servers, open, {
+        protect: (name) => name === "craft_goal",
+      });
+      if (opened.dropped.length > 0) {
+        console.log(
+          "[acp] session open rejected MCP server(s); relaunched without them: %s",
+          opened.dropped.join(", "),
+        );
+        this.mcpInjectionDrops.push(...opened.dropped);
+      }
+      return opened.result;
+    };
     const optimisticTransports = this.optimisticMcpTransports;
     let fallback: ProtocolMcpServer[];
     if (optimisticTransports !== undefined && optimisticTransports.length > 0) {
@@ -960,13 +974,13 @@ export class AcpStructuredSession implements StructuredSessionHandle {
       fallback = attempted;
     }
     if (fallback.length === attempted.length) {
-      const result = await open(attempted);
+      const result = await openAllowingMcpRejects(attempted);
       this.noteMcpInjectionDrops(built, attempted);
       return result;
     }
 
     try {
-      const result = await open(attempted);
+      const result = await openAllowingMcpRejects(attempted);
       this.noteMcpInjectionDrops(built, attempted);
       return result;
     } catch (error) {
@@ -977,7 +991,7 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         attempted.length - fallback.length,
         error.code,
       );
-      const result = await open(fallback);
+      const result = await openAllowingMcpRejects(fallback);
       this.noteMcpInjectionDrops(built, fallback);
       return result;
     }

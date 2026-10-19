@@ -13,6 +13,7 @@ import {
   deepseekDefaultCapabilities,
   deepseekDetectionSpec,
 } from "./detection";
+import { prepareDeepSeekMcpServers } from "./mcpCommand";
 
 export function createDeepSeekAdapter(): AgentAdapter {
   let capabilities = deepseekDefaultCapabilities;
@@ -69,8 +70,10 @@ export function createDeepSeekAdapter(): AgentAdapter {
       // dsh silently keeps serving its configured default model when the
       // requested catalog id matches no advertised option — never continue on
       // a different model than the Recipe selected.
+      const mcpServers = await prepareDeepSeekMcpServers(input.mcpServers, input.projectLocation);
       return createAcpStructuredSession(command, {
         ...input,
+        ...(mcpServers ? { mcpServers } : {}),
         strictModelResolution: true,
       });
     },
