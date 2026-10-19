@@ -22,6 +22,7 @@ import type {
   UpdateStatus,
 } from "./events";
 import type { QuickComposerSubmission } from "./schemas";
+import type { TemporaryChatPresence } from "../temporaryChat";
 
 export const CRAFTSTATION_WINDOW_KINDS = [
   "main",
@@ -82,6 +83,13 @@ export type CraftStationBridge = CraftStationInvokeBridge & {
   closeTemporaryChat(): Promise<void>;
   /** Hide the temporary chat without ending its prepared CLI. */
   hideTemporaryChat(): Promise<void>;
+  /**
+   * Hide the temporary chat into the Workspace list. The conversation and its
+   * CLI stay until the user presses close.
+   */
+  parkTemporaryChat(title: string): Promise<void>;
+  getTemporaryChatPresence(): Promise<TemporaryChatPresence>;
+  onTemporaryChatPresence(listener: (presence: TemporaryChatPresence) => void): () => void;
   /**
    * Delete the current temporary conversation, hide the window, and return the
    * next thread id. The hidden window prepares that id's CLI for the next open.
@@ -173,6 +181,7 @@ export const IPC_EVENT_CHANNELS = {
   quickComposerSubmit: createChannel("quickComposerSubmit"),
   quickComposerDismissRequested: createChannel("quickComposerDismissRequested"),
   temporaryChatIdleExpired: createChannel("temporaryChatIdleExpired"),
+  temporaryChatPresence: createChannel("temporaryChatPresence"),
 } as const;
 
 export const IPC_WINDOW_CHANNELS = {
@@ -180,6 +189,8 @@ export const IPC_WINDOW_CHANNELS = {
   temporaryChatContext: createChannel("temporaryChatContext"),
   temporaryChatClose: createChannel("temporaryChatClose"),
   temporaryChatHide: createChannel("temporaryChatHide"),
+  temporaryChatPark: createChannel("temporaryChatPark"),
+  temporaryChatPresenceGet: createChannel("temporaryChatPresenceGet"),
   temporaryChatRearm: createChannel("temporaryChatRearm"),
   quickComposerSubmit: createChannel("quickComposerWindowSubmit"),
   quickComposerDismiss: createChannel("quickComposerWindowDismiss"),

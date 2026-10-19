@@ -108,6 +108,9 @@ export function createQuickComposerWindow(
     skipTaskbar: true,
     alwaysOnTop: true,
     hasShadow: false,
+    // DWM's own rounded frame leaves square scraps on a transparent window.
+    // The page clips itself; keep the native frame square and borderless.
+    ...(temporary ? { thickFrame: false, roundedCorners: false } : {}),
     backgroundColor: "#00000000",
     autoHideMenuBar: true,
     ...bounds,
@@ -116,6 +119,8 @@ export function createQuickComposerWindow(
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      // A hidden prepare must keep running while the user has not opened the window yet.
+      ...(temporary ? { backgroundThrottling: false } : {}),
       additionalArguments: buildRendererAdditionalArguments({
         appVersion: options.appVersion,
         isDev: options.isDev,

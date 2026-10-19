@@ -2,10 +2,15 @@ import { describe, expect, it } from "vitest";
 import {
   createExclusiveQueue,
   shouldExpireTemporaryChatWarm,
+  shouldReplaceTemporaryChatWarm,
   shouldReuseTemporaryChatWarm,
   shouldSendIntoTemporaryChatWarm,
   TEMPORARY_CHAT_IDLE_MS,
+  temporaryChatRememberedModel,
+  temporaryChatWarmAcceptsLaunch,
+  temporaryChatWarmDraft,
   temporaryChatWarmKey,
+  withTemporaryChatModelMemory,
 } from "./temporaryChat";
 
 describe("temporary chat warm session", () => {
@@ -20,6 +25,9 @@ describe("temporary chat warm session", () => {
     expect(shouldExpireTemporaryChatWarm({ visible: false, hasThread: true })).toBe(true);
     expect(shouldExpireTemporaryChatWarm({ visible: true, hasThread: true })).toBe(false);
     expect(shouldExpireTemporaryChatWarm({ visible: false, hasThread: false })).toBe(false);
+    expect(shouldExpireTemporaryChatWarm({ visible: false, hasThread: true, parked: true })).toBe(
+      false,
+    );
   });
 
   it("treats the same CLI and model as one prepared session", () => {
@@ -43,6 +51,36 @@ describe("temporary chat warm session", () => {
     expect(shouldReuseTemporaryChatWarm({ key, ready: false }, key, "idle")).toBe(false);
     expect(shouldReuseTemporaryChatWarm(ready, `${key}\0other`, "idle")).toBe(false);
     expect(shouldReuseTemporaryChatWarm(null, key, "idle")).toBe(false);
+  });
+
+  it("prepares from the last model even when the saved draft has not caught up", () => {
+    expect(
+      temporaryChatWarmDraft(undefined, { agentKind: "kimi", model: "kimi-code/k3-256k" }),
+    ).toEqual({ agentKind: "kimi", model: "kimi-code/k3-256k" });
+    expect(
+      temporaryChatWarmDraft(
+        { agentKind: "kimi", model: "kimi-code/k3", effort: "high" },
+        { agentKind: "kimi", model: "kimi-code/k3-256k" },
+      ),
+    ).toEqual({ agentKind: "kimi", model: "kimi-code/k3-256k", effort: "high" });
+  });
+
+  it("keeps a prepare when the composer has not restored the account yet", () => {
+    const key = temporaryChatWarmKey({ ...kimi, accountId: "pool-a" });
+    const current = { key, phase: "starting" as const };
+    expect(shouldReplaceTemporaryChatWarm(current, kimi)).toBe(false);
+    expect(temporaryChatWarmAcceptsLaunch(key, kimi)).toBe(true);
+    expect(shouldReplaceTemporaryChatWarm(current, { ...kimi, model: "kimi-code/k3" })).toBe(true);
+  });
+
+  it("restores the temporary chat's own last model", () => {
+    const draft = { agentKind: "kimi", model: "kimi-code/k3-256k" };
+    expect(withTemporaryChatModelMemory(draft, { codex: "gpt" })).toEqual({
+      codex: "gpt",
+      kimi: "kimi-code/k3-256k",
+    });
+    expect(temporaryChatRememberedModel(draft, "kimi")).toBe("kimi-code/k3-256k");
+    expect(temporaryChatRememberedModel(draft, "codex")).toBeUndefined();
   });
 
   it("accepts a prepared CLI whose harness was remapped from the picker vendor", () => {
@@ -75,6 +113,13 @@ describe("temporary chat warm session", () => {
     expect(
       shouldSendIntoTemporaryChatWarm({ ...base, warm: { ...base.warm, phase: "starting" } }),
     ).toBe(false);
+    expect(
+      shouldSendIntoTemporaryChatWarm({
+        ...base,
+        threadModel: "kimi-code/k3",
+        warmKey: temporaryChatWarmKey(kimi),
+      }),
+    ).toBe(true);
   });
 
   it("runs queued work one at a time and continues after a failure", async () => {

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@heroui/react";
-import { MessageCircle, X } from "lucide-react";
+import { MessageCircle, Minus, X } from "lucide-react";
 import { DragDropProvider } from "@dnd-kit/react";
 import { HOME_PROJECT_ID } from "@/shared/homeScope";
 import type { Project, ProjectDraftConfig, ThreadPresentationMode } from "@/shared/contracts";
@@ -8,8 +8,10 @@ import { projectDraftConfigSchema } from "@/shared/contracts/config";
 import { makeThreadTitle } from "@/shared/threadTitle";
 import {
   createExclusiveQueue,
+  shouldReplaceTemporaryChatWarm,
   shouldSendIntoTemporaryChatWarm,
   TEMPORARY_CHAT_MODEL_STATE_KEY,
+  temporaryChatWarmDraft,
   temporaryChatWarmKey,
 } from "@/shared/temporaryChat";
 import { readBridge } from "@/renderer/bridge";
@@ -41,10 +43,13 @@ const launchOptions = {
   preserveActiveGroup: false,
 } as const;
 
-function warmDraftInput(draft: ProjectDraftConfig, selection: ModelSelection): DraftStartInput {
+function warmDraftInput(
+  draft: { agentKind: string; model: string; worktreeMode?: boolean | undefined },
+  selection: ModelSelection,
+): DraftStartInput {
   const { agentKind, worktreeMode: _worktreeMode, ...config } = draft;
   return {
-    agentKind,
+    agentKind: agentKind as DraftStartInput["agentKind"],
     config,
     prompt: "",
     presentationMode: selection.presentationMode,
@@ -91,20 +96,21 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
     (selection: ModelSelection, immediate: boolean) => {
       const run = () => {
         if (!context || engagedRef.current || idleHeldRef.current) return;
+        if (!selection.model || !selection.agentKind) return;
+        const threadId = context.threadId;
+        const existing = warmRef.current;
+        if (
+          existing?.threadId === threadId &&
+          !shouldReplaceTemporaryChatWarm(existing, selection)
+        ) {
+          return;
+        }
         const draft = useAppStore
           .getState()
           .projects.find((project) => project.id === HOME_PROJECT_ID)?.lastDraftConfig;
-        if (
-          !draft?.model ||
-          draft.agentKind !== selection.agentKind ||
-          draft.model !== selection.model
-        )
-          return;
-        const threadId = context.threadId;
+        const prepared = temporaryChatWarmDraft(draft, selection);
+        if (!prepared) return;
         const key = temporaryChatWarmKey(selection);
-        const existing = warmRef.current;
-        if (existing?.threadId === threadId && existing.key === key && existing.phase !== "failed")
-          return;
         const generation = ++generationRef.current;
         warmRef.current = { threadId, key, phase: "starting" };
         void enqueueRef.current(async () => {
@@ -118,7 +124,7 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
           }
           if (generationRef.current !== generation) return;
           try {
-            await startThreadFromDraft(context.project, warmDraftInput(draft, selection), {
+            await startThreadFromDraft(context.project, warmDraftInput(prepared, selection), {
               ...launchOptions,
               threadId,
             });
@@ -322,13 +328,14 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
     [context, remember],
   );
 
+  const park = () => {
+    const title = activeThread?.title?.trim();
+    void readBridge().parkTemporaryChat(title && title !== "Crafted Agent" ? title : "临时对话");
+  };
+
   const dismiss = () => {
     idleHeldRef.current = false;
     if (warmTimerRef.current) clearTimeout(warmTimerRef.current);
-    if (!engagedRef.current) {
-      void readBridge().hideTemporaryChat();
-      return;
-    }
     const generation = ++generationRef.current;
     warmRef.current = null;
     engagedRef.current = false;
@@ -392,6 +399,7 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
             launchAccountId: input.accountId,
             hasGoal: Boolean(input.goal),
             hasWorktree: Boolean(input.worktreeBranch),
+            ...(warmRef.current?.key ? { warmKey: warmRef.current.key } : {}),
           });
         if (reusable) {
           useAppStore.getState().updateThreadConfig(threadId, input.config);
@@ -435,13 +443,16 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
 
   return (
     <main
-      className="temporary-chat-window flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-background text-foreground"
+      className="temporary-chat-window flex h-full flex-col overflow-hidden bg-background text-foreground"
       aria-label="临时对话弹窗"
     >
       <header className="temporary-chat-titlebar flex h-11 shrink-0 items-center gap-2 border-b border-border px-3">
         <MessageCircle size={15} />
         <span className="flex-1 text-sm">临时对话</span>
         <span className="text-xs text-muted">关闭即删除</span>
+        <Button isIconOnly size="sm" variant="ghost" aria-label="最小化到工作区" onPress={park}>
+          <Minus size={16} />
+        </Button>
         <Button
           isIconOnly
           size="sm"
@@ -494,8 +505,9 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
                 : {})}
               composerPlaceholder="发送消息…"
               onModelSelectionChange={(selection) => {
+                const hadSelection = Boolean(selectionRef.current?.model);
                 remember(selection);
-                if (!engagedRef.current) ensureWarmRef.current(selection, false);
+                if (!engagedRef.current) ensureWarmRef.current(selection, !hadSelection);
               }}
               onStart={send}
             />

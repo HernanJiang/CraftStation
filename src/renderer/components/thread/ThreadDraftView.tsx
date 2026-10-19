@@ -14,6 +14,7 @@ import type {
   ThreadPresentationMode,
 } from "@/shared/contracts";
 import { HOME_PROJECT_NAME, isHomeProjectId } from "@/shared/homeScope";
+import { temporaryChatRememberedModel, withTemporaryChatModelMemory } from "@/shared/temporaryChat";
 import { isComposerPickerExcludedAgent } from "@/renderer/components/thread/useManagedComposerProviders";
 import { isRemoteSession, readBridge } from "@/renderer/bridge";
 import { getComputerUseScope } from "@/renderer/components/composer/computerUseScope";
@@ -267,10 +268,14 @@ export function ThreadDraftView(props: {
     () => installedAgents.filter((agent) => !isComposerPickerExcludedAgent(agent.kind)),
     [installedAgents],
   );
+  const temporaryChatWindow =
+    typeof window !== "undefined" && window.craftstation?.windowKind === "temporaryChat";
   const preferredAgentKind = resolvePreferredAgentKind(
     pickerInstalledAgents,
     lastDraftConfig,
-    useSharedSettings.getState().defaultModels,
+    temporaryChatWindow
+      ? withTemporaryChatModelMemory(lastDraftConfig, useSharedSettings.getState().defaultModels)
+      : useSharedSettings.getState().defaultModels,
   );
   const [agentKind, setAgentKind] = useState<AgentStatus["kind"] | undefined>(preferredAgentKind);
   const [selectedAccountId, setSelectedAccountId] = useState<string | undefined>(
@@ -541,7 +546,11 @@ export function ThreadDraftView(props: {
     // otherwise the draft opens on the model list's first entry. Unknown or
     // retired ids fall back to models[0] inside resolveProviderDraftConfig.
     const explicitDefault =
-      useSharedSettings.getState().defaultModels[effectiveAgentKind]?.trim() || undefined;
+      (temporaryChatWindow
+        ? temporaryChatRememberedModel(lastDraftConfig, effectiveAgentKind)
+        : undefined) ||
+      useSharedSettings.getState().defaultModels[effectiveAgentKind]?.trim() ||
+      undefined;
     const resolved = resolveProviderDraftConfig(
       selectedAgentForConfig,
       {
@@ -602,6 +611,7 @@ export function ThreadDraftView(props: {
     lastDraftConfig,
     effectiveWorktreeMode,
     isHomeScope,
+    temporaryChatWindow,
     updateProjectDraftConfig,
     setProviderConfig,
   ]);
@@ -1295,7 +1305,7 @@ export function ThreadDraftView(props: {
       );
       persistProviderConfig(actualKind, resolved);
       // Explicit menu pick → this provider's draft default from now on.
-      if (!nextAccountId && readBridge().windowKind !== "temporaryChat")
+      if (!nextAccountId && window.craftstation?.windowKind !== "temporaryChat")
         useSharedSettings.getState().setDefaultModel(actualKind, resolved.model);
       setModel(resolved.model);
       setEffort(resolved.effort);
@@ -1371,7 +1381,7 @@ export function ThreadDraftView(props: {
         persistProviderConfig(effectiveAgentKind, resolved);
         // Same-agent explicit pick → draft default (skipped for account
         // surfaces, whose models belong to the account, not the provider).
-        if (!nextAccountId && readBridge().windowKind !== "temporaryChat") {
+        if (!nextAccountId && window.craftstation?.windowKind !== "temporaryChat") {
           useSharedSettings.getState().setDefaultModel(effectiveAgentKind, resolved.model);
         }
         persistProjectDraftConfig({

@@ -17,8 +17,20 @@ vi.mock("@/renderer/actions/threadActions", () => ({
   openNewThreadInWorktree: vi.fn<(input: unknown) => void>(),
 }));
 
+const temporaryChat = vi.hoisted(() => ({
+  presence: { parked: false, title: "" },
+  open: vi.fn<() => void>(),
+}));
+
 vi.mock("@/renderer/bridge", () => ({
-  readBridge: () => ({}),
+  readBridge: () => ({
+    getTemporaryChatPresence: () => Promise.resolve(temporaryChat.presence),
+    onTemporaryChatPresence: (listener: (presence: { parked: boolean; title: string }) => void) => {
+      listener(temporaryChat.presence);
+      return () => undefined;
+    },
+    openTemporaryChat: temporaryChat.open,
+  }),
   isRemoteSession: () => false,
 }));
 
@@ -80,6 +92,8 @@ describe("SidebarWorkspaceInbox", () => {
       dismissedWorkspaceInboxIds: [],
       editingThreadId: null,
     });
+    temporaryChat.presence = { parked: false, title: "" };
+    temporaryChat.open.mockClear();
   });
 
   it("lists active threads and not settled ones, and is pinned by default", () => {
@@ -98,6 +112,16 @@ describe("SidebarWorkspaceInbox", () => {
 
     expect(useSidebarUiStore.getState().dismissedWorkspaceInboxIds).toEqual(["work"]);
     expect(screen.queryByText("Still working")).not.toBeInTheDocument();
+  });
+
+  it("lists a minimized temporary chat and opens it again", () => {
+    temporaryChat.presence = { parked: true, title: "监督会纪要" };
+    render(<SidebarWorkspaceInbox />);
+
+    fireEvent.click(screen.getByRole("button", { name: "监督会纪要" }));
+
+    expect(temporaryChat.open).toHaveBeenCalledTimes(1);
+    expect(screen.queryByText("Settled")).not.toBeInTheDocument();
   });
 
   it("unpins the section without collapsing it", () => {

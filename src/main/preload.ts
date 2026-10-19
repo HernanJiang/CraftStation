@@ -232,7 +232,23 @@ const bridge: CraftStationBridge = {
   getTemporaryChatThreadId: () => ipcRenderer.invoke(IPC_WINDOW_CHANNELS.temporaryChatContext),
   closeTemporaryChat: () => ipcRenderer.invoke(IPC_WINDOW_CHANNELS.temporaryChatClose),
   hideTemporaryChat: () => ipcRenderer.invoke(IPC_WINDOW_CHANNELS.temporaryChatHide),
+  parkTemporaryChat: (title: string) =>
+    ipcRenderer.invoke(IPC_WINDOW_CHANNELS.temporaryChatPark, title),
+  getTemporaryChatPresence: () => ipcRenderer.invoke(IPC_WINDOW_CHANNELS.temporaryChatPresenceGet),
   rearmTemporaryChat: () => ipcRenderer.invoke(IPC_WINDOW_CHANNELS.temporaryChatRearm),
+  onTemporaryChatPresence(listener) {
+    const handler = (_event: Electron.IpcRendererEvent, payload: unknown) => {
+      const presence = payload as { parked?: unknown; title?: unknown };
+      listener({
+        parked: presence?.parked === true,
+        title: typeof presence?.title === "string" ? presence.title : "",
+      });
+    };
+    ipcRenderer.on(IPC_EVENT_CHANNELS.temporaryChatPresence, handler);
+    return () => {
+      ipcRenderer.removeListener(IPC_EVENT_CHANNELS.temporaryChatPresence, handler);
+    };
+  },
   onTemporaryChatIdleExpired(listener) {
     const handler = (_event: Electron.IpcRendererEvent, visible: unknown) => {
       listener(visible === true);

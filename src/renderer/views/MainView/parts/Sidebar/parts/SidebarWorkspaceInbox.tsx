@@ -1,5 +1,8 @@
-import { Briefcase, ChevronRight, Pin } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Briefcase, ChevronRight, MessageCircle, Pin } from "lucide-react";
 import { useLingui } from "@lingui/react/macro";
+import { EMPTY_TEMPORARY_CHAT_PRESENCE, type TemporaryChatPresence } from "@/shared/temporaryChat";
+import { readBridge } from "@/renderer/bridge";
 import { SidebarButton } from "@/renderer/components/common/SidebarButton";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useSidebarUiStore } from "@/renderer/state/sidebarUiStore";
@@ -9,6 +12,27 @@ import type { SidebarRow } from "./sidebarProjectRows";
 
 const quickButtonClass =
   "flex size-6 items-center justify-center rounded-lg text-muted opacity-0 transition-all hover:bg-[var(--row-active)] hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100";
+
+/** A minimized temporary chat is not a sidebar thread. The main window only hears that it is parked. */
+function useTemporaryChatPresence(): TemporaryChatPresence {
+  const [presence, setPresence] = useState<TemporaryChatPresence>(EMPTY_TEMPORARY_CHAT_PRESENCE);
+  useEffect(() => {
+    const bridge = readBridge();
+    if (!bridge?.getTemporaryChatPresence || !bridge.onTemporaryChatPresence) return;
+    let active = true;
+    let sawEvent = false;
+    const unsubscribe = bridge.onTemporaryChatPresence((value) => {
+      sawEvent = true;
+      if (active) setPresence(value);
+    });
+    void bridge.getTemporaryChatPresence().then((value) => {
+      if (!active || sawEvent) return;
+      setPresence(value);
+    });
+    return unsubscribe;
+  }, []);
+  return presence;
+}
 
 /**
  * Resident section, like Home. Working, errored, and unread-finished threads
@@ -24,6 +48,7 @@ export function SidebarWorkspaceInbox() {
   const collapsed = useSidebarUiStore((state) => state.workspaceInboxCollapsed);
   const editingThreadId = useSidebarUiStore((state) => state.editingThreadId);
   const setEditingThreadId = useSidebarUiStore((state) => state.setEditingThreadId);
+  const parkedChat = useTemporaryChatPresence();
   const projectById = new Map(projectsById.map((project) => [project.id, project]));
 
   return (
@@ -59,6 +84,16 @@ export function SidebarWorkspaceInbox() {
           </button>
         }
       />
+      {collapsed ? null : parkedChat.parked ? (
+        <SidebarButton
+          size="xs"
+          icon={<MessageCircle className="size-3.5 shrink-0" />}
+          label={<span className="truncate">{parkedChat.title || "临时对话"}</span>}
+          onPress={() => {
+            void readBridge().openTemporaryChat?.();
+          }}
+        />
+      ) : null}
       {collapsed
         ? null
         : threads.map((thread, index) => {

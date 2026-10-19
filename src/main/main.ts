@@ -87,9 +87,11 @@ import { readKeybindingsFile } from "./keybindingsFile";
 import { QuickComposerShortcutManager } from "./quickComposerShortcut";
 import { TEMPORARY_CHAT_COMMAND_ID } from "@/shared/keybindings";
 import {
+  EMPTY_TEMPORARY_CHAT_PRESENCE,
   shouldExpireTemporaryChatWarm,
   TEMPORARY_CHAT_IDLE_MS,
   TEMPORARY_CHAT_MODEL_STATE_KEY,
+  type TemporaryChatPresence,
 } from "@/shared/temporaryChat";
 import {
   TemporaryChatSession,
@@ -250,6 +252,7 @@ let temporaryChatSession: TemporaryChatSession | null = null;
 let temporaryChatShortcutManager: QuickComposerShortcutManager | null = null;
 let temporaryChatWarmTimer: ReturnType<typeof setTimeout> | null = null;
 let temporaryChatIdleTimer: ReturnType<typeof setTimeout> | null = null;
+let temporaryChatPresence: TemporaryChatPresence = { ...EMPTY_TEMPORARY_CHAT_PRESENCE };
 let quickComposerDialogOpen = false;
 let quickComposerDismissTimer: ReturnType<typeof setTimeout> | null = null;
 let revealMainAfterQuickComposerDismiss = false;
@@ -577,6 +580,28 @@ function clearTemporaryChatIdle(): void {
   temporaryChatIdleTimer = null;
 }
 
+function publishTemporaryChatPresence(): void {
+  const window = mainWindow;
+  if (!window || window.isDestroyed()) return;
+  window.webContents.send(IPC_EVENT_CHANNELS.temporaryChatPresence, temporaryChatPresence);
+}
+
+function clearTemporaryChatParked(): void {
+  if (!temporaryChatPresence.parked) return;
+  temporaryChatPresence = { ...EMPTY_TEMPORARY_CHAT_PRESENCE };
+  publishTemporaryChatPresence();
+}
+
+/** Hide into the Workspace list without deleting the conversation or its CLI. */
+function parkTemporaryChatWindow(title: string): void {
+  const window = temporaryChatWindow;
+  if (!window || window.isDestroyed()) return;
+  const label = title.trim().slice(0, 80) || "临时对话";
+  temporaryChatPresence = { parked: true, title: label };
+  publishTemporaryChatPresence();
+  window.hide();
+}
+
 /** A hidden window is unused. Showing it cancels the clock; hiding it starts a new one. */
 function armTemporaryChatIdle(): void {
   clearTemporaryChatIdle();
@@ -591,7 +616,13 @@ async function expireTemporaryChatIfIdle(): Promise<void> {
   const session = temporaryChatSession;
   if (isQuitting || !window || window.isDestroyed() || !session) return;
   const visible = window.isVisible();
-  if (!shouldExpireTemporaryChatWarm({ visible, hasThread: session.threadId !== null })) {
+  if (
+    !shouldExpireTemporaryChatWarm({
+      visible,
+      hasThread: session.threadId !== null,
+      parked: temporaryChatPresence.parked,
+    })
+  ) {
     if (visible) armTemporaryChatIdle();
     return;
   }
@@ -616,6 +647,7 @@ async function expireTemporaryChatIfIdle(): Promise<void> {
 function bindTemporaryChatIdle(window: BrowserWindow): void {
   window.on("show", () => {
     clearTemporaryChatIdle();
+    clearTemporaryChatParked();
   });
   window.on("hide", () => {
     if (isQuitting || window.isDestroyed()) return;
@@ -633,6 +665,7 @@ function createTemporaryChatWindow(show: boolean): void {
     initiallyHidden: !show,
     onClosed: () => {
       clearTemporaryChatIdle();
+      clearTemporaryChatParked();
       if (temporaryChatWindow === window) temporaryChatWindow = null;
       const closingId = session.threadId ?? threadId;
       void session.close(closingId).catch((error) => {
@@ -1680,8 +1713,19 @@ if (!hasSingleInstanceLock) {
           temporaryChatWindow?.close();
       });
       ipcMain.handle(IPC_WINDOW_CHANNELS.temporaryChatHide, (event) => {
-        if (BrowserWindow.fromWebContents(event.sender) === temporaryChatWindow)
-          temporaryChatWindow?.hide();
+        if (BrowserWindow.fromWebContents(event.sender) !== temporaryChatWindow) return;
+        clearTemporaryChatParked();
+        temporaryChatWindow?.hide();
+      });
+      ipcMain.handle(IPC_WINDOW_CHANNELS.temporaryChatPark, (event, title: unknown) => {
+        if (BrowserWindow.fromWebContents(event.sender) !== temporaryChatWindow) return;
+        parkTemporaryChatWindow(typeof title === "string" ? title : "");
+      });
+      ipcMain.handle(IPC_WINDOW_CHANNELS.temporaryChatPresenceGet, (event) => {
+        if (BrowserWindow.fromWebContents(event.sender) !== mainWindow) {
+          return { ...EMPTY_TEMPORARY_CHAT_PRESENCE };
+        }
+        return temporaryChatPresence;
       });
       ipcMain.handle(IPC_WINDOW_CHANNELS.temporaryChatRearm, (event) => {
         if (
@@ -1690,6 +1734,7 @@ if (!hasSingleInstanceLock) {
         )
           throw new Error("temporary-chat-unavailable");
         const nextId = temporaryChatSession.rearm();
+        clearTemporaryChatParked();
         temporaryChatWindow?.hide();
         return nextId;
       });
@@ -1725,6 +1770,7 @@ if (!hasSingleInstanceLock) {
         const window = BrowserWindow.fromWebContents(event.sender);
         if (!window || window !== mainWindow || window.isDestroyed()) return;
         mainRendererReady = true;
+        publishTemporaryChatPresence();
         flushQuickComposerSubmissions();
         flushTrayThreadOpen();
         flushInAppNotifications();

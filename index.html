@@ -74,7 +74,13 @@
           root.classList.remove("light", "dark");
           root.classList.add(appearance);
           root.dataset.theme = appearance;
-          if (boot && boot.bg) root.style.backgroundColor = boot.bg;
+          var windowKind = "";
+          try {
+            windowKind = (window.craftstation && window.craftstation.windowKind) || "";
+          } catch (err) {}
+          if (windowKind) root.dataset.windowKind = windowKind;
+          if (windowKind === "temporaryChat") root.style.backgroundColor = "transparent";
+          else if (boot && boot.bg) root.style.backgroundColor = boot.bg;
         } catch (e) {
           // Ignore; the renderer applies real settings shortly after mount.
         }
@@ -93,6 +99,11 @@
       }
       html.light #craftstation-boot-splash {
         background: #f1f1f4;
+      }
+      html[data-window-kind="temporaryChat"],
+      html[data-window-kind="temporaryChat"] body,
+      html[data-window-kind="temporaryChat"] #craftstation-boot-splash {
+        background: transparent !important;
       }
       .craftstation-boot-mark {
         width: 80px;

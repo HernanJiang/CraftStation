@@ -369,6 +369,9 @@ const remoteBridgeOverrides = {
   onQuickComposerSubmit: () => () => undefined,
   onQuickComposerDismissRequested: () => () => undefined,
   onTemporaryChatIdleExpired: () => () => undefined,
+  parkTemporaryChat: () => Promise.resolve(),
+  getTemporaryChatPresence: () => Promise.resolve({ parked: false, title: "" }),
+  onTemporaryChatPresence: () => () => undefined,
   submitQuickComposer: () =>
     Promise.reject(new Error("Quick Composer is not available in a remote session.")),
   dismissQuickComposer: () =>
