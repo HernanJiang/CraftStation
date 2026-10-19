@@ -1,9 +1,10 @@
-## 1.11.6 DeepSeek 第三方模型绑定与失败重试（2026-10-20，准备发布）
+## 1.11.6 DeepSeek 第三方模型绑定与失败重试（2026-10-20，已发布）
 
 - **用户问题**：v1.11.5 的 DeepSeek 已改写标题，但 `111` 的正文为空，约 38 秒后出现 `The requested model is temporarily unavailable`。
 - **根因与实现**：真实 ACP 验证发现 `deepseek-v4.1-flash` 被官方 `deepseek-flash` 别名抢先匹配，进入官方 Messages 协议。启动时显式传递第三方 provider，并把模型匹配限制在该 provider 内。另修复 ACP 吞掉普通失败、导致 Craft-Harness 收不到拒绝，以及重试分类不识别明确临时模型服务故障的问题。
 - **验证**：ACP、DeepSeek、Craft-Harness、启动、回合队列与 lifecycle 共 660 项通过。WSL 命令单测在测试进程内启用模拟启动门禁，未修改实际应用的同意状态。类型检查与变更文件常规/类型感知 lint 通过。真实 dsh 经 ACP factory 注入 6 次模型暂不可用 HTTP 503，Craft-Harness 接管 1 次重试后，CodeKey 连续返回 `DEEPSEEK_RECOVERY_OK` 与 `DEEPSEEK_FOLLOWUP_OK`；全部请求均为 `/chat/completions`、`deepseek-v4.1-flash`。最终隔离 Electron 回归 6 个场景与 4 项 mock gate 通过，控制台/运行时错误 0；证据位于 `C:/Users/Haona/.craftstation-smoke/automated-1792425622902-30704/artifacts/`。真实供应商验证在 ACP factory 完成，未向用户现有会话发送测试消息；未执行完整供应商 UI 功能矩阵。
-- **发布状态**：准备发布 Windows x64 双包补丁 `1.11.6`。无关 lockfile 和临时资料保留，不纳入发布提交。
+- **发布状态**：`main` 已推送，正式 tag `v1.11.6` 指向修复提交 `87825501`。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/39284590222) 成功，补丁版只构建 Windows。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.6) 已发布为最新稳定版，非草稿、非预发布。4 项附件齐备：NSIS 133174002 字节、blockmap 138701 字节、便携版 112386729 字节、`latest.yml` 364 字节。`latest.yml` 版本为 `1.11.6`，指向 NSIS 安装包。双语正文与 `ai_workspace/release-notes-1.11.6.md` 一致；`changelog.json` 已含 1.11.6 条目。流水线已将 main 开发版本推进到 1.11.7（`d83eee07`）。无关 lockfile 与临时资料保留，不纳入发布提交。
+- **本地收尾**：正式 1.11.6 的 NSIS、blockmap、便携版和 `latest.yml` 已下载覆盖本地 `release/`，大小与 GitHub 附件一致。便携版只保留 1.11.6 与 1.11.5；1.11.4 便携版与打包中间产物（`win-unpacked/`、`builder-debug.yml`）已删除。
 
 ## 1.11.5 DeepSeek MCP 准备失败（2026-10-19，已发布）
 
