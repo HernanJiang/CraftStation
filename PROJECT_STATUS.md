@@ -4,7 +4,7 @@
 - **根因与实现**：选中网页的保活信号（`view:${id}` automation session）只在 `read()` 轮询期间续 4 秒宽限，页面一切走 webview 即被卸载。修复：`src/main/chatGptWeb/runtime.ts` 把该宽限改为 30 分钟闲置超时（`VIEW_IDLE_TIMEOUT_MS`）。页面打开时轮询持续续期；切走后 webview 转入既有离屏 background 宿主保持挂载（复用 `BrowserHost` background/hidden 模式与 `BrowserPanelManager` automation session，渲染层零改动），30 分钟无交互后才卸载休眠，下次打开重新加载。
 - **验证**：`pnpm typecheck` 通过，`oxlint` 0 警告 0 错误。隔离实例 changed 范围 mock 冒烟：baseline/webchat 之外的链路全部通过、0 控制台错误。webchat 场景在「导入源网页复用线程或标签」断言失败，干净树（暂存本次改动）full 冒烟同样在该断言失败，确认为与本次无关的既有问题；其余 full 场景（goal/settings/browser/schedules/thread-search/composer-caret/preview-close/collaboration-layout/responsive-layout 等）全部 PASS。
 - **配套**：`AGENTS.md` 新增两条用户明确约定——修改必测（至少 typecheck+lint，行为改动须运行实测），测试通过后默认构建 Windows 双包并发布 GitHub 作为标准收尾。
-- **发布状态**：待构建发布。
+- **发布状态**：已发布。`main` 已推送（`791ee219`），tag `v1.11.9` 已推送。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.9) 已发布为最新稳定版，非草稿、非预发布，4 项附件齐备：NSIS 148682752 字节、blockmap 155119 字节、便携版 127360402 字节、`latest.yml` 364 字节。双语正文与 `ai_workspace/release-notes-1.11.9.md` 一致。本地 `release/` 已清理中间产物，便携版只保留 1.11.9 与 1.11.8。
 
 ## 1.11.8 Claude Code 安装失败修复（2026-10-20，已发布）
 
