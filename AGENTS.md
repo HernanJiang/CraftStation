@@ -104,6 +104,7 @@ Auto-Crafting、Model Fingerprint、Active Probing、Compatibility Prediction、
 - 关键路径至少表达 `phase`、`operation`、`status`、相关对象 ID、稳定错误 `code`、原因与排查方向。
 - 跨组件流程携带 correlation/request id；错误保留原始异常上下文。
 - 日志覆盖成功、跳过、降级与失败，不记录 API key、Token、Cookie、完整敏感 Prompt 或其他凭据。
+- **修改必测（用户 2026-10-20 起明确）**：每次代码修改完成后都必须先测试验证（至少 `pnpm typecheck` + `pnpm lint`，涉及运行行为的改动还须在运行中的应用里实测通过），不得只改不测；测试通过后才进入默认发版流程。
 
 ## Workflow
 
@@ -155,6 +156,7 @@ gh search repos "关键词" --limit 20 --json fullName,url,description,updatedAt
 - `release\` 下便携版仅保留最新和上一个版本稳定版共两份备份；旧版本目录（`release-portable*`）、中间产物（`win-unpacked/`、`builder-debug.yml` 等）打包完成后即删除。
 - NSIS 安装包（`CraftStation-Setup-*.exe`）连同 `latest.yml` / blockmap 随版本发布到 GitHub Release（updater feed 所需），不属于便携版备份计数，不得顺手删除。
 - 用户确认的 main 修复、缺陷与 hotfix 完成验证后，直接发布下一个正式补丁版本；使用 `X.Y.Z`，进展与验证维护在 `PROJECT_STATUS.md`，不再累计 `a/b/c` 字母后缀内部版本。用户只要求“打包”时同样默认构建 Windows x64 NSIS 与便携版双包。
+- **默认发版（用户 2026-10-20 起明确）**：任何新版本/修复在测试验证通过后，默认紧接着构建 Windows 版本（NSIS + 便携版双包）并发布到 GitHub（推送 `main`、tag、Release），作为修复流程的标准收尾，无需用户再单独下达“打包”或“发布”指令。
 - **发布平台策略**：补丁版本（`X.Y.Z` 且 `Z>0`）只构建发布 Windows 端；次版本（`X.Y.0`，第二位变化）才构建发布 Windows+Linux+macOS 三端。`Release (stable)` workflow 的 `platforms` 输入留空即按该规则自动推导，可显式传 `win,linux,mac` 覆盖；`_build.yml` 的 `platforms` 输入默认三端，nightly 与手动调用不受影响。
 - 双包完成后默认推送 `main`、`vX.Y.Z` tag 与 GitHub Release（NSIS、blockmap、`latest.yml`、便携版，正文用当版双语 release notes），无需重复确认。用户明确只要求本地打包时保留本地产物；研究笔记不进入发布提交。
 - Release notes 默认中英双语：`ai_workspace/release-notes-X.Y.Z.md` 与 GitHub Release body 均为中文正文在前、`---` 分隔后接完整英文译文（`User-facing` / `Implementation` / `Verification` 对应 `用户可见` / `实现` / `验证`）。历史版本发布时已补齐英文段；新发布不再单独确认双语。

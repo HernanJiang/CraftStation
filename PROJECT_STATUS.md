@@ -1,3 +1,19 @@
+## 1.11.9 远程网页唤醒/休眠（2026-10-20）
+
+- **用户问题**：远程浏览器线程（ChatGPT 网页）每次切换标签页/线程后点回都整页重新加载，要求与 CLI 一样有唤醒/休眠：首次点击唤醒加载，闲置半小时休眠，不能每次都加载。
+- **根因与实现**：选中网页的保活信号（`view:${id}` automation session）只在 `read()` 轮询期间续 4 秒宽限，页面一切走 webview 即被卸载。修复：`src/main/chatGptWeb/runtime.ts` 把该宽限改为 30 分钟闲置超时（`VIEW_IDLE_TIMEOUT_MS`）。页面打开时轮询持续续期；切走后 webview 转入既有离屏 background 宿主保持挂载（复用 `BrowserHost` background/hidden 模式与 `BrowserPanelManager` automation session，渲染层零改动），30 分钟无交互后才卸载休眠，下次打开重新加载。
+- **验证**：`pnpm typecheck` 通过，`oxlint` 0 警告 0 错误。隔离实例 changed 范围 mock 冒烟：baseline/webchat 之外的链路全部通过、0 控制台错误。webchat 场景在「导入源网页复用线程或标签」断言失败，干净树（暂存本次改动）full 冒烟同样在该断言失败，确认为与本次无关的既有问题；其余 full 场景（goal/settings/browser/schedules/thread-search/composer-caret/preview-close/collaboration-layout/responsive-layout 等）全部 PASS。
+- **配套**：`AGENTS.md` 新增两条用户明确约定——修改必测（至少 typecheck+lint，行为改动须运行实测），测试通过后默认构建 Windows 双包并发布 GitHub 作为标准收尾。
+- **发布状态**：待构建发布。
+
+## 1.11.8 Claude Code 安装失败修复（2026-10-20，已发布）
+
+- **用户问题**：Harness 总览里 Claude Code「下载并安装」总是失败，提示退出码 -1。
+- **根因与实现**：CraftStation 进程继承了被污染的 `PSModulePath`（`c:\program files\powershell\7\Modules` 等 PS 7 目录排在系统目录之前），PS 5.1 自动加载命中无法加载的 PS7 模块，`Get-FileHash` 静默缺失，官方 `install.ps1` 在校验步骤 CommandNotFoundException 并 `exit 1` 杀掉安装终端，完成标记未写出而显示 -1。修复：`processRuntime.ts` 新增 `repairWindowsPowerShellModulePath`，把两个系统模块目录去重后钉回最前；`threadSessionManager.ts` 仅在原生 Windows 且 shell 为 PS 5.1 时应用（大小写不敏感读取与清理旧键），pwsh/cmd 不受影响。污染来源（哪个工具写进了进程级环境）未查明，不在本次范围。
+- **验证**：新增 3 项单测；相关 60 项测试通过，typecheck 与常规/类型感知 lint 0 警告。真实 PS 5.1 验证：用户机器实际污染值下 `(Get-Command Get-FileHash)` 返回 False（复现失败点），修复值下返回 True。修复后环境真实运行官方 `install.ps1`：版本查询、清单解析、280MB 安装器下载与 SHA256 校验全部通过并成功启动官方安装器（修复前脚本在首个 `Get-FileHash` 步骤即中断）。安装器随后下载 Claude 运行时因网络到 Anthropic CDN 超时（`Download timed out`），与产品修复无关，需用户网络可稳定访问 downloads.claude.ai。
+- **发布状态**：`main` 已推送，修复提交 `2bd98cec`。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/39410776206) 成功，补丁版只构建 Windows。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.8) 已发布为最新稳定版，非草稿、非预发布。4 项附件齐备：NSIS 133178621 字节、blockmap 138797 字节、便携版 112394169 字节、`latest.yml` 364 字节。双语正文与 `ai_workspace/release-notes-1.11.8.md` 一致；`changelog.json` 已含 1.11.8 条目。无关 lockfile 与临时资料保留，不纳入发布提交。
+- **本地收尾**：正式 1.11.8 的 NSIS、blockmap、便携版和 `latest.yml` 已下载覆盖本地 `release/`，大小与 GitHub 附件一致，`latest.yml` 指向 1.11.8 NSIS 安装包。便携版只保留 1.11.8 与 1.11.7。
+
 ## 1.11.7 Step Code 权限与临时对话修复（2026-10-20，已发布）
 
 - **用户问题**：Step Code 每条命令都弹「请求批准」，设置里的默认权限不生效；临时对话反复「模型准备失败」，且不记住上次使用的模型（上次用 DeepSeek，打开总是 Kimi）。

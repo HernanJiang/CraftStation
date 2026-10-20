@@ -114,6 +114,12 @@ export function embeddedWebChatBrowser(manager: BrowserPanelManager): WebChatBro
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+// A selected webpage stays mounted in the off-screen background host until it
+// has been idle for this long; switching away and back within the window must
+// not reload the page, but idle sessions should eventually sleep so they do
+// not each pin a Chromium renderer forever.
+const VIEW_IDLE_TIMEOUT_MS = 30 * 60_000;
 type Turn = {
   startedAt: number;
   lastChange: number;
@@ -600,16 +606,17 @@ export class ChatGptWebRuntime {
     const deadline = Date.now() + 10_000;
     if (restoreBinding)
       while (this.locks.has(id) && !this.turns.has(id) && Date.now() < deadline) await sleep(30);
-    // Keep the selected webpage alive between completed turns. Otherwise the
-    // hidden automation host unmounts as soon as the turn ends and destroys
-    // iframe state before the next poll / component operation.
+    // Keep the selected webpage alive between completed turns and across view
+    // switches. The read poll re-arms this while the page is open; once the
+    // user leaves, the page sleeps (background host unmounts) only after the
+    // idle timeout, so revisiting it never reloads unless it truly went idle.
     this.browser.keepAlive(`view:${id}`, true);
     const previous = this.viewTimers.get(id);
     if (previous) clearTimeout(previous);
     const timer = setTimeout(() => {
       this.viewTimers.delete(id);
       this.browser.keepAlive(`view:${id}`, false);
-    }, 4000);
+    }, VIEW_IDLE_TIMEOUT_MS);
     timer.unref();
     this.viewTimers.set(id, timer);
     // Re-check an existing webpage after navigation / login / attachment errors.
