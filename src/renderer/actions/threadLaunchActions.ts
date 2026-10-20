@@ -1,4 +1,5 @@
 import { msg, msg as linguiMsg } from "@lingui/core/macro";
+import { rememberSubmittedChatModel } from "./chatModelMemory";
 import { toast } from "@heroui/react";
 import { getLaunchableAgentStatuses, resolveAgentPresentationMode } from "@/shared/agentStatus";
 import { applyHomeScopePermissions } from "@/shared/agents/unrestrictedPermissions";
@@ -107,6 +108,7 @@ export async function performInitialThreadLaunch(input: {
     presentation === thread.presentationMode
       ? thread
       : { ...thread, presentationMode: presentation };
+  rememberSubmittedChatModel(effectiveThread, prompt, segments);
   if (effectiveThread.goal && !remoteOwner(effectiveThread)) {
     const checkpoint = getThreadGoalCheckpoint(effectiveThread.id, effectiveThread.goal.prompt);
     await readBridge().controlThreadGoal({
@@ -1135,6 +1137,7 @@ export async function startThreadFromCraft(
     const accountId =
       options.accountId ??
       (options.accountMode === undefined ? (pendingAccountId ?? undefined) : undefined);
+    rememberSubmittedChatModel(thread, prompt, undefined, accountId);
     const craftAgentResult = await bridge.craftAgent({
       craftPlan: plan,
       projectLocation,

@@ -1,3 +1,11 @@
+## 1.11.10 Claude 5.5 与临时对话默认模型（2026-10-20）
+
+- **用户问题**：本机 Claude Code 选不到最新的 5.5；临时对话打开后仍停在旧的 Kimi Code，没有跟随上次实际发出的模型与 Harness。
+- **根因与实现**：Claude Code 2.1.304 已能请求 5.5，但 CraftStation 内置目录停在 Opus 5 / Sonnet 5。`models.ts` 补上 Opus 5.5、Sonnet 5.5、Haiku 5.5、Fable 5.1，并按 CLI 版本门槛隐藏；推理档位、1M 上下文和 Opus 5.5 Fast 一并补齐。Auto 权限集与 Command Code 目录同步。临时对话此前只读自己的窗口记忆。现在在启动、合成台启动和后续发送时写入 `last-submitted-chat-model`；空 prompt 不写入。空白临时对话优先读这份记忆，隐藏窗口聚焦时刷新尚未进入对话的草稿。Auto 目录隐藏的原生 DeepSeek Harness 在恢复最近请求时仍可选。
+- **验证**：`pnpm typecheck` 通过。`pnpm lint`（含类型感知）0 警告 0 错误。Claude 目录、临时对话记忆、草稿恢复与 changelog 共 7 个文件 175 项测试通过。应用里空白临时对话已从最近请求跟随到 Codex + 6.1 Sol，关闭重开后再跟随到 Claude Code + Opus 5.5；已有对话保持当前选择，空白预热不写入记忆。
+- **发布状态**：验证已通过，正在构建 Windows 双包并发布。
+- **环境边界**：本机 Claude 配置仍指向 OpenRouter，现有凭据请求 5.5 返回 401。这是凭据问题，不由本版代码修复。
+
 ## 1.11.9 远程网页唤醒/休眠（2026-10-20）
 
 - **用户问题**：远程浏览器线程（ChatGPT 网页）每次切换标签页/线程后点回都整页重新加载，要求与 CLI 一样有唤醒/休眠：首次点击唤醒加载，闲置半小时休眠，不能每次都加载。

@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
     touchThread: vi.fn<(threadId: string) => void>(),
   },
   bridge: {
+    dbSetState: vi.fn<(key: string, value: string) => Promise<void>>().mockResolvedValue(undefined),
     sendThreadInput: vi.fn<(payload: SendThreadInputPayload) => Promise<void>>(),
   },
   performInitialThreadLaunch: vi.fn<(input: unknown) => Promise<void>>(),
@@ -85,6 +86,18 @@ function rollbackCalls(): unknown[] {
 }
 
 describe("performThreadInputSubmit unknown-session resume", () => {
+  it("remembers the model and harness on a follow-up request", async () => {
+    await performThreadInputSubmit({
+      thread: createThread({ agentKind: "claude", config: { model: "claude-opus-5-5" } }),
+      prompt: "follow up",
+      transport: { sendThreadInput: async () => undefined },
+    });
+    expect(mocks.bridge.dbSetState).toHaveBeenCalledWith(
+      "last-submitted-chat-model",
+      expect.stringContaining('"model":"claude-opus-5-5"'),
+    );
+  });
+
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.bridge.sendThreadInput.mockResolvedValue(undefined);

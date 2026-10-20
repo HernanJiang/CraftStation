@@ -7,7 +7,15 @@ const MIN_CLAUDE_OPUS_48_CLI = [2, 1, 154] as const;
 const MIN_CLAUDE_FABLE_5_CLI = [2, 1, 170] as const;
 const MIN_CLAUDE_SONNET_5_CLI = [2, 1, 197] as const;
 const MIN_CLAUDE_OPUS_5_CLI = [2, 1, 219] as const;
+const MIN_CLAUDE_FABLE_51_CLI = [2, 1, 257] as const;
+const MIN_CLAUDE_OPUS_55_CLI = [2, 1, 280] as const;
+const MIN_CLAUDE_SONNET_55_CLI = [2, 1, 284] as const;
+const MIN_CLAUDE_HAIKU_55_CLI = [2, 1, 293] as const;
 
+export const CLAUDE_OPUS_55_MODEL_ID = "claude-opus-5-5";
+export const CLAUDE_FABLE_51_MODEL_ID = "claude-fable-5-1";
+export const CLAUDE_SONNET_55_MODEL_ID = "claude-sonnet-5-5";
+export const CLAUDE_HAIKU_55_MODEL_ID = "claude-haiku-5-5";
 export const CLAUDE_OPUS_5_MODEL_ID = "claude-opus-5";
 export const CLAUDE_FABLE_5_MODEL_ID = "claude-fable-5";
 export const CLAUDE_OPUS_48_MODEL_ID = "claude-opus-4-8";
@@ -26,38 +34,51 @@ export const CLAUDE_PREMIUM_EFFORT_TIERS: string[] = [...CLAUDE_EFFORT_TIERS];
  * threads and delegated runs.
  */
 export const CLAUDE_BUILTIN_MODELS: AgentCapability["models"] = [
+  { id: CLAUDE_OPUS_55_MODEL_ID, label: "Opus 5.5" },
+  { id: CLAUDE_FABLE_51_MODEL_ID, label: "Fable 5.1" },
   { id: CLAUDE_OPUS_5_MODEL_ID, label: "Opus 5" },
   { id: CLAUDE_FABLE_5_MODEL_ID, label: "Fable 5" },
   { id: CLAUDE_OPUS_48_MODEL_ID, label: "Opus 4.8" },
   { id: CLAUDE_OPUS_47_MODEL_ID, label: "Opus 4.7" },
   { id: "claude-opus-4-6", label: "Opus 4.6" },
+  { id: CLAUDE_SONNET_55_MODEL_ID, label: "Sonnet 5.5" },
   { id: CLAUDE_SONNET_5_MODEL_ID, label: "Sonnet 5" },
+  { id: CLAUDE_HAIKU_55_MODEL_ID, label: "Haiku 5.5" },
   { id: "haiku", label: "Haiku" },
 ];
 
 export const CLAUDE_BUILTIN_MODEL_EFFORTS: AgentCapability["modelEfforts"] = {
+  [CLAUDE_OPUS_55_MODEL_ID]: CLAUDE_PREMIUM_EFFORT_TIERS,
+  [CLAUDE_FABLE_51_MODEL_ID]: CLAUDE_PREMIUM_EFFORT_TIERS,
   [CLAUDE_OPUS_5_MODEL_ID]: CLAUDE_PREMIUM_EFFORT_TIERS,
   [CLAUDE_FABLE_5_MODEL_ID]: CLAUDE_PREMIUM_EFFORT_TIERS,
   [CLAUDE_OPUS_48_MODEL_ID]: CLAUDE_PREMIUM_EFFORT_TIERS,
   [CLAUDE_OPUS_47_MODEL_ID]: CLAUDE_PREMIUM_EFFORT_TIERS,
   "claude-opus-4-6": ["low", "medium", "high", "max"],
+  [CLAUDE_SONNET_55_MODEL_ID]: CLAUDE_PREMIUM_EFFORT_TIERS,
   [CLAUDE_SONNET_5_MODEL_ID]: CLAUDE_PREMIUM_EFFORT_TIERS,
+  [CLAUDE_HAIKU_55_MODEL_ID]: CLAUDE_PREMIUM_EFFORT_TIERS,
   haiku: [],
 };
 
 export const CLAUDE_BUILTIN_MODEL_CONTEXT_SIZES: NonNullable<AgentCapability["modelContextSizes"]> =
   {
+    [CLAUDE_OPUS_55_MODEL_ID]: ["1m"],
+    [CLAUDE_FABLE_51_MODEL_ID]: ["1m"],
     [CLAUDE_OPUS_5_MODEL_ID]: ["1m"],
     [CLAUDE_FABLE_5_MODEL_ID]: ["1m"],
     [CLAUDE_OPUS_48_MODEL_ID]: ["1m", "200k"],
     [CLAUDE_OPUS_47_MODEL_ID]: ["1m", "200k"],
     "claude-opus-4-6": ["1m", "200k"],
+    [CLAUDE_SONNET_55_MODEL_ID]: ["1m"],
     [CLAUDE_SONNET_5_MODEL_ID]: ["1m"],
+    [CLAUDE_HAIKU_55_MODEL_ID]: ["1m"],
     // Legacy `sonnet` alias retained for backward compatibility.
     sonnet: ["200k", "1m"],
   };
 
 export const CLAUDE_BUILTIN_FAST_MODELS: NonNullable<AgentCapability["fastModels"]> = [
+  CLAUDE_OPUS_55_MODEL_ID,
   CLAUDE_OPUS_5_MODEL_ID,
   CLAUDE_OPUS_48_MODEL_ID,
   CLAUDE_OPUS_47_MODEL_ID,
@@ -88,6 +109,18 @@ export function claudeCapabilitiesFromCliVersion(
   if (!triplet) return undefined;
 
   const hiddenModelIds = new Set<string>();
+  if (!semverGte(triplet, MIN_CLAUDE_OPUS_55_CLI)) {
+    hiddenModelIds.add(CLAUDE_OPUS_55_MODEL_ID);
+  }
+  if (!semverGte(triplet, MIN_CLAUDE_FABLE_51_CLI)) {
+    hiddenModelIds.add(CLAUDE_FABLE_51_MODEL_ID);
+  }
+  if (!semverGte(triplet, MIN_CLAUDE_SONNET_55_CLI)) {
+    hiddenModelIds.add(CLAUDE_SONNET_55_MODEL_ID);
+  }
+  if (!semverGte(triplet, MIN_CLAUDE_HAIKU_55_CLI)) {
+    hiddenModelIds.add(CLAUDE_HAIKU_55_MODEL_ID);
+  }
   if (!semverGte(triplet, MIN_CLAUDE_OPUS_5_CLI)) {
     hiddenModelIds.add(CLAUDE_OPUS_5_MODEL_ID);
   }

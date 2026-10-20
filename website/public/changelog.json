@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.11.10",
+      "date": "2026-10-20",
+      "title": "Claude 5.5 与临时对话默认模型修复",
+      "summary": "Claude Code 模型目录补齐 Opus 5.5、Sonnet 5.5、Haiku 5.5 和 Fable 5.1；临时对话默认跟随最近一次请求的模型与 Harness。",
+      "changes": [
+        {
+          "kind": "improved",
+          "label": "Claude Code",
+          "text": "可选择 Claude 5.5 系列与 Fable 5.1，并按 CLI 版本显示支持的模型、推理档位和上下文选项。"
+        },
+        {
+          "kind": "fixed",
+          "label": "临时对话",
+          "text": "新对话恢复最近一次实际提交请求的模型与 Harness，隐藏窗口重开也会刷新，空白预热不再覆盖默认组合。"
+        },
+        {
+          "kind": "fixed",
+          "label": "临时对话",
+          "text": "恢复原生 DeepSeek Harness 等组合时保留上次请求的选择，已有对话继续使用当前模型。"
+        }
+      ]
+    },
+    {
       "version": "1.11.9",
       "date": "2026-10-20",
       "title": "远程网页切换标签不再重新加载",

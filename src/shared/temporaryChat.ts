@@ -1,5 +1,32 @@
-/** Renderer state key for the temporary chat's last model. Not the main window default. */
+import { projectDraftConfigSchema } from "./contracts/config";
+import type { ProjectDraftConfig, ThreadPresentationMode } from "./contracts";
+
+/** Legacy temporary-window choice, used until a request has been submitted. */
 export const TEMPORARY_CHAT_MODEL_STATE_KEY = "temporary-chat-model";
+export const LAST_SUBMITTED_CHAT_MODEL_STATE_KEY = "last-submitted-chat-model";
+
+export function readChatModelMemory(value: string | null):
+  | {
+      draftConfig: ProjectDraftConfig;
+      accountId?: string;
+      presentationMode?: ThreadPresentationMode;
+    }
+  | undefined {
+  try {
+    const saved = value ? JSON.parse(value) : undefined;
+    const parsed = projectDraftConfigSchema.safeParse(saved?.draftConfig);
+    if (!parsed.success || !parsed.data.model.trim()) return undefined;
+    return {
+      draftConfig: parsed.data,
+      ...(typeof saved.accountId === "string" ? { accountId: saved.accountId } : {}),
+      ...(saved.presentationMode === "gui" || saved.presentationMode === "terminal"
+        ? { presentationMode: saved.presentationMode }
+        : {}),
+    };
+  } catch {
+    return undefined;
+  }
+}
 
 /** A hidden temporary chat keeps its CLI only this long. A visible window is in use. */
 export const TEMPORARY_CHAT_IDLE_MS = 2 * 60 * 60 * 1000;

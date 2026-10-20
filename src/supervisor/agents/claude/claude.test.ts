@@ -162,10 +162,10 @@ describe("claudeCapabilities", () => {
     expect(claudeCapabilities.fastModels).not.toContain("claude-fable-5");
   });
 
-  it("lists Opus 5 first at high effort so it is the default for new threads", () => {
-    expect(claudeCapabilities.models[0]).toEqual({ id: "claude-opus-5", label: "Opus 5" });
+  it("lists Opus 5.5 first at high effort so it is the default for new threads", () => {
+    expect(claudeCapabilities.models[0]).toEqual({ id: "claude-opus-5-5", label: "Opus 5.5" });
     expect(claudeCapabilities.defaultEffort).toBe("high");
-    expect(claudeCapabilities.modelEfforts["claude-opus-5"]).toEqual([
+    expect(claudeCapabilities.modelEfforts["claude-opus-5-5"]).toEqual([
       "low",
       "medium",
       "high",
@@ -173,8 +173,50 @@ describe("claudeCapabilities", () => {
       "max",
       "ultracode",
     ]);
-    expect(claudeCapabilities.modelContextSizes?.["claude-opus-5"]).toEqual(["1m"]);
-    expect(claudeCapabilities.fastModels).toContain("claude-opus-5");
+    expect(claudeCapabilities.modelContextSizes?.["claude-opus-5-5"]).toEqual(["1m"]);
+    expect(claudeCapabilities.fastModels).toContain("claude-opus-5-5");
+  });
+
+  it("surfaces Fable 5.1, Sonnet 5.5, and Haiku 5.5", () => {
+    expect(claudeCapabilities.models).toContainEqual({
+      id: "claude-fable-5-1",
+      label: "Fable 5.1",
+    });
+    expect(claudeCapabilities.models).toContainEqual({
+      id: "claude-sonnet-5-5",
+      label: "Sonnet 5.5",
+    });
+    expect(claudeCapabilities.models).toContainEqual({
+      id: "claude-haiku-5-5",
+      label: "Haiku 5.5",
+    });
+    expect(claudeCapabilities.modelEfforts["claude-fable-5-1"]).toEqual([
+      "low",
+      "medium",
+      "high",
+      "xHigh",
+      "max",
+      "ultracode",
+    ]);
+    expect(claudeCapabilities.modelEfforts["claude-sonnet-5-5"]).toEqual([
+      "low",
+      "medium",
+      "high",
+      "xHigh",
+      "max",
+      "ultracode",
+    ]);
+    expect(claudeCapabilities.modelEfforts["claude-haiku-5-5"]).toEqual([
+      "low",
+      "medium",
+      "high",
+      "xHigh",
+      "max",
+      "ultracode",
+    ]);
+    expect(claudeCapabilities.modelContextSizes?.["claude-fable-5-1"]).toEqual(["1m"]);
+    expect(claudeCapabilities.modelContextSizes?.["claude-sonnet-5-5"]).toEqual(["1m"]);
+    expect(claudeCapabilities.modelContextSizes?.["claude-haiku-5-5"]).toEqual(["1m"]);
   });
 
   it("surfaces Sonnet 5 with frontier effort tiers", () => {
@@ -204,7 +246,7 @@ describe("createClaudeAdapter buildAcpLogoutCommand", () => {
     const rendered = args.includes("-EncodedCommand")
       ? Buffer.from(args.at(-1) ?? "", "base64").toString("utf16le")
       : args.join(" ");
-    expect(rendered).toMatch(/claude/i);
+    expect([command?.command, rendered].join(" ")).toMatch(/claude/i);
     expect(rendered).toContain("auth");
     expect(rendered).toContain("logout");
   });

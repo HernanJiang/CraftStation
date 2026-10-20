@@ -1352,6 +1352,40 @@ describe("performInitialThreadLaunch host transport", () => {
     status: "launching",
   } as Thread;
 
+  it("remembers the requested model and actual harness, but ignores an empty prewarm", async () => {
+    const thread = {
+      ...localThread,
+      agentKind: "claude",
+      config: { model: "claude-opus-5-5" },
+    } as Thread;
+    await performInitialThreadLaunch({
+      thread,
+      projectLocation: localProject.location,
+      prompt: "",
+      initialSize,
+    });
+    expect(mocks.bridge.dbSetState).not.toHaveBeenCalledWith(
+      "last-submitted-chat-model",
+      expect.anything(),
+    );
+    await performInitialThreadLaunch({
+      thread,
+      projectLocation: localProject.location,
+      prompt: "hello",
+      initialSize,
+    });
+    expect(mocks.bridge.dbSetState).toHaveBeenCalledWith(
+      "last-submitted-chat-model",
+      expect.stringContaining('"agentKind":"claude"'),
+    );
+    const saved = mocks.bridge.dbSetState.mock.calls.find(
+      ([key]) => key === "last-submitted-chat-model",
+    )?.[1];
+    expect(JSON.parse(saved ?? "null")).toMatchObject({
+      draftConfig: { agentKind: "claude", model: "claude-opus-5-5" },
+    });
+  });
+
   it("launches a mirrored remote thread on its host without client MCP servers", async () => {
     await performInitialThreadLaunch({
       thread: remoteThread,

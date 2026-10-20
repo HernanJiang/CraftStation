@@ -27,6 +27,7 @@ import { readSessionHandoffState } from "@/renderer/actions/sessionHandoffAction
 import { getRuntimeExecutionEnvelope } from "@/renderer/state/sessionHandoffStore";
 import { remoteOwner } from "@/renderer/state/remoteProjection";
 import { performInitialThreadLaunch } from "./threadLaunchActions";
+import { rememberSubmittedChatModel } from "./chatModelMemory";
 
 /** Resolve a thread and its on-disk project location from the store. */
 function resolveThreadProjectLocation(
@@ -167,6 +168,7 @@ export async function performThreadInputSubmit(input: {
       }
       if (cancelled) return;
     }
+    rememberSubmittedChatModel(thread, prompt, segments);
     await transport.sendThreadInput({
       threadId: thread.id,
       prompt,

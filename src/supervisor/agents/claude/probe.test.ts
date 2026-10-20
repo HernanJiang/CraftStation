@@ -227,8 +227,30 @@ describe("claudeCapabilitiesFromCliVersion", () => {
     expect(p?.fastModels).not.toContain("claude-opus-5");
   });
 
-  it("returns undefined when CLI supports Opus 5", () => {
-    expect(claudeCapabilitiesFromCliVersion("2.1.219")).toBeUndefined();
+  it("hides the 5.5/Fable 5.1 models when the CLI predates them", () => {
+    const p = claudeCapabilitiesFromCliVersion("2.1.256");
+    const ids = p?.models?.map((m) => m.id) ?? [];
+    expect(ids).toContain("claude-opus-5");
+    expect(ids).not.toContain("claude-opus-5-5");
+    expect(ids).not.toContain("claude-fable-5-1");
+    expect(ids).not.toContain("claude-sonnet-5-5");
+    expect(ids).not.toContain("claude-haiku-5-5");
+    expect(p?.modelEfforts && "claude-opus-5-5" in p.modelEfforts).toBe(false);
+    expect(p?.modelContextSizes && "claude-haiku-5-5" in p.modelContextSizes).toBe(false);
+    expect(p?.fastModels).not.toContain("claude-opus-5-5");
+  });
+
+  it("hides only Haiku 5.5 between 2.1.284 and 2.1.293", () => {
+    const p = claudeCapabilitiesFromCliVersion("2.1.292");
+    const ids = p?.models?.map((m) => m.id) ?? [];
+    expect(ids).toContain("claude-opus-5-5");
+    expect(ids).toContain("claude-fable-5-1");
+    expect(ids).toContain("claude-sonnet-5-5");
+    expect(ids).not.toContain("claude-haiku-5-5");
+  });
+
+  it("returns undefined when CLI supports Haiku 5.5", () => {
+    expect(claudeCapabilitiesFromCliVersion("2.1.293")).toBeUndefined();
     expect(claudeCapabilitiesFromCliVersion("3.0.0")).toBeUndefined();
   });
 

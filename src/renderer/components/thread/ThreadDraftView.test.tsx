@@ -459,6 +459,44 @@ describe("ThreadDraftView", () => {
     expect(document.querySelector("[data-session-metrics]")).not.toBeInTheDocument();
   });
 
+  it("restores a temporary chat's requested native harness even when Auto normally hides it", async () => {
+    Object.defineProperty(window, "craftstation", {
+      configurable: true,
+      value: {
+        windowKind: "temporaryChat",
+        setSharedSettings: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      },
+    });
+    const native: AgentStatus = {
+      ...codexStatus,
+      kind: "deepseek-harness",
+      label: "DeepSeek Harness",
+      capabilities: {
+        ...codexStatus.capabilities,
+        models: [{ id: "deepseek-v4.1", label: "DeepSeek V4.1" }],
+      },
+    };
+    const onStart = vi.fn<(input: unknown) => void>();
+    render(
+      <ThreadDraftView
+        project={homeProject}
+        agentStatuses={[codexStatus, native]}
+        lastDraftConfig={{ agentKind: native.kind, model: "deepseek-v4.1" }}
+        onStart={onStart}
+      />,
+    );
+    fireEvent.click(screen.getByText("set-prompt"));
+    fireEvent.click(screen.getByText("submit"));
+    await waitFor(() =>
+      expect(onStart).toHaveBeenCalledWith(
+        expect.objectContaining({
+          agentKind: native.kind,
+          config: expect.objectContaining({ model: "deepseek-v4.1" }),
+        }),
+      ),
+    );
+  });
+
   it("applies the global full-access default to a new draft launch", async () => {
     const onStart = vi.fn<(input: unknown) => void>();
     useSharedSettings.setState({ defaultPermissionMode: "full-access" });

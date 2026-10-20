@@ -4,10 +4,11 @@ import { MessageCircle, Minus, X } from "lucide-react";
 import { DragDropProvider } from "@dnd-kit/react";
 import { HOME_PROJECT_ID } from "@/shared/homeScope";
 import type { Project, ProjectDraftConfig, ThreadPresentationMode } from "@/shared/contracts";
-import { projectDraftConfigSchema } from "@/shared/contracts/config";
 import { makeThreadTitle } from "@/shared/threadTitle";
 import {
   createExclusiveQueue,
+  LAST_SUBMITTED_CHAT_MODEL_STATE_KEY,
+  readChatModelMemory,
   shouldReplaceTemporaryChatWarm,
   shouldSendIntoTemporaryChatWarm,
   TEMPORARY_CHAT_MODEL_STATE_KEY,
@@ -82,8 +83,8 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
   const [context, setContext] = useState<{
     threadId: string;
     project: Project;
-    accountId?: string;
-    presentationMode?: ThreadPresentationMode;
+    accountId?: string | undefined;
+    presentationMode?: ThreadPresentationMode | undefined;
   }>();
   const [error, setError] = useState("");
   const [engaged, setEngaged] = useState(false);
@@ -186,6 +187,7 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
   ensureWarmRef.current = ensureWarm;
 
   const lastPersistedRef = useRef("");
+  const lastSubmittedRef = useRef<string | null>(null);
   const remember = useCallback((selection: ModelSelection, draftConfig?: ProjectDraftConfig) => {
     selectionRef.current = selection;
     const config =
@@ -212,28 +214,19 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
     if (loading) return;
     let active = true;
     void (async () => {
-      const [threadId, memory, statuses] = await Promise.all([
+      const [threadId, memory, lastSubmitted, statuses] = await Promise.all([
         readBridge().getTemporaryChatThreadId(),
         readBridge().dbGetState(TEMPORARY_CHAT_MODEL_STATE_KEY),
+        readBridge().dbGetState(LAST_SUBMITTED_CHAT_MODEL_STATE_KEY),
         readBridge().getAgentStatuses([]),
       ]);
       if (!active) return;
       let draftConfig: ProjectDraftConfig | undefined;
       let accountId: string | undefined;
       let presentationMode: ThreadPresentationMode | undefined;
-      try {
-        const saved = memory ? JSON.parse(memory) : undefined;
-        const parsed = projectDraftConfigSchema.safeParse(saved?.draftConfig);
-        if (parsed.success) {
-          draftConfig = parsed.data;
-          accountId = typeof saved.accountId === "string" ? saved.accountId : undefined;
-          presentationMode = ["gui", "terminal"].includes(saved.presentationMode)
-            ? saved.presentationMode
-            : undefined;
-        }
-      } catch {
-        /* Invalid old preference falls back to the managed model defaults. */
-      }
+      const saved = readChatModelMemory(lastSubmitted) ?? readChatModelMemory(memory);
+      lastSubmittedRef.current = lastSubmitted;
+      if (saved) ({ draftConfig, accountId, presentationMode } = saved);
       const project: Project = {
         id: HOME_PROJECT_ID,
         name: "临时对话",
@@ -270,6 +263,50 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
   }, [loading]);
 
   useEffect(() => readBridge().onSharedSettingsChanged(applyExternalSharedSettings), []);
+
+  // A hidden prewarmed window survives between openings. Refresh its empty
+  // draft when focused, but keep an ongoing or parked conversation intact.
+  useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      if (engagedRef.current || !contextRef.current) return;
+      void readBridge()
+        .dbGetState(LAST_SUBMITTED_CHAT_MODEL_STATE_KEY)
+        .then((value) => {
+          if (!active || engagedRef.current || value === lastSubmittedRef.current) return;
+          const saved = readChatModelMemory(value);
+          if (!saved) return;
+          lastSubmittedRef.current = value;
+          selectionRef.current = selectionFromDraft(
+            saved.draftConfig,
+            saved.accountId,
+            saved.presentationMode,
+          );
+          useAppStore.getState().updateProjectDraftConfig(HOME_PROJECT_ID, saved.draftConfig);
+          setContext((current) =>
+            current
+              ? {
+                  ...current,
+                  accountId: saved.accountId,
+                  presentationMode: saved.presentationMode,
+                  project: { ...current.project, lastDraftConfig: saved.draftConfig },
+                }
+              : current,
+          );
+        })
+        .catch((cause: unknown) => {
+          console.error(
+            "[temporary-chat] phase=draft operation=refresh status=error code=model-memory-unreadable",
+            cause,
+          );
+        });
+    };
+    window.addEventListener("focus", refresh);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", refresh);
+    };
+  }, []);
 
   useEffect(() => {
     if (!context || engaged) return;
@@ -543,6 +580,7 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
         ) : (
           <div className="flex min-h-0 flex-1 flex-col justify-end p-3">
             <ThreadDraftView
+              key={`${context.project.lastDraftConfig?.agentKind}:${context.project.lastDraftConfig?.model}:${context.accountId ?? ""}`}
               project={context.project}
               agentStatuses={agentStatuses}
               quickComposer

@@ -264,12 +264,17 @@ export function ThreadDraftView(props: {
       agentStatuses.filter((status) => status.installed && !disabledAgents.includes(status.kind)),
     [agentStatuses, disabledAgents],
   );
-  const pickerInstalledAgents = useMemo(
-    () => installedAgents.filter((agent) => !isComposerPickerExcludedAgent(agent.kind)),
-    [installedAgents],
-  );
   const temporaryChatWindow =
     typeof window !== "undefined" && window.craftstation?.windowKind === "temporaryChat";
+  const pickerInstalledAgents = useMemo(
+    () =>
+      installedAgents.filter(
+        (agent) =>
+          !isComposerPickerExcludedAgent(agent.kind) ||
+          (temporaryChatWindow && agent.kind === lastDraftConfig?.agentKind),
+      ),
+    [installedAgents, temporaryChatWindow, lastDraftConfig?.agentKind],
+  );
   const preferredAgentKind = resolvePreferredAgentKind(
     pickerInstalledAgents,
     lastDraftConfig,
@@ -989,11 +994,8 @@ export function ThreadDraftView(props: {
       const modes = agent.capabilities.presentationModes ?? [agent.capabilities.presentationMode];
       return modes.includes("gui");
     };
-    // DeepSeek 原生 Harness 只活在合成台。Auto 目录走 Command Code 等渠道，
-    // 启动时再 remap 到 dsh，避免官方模型行抢走渠道行的选中态。
-    const pickerAgents = installedAgents.filter(
-      (agent) => !isComposerPickerExcludedAgent(agent.kind),
-    );
+    // Auto 隐藏原生 DeepSeek 目录；临时对话可恢复最近实际请求的 Harness。
+    const pickerAgents = pickerInstalledAgents;
     const allProviders = buildProviderModelMenuProviders(pickerAgents, {
       resolvePresentationMode: (agent) => {
         const supported = agent.capabilities.presentationModes ?? [
@@ -1099,7 +1101,7 @@ export function ThreadDraftView(props: {
     });
     return [...allProviders, ...accountProviders];
   }, [
-    installedAgents,
+    pickerInstalledAgents,
     presentationMode,
     lastPresentationModeByAgent,
     allHiddenModels,
