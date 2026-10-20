@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   bridge: {
     dbSetState: vi.fn<(key: string, value: string) => Promise<void>>().mockResolvedValue(undefined),
     sendThreadInput: vi.fn<(payload: SendThreadInputPayload) => Promise<void>>(),
+    windowKind: "main" as "main" | "temporaryChat",
   },
   performInitialThreadLaunch: vi.fn<(input: unknown) => Promise<void>>(),
 }));
@@ -86,16 +87,32 @@ function rollbackCalls(): unknown[] {
 }
 
 describe("performThreadInputSubmit unknown-session resume", () => {
-  it("remembers the model and harness on a follow-up request", async () => {
+  it("remembers a temporary chat follow-up and ignores a main chat follow-up", async () => {
+    const thread = createThread({
+      agentKind: "deepseek-harness",
+      config: { model: "deepseek-v4.1" },
+    });
+    mocks.bridge.windowKind = "main";
     await performThreadInputSubmit({
-      thread: createThread({ agentKind: "claude", config: { model: "claude-opus-5-5" } }),
+      thread,
+      prompt: "from the main chat",
+      transport: { sendThreadInput: async () => undefined },
+    });
+    expect(mocks.bridge.dbSetState).not.toHaveBeenCalledWith(
+      "temporary-chat-model",
+      expect.anything(),
+    );
+    mocks.bridge.windowKind = "temporaryChat";
+    await performThreadInputSubmit({
+      thread,
       prompt: "follow up",
       transport: { sendThreadInput: async () => undefined },
     });
     expect(mocks.bridge.dbSetState).toHaveBeenCalledWith(
-      "last-submitted-chat-model",
-      expect.stringContaining('"model":"claude-opus-5-5"'),
+      "temporary-chat-model",
+      expect.stringContaining('"model":"deepseek-v4.1"'),
     );
+    mocks.bridge.windowKind = "main";
   });
 
   beforeEach(() => {

@@ -77,6 +77,7 @@ const mocks = vi.hoisted(() => {
     readSessionSwitchState: vi.fn<(input: unknown) => Promise<unknown>>(),
     dbGetState: vi.fn<(key: string) => Promise<string | null>>(),
     dbSetState: vi.fn<(key: string, value: string) => Promise<void>>(),
+    windowKind: "main" as "main" | "temporaryChat",
   };
   const sharedSettings = {
     defaultPermissionMode: "ask" as "ask" | "full-access",
@@ -1352,12 +1353,24 @@ describe("performInitialThreadLaunch host transport", () => {
     status: "launching",
   } as Thread;
 
-  it("remembers the requested model and actual harness, but ignores an empty prewarm", async () => {
+  it("remembers a temporary chat request and ignores the main chat", async () => {
     const thread = {
       ...localThread,
-      agentKind: "claude",
-      config: { model: "claude-opus-5-5" },
+      agentKind: "deepseek-harness",
+      config: { model: "deepseek-v4.1" },
     } as Thread;
+    mocks.bridge.windowKind = "main";
+    await performInitialThreadLaunch({
+      thread,
+      projectLocation: localProject.location,
+      prompt: "from the main chat",
+      initialSize,
+    });
+    expect(mocks.bridge.dbSetState).not.toHaveBeenCalledWith(
+      "temporary-chat-model",
+      expect.anything(),
+    );
+    mocks.bridge.windowKind = "temporaryChat";
     await performInitialThreadLaunch({
       thread,
       projectLocation: localProject.location,
@@ -1365,7 +1378,7 @@ describe("performInitialThreadLaunch host transport", () => {
       initialSize,
     });
     expect(mocks.bridge.dbSetState).not.toHaveBeenCalledWith(
-      "last-submitted-chat-model",
+      "temporary-chat-model",
       expect.anything(),
     );
     await performInitialThreadLaunch({
@@ -1375,15 +1388,16 @@ describe("performInitialThreadLaunch host transport", () => {
       initialSize,
     });
     expect(mocks.bridge.dbSetState).toHaveBeenCalledWith(
-      "last-submitted-chat-model",
-      expect.stringContaining('"agentKind":"claude"'),
+      "temporary-chat-model",
+      expect.stringContaining('"agentKind":"deepseek-harness"'),
     );
     const saved = mocks.bridge.dbSetState.mock.calls.find(
-      ([key]) => key === "last-submitted-chat-model",
+      ([key]) => key === "temporary-chat-model",
     )?.[1];
     expect(JSON.parse(saved ?? "null")).toMatchObject({
-      draftConfig: { agentKind: "claude", model: "claude-opus-5-5" },
+      draftConfig: { agentKind: "deepseek-harness", model: "deepseek-v4.1" },
     });
+    mocks.bridge.windowKind = "main";
   });
 
   it("launches a mirrored remote thread on its host without client MCP servers", async () => {

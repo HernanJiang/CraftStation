@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createExclusiveQueue,
+  readTemporaryChatStartupMemory,
   shouldExpireTemporaryChatWarm,
   shouldReplaceTemporaryChatWarm,
   shouldReuseTemporaryChatWarm,
@@ -81,6 +82,22 @@ describe("temporary chat warm session", () => {
     });
     expect(temporaryChatRememberedModel(draft, "kimi")).toBe("kimi-code/k3-256k");
     expect(temporaryChatRememberedModel(draft, "codex")).toBeUndefined();
+  });
+
+  it("reopens the temporary chat's own model and ignores the main chat", () => {
+    const own = JSON.stringify({
+      draftConfig: { agentKind: "deepseek-harness", model: "deepseek-v4.1" },
+      presentationMode: "gui",
+    });
+    const mainChat = JSON.stringify({
+      draftConfig: { agentKind: "codex", model: "gpt-6.1-sol" },
+      presentationMode: "gui",
+    });
+    expect(readTemporaryChatStartupMemory(own, mainChat)?.draftConfig).toEqual({
+      agentKind: "deepseek-harness",
+      model: "deepseek-v4.1",
+    });
+    expect(readTemporaryChatStartupMemory(null, mainChat)).toBeUndefined();
   });
 
   it("accepts a prepared CLI whose harness was remapped from the picker vendor", () => {

@@ -7,8 +7,7 @@ import type { Project, ProjectDraftConfig, ThreadPresentationMode } from "@/shar
 import { makeThreadTitle } from "@/shared/threadTitle";
 import {
   createExclusiveQueue,
-  LAST_SUBMITTED_CHAT_MODEL_STATE_KEY,
-  readChatModelMemory,
+  readTemporaryChatStartupMemory,
   shouldReplaceTemporaryChatWarm,
   shouldSendIntoTemporaryChatWarm,
   TEMPORARY_CHAT_MODEL_STATE_KEY,
@@ -187,7 +186,6 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
   ensureWarmRef.current = ensureWarm;
 
   const lastPersistedRef = useRef("");
-  const lastSubmittedRef = useRef<string | null>(null);
   const remember = useCallback((selection: ModelSelection, draftConfig?: ProjectDraftConfig) => {
     selectionRef.current = selection;
     const config =
@@ -214,18 +212,16 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
     if (loading) return;
     let active = true;
     void (async () => {
-      const [threadId, memory, lastSubmitted, statuses] = await Promise.all([
+      const [threadId, memory, statuses] = await Promise.all([
         readBridge().getTemporaryChatThreadId(),
         readBridge().dbGetState(TEMPORARY_CHAT_MODEL_STATE_KEY),
-        readBridge().dbGetState(LAST_SUBMITTED_CHAT_MODEL_STATE_KEY),
         readBridge().getAgentStatuses([]),
       ]);
       if (!active) return;
       let draftConfig: ProjectDraftConfig | undefined;
       let accountId: string | undefined;
       let presentationMode: ThreadPresentationMode | undefined;
-      const saved = readChatModelMemory(lastSubmitted) ?? readChatModelMemory(memory);
-      lastSubmittedRef.current = lastSubmitted;
+      const saved = readTemporaryChatStartupMemory(memory);
       if (saved) ({ draftConfig, accountId, presentationMode } = saved);
       const project: Project = {
         id: HOME_PROJECT_ID,
@@ -263,50 +259,6 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
   }, [loading]);
 
   useEffect(() => readBridge().onSharedSettingsChanged(applyExternalSharedSettings), []);
-
-  // A hidden prewarmed window survives between openings. Refresh its empty
-  // draft when focused, but keep an ongoing or parked conversation intact.
-  useEffect(() => {
-    let active = true;
-    const refresh = () => {
-      if (engagedRef.current || !contextRef.current) return;
-      void readBridge()
-        .dbGetState(LAST_SUBMITTED_CHAT_MODEL_STATE_KEY)
-        .then((value) => {
-          if (!active || engagedRef.current || value === lastSubmittedRef.current) return;
-          const saved = readChatModelMemory(value);
-          if (!saved) return;
-          lastSubmittedRef.current = value;
-          selectionRef.current = selectionFromDraft(
-            saved.draftConfig,
-            saved.accountId,
-            saved.presentationMode,
-          );
-          useAppStore.getState().updateProjectDraftConfig(HOME_PROJECT_ID, saved.draftConfig);
-          setContext((current) =>
-            current
-              ? {
-                  ...current,
-                  accountId: saved.accountId,
-                  presentationMode: saved.presentationMode,
-                  project: { ...current.project, lastDraftConfig: saved.draftConfig },
-                }
-              : current,
-          );
-        })
-        .catch((cause: unknown) => {
-          console.error(
-            "[temporary-chat] phase=draft operation=refresh status=error code=model-memory-unreadable",
-            cause,
-          );
-        });
-    };
-    window.addEventListener("focus", refresh);
-    return () => {
-      active = false;
-      window.removeEventListener("focus", refresh);
-    };
-  }, []);
 
   useEffect(() => {
     if (!context || engaged) return;

@@ -91,7 +91,6 @@ import {
   shouldExpireTemporaryChatWarm,
   TEMPORARY_CHAT_IDLE_MS,
   TEMPORARY_CHAT_MODEL_STATE_KEY,
-  LAST_SUBMITTED_CHAT_MODEL_STATE_KEY,
   type TemporaryChatPresence,
 } from "@/shared/temporaryChat";
 import {
@@ -704,11 +703,7 @@ function scheduleTemporaryChatWarm(): void {
     temporaryChatWarmTimer = null;
     if (isQuitting || (temporaryChatWindow && !temporaryChatWindow.isDestroyed())) return;
     try {
-      if (
-        !dbGetState(LAST_SUBMITTED_CHAT_MODEL_STATE_KEY) &&
-        !dbGetState(TEMPORARY_CHAT_MODEL_STATE_KEY)
-      )
-        return;
+      if (!dbGetState(TEMPORARY_CHAT_MODEL_STATE_KEY)) return;
     } catch (error) {
       console.warn(
         "[temporary-chat] phase=warm operation=read-model status=error code=model-memory-unreadable",

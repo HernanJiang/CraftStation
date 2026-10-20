@@ -1,9 +1,8 @@
 import { projectDraftConfigSchema } from "./contracts/config";
 import type { ProjectDraftConfig, ThreadPresentationMode } from "./contracts";
 
-/** Legacy temporary-window choice, used until a request has been submitted. */
+/** The temporary window's own last model. Main-chat requests do not write this. */
 export const TEMPORARY_CHAT_MODEL_STATE_KEY = "temporary-chat-model";
-export const LAST_SUBMITTED_CHAT_MODEL_STATE_KEY = "last-submitted-chat-model";
 
 export function readChatModelMemory(value: string | null):
   | {
@@ -26,6 +25,18 @@ export function readChatModelMemory(value: string | null):
   } catch {
     return undefined;
   }
+}
+
+/**
+ * Reopen the temporary chat on its own last model.
+ * A main-chat request is a different composer and is ignored even when present.
+ */
+export function readTemporaryChatStartupMemory(
+  ownMemory: string | null,
+  mainChatMemory?: string | null,
+): ReturnType<typeof readChatModelMemory> {
+  void mainChatMemory;
+  return readChatModelMemory(ownMemory);
 }
 
 /** A hidden temporary chat keeps its CLI only this long. A visible window is in use. */
