@@ -1435,15 +1435,18 @@ export function ThreadDraftView(props: {
     selectedAccountId,
   ]);
 
+  const latestModelSelectionChangeRef = useRef(onModelSelectionChange);
+  latestModelSelectionChangeRef.current = onModelSelectionChange;
   useEffect(() => {
     if (!effectiveAgentKind || !model) return;
-    onModelSelectionChange?.({
+    latestModelSelectionChangeRef.current?.({
       agentKind: effectiveAgentKind,
       model,
       ...(selectedAccountId ? { accountId: selectedAccountId } : {}),
       presentationMode,
     });
-  }, [effectiveAgentKind, model, selectedAccountId, presentationMode, onModelSelectionChange]);
+    // The callback identity changes per render in some hosts; fire on real selection changes only.
+  }, [effectiveAgentKind, model, selectedAccountId, presentationMode]);
 
   const providerDraftControls = useMemo(() => {
     if (!selectedAgent || !selectedAgentForConfig) return [];

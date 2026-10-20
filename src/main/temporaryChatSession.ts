@@ -52,7 +52,8 @@ export class TemporaryChatSession {
   }
 
   async start<T>(threadId: string, launch: () => Promise<T>): Promise<T> {
-    if (this.threadId !== threadId || this.releasing) throw new Error("temporary-chat-closed");
+    if (this.threadId !== threadId) throw new Error("temporary-chat-id-mismatch");
+    if (this.releasing) throw new Error("temporary-chat-busy");
     this.busy += 1;
     try {
       return await launch();

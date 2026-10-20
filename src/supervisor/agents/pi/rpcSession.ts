@@ -164,7 +164,7 @@ export class PiRpcSession implements StructuredSessionHandle {
 
   static async create(
     input: CreateStructuredSessionInput,
-    options?: { binary?: string; label?: string; defaultBinary?: string },
+    options?: { binary?: string; label?: string; defaultBinary?: string; extraArgs?: string[] },
   ): Promise<PiRpcSession> {
     const label = options?.label ?? "Pi";
     if (input.projectLocation.kind === "wsl") {
@@ -183,7 +183,7 @@ export class PiRpcSession implements StructuredSessionHandle {
         ? await writePiMcpExtension(input.mcpServers)
         : undefined;
 
-    const args = ["--mode", "rpc", "--approve"];
+    const args = ["--mode", "rpc", "--approve", ...(options?.extraArgs ?? [])];
     const resumeId = input.sessionRef?.providerSessionId;
     if (resumeId) args.push("--session", resumeId);
     if (input.config.model) args.push("--model", input.config.model);

@@ -57,23 +57,36 @@ describe("Step Code CLI argv", () => {
 
   it("launches the step binary with auto-approve, model and prompt", () => {
     expect(
-      adapter.buildLaunchArgv(location, { model: "step/step-5-preview" } as ThreadConfig, "go"),
+      adapter.buildLaunchArgv(
+        location,
+        { model: "step/step-5-preview", approvalPolicy: "never" } as ThreadConfig,
+        "go",
+      ),
     ).toEqual({
       binary: "step",
-      args: ["--approve", "--model", "step/step-5-preview", "go"],
+      args: ["--approve", "--approval-mode", "auto", "--model", "step/step-5-preview", "go"],
     });
+  });
+
+  it("keeps the CLI in confirm mode unless the bypass policy is resolved", () => {
+    expect(
+      adapter.buildLaunchArgv(location, { model: "step/step-5-preview" } as ThreadConfig, "go")
+        .args,
+    ).toEqual(["--approve", "--approval-mode", "confirm", "--model", "step/step-5-preview", "go"]);
   });
 
   it("resumes the exact Step Code session id", () => {
     expect(
       adapter.buildResumeArgv(
         location,
-        { model: "step/step-5-preview", effort: "high" } as ThreadConfig,
+        { model: "step/step-5-preview", effort: "high", approvalPolicy: "never" } as ThreadConfig,
         "continue",
         createKnownSessionRef("0198-session"),
       ).args,
     ).toEqual([
       "--approve",
+      "--approval-mode",
+      "auto",
       "--session",
       "0198-session",
       "--model",

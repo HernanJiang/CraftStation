@@ -12,6 +12,17 @@ import {
 } from "./sessionFiles";
 
 /**
+ * Step Code's `--approve` only trusts project-local files; tool approval is
+ * gated by its own `--approval-mode` (confirm | auto). The declared bypass id
+ * is `never` (see stepCodeDefaultCapabilities), so map the resolved thread
+ * policy onto the CLI flag explicitly — supervised stays `confirm` even when
+ * the CLI-side settings default to auto.
+ */
+export function stepCodeApprovalModeArgs(approvalPolicy: string | undefined): string[] {
+  return ["--approval-mode", approvalPolicy === "never" ? "auto" : "confirm"];
+}
+
+/**
  * Step Code (StepFun's official `step` CLI) is a pi-family agent: it keeps the
  * pi JSONL RPC wire (`step --mode rpc`), the pi session-file layout under
  * `~/.stepcode/agent/sessions`, and the pi extension API (`registerTool` /
@@ -60,13 +71,26 @@ export function createStepCodeAdapter(): AgentAdapter {
 
     buildLaunchArgv(location, config, prompt) {
       void snapshotStepCodePreSpawnSessions(location);
-      return { binary: "step", args: buildPiArgs(config, prompt) };
+      return {
+        binary: "step",
+        args: buildPiArgs(
+          config,
+          prompt,
+          undefined,
+          stepCodeApprovalModeArgs(config.approvalPolicy),
+        ),
+      };
     },
 
     buildResumeArgv(_location, config, prompt, sessionRef) {
       return {
         binary: "step",
-        args: buildPiArgs(config, prompt, sessionRef.providerSessionId),
+        args: buildPiArgs(
+          config,
+          prompt,
+          sessionRef.providerSessionId,
+          stepCodeApprovalModeArgs(config.approvalPolicy),
+        ),
       };
     },
 
@@ -76,6 +100,7 @@ export function createStepCodeAdapter(): AgentAdapter {
         binary: "step",
         defaultBinary: "step",
         label: "Step Code",
+        extraArgs: stepCodeApprovalModeArgs(input.config.approvalPolicy),
       });
     },
 

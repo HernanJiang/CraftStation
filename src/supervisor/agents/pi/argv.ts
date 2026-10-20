@@ -22,8 +22,13 @@ export function splitPiModelId(
   return { provider: normalized.slice(0, slash), modelId: normalized.slice(slash + 1) };
 }
 
-export function buildPiArgs(config: ThreadConfig, prompt: string, sessionId?: string): string[] {
-  const args = ["--approve"];
+export function buildPiArgs(
+  config: ThreadConfig,
+  prompt: string,
+  sessionId?: string,
+  extraFlags: readonly string[] = [],
+): string[] {
+  const args = ["--approve", ...extraFlags];
   if (sessionId) args.push("--session", sessionId);
   if (config.model) args.push("--model", config.model);
   if (config.effort && PI_THINKING_LEVELS.includes(config.effort as PiThinkingLevel)) {

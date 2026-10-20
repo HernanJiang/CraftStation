@@ -9,7 +9,9 @@ describe("temporary chat lifecycle", () => {
     await session.close(first);
     expect(discard).toHaveBeenCalledWith(first);
     expect(session.begin()).not.toBe(first);
-    await expect(session.start(first, async () => "late")).rejects.toThrow("temporary-chat-closed");
+    await expect(session.start(first, async () => "late")).rejects.toThrow(
+      "temporary-chat-id-mismatch",
+    );
   });
 
   it("rearms onto a new identity and still discards a launch of the old one", async () => {
@@ -30,7 +32,9 @@ describe("temporary chat lifecycle", () => {
     expect(next).not.toBe(first);
     expect(session.threadId).toBe(next);
     expect(discard.mock.calls).toEqual([[first], [first]]);
-    await expect(session.start(first, async () => "late")).rejects.toThrow("temporary-chat-closed");
+    await expect(session.start(first, async () => "late")).rejects.toThrow(
+      "temporary-chat-id-mismatch",
+    );
   });
 
   it("cleans a launch that resolves after its window closed without closing the new chat", async () => {
@@ -94,7 +98,7 @@ describe("temporary chat lifecycle", () => {
     const id = session.begin();
     const releasing = session.releaseProcess();
     const launch = vi.fn<() => Promise<string>>(async () => "late");
-    await expect(session.start(id, launch)).rejects.toThrow("temporary-chat-closed");
+    await expect(session.start(id, launch)).rejects.toThrow("temporary-chat-busy");
     expect(launch).not.toHaveBeenCalled();
     finishDiscard();
     await releasing;

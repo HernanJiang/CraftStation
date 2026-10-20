@@ -70,6 +70,14 @@ function selectionFromDraft(
   };
 }
 
+/** Main-side lifecycle rejections: stale thread id or a call from a dead window. */
+function isTemporaryChatLifecycleError(cause: unknown): boolean {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return (
+    message.includes("temporary-chat-id-mismatch") || message.includes("temporary-chat-closed")
+  );
+}
+
 export function TemporaryChatWindow({ loading }: { loading: boolean }) {
   const [context, setContext] = useState<{
     threadId: string;
@@ -91,6 +99,16 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
   const threads = useAppStore((state) => state.threads);
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const activeThread = context && threads.find((thread) => thread.id === context.threadId);
+
+  /** The window's thread id can go stale (rearm, lifecycle races); adopt the live one. */
+  const resyncThreadId = useCallback(async (staleId: string): Promise<string | null> => {
+    const freshId = await readBridge()
+      .getTemporaryChatThreadId()
+      .catch(() => null);
+    if (!freshId || freshId === staleId) return null;
+    setContext((current) => (current ? { ...current, threadId: freshId } : current));
+    return freshId;
+  }, []);
 
   const ensureWarm = useCallback(
     (selection: ModelSelection, immediate: boolean) => {
@@ -133,8 +151,12 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
               "[temporary-chat] operation=warm status=error code=prepare-failed",
               cause,
             );
-            if (generationRef.current === generation)
-              warmRef.current = { threadId, key, phase: "failed" };
+            if (generationRef.current !== generation) return;
+            warmRef.current = { threadId, key, phase: "failed" };
+            if (isTemporaryChatLifecycleError(cause)) {
+              // Adopting the live id retriggers ensureWarm via the context effect.
+              await resyncThreadId(threadId);
+            }
             return;
           }
           if (generationRef.current !== generation) {
@@ -158,11 +180,12 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
       if (immediate) run();
       else warmTimerRef.current = setTimeout(run, 400);
     },
-    [context],
+    [context, resyncThreadId],
   );
   const ensureWarmRef = useRef(ensureWarm);
   ensureWarmRef.current = ensureWarm;
 
+  const lastPersistedRef = useRef("");
   const remember = useCallback((selection: ModelSelection, draftConfig?: ProjectDraftConfig) => {
     selectionRef.current = selection;
     const config =
@@ -170,12 +193,13 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
       useAppStore.getState().projects.find((p) => p.id === HOME_PROJECT_ID)?.lastDraftConfig;
     if (!config || config.model !== selection.model || config.agentKind !== selection.agentKind)
       return;
+    const payload = JSON.stringify({ draftConfig: config, ...selection });
+    if (lastPersistedRef.current === payload) return;
+    lastPersistedRef.current = payload;
     void readBridge()
-      .dbSetState(
-        TEMPORARY_CHAT_MODEL_STATE_KEY,
-        JSON.stringify({ draftConfig: config, ...selection }),
-      )
+      .dbSetState(TEMPORARY_CHAT_MODEL_STATE_KEY, payload)
       .catch((cause: unknown) => {
+        lastPersistedRef.current = "";
         console.error(
           "[temporary-chat] operation=remember-model status=error code=model-memory-failed",
           cause,
@@ -419,7 +443,14 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
           useAppStore.getState().deleteThread(threadId);
         }
         warmRef.current = null;
-        await startThreadFromDraft(project, input, { ...launchOptions, threadId });
+        try {
+          await startThreadFromDraft(project, input, { ...launchOptions, threadId });
+        } catch (cause: unknown) {
+          if (!isTemporaryChatLifecycleError(cause)) throw cause;
+          const freshId = await resyncThreadId(threadId);
+          if (!freshId) throw cause;
+          await startThreadFromDraft(project, input, { ...launchOptions, threadId: freshId });
+        }
         if (generationRef.current !== generation) return;
         setEngaged(true);
       })
@@ -431,6 +462,27 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
         throw cause;
       });
   };
+
+  const handleModelSelectionChange = useCallback(
+    (selection: ModelSelection) => {
+      const previous = selectionRef.current;
+      const sameSelection = Boolean(
+        previous &&
+        previous.agentKind === selection.agentKind &&
+        previous.model === selection.model &&
+        (previous.accountId ?? "") === (selection.accountId ?? "") &&
+        previous.presentationMode === selection.presentationMode,
+      );
+      const hadSelection = Boolean(previous?.model);
+      remember(selection);
+      if (engagedRef.current) return;
+      // A duplicate event must not retrigger a prepare that is starting, ready, or
+      // already failed for this exact selection — that looped forever on failure.
+      if (sameSelection && warmRef.current) return;
+      ensureWarmRef.current(selection, !hadSelection);
+    },
+    [remember],
+  );
 
   const preparing =
     !engaged && activeThread
@@ -504,11 +556,7 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
                 ? { initialPresentationMode: context.presentationMode }
                 : {})}
               composerPlaceholder="发送消息…"
-              onModelSelectionChange={(selection) => {
-                const hadSelection = Boolean(selectionRef.current?.model);
-                remember(selection);
-                if (!engagedRef.current) ensureWarmRef.current(selection, !hadSelection);
-              }}
+              onModelSelectionChange={handleModelSelectionChange}
               onStart={send}
             />
           </div>
