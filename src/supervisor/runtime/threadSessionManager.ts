@@ -42,6 +42,7 @@ import {
   defaultFormatPromptSegments,
   getRefreshedWindowsPath,
   primeProjectShellEnv,
+  repairWindowsPowerShellModulePath,
   resolveLaunchSpec,
 } from "../agents/base";
 import { ensureNodePtySpawnHelperExecutable } from "../nodePty";
@@ -1679,6 +1680,22 @@ export class ThreadSessionManager {
       if (refreshedPath) {
         shellEnv.Path = refreshedPath;
         shellEnv.PATH = refreshedPath;
+      }
+      if (windowsShell.kind === "powershell") {
+        // PSModulePath gets the same launch-time-snapshot problem with worse
+        // consequences: PS 7 module dirs listed first shadow the PS 5.1 system
+        // modules without loadable replacements, silently removing cmdlets
+        // like Get-FileHash that vendor installers depend on.
+        const currentModulePath = Object.entries(shellEnv).find(
+          ([key]) => key.toLowerCase() === "psmodulepath",
+        )?.[1];
+        const repairedModulePath = repairWindowsPowerShellModulePath(currentModulePath);
+        if (repairedModulePath) {
+          for (const key of Object.keys(shellEnv)) {
+            if (key.toLowerCase() === "psmodulepath") delete shellEnv[key];
+          }
+          shellEnv.PSModulePath = repairedModulePath;
+        }
       }
     }
 

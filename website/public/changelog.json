@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "1.11.8",
+      "date": "2026-10-20",
+      "title": "修复 Claude Code 安装失败",
+      "summary": "部分机器上 Claude Code 安装总是以退出码 -1 失败：CraftStation 继承的 PowerShell 模块路径顺序异常，官方安装脚本一开始就中断。现在启动安装终端前会把系统模块目录排回最前，安装可以正常完成。",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Claude Code 安装",
+          "text": "启动安装终端前修复继承的 PSModulePath 顺序，官方安装脚本不再因找不到 Get-FileHash 而中断，Claude Code 可正常下载安装。"
+        }
+      ]
+    },
+    {
       "version": "1.11.7",
       "date": "2026-10-20",
       "title": "Step Code 不再逐条命令请求批准",

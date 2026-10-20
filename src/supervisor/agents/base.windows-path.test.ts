@@ -25,6 +25,7 @@ import {
   extractWindowsCmdShimScript,
   getRefreshedWindowsPath,
   invalidateExecutablePathCache,
+  repairWindowsPowerShellModulePath,
   resolveExecutablePath,
   resolveExecutablePathAsync,
 } from "./base";
@@ -348,6 +349,74 @@ describe.skipIf(process.platform !== "win32")("Windows executable path fallback"
       .mockReturnValueOnce({ error: undefined, status: 0, stdout: USER_REG_QUERY, stderr: "" })
       .mockReturnValueOnce({ error: undefined, status: 0, stdout: MACHINE_REG_QUERY, stderr: "" });
     expect(getRefreshedWindowsPath()).toContain("C:\\Users\\demo\\.local\\bin");
+  });
+});
+
+describe.skipIf(process.platform !== "win32")("repairWindowsPowerShellModulePath", () => {
+  const originalPlatform = process.platform;
+  const originalProgramFiles = process.env.ProgramFiles;
+  const originalSystemRoot = process.env.SystemRoot;
+
+  beforeEach(() => {
+    Object.defineProperty(process, "platform", { value: "win32", configurable: true });
+    process.env.ProgramFiles = "C:\\Program Files";
+    process.env.SystemRoot = "C:\\Windows";
+  });
+
+  afterEach(() => {
+    Object.defineProperty(process, "platform", { value: originalPlatform, configurable: true });
+    if (originalProgramFiles === undefined) {
+      delete process.env.ProgramFiles;
+    } else {
+      process.env.ProgramFiles = originalProgramFiles;
+    }
+    if (originalSystemRoot === undefined) {
+      delete process.env.SystemRoot;
+    } else {
+      process.env.SystemRoot = originalSystemRoot;
+    }
+  });
+
+  it("re-pins the PS 5.1 system module dirs ahead of PowerShell 7 dirs", () => {
+    // The claude.ai/install.ps1 failure mode: the inherited PSModulePath lists
+    // PS 7 module dirs first, so PS 5.1 autoload shadows Get-FileHash with an
+    // unloadable .NET Core build and the installer dies.
+    const polluted = [
+      "D:\\AppData\\PowerShell\\Modules",
+      "C:\\Program Files\\PowerShell\\Modules",
+      "c:\\program files\\powershell\\7\\Modules",
+      "C:\\Program Files\\WindowsPowerShell\\Modules",
+      "C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\Modules",
+    ].join(";");
+
+    const repaired = repairWindowsPowerShellModulePath(polluted);
+    expect(repaired).toBe(
+      [
+        "C:\\Program Files\\WindowsPowerShell\\Modules",
+        "C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\Modules",
+        "D:\\AppData\\PowerShell\\Modules",
+        "C:\\Program Files\\PowerShell\\Modules",
+        "c:\\program files\\powershell\\7\\Modules",
+      ].join(";"),
+    );
+  });
+
+  it("returns undefined when the system dirs already lead the list", () => {
+    const clean = [
+      "C:\\Program Files\\WindowsPowerShell\\Modules",
+      "C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\Modules",
+      "C:\\Users\\demo\\Documents\\WindowsPowerShell\\Modules",
+    ].join(";");
+    expect(repairWindowsPowerShellModulePath(clean)).toBeUndefined();
+  });
+
+  it("supplies the system default when the variable is missing entirely", () => {
+    expect(repairWindowsPowerShellModulePath(undefined)).toBe(
+      [
+        "C:\\Program Files\\WindowsPowerShell\\Modules",
+        "C:\\Windows\\system32\\WindowsPowerShell\\v1.0\\Modules",
+      ].join(";"),
+    );
   });
 });
 

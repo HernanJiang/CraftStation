@@ -120,6 +120,42 @@ export function getRefreshedWindowsPath(): string | undefined {
   return fallbackPath;
 }
 
+function windowsPowerShellSystemModuleDirs(): string[] {
+  const programFiles = getWindowsEnvValue("ProgramFiles") ?? "C:\\Program Files";
+  const systemRoot = getWindowsEnvValue("SystemRoot") ?? "C:\\Windows";
+  return [
+    `${programFiles}\\WindowsPowerShell\\Modules`,
+    `${systemRoot}\\system32\\WindowsPowerShell\\v1.0\\Modules`,
+  ];
+}
+
+/**
+ * Repaired PSModulePath for Windows PowerShell 5.1 shells, or `undefined` when
+ * both system module dirs already lead the list. PS 5.1 autoloads the first
+ * matching `Microsoft.PowerShell.*` module on PSModulePath; when the inherited
+ * value lists PowerShell 7 module dirs first (e.g. the app was launched from a
+ * pwsh-tailored terminal), the PS7 builds shadow the PS 5.1 ones but cannot
+ * load under .NET Framework, so core cmdlets such as Get-FileHash silently go
+ * missing and vendor installers (claude.ai/install.ps1) die with
+ * CommandNotFoundException. Re-pin the two system dirs to the front and keep
+ * the remaining custom entries behind them.
+ */
+export function repairWindowsPowerShellModulePath(
+  pathValue: string | undefined,
+): string | undefined {
+  if (process.platform !== "win32") return undefined;
+  const systemDirs = windowsPowerShellSystemModuleDirs();
+  const systemKeys = new Set(systemDirs.map(normalizeWindowsPathSegment));
+  const custom = splitWindowsPathSegments(pathValue).filter(
+    (segment) => !systemKeys.has(normalizeWindowsPathSegment(segment)),
+  );
+  const repaired = [...systemDirs, ...custom].join(";");
+  if (normalizeWindowsPathValue(repaired) === normalizeWindowsPathValue(pathValue)) {
+    return undefined;
+  }
+  return repaired;
+}
+
 function buildWindowsPathOverride(): NodeJS.ProcessEnv | undefined {
   const fallbackPath = getRefreshedWindowsPath();
   if (!fallbackPath) return undefined;
