@@ -1,3 +1,11 @@
+## 1.11.7 Step Code 权限与临时对话修复（2026-10-20，已发布）
+
+- **用户问题**：Step Code 每条命令都弹「请求批准」，设置里的默认权限不生效；临时对话反复「模型准备失败」，且不记住上次使用的模型（上次用 DeepSeek，打开总是 Kimi）。
+- **根因与实现**：① step CLI 的 `--approve` 只信任项目文件，工具审批由 `--approval-mode` 控制；现在启动、恢复与 GUI structured 会话都按权限策略显式传参（`never` → `auto`，其余档位 → `confirm`），经 `buildPiArgs`/`PiRpcSession.create` 的 `extraArgs` 接入。② 临时对话重试风暴根因是 `ThreadDraftView` 的准备 effect 依赖了每次渲染都变的内联回调，相同选择每 ~415ms 触发一次准备（用户日志已累积上万次）；回调改用 ref 稳定化，选择处理记忆化并在已有准备状态时跳过。③ 主进程重置会话（rearm）后窗口持旧 threadId 一直失败；`TemporaryChatSession.start` 错误码拆分为 `id-mismatch`/`busy`/`closed`，窗口识别后自动同步新会话 ID 恢复就绪，发送遇失配用新会话重试一次。④ 模型记忆按内容去重，失败允许重试。
+- **验证**：stepcode 新增 3 项 argv 断言，临时对话/pi/ThreadDraftView 相关 108 项测试通过，typecheck 与全量常规/类型感知 lint 0 警告。隔离 Electron 实例重放故障：rearm 后准备仅失败 1 次即自动 resync 恢复（修复前 8 秒 19 次且持续循环），关闭重开保持上次模型。隔离实例真实 Step Code 会话进程 argv 确认含 `--approval-mode auto`，运行 `pwd` 直接执行约 3 秒完成、无批准弹窗。`src/renderer/components/thread/` 下 8 项存量测试失败（ThreadStatusCapsule、ChatPane、ItemMarkdownInner、SubAgentOverlay）在干净树上同样失败，与本次无关。
+- **发布状态**：`main` 已推送，正式 tag `v1.11.7` 指向修复提交 `73d7c400`。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/39404710288) 成功，补丁版只构建 Windows。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.7) 已发布为最新稳定版，非草稿、非预发布。4 项附件齐备：NSIS 133178892 字节、blockmap 138700 字节、便携版 112394862 字节、`latest.yml` 364 字节。`latest.yml` 版本为 `1.11.7`，指向 NSIS 安装包。双语正文与 `ai_workspace/release-notes-1.11.7.md` 一致；`changelog.json` 已含 1.11.7 条目。流水线已将 main 开发版本推进到 1.11.8（`227b5ed8`）。无关 lockfile 与临时资料保留，不纳入发布提交。
+- **本地收尾**：正式 1.11.7 的 NSIS、blockmap、便携版和 `latest.yml` 已下载覆盖本地 `release/`，大小与 GitHub 附件一致。便携版只保留 1.11.7 与 1.11.6；1.11.5 便携版与打包中间产物（`win-unpacked/`、`builder-debug.yml`）已删除。
+
 ## 1.11.6 DeepSeek 第三方模型绑定与失败重试（2026-10-20，已发布）
 
 - **用户问题**：v1.11.5 的 DeepSeek 已改写标题，但 `111` 的正文为空，约 38 秒后出现 `The requested model is temporarily unavailable`。
