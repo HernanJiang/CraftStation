@@ -164,16 +164,10 @@ describe("DraftParameterMenu", () => {
       expect(
         document.querySelector('[role="menu"][aria-label="Model list"]'),
       ).not.toBeInTheDocument();
-      const parentMenu = [...document.querySelectorAll<HTMLElement>('[role="menu"]')].find(
-        (menu) => menu.getAttribute("aria-label") === "Model & run parameters",
-      );
-      expect(parentMenu).toBeTruthy();
-      if (!parentMenu) return;
-      const luna = within(parentMenu).getByRole("menuitem", {
-        name: /ChatGPT-5.6-Luna/,
-      });
+      const luna = screen.getByRole("option", { name: /ChatGPT-5.6-Luna/ });
+      expect(luna.closest('[role="menu"]')).toBeNull();
       fireEvent.pointerEnter(luna);
-      expect(within(parentMenu).getByRole("menuitem", { name: /ChatGPT-5.6-Luna/ })).toBe(luna);
+      expect(screen.getByRole("option", { name: /ChatGPT-5.6-Luna/ })).toBe(luna);
       fireEvent.click(luna);
       expect(control.kind === "provider-model" ? control.onChange : undefined).toHaveBeenCalledWith(
         expect.objectContaining({ model: "gpt-5.6-luna" }),

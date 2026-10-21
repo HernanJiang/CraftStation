@@ -31,8 +31,10 @@ import { useLingui } from "@lingui/react/macro";
 
 export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
   const { t } = useLingui();
-  // 窄窗口里模型列表直接铺在同一张菜单中，鼠标移到模型上不会把列表关掉。
+  // 窄窗口把模型选择画在菜单外面。它们若和「上下文 / 推理强度」待在同一张菜单里，
+  // 二级菜单打开时会把整张菜单的指针事件关掉，模型行看得见但点不中。
   const compactMenu = useMediaQuery("(max-width: 760px)");
+  const [menuOpen, setMenuOpen] = useState(false);
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
   const currentProjectId = useCurrentProjectId();
@@ -324,9 +326,117 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
     );
   }
 
+  function compactModelChoices() {
+    if (!compactMenu || modelControl?.kind !== "provider-model") return null;
+    const choiceClass =
+      "flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left text-xs hover:bg-white/10";
+    return (
+      <div className="border-b border-white/10 px-1 py-1" role="listbox" aria-label={t`模型列表`}>
+        <div className="flex items-center gap-2 px-2 py-1.5 text-xs text-foreground">
+          <Cpu className="size-4 text-muted" />
+          <span>{t`模型列表`}</span>
+          <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
+            {selectedModel?.label}
+          </span>
+        </div>
+        {recipeTargets.map(({ recipe, target }) => {
+          const name = recipe.alias?.trim() || recipe.systemName;
+          const recipeHarnessKind = recipeLaunchHarnessKind(recipe) || target.agentKind;
+          const recipeModel = target.model || recipeLaunchModelId(recipe);
+          const isCurrent =
+            recipeHarnessKind === modelControl.currentAgentKind &&
+            recipeModel === modelControl.currentModel &&
+            (target.accountId ?? undefined) === (modelControl.currentAccountId ?? undefined);
+          return (
+            <button
+              key={`recipe:${recipe.id}`}
+              type="button"
+              role="option"
+              aria-selected={isCurrent}
+              className={choiceClass}
+              onClick={() => {
+                setPendingRecipeIntent({ recipeId: recipe.id });
+                modelControl.onChange({
+                  agentKind: recipeHarnessKind || target.agentKind,
+                  model: recipeModel ?? target.model,
+                  ...(target.presentationMode ? { presentationMode: target.presentationMode } : {}),
+                  ...(target.accountId ? { accountId: target.accountId } : {}),
+                });
+                setMenuOpen(false);
+              }}
+            >
+              <ProviderIcon
+                kind={target.agentKind}
+                fallbackLabel={name}
+                tone="active"
+                className="size-4 shrink-0"
+              />
+              <span className="whitespace-nowrap">{name}</span>
+              <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] text-muted">
+                {t`我的配方`}
+              </span>
+              {isCurrent ? <Check className="size-3.5 text-emerald-400" /> : null}
+            </button>
+          );
+        })}
+        {modelProviders.flatMap((provider, providerIndex) =>
+          provider.capabilities.models.map((model) => {
+            const isCurrent =
+              provider.kind === modelControl.currentAgentKind &&
+              provider.accountId === modelControl.currentAccountId &&
+              model.id === modelControl.currentModel &&
+              !recipeTargets.some(
+                ({ recipe: candidateRecipe, target: candidateTarget }) =>
+                  recipeLaunchHarnessKind(candidateRecipe) === modelControl.currentAgentKind &&
+                  candidateTarget.model === modelControl.currentModel &&
+                  (candidateTarget.accountId ?? undefined) ===
+                    (modelControl.currentAccountId ?? undefined),
+              );
+            return (
+              <button
+                key={`${providerIndex}:${provider.kind}:${model.id}`}
+                type="button"
+                role="option"
+                aria-selected={isCurrent}
+                className={choiceClass}
+                onClick={() => {
+                  clearPendingRecipeIntent();
+                  modelControl.onChange({
+                    agentKind: provider.kind,
+                    model: model.id,
+                    ...(provider.presentationMode
+                      ? { presentationMode: provider.presentationMode }
+                      : {}),
+                    ...(provider.accountId ? { accountId: provider.accountId } : {}),
+                  });
+                  setMenuOpen(false);
+                }}
+              >
+                <ProviderIcon
+                  kind={modelFamilyIconKind(model.id) ?? provider.kind}
+                  {...(provider.icon && !modelFamilyIconKind(model.id)
+                    ? { icon: provider.icon }
+                    : {})}
+                  fallbackLabel={model.label}
+                  tone="active"
+                  className="size-4 shrink-0"
+                />
+                <span className="whitespace-nowrap">{model.label}</span>
+                <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] text-muted">
+                  {provider.label}
+                </span>
+                {isCurrent ? <Check className="size-3.5 text-emerald-400" /> : null}
+              </button>
+            );
+          }),
+        )}
+      </div>
+    );
+  }
+
   return (
     <>
-      <Dropdown>
+      <Dropdown isOpen={menuOpen} onOpenChange={setMenuOpen}>
         <Dropdown.Trigger className="craftstation-composer-parameters inline-flex h-9 min-w-0 max-w-full items-center gap-1.5 rounded-xl px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-[var(--row-active)]">
           {modelControl ? (
             <span
@@ -376,78 +486,70 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
             overlayZoom.root,
           )}
         >
-          <Dropdown.Menu
-            aria-label={t`模型与运行参数`}
-            {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
-          >
-            {effortControl && effortControl.contextSizes.length > 0 ? (
-              <Dropdown.SubmenuTrigger>
-                <Dropdown.Item id="context" textValue={t`上下文窗口大小`}>
-                  <Gauge className="size-4 text-muted" />
-                  <Label>{t`上下文窗口大小`}</Label>
-                  <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
-                    {contextLabel}
-                  </span>
-                  <Dropdown.SubmenuIndicator />
-                </Dropdown.Item>
-                <Dropdown.Popover
-                  placement={compactMenu ? "top end" : "left top"}
-                  className={withOverlayClass(
-                    "craftstation-composer-menu-surface w-max min-w-[16rem] max-w-[min(28rem,calc(100vw-1.5rem))] rounded-[14px]",
-                    overlayZoom.root,
-                  )}
-                >
-                  <div className={withOverlayClass("flex flex-col", overlayZoom.content)}>
-                    <Dropdown.Menu
-                      aria-label={t`上下文窗口大小`}
-                      onAction={(key) => handleContextAction(String(key))}
-                    >
-                      {CONTEXT_WINDOW_PRESETS.map((preset) => (
-                        <Dropdown.Item
-                          key={`preset:${preset}`}
-                          id={`preset:${preset}`}
-                          textValue={preset}
-                        >
-                          <Label>{preset}</Label>
-                          {preset === "256K" ? (
-                            <span className="ml-auto text-[10px] text-neutral-500">{t`默认`}</span>
-                          ) : null}
-                        </Dropdown.Item>
-                      ))}
-                    </Dropdown.Menu>
-                    <div className="border-t border-white/10 p-2">
-                      <input
-                        aria-label={t`自定义上下文窗口大小`}
-                        value={customContextDraft}
-                        onChange={(event) => setCustomContextDraft(event.target.value)}
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            applyCustomContext();
-                          }
-                        }}
-                        placeholder={t`自定义，如 200K / 500000，回车应用`}
-                        className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-foreground outline-none placeholder:text-neutral-500 focus:border-white/25"
-                      />
-                    </div>
-                  </div>
-                </Dropdown.Popover>
-              </Dropdown.SubmenuTrigger>
-            ) : null}
-
-            {modelControl ? (
-              compactMenu ? (
-                <Dropdown.Section aria-label={t`模型列表`}>
-                  <Dropdown.Item id="models" textValue={t`模型列表`}>
-                    <Cpu className="size-4 text-muted" />
-                    <Label>{t`模型列表`}</Label>
+          {compactModelChoices()}
+          {(Boolean(effortControl) ||
+            Boolean(fastControl) ||
+            Boolean(modelControl && !compactMenu)) && (
+            <Dropdown.Menu
+              aria-label={t`模型与运行参数`}
+              {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
+            >
+              {effortControl && effortControl.contextSizes.length > 0 ? (
+                <Dropdown.SubmenuTrigger>
+                  <Dropdown.Item id="context" textValue={t`上下文窗口大小`}>
+                    <Gauge className="size-4 text-muted" />
+                    <Label>{t`上下文窗口大小`}</Label>
                     <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
-                      {selectedModel?.label}
+                      {contextLabel}
                     </span>
+                    <Dropdown.SubmenuIndicator />
                   </Dropdown.Item>
-                  {modelMenuItems()}
-                </Dropdown.Section>
-              ) : (
+                  <Dropdown.Popover
+                    placement={compactMenu ? "top end" : "left top"}
+                    className={withOverlayClass(
+                      "craftstation-composer-menu-surface w-max min-w-[16rem] max-w-[min(28rem,calc(100vw-1.5rem))] rounded-[14px]",
+                      overlayZoom.root,
+                    )}
+                  >
+                    <div className={withOverlayClass("flex flex-col", overlayZoom.content)}>
+                      <Dropdown.Menu
+                        aria-label={t`上下文窗口大小`}
+                        onAction={(key) => handleContextAction(String(key))}
+                      >
+                        {CONTEXT_WINDOW_PRESETS.map((preset) => (
+                          <Dropdown.Item
+                            key={`preset:${preset}`}
+                            id={`preset:${preset}`}
+                            textValue={preset}
+                          >
+                            <Label>{preset}</Label>
+                            {preset === "256K" ? (
+                              <span className="ml-auto text-[10px] text-neutral-500">{t`默认`}</span>
+                            ) : null}
+                          </Dropdown.Item>
+                        ))}
+                      </Dropdown.Menu>
+                      <div className="border-t border-white/10 p-2">
+                        <input
+                          aria-label={t`自定义上下文窗口大小`}
+                          value={customContextDraft}
+                          onChange={(event) => setCustomContextDraft(event.target.value)}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              event.preventDefault();
+                              applyCustomContext();
+                            }
+                          }}
+                          placeholder={t`自定义，如 200K / 500000，回车应用`}
+                          className="w-full rounded-lg border border-white/10 bg-black/30 px-2 py-1.5 text-[11px] text-foreground outline-none placeholder:text-neutral-500 focus:border-white/25"
+                        />
+                      </div>
+                    </div>
+                  </Dropdown.Popover>
+                </Dropdown.SubmenuTrigger>
+              ) : null}
+
+              {modelControl && !compactMenu ? (
                 <Dropdown.SubmenuTrigger delay={0}>
                   <Dropdown.Item id="models" textValue={t`模型列表`}>
                     <Cpu className="size-4 text-muted" />
@@ -472,92 +574,16 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                     </Dropdown.Menu>
                   </Dropdown.Popover>
                 </Dropdown.SubmenuTrigger>
-              )
-            ) : null}
+              ) : null}
 
-            {effortControl ? (
-              <Dropdown.SubmenuTrigger>
-                <Dropdown.Item id="effort" textValue={t`推理强度`}>
-                  <Sparkles className="size-4 text-muted" />
-                  <Label>{t`推理强度`}</Label>
-                  <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
-                    {effortLabel}
-                  </span>
-                  <Dropdown.SubmenuIndicator />
-                </Dropdown.Item>
-                <Dropdown.Popover
-                  placement={compactMenu ? "top end" : "left top"}
-                  className={withOverlayClass(
-                    "craftstation-composer-menu-surface w-max min-w-[12rem] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-[14px]",
-                    overlayZoom.root,
-                  )}
-                >
-                  <Dropdown.Menu
-                    aria-label={t`推理强度`}
-                    onAction={(key) => {
-                      if (key === "__custom_effort__") {
-                        setCustomEffortDraft(effortControl.effortValue ?? "");
-                        setCustomEffortOpen(true);
-                        return;
-                      }
-                      effortControl.onEffortChange?.(String(key));
-                    }}
-                    {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
-                  >
-                    {effortControl.efforts.map((effort) => (
-                      <Dropdown.Item key={effort.id} id={effort.id} textValue={effort.label}>
-                        <Label>{effort.label}</Label>
-                      </Dropdown.Item>
-                    ))}
-                    <Dropdown.Item
-                      key="__custom_effort__"
-                      id="__custom_effort__"
-                      textValue={t`自定义思考强度`}
-                    >
-                      <Label>{t`自定义…`}</Label>
-                      <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
-                        {t`手写档位`}
-                      </span>
-                    </Dropdown.Item>
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown.SubmenuTrigger>
-            ) : null}
-
-            {fastControl ? (
-              fastControl.speedTiers && fastControl.speedTiers.length > 0 ? (
-                // 多速度档（Codex priority + ultrafast）：档位选择与开关合一,
-                // 与「推理强度」同构的子菜单，首项为关闭（标准档）。
+              {effortControl ? (
                 <Dropdown.SubmenuTrigger>
-                  <Dropdown.Item
-                    id="fast"
-                    textValue={
-                      fastControl.disabledReason
-                        ? t`快速模式 ${fastControl.disabledReason}`
-                        : t`快速模式`
-                    }
-                    isDisabled={
-                      fastControl.isDisabled === true || Boolean(fastControl.disabledReason)
-                    }
-                  >
-                    <Zap
-                      className={`size-4 ${
-                        fastControl.isSelected ? "text-amber-300" : "text-muted"
-                      }`}
-                    />
-                    <Label>{t`快速模式`}</Label>
-                    {fastControl.disabledReason ? (
-                      <span
-                        className="ml-auto max-w-44 truncate whitespace-nowrap text-[10px] text-muted"
-                        title={fastControl.disabledReason}
-                      >
-                        {fastControl.disabledReason}
-                      </span>
-                    ) : (
-                      <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
-                        {fastControl.isSelected ? (fastTierLabel ?? "Fast") : t`关闭`}
-                      </span>
-                    )}
+                  <Dropdown.Item id="effort" textValue={t`推理强度`}>
+                    <Sparkles className="size-4 text-muted" />
+                    <Label>{t`推理强度`}</Label>
+                    <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
+                      {effortLabel}
+                    </span>
                     <Dropdown.SubmenuIndicator />
                   </Dropdown.Item>
                   <Dropdown.Popover
@@ -568,72 +594,148 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
                     )}
                   >
                     <Dropdown.Menu
-                      aria-label={t`快速模式`}
-                      onAction={(key) =>
-                        fastControl.onSpeedTierChange?.(
-                          String(key) === "__off__" ? undefined : String(key),
-                        )
-                      }
+                      aria-label={t`推理强度`}
+                      onAction={(key) => {
+                        if (key === "__custom_effort__") {
+                          setCustomEffortDraft(effortControl.effortValue ?? "");
+                          setCustomEffortOpen(true);
+                          return;
+                        }
+                        effortControl.onEffortChange?.(String(key));
+                      }}
                       {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
                     >
-                      <Dropdown.Item id="__off__" textValue={t`标准`}>
-                        <Label>{t`标准`}</Label>
-                        {!fastControl.isSelected ? (
-                          <Check className="ml-auto size-3.5 text-emerald-400" />
-                        ) : null}
-                      </Dropdown.Item>
-                      {fastControl.speedTiers.map((tier) => (
-                        <Dropdown.Item key={tier.id} id={tier.id} textValue={tier.label}>
-                          <div className="max-w-72" title={tier.description}>
-                            <Label>
-                              {tier.label}
-                              {tier.availability === "unverified" ? " · 权限待确认" : ""}
-                            </Label>
-                            {tier.description && (
-                              <p className="mt-1 whitespace-normal text-[10px] leading-4 text-muted">
-                                {tier.description}
-                              </p>
-                            )}
-                          </div>
-                          {fastControl.isSelected && fastControl.speedTierValue === tier.id ? (
-                            <Check className="ml-auto size-3.5 text-emerald-400" />
-                          ) : null}
+                      {effortControl.efforts.map((effort) => (
+                        <Dropdown.Item key={effort.id} id={effort.id} textValue={effort.label}>
+                          <Label>{effort.label}</Label>
                         </Dropdown.Item>
                       ))}
+                      <Dropdown.Item
+                        key="__custom_effort__"
+                        id="__custom_effort__"
+                        textValue={t`自定义思考强度`}
+                      >
+                        <Label>{t`自定义…`}</Label>
+                        <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
+                          {t`手写档位`}
+                        </span>
+                      </Dropdown.Item>
                     </Dropdown.Menu>
                   </Dropdown.Popover>
                 </Dropdown.SubmenuTrigger>
-              ) : (
-                <Dropdown.Item
-                  id="fast"
-                  textValue={
-                    fastControl.disabledReason
-                      ? t`快速模式 ${fastControl.disabledReason}`
-                      : t`快速模式`
-                  }
-                  isDisabled={
-                    fastControl.isDisabled === true || Boolean(fastControl.disabledReason)
-                  }
-                  onPress={() => fastControl.onChange?.(!fastControl.isSelected)}
-                >
-                  <Zap
-                    className={`size-4 ${fastControl.isSelected ? "text-amber-300" : "text-muted"}`}
-                  />
-                  <Label>{t`快速模式`}</Label>
-                  {fastControl.disabledReason ? (
-                    <span
-                      className="ml-auto max-w-44 truncate whitespace-nowrap text-[10px] text-muted"
-                      title={fastControl.disabledReason}
+              ) : null}
+
+              {fastControl ? (
+                fastControl.speedTiers && fastControl.speedTiers.length > 0 ? (
+                  // 多速度档（Codex priority + ultrafast）：档位选择与开关合一,
+                  // 与「推理强度」同构的子菜单，首项为关闭（标准档）。
+                  <Dropdown.SubmenuTrigger>
+                    <Dropdown.Item
+                      id="fast"
+                      textValue={
+                        fastControl.disabledReason
+                          ? t`快速模式 ${fastControl.disabledReason}`
+                          : t`快速模式`
+                      }
+                      isDisabled={
+                        fastControl.isDisabled === true || Boolean(fastControl.disabledReason)
+                      }
                     >
-                      {fastControl.disabledReason}
-                    </span>
-                  ) : (
-                    <MenuSwitch checked={fastControl.isSelected} />
-                  )}
-                </Dropdown.Item>
-              )
-            ) : null}
-          </Dropdown.Menu>
+                      <Zap
+                        className={`size-4 ${
+                          fastControl.isSelected ? "text-amber-300" : "text-muted"
+                        }`}
+                      />
+                      <Label>{t`快速模式`}</Label>
+                      {fastControl.disabledReason ? (
+                        <span
+                          className="ml-auto max-w-44 truncate whitespace-nowrap text-[10px] text-muted"
+                          title={fastControl.disabledReason}
+                        >
+                          {fastControl.disabledReason}
+                        </span>
+                      ) : (
+                        <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
+                          {fastControl.isSelected ? (fastTierLabel ?? "Fast") : t`关闭`}
+                        </span>
+                      )}
+                      <Dropdown.SubmenuIndicator />
+                    </Dropdown.Item>
+                    <Dropdown.Popover
+                      placement={compactMenu ? "top end" : "left top"}
+                      className={withOverlayClass(
+                        "craftstation-composer-menu-surface w-max min-w-[12rem] max-w-[min(24rem,calc(100vw-1.5rem))] rounded-[14px]",
+                        overlayZoom.root,
+                      )}
+                    >
+                      <Dropdown.Menu
+                        aria-label={t`快速模式`}
+                        onAction={(key) =>
+                          fastControl.onSpeedTierChange?.(
+                            String(key) === "__off__" ? undefined : String(key),
+                          )
+                        }
+                        {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
+                      >
+                        <Dropdown.Item id="__off__" textValue={t`标准`}>
+                          <Label>{t`标准`}</Label>
+                          {!fastControl.isSelected ? (
+                            <Check className="ml-auto size-3.5 text-emerald-400" />
+                          ) : null}
+                        </Dropdown.Item>
+                        {fastControl.speedTiers.map((tier) => (
+                          <Dropdown.Item key={tier.id} id={tier.id} textValue={tier.label}>
+                            <div className="max-w-72" title={tier.description}>
+                              <Label>
+                                {tier.label}
+                                {tier.availability === "unverified" ? " · 权限待确认" : ""}
+                              </Label>
+                              {tier.description && (
+                                <p className="mt-1 whitespace-normal text-[10px] leading-4 text-muted">
+                                  {tier.description}
+                                </p>
+                              )}
+                            </div>
+                            {fastControl.isSelected && fastControl.speedTierValue === tier.id ? (
+                              <Check className="ml-auto size-3.5 text-emerald-400" />
+                            ) : null}
+                          </Dropdown.Item>
+                        ))}
+                      </Dropdown.Menu>
+                    </Dropdown.Popover>
+                  </Dropdown.SubmenuTrigger>
+                ) : (
+                  <Dropdown.Item
+                    id="fast"
+                    textValue={
+                      fastControl.disabledReason
+                        ? t`快速模式 ${fastControl.disabledReason}`
+                        : t`快速模式`
+                    }
+                    isDisabled={
+                      fastControl.isDisabled === true || Boolean(fastControl.disabledReason)
+                    }
+                    onPress={() => fastControl.onChange?.(!fastControl.isSelected)}
+                  >
+                    <Zap
+                      className={`size-4 ${fastControl.isSelected ? "text-amber-300" : "text-muted"}`}
+                    />
+                    <Label>{t`快速模式`}</Label>
+                    {fastControl.disabledReason ? (
+                      <span
+                        className="ml-auto max-w-44 truncate whitespace-nowrap text-[10px] text-muted"
+                        title={fastControl.disabledReason}
+                      >
+                        {fastControl.disabledReason}
+                      </span>
+                    ) : (
+                      <MenuSwitch checked={fastControl.isSelected} />
+                    )}
+                  </Dropdown.Item>
+                )
+              ) : null}
+            </Dropdown.Menu>
+          )}
         </Dropdown.Popover>
       </Dropdown>
       {effortControl ? (
