@@ -7,6 +7,7 @@ import {
   shouldReuseTemporaryChatWarm,
   shouldSendIntoTemporaryChatWarm,
   TEMPORARY_CHAT_IDLE_MS,
+  temporaryChatMemoryDraft,
   temporaryChatRememberedModel,
   temporaryChatWarmAcceptsLaunch,
   temporaryChatWarmDraft,
@@ -82,6 +83,27 @@ describe("temporary chat warm session", () => {
     });
     expect(temporaryChatRememberedModel(draft, "kimi")).toBe("kimi-code/k3-256k");
     expect(temporaryChatRememberedModel(draft, "codex")).toBeUndefined();
+  });
+
+  it("keeps a later temporary-chat pick when the stored draft still names the previous model", () => {
+    const stored = { agentKind: "codex", model: "gpt-6.1-sol", effort: "high" };
+    expect(
+      temporaryChatMemoryDraft({ agentKind: "codex", model: "gpt-6.1-sol" }, stored, false),
+    ).toBe(stored);
+    expect(
+      temporaryChatMemoryDraft(
+        { agentKind: "deepseek-harness", model: "deepseek-v4.1" },
+        stored,
+        false,
+      ),
+    ).toBeUndefined();
+    expect(
+      temporaryChatMemoryDraft(
+        { agentKind: "deepseek-harness", model: "deepseek-v4.1" },
+        stored,
+        true,
+      ),
+    ).toEqual({ agentKind: "deepseek-harness", model: "deepseek-v4.1", effort: "high" });
   });
 
   it("reopens the temporary chat's own model and ignores the main chat", () => {

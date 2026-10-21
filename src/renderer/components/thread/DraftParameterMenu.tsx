@@ -31,7 +31,7 @@ import { useLingui } from "@lingui/react/macro";
 
 export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
   const { t } = useLingui();
-  // 窄窗口无法并排容纳两级菜单，子菜单向上叠放并交给 Popover 限制在视口内。
+  // 窄窗口里模型列表直接铺在同一张菜单中，鼠标移到模型上不会把列表关掉。
   const compactMenu = useMediaQuery("(max-width: 760px)");
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
@@ -229,6 +229,101 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
         }`
       : undefined;
 
+  function modelMenuItems() {
+    if (modelControl?.kind !== "provider-model") return null;
+    return (
+      <>
+        {recipeTargets.map(({ recipe, target }) => {
+          const name = recipe.alias?.trim() || recipe.systemName;
+          const recipeHarnessKind = recipeLaunchHarnessKind(recipe) || target.agentKind;
+          const recipeModel = target.model || recipeLaunchModelId(recipe);
+          const isCurrent =
+            recipeHarnessKind === modelControl.currentAgentKind &&
+            recipeModel === modelControl.currentModel &&
+            (target.accountId ?? undefined) === (modelControl.currentAccountId ?? undefined);
+          return (
+            <Dropdown.Item
+              key={`recipe:${recipe.id}`}
+              id={`recipe:${recipe.id}`}
+              textValue={t`${name} 我的配方`}
+              onPress={() => {
+                setPendingRecipeIntent({ recipeId: recipe.id });
+                modelControl.onChange({
+                  // A saved recipe is an explicit composition.
+                  // Its Harness wins over model-name auto-routing.
+                  agentKind: recipeHarnessKind || target.agentKind,
+                  model: recipeModel ?? target.model,
+                  ...(target.presentationMode ? { presentationMode: target.presentationMode } : {}),
+                  ...(target.accountId ? { accountId: target.accountId } : {}),
+                });
+              }}
+            >
+              <ProviderIcon
+                kind={target.agentKind}
+                fallbackLabel={name}
+                tone="active"
+                className="size-4 shrink-0"
+              />
+              <Label className="whitespace-nowrap">{name}</Label>
+              <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] text-muted">
+                {t`我的配方`}
+              </span>
+              {isCurrent ? <Check className="size-3.5 text-emerald-400" /> : null}
+            </Dropdown.Item>
+          );
+        })}
+        {modelProviders.flatMap((provider, providerIndex) =>
+          provider.capabilities.models.map((model) => {
+            const isCurrent =
+              provider.kind === modelControl.currentAgentKind &&
+              provider.accountId === modelControl.currentAccountId &&
+              model.id === modelControl.currentModel &&
+              !recipeTargets.some(
+                ({ recipe: candidateRecipe, target: candidateTarget }) =>
+                  recipeLaunchHarnessKind(candidateRecipe) === modelControl.currentAgentKind &&
+                  candidateTarget.model === modelControl.currentModel &&
+                  (candidateTarget.accountId ?? undefined) ===
+                    (modelControl.currentAccountId ?? undefined),
+              );
+            return (
+              <Dropdown.Item
+                key={`${providerIndex}:${provider.kind}:${model.id}`}
+                id={`${providerIndex}:${provider.kind}:${model.id}`}
+                textValue={`${provider.label} ${model.label}`}
+                onPress={() => {
+                  clearPendingRecipeIntent();
+                  modelControl.onChange({
+                    agentKind: provider.kind,
+                    model: model.id,
+                    ...(provider.presentationMode
+                      ? { presentationMode: provider.presentationMode }
+                      : {}),
+                    ...(provider.accountId ? { accountId: provider.accountId } : {}),
+                  });
+                }}
+              >
+                <ProviderIcon
+                  kind={modelFamilyIconKind(model.id) ?? provider.kind}
+                  {...(provider.icon && !modelFamilyIconKind(model.id)
+                    ? { icon: provider.icon }
+                    : {})}
+                  fallbackLabel={model.label}
+                  tone="active"
+                  className="size-4 shrink-0"
+                />
+                <Label className="whitespace-nowrap">{model.label}</Label>
+                <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] text-muted">
+                  {provider.label}
+                </span>
+                {isCurrent ? <Check className="size-3.5 text-emerald-400" /> : null}
+              </Dropdown.Item>
+            );
+          }),
+        )}
+      </>
+    );
+  }
+
   return (
     <>
       <Dropdown>
@@ -275,7 +370,9 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
         <Dropdown.Popover
           placement="top end"
           className={withOverlayClass(
-            "craftstation-composer-menu-surface w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]",
+            `craftstation-composer-menu-surface w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]${
+              compactMenu ? " max-h-[min(32rem,calc(100vh-1.5rem))] overflow-y-auto" : ""
+            }`,
             overlayZoom.root,
           )}
         >
@@ -339,120 +436,43 @@ export function DraftParameterMenu(props: { controls: ComposerControl[] }) {
             ) : null}
 
             {modelControl ? (
-              <Dropdown.SubmenuTrigger delay={0}>
-                <Dropdown.Item id="models" textValue={t`模型列表`}>
-                  <Cpu className="size-4 text-muted" />
-                  <Label>{t`模型列表`}</Label>
-                  <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
-                    {selectedModel?.label}
-                  </span>
-                  <Dropdown.SubmenuIndicator />
-                </Dropdown.Item>
-                <Dropdown.Popover
-                  placement={compactMenu ? "top end" : "left top"}
-                  className={withOverlayClass(
-                    "craftstation-composer-menu-surface max-h-[420px] w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]",
-                    overlayZoom.root,
-                  )}
-                >
-                  <Dropdown.Menu
-                    aria-label={t`模型列表`}
-                    {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
-                  >
-                    {recipeTargets.map(({ recipe, target }) => {
-                      const name = recipe.alias?.trim() || recipe.systemName;
-                      const recipeHarnessKind = recipeLaunchHarnessKind(recipe) || target.agentKind;
-                      const recipeModel = target.model || recipeLaunchModelId(recipe);
-                      const isCurrent =
-                        recipeHarnessKind === modelControl.currentAgentKind &&
-                        recipeModel === modelControl.currentModel &&
-                        (target.accountId ?? undefined) ===
-                          (modelControl.currentAccountId ?? undefined);
-                      return (
-                        <Dropdown.Item
-                          key={`recipe:${recipe.id}`}
-                          id={`recipe:${recipe.id}`}
-                          textValue={t`${name} 我的配方`}
-                          onPress={() => {
-                            setPendingRecipeIntent({ recipeId: recipe.id });
-                            modelControl.onChange({
-                              // A saved recipe is an explicit composition.
-                              // Its Harness wins over model-name auto-routing.
-                              agentKind: recipeHarnessKind || target.agentKind,
-                              model: recipeModel ?? target.model,
-                              ...(target.presentationMode
-                                ? { presentationMode: target.presentationMode }
-                                : {}),
-                              ...(target.accountId ? { accountId: target.accountId } : {}),
-                            });
-                          }}
-                        >
-                          <ProviderIcon
-                            kind={target.agentKind}
-                            fallbackLabel={name}
-                            tone="active"
-                            className="size-4 shrink-0"
-                          />
-                          <Label className="whitespace-nowrap">{name}</Label>
-                          <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] text-muted">
-                            {t`我的配方`}
-                          </span>
-                          {isCurrent ? <Check className="size-3.5 text-emerald-400" /> : null}
-                        </Dropdown.Item>
-                      );
-                    })}
-                    {modelProviders.flatMap((provider, providerIndex) =>
-                      provider.capabilities.models.map((model) => {
-                        const isCurrent =
-                          provider.kind === modelControl.currentAgentKind &&
-                          provider.accountId === modelControl.currentAccountId &&
-                          model.id === modelControl.currentModel &&
-                          !recipeTargets.some(
-                            ({ recipe: candidateRecipe, target: candidateTarget }) =>
-                              recipeLaunchHarnessKind(candidateRecipe) ===
-                                modelControl.currentAgentKind &&
-                              candidateTarget.model === modelControl.currentModel &&
-                              (candidateTarget.accountId ?? undefined) ===
-                                (modelControl.currentAccountId ?? undefined),
-                          );
-                        return (
-                          <Dropdown.Item
-                            key={`${providerIndex}:${provider.kind}:${model.id}`}
-                            id={`${providerIndex}:${provider.kind}:${model.id}`}
-                            textValue={`${provider.label} ${model.label}`}
-                            onPress={() => {
-                              clearPendingRecipeIntent();
-                              modelControl.onChange({
-                                agentKind: provider.kind,
-                                model: model.id,
-                                ...(provider.presentationMode
-                                  ? { presentationMode: provider.presentationMode }
-                                  : {}),
-                                ...(provider.accountId ? { accountId: provider.accountId } : {}),
-                              });
-                            }}
-                          >
-                            <ProviderIcon
-                              kind={modelFamilyIconKind(model.id) ?? provider.kind}
-                              {...(provider.icon && !modelFamilyIconKind(model.id)
-                                ? { icon: provider.icon }
-                                : {})}
-                              fallbackLabel={model.label}
-                              tone="active"
-                              className="size-4 shrink-0"
-                            />
-                            <Label className="whitespace-nowrap">{model.label}</Label>
-                            <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] text-muted">
-                              {provider.label}
-                            </span>
-                            {isCurrent ? <Check className="size-3.5 text-emerald-400" /> : null}
-                          </Dropdown.Item>
-                        );
-                      }),
+              compactMenu ? (
+                <Dropdown.Section aria-label={t`模型列表`}>
+                  <Dropdown.Item id="models" textValue={t`模型列表`}>
+                    <Cpu className="size-4 text-muted" />
+                    <Label>{t`模型列表`}</Label>
+                    <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
+                      {selectedModel?.label}
+                    </span>
+                  </Dropdown.Item>
+                  {modelMenuItems()}
+                </Dropdown.Section>
+              ) : (
+                <Dropdown.SubmenuTrigger delay={0}>
+                  <Dropdown.Item id="models" textValue={t`模型列表`}>
+                    <Cpu className="size-4 text-muted" />
+                    <Label>{t`模型列表`}</Label>
+                    <span className="ml-auto whitespace-nowrap text-[10px] text-muted">
+                      {selectedModel?.label}
+                    </span>
+                    <Dropdown.SubmenuIndicator />
+                  </Dropdown.Item>
+                  <Dropdown.Popover
+                    placement="left top"
+                    className={withOverlayClass(
+                      "craftstation-composer-menu-surface max-h-[420px] w-max min-w-[20rem] max-w-[min(36rem,calc(100vw-1.5rem))] rounded-[14px]",
+                      overlayZoom.root,
                     )}
-                  </Dropdown.Menu>
-                </Dropdown.Popover>
-              </Dropdown.SubmenuTrigger>
+                  >
+                    <Dropdown.Menu
+                      aria-label={t`模型列表`}
+                      {...(overlayZoom.content ? { className: overlayZoom.content } : {})}
+                    >
+                      {modelMenuItems()}
+                    </Dropdown.Menu>
+                  </Dropdown.Popover>
+                </Dropdown.SubmenuTrigger>
+              )
             ) : null}
 
             {effortControl ? (

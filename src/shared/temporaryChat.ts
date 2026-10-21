@@ -137,11 +137,33 @@ export function temporaryChatWarmAcceptsLaunch(
  */
 export function withTemporaryChatModelMemory(
   lastDraft: { agentKind: string; model: string } | undefined,
-  explicitDefaults: Readonly<Record<string, string>> | undefined,
+  explicitDefaults?: Readonly<Record<string, string>> | undefined,
 ): Readonly<Record<string, string>> | undefined {
   const model = lastDraft?.model.trim();
   if (!lastDraft?.agentKind || !model) return explicitDefaults;
   return { ...(explicitDefaults ?? {}), [lastDraft.agentKind]: model };
+}
+
+/**
+ * Draft written for a selection made inside the temporary chat.
+ * A draft that still names the previous model is left untouched unless the
+ * user changed the pick after the window had already settled.
+ */
+export function temporaryChatMemoryDraft(
+  selection: { agentKind: string; model: string },
+  draft: ProjectDraftConfig | undefined,
+  force: boolean,
+): ProjectDraftConfig | undefined {
+  if (!selection.agentKind || !selection.model.trim()) return undefined;
+  if (draft && draft.agentKind === selection.agentKind && draft.model === selection.model) {
+    return draft;
+  }
+  if (!force) return undefined;
+  return {
+    ...(draft ?? { agentKind: selection.agentKind, model: selection.model }),
+    agentKind: selection.agentKind,
+    model: selection.model,
+  };
 }
 
 /** Model id to reopen, when this draft is the temporary chat's saved choice. */

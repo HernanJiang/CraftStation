@@ -279,7 +279,7 @@ export function ThreadDraftView(props: {
     pickerInstalledAgents,
     lastDraftConfig,
     temporaryChatWindow
-      ? withTemporaryChatModelMemory(lastDraftConfig, useSharedSettings.getState().defaultModels)
+      ? withTemporaryChatModelMemory(lastDraftConfig)
       : useSharedSettings.getState().defaultModels,
   );
   const [agentKind, setAgentKind] = useState<AgentStatus["kind"] | undefined>(preferredAgentKind);
@@ -550,12 +550,11 @@ export function ThreadDraftView(props: {
     // as the default. Only a menu pick recorded in defaultModels restores;
     // otherwise the draft opens on the model list's first entry. Unknown or
     // retired ids fall back to models[0] inside resolveProviderDraftConfig.
-    const explicitDefault =
-      (temporaryChatWindow
-        ? temporaryChatRememberedModel(lastDraftConfig, effectiveAgentKind)
-        : undefined) ||
-      useSharedSettings.getState().defaultModels[effectiveAgentKind]?.trim() ||
-      undefined;
+    // Temporary chat keeps its own last pick. A global menu default belongs to
+    // the main composer and must not fill in when this window has no match.
+    const explicitDefault = temporaryChatWindow
+      ? temporaryChatRememberedModel(lastDraftConfig, effectiveAgentKind)
+      : useSharedSettings.getState().defaultModels[effectiveAgentKind]?.trim() || undefined;
     const resolved = resolveProviderDraftConfig(
       selectedAgentForConfig,
       {
@@ -564,6 +563,29 @@ export function ThreadDraftView(props: {
       },
       defaultPermissionMode,
     );
+    // 目录里没有的模型（例如渠道里的 deepseek-v4.1-flash）不能被收成
+    // models[0]，也不能把这次收成写回临时对话自己的记录。
+    if (
+      temporaryChatWindow &&
+      lastDraftConfig?.agentKind === effectiveAgentKind &&
+      !!lastDraftConfig.model.trim() &&
+      resolved.model !== lastDraftConfig.model
+    ) {
+      setModel(lastDraftConfig.model);
+      setEffort(lastDraftConfig.effort);
+      if (lastDraftConfig.contextSize) setContextSize(lastDraftConfig.contextSize);
+      if (lastDraftConfig.fast !== undefined) setFast(lastDraftConfig.fast);
+      if (lastDraftConfig.speedTier) setSpeedTier(lastDraftConfig.speedTier);
+      if (lastDraftConfig.thinking !== undefined) setThinking(lastDraftConfig.thinking);
+      if (lastDraftConfig.mode) setMode(lastDraftConfig.mode);
+      if (lastDraftConfig.approvalPolicy) setApprovalPolicy(lastDraftConfig.approvalPolicy);
+      if (lastDraftConfig.approvalsReviewer) {
+        setApprovalsReviewer(lastDraftConfig.approvalsReviewer);
+      }
+      if (lastDraftConfig.sandboxMode) setSandboxMode(lastDraftConfig.sandboxMode);
+      lastAppliedAgentDefaultsRef.current = agentDefaultsKey;
+      return;
+    }
     const nextModel = resolved.model;
     const nextEffort = resolved.effort;
     const nextContext = resolved.contextSize;
@@ -641,6 +663,15 @@ export function ThreadDraftView(props: {
       ? resolveSpeedTierValue(selectedAgentForConfig, nextModel, speedTier)
       : undefined;
     const nextThinking = resolveThinkingValue(selectedAgentForConfig, nextModel, thinking);
+    // A catalog snap must not replace the temporary chat's own saved model.
+    if (
+      temporaryChatWindow &&
+      lastDraftConfig?.agentKind === effectiveAgentKind &&
+      !!lastDraftConfig.model.trim() &&
+      nextModel !== lastDraftConfig.model
+    ) {
+      return;
+    }
     if (
       nextModel !== model ||
       nextEffort !== effort ||
@@ -703,6 +734,7 @@ export function ThreadDraftView(props: {
     sandboxMode,
     effectiveWorktreeMode,
     isHomeScope,
+    temporaryChatWindow,
     lastDraftConfig,
     project.id,
     updateProjectDraftConfig,

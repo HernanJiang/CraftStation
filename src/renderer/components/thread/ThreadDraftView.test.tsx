@@ -497,6 +497,82 @@ describe("ThreadDraftView", () => {
     );
   });
 
+  it("keeps a temporary chat on its own model when the global menu default differs", async () => {
+    Object.defineProperty(window, "craftstation", {
+      configurable: true,
+      value: {
+        windowKind: "temporaryChat",
+        setSharedSettings: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      },
+    });
+    useSharedSettings.setState({ defaultModels: { codex: "gpt-5.4" } });
+    const native: AgentStatus = {
+      ...codexStatus,
+      kind: "deepseek-harness",
+      label: "DeepSeek Harness",
+      capabilities: {
+        ...codexStatus.capabilities,
+        models: [{ id: "deepseek-v4.1", label: "DeepSeek V4.1" }],
+      },
+    };
+    render(
+      <ThreadDraftView
+        project={homeProject}
+        agentStatuses={[codexStatus, native]}
+        lastDraftConfig={{ agentKind: native.kind, model: "deepseek-v4.1" }}
+        onStart={() => {}}
+      />,
+    );
+
+    await waitFor(() => {
+      const props = composerSpy.mock.lastCall?.[0] as {
+        controls: Array<{ kind?: string; currentAgentKind?: string; currentModel?: string }>;
+      };
+      const providerModel = props.controls.find((control) => control.kind === "provider-model");
+      expect(providerModel?.currentAgentKind).toBe(native.kind);
+      expect(providerModel?.currentModel).toBe("deepseek-v4.1");
+    });
+  });
+
+  it("keeps a temporary chat model that is absent from the native catalog", async () => {
+    Object.defineProperty(window, "craftstation", {
+      configurable: true,
+      value: {
+        windowKind: "temporaryChat",
+        setSharedSettings: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+      },
+    });
+    useSharedSettings.setState({ defaultModels: { codex: "gpt-5.4" } });
+    const updates: string[] = [];
+    const original = useAppStore.getState().updateProjectDraftConfig;
+    useAppStore.setState({
+      updateProjectDraftConfig: (projectId, draftConfig) => {
+        updates.push(draftConfig.model);
+        original(projectId, draftConfig);
+      },
+    });
+    try {
+      render(
+        <ThreadDraftView
+          project={homeProject}
+          agentStatuses={[codexStatus]}
+          lastDraftConfig={{ agentKind: "codex", model: "deepseek-v4.1-flash", effort: "high" }}
+          onStart={() => {}}
+        />,
+      );
+      await waitFor(() => {
+        const props = composerSpy.mock.lastCall?.[0] as {
+          controls: Array<{ kind?: string; currentModel?: string }>;
+        };
+        const providerModel = props.controls.find((control) => control.kind === "provider-model");
+        expect(providerModel?.currentModel).toBe("deepseek-v4.1-flash");
+      });
+      expect(updates).not.toContain("gpt-5.4");
+    } finally {
+      useAppStore.setState({ updateProjectDraftConfig: original });
+    }
+  });
+
   it("applies the global full-access default to a new draft launch", async () => {
     const onStart = vi.fn<(input: unknown) => void>();
     useSharedSettings.setState({ defaultPermissionMode: "full-access" });

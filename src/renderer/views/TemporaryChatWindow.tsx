@@ -11,6 +11,7 @@ import {
   shouldReplaceTemporaryChatWarm,
   shouldSendIntoTemporaryChatWarm,
   TEMPORARY_CHAT_MODEL_STATE_KEY,
+  temporaryChatMemoryDraft,
   temporaryChatWarmDraft,
   temporaryChatWarmKey,
 } from "@/shared/temporaryChat";
@@ -186,27 +187,38 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
   ensureWarmRef.current = ensureWarm;
 
   const lastPersistedRef = useRef("");
-  const remember = useCallback((selection: ModelSelection, draftConfig?: ProjectDraftConfig) => {
-    selectionRef.current = selection;
-    const config =
-      draftConfig ??
-      useAppStore.getState().projects.find((p) => p.id === HOME_PROJECT_ID)?.lastDraftConfig;
-    if (!config || config.model !== selection.model || config.agentKind !== selection.agentKind)
-      return;
-    const payload = JSON.stringify({ draftConfig: config, ...selection });
-    if (lastPersistedRef.current === payload) return;
-    lastPersistedRef.current = payload;
-    void readBridge()
-      .dbSetState(TEMPORARY_CHAT_MODEL_STATE_KEY, payload)
-      .catch((cause: unknown) => {
-        lastPersistedRef.current = "";
-        console.error(
-          "[temporary-chat] operation=remember-model status=error code=model-memory-failed",
-          cause,
-        );
-        setError("模型选择保存失败，请重试。");
-      });
-  }, []);
+  const openedOnSavedModelRef = useRef(false);
+  const remember = useCallback(
+    (selection: ModelSelection, draftConfig?: ProjectDraftConfig, force = false): boolean => {
+      selectionRef.current = selection;
+      const stored =
+        draftConfig ??
+        useAppStore.getState().projects.find((p) => p.id === HOME_PROJECT_ID)?.lastDraftConfig;
+      const config = temporaryChatMemoryDraft(selection, stored, force);
+      if (!config) return false;
+      if (
+        force &&
+        (!stored || stored.model !== selection.model || stored.agentKind !== selection.agentKind)
+      ) {
+        useAppStore.getState().updateProjectDraftConfig(HOME_PROJECT_ID, config);
+      }
+      const payload = JSON.stringify({ draftConfig: config, ...selection });
+      if (lastPersistedRef.current === payload) return true;
+      lastPersistedRef.current = payload;
+      void readBridge()
+        .dbSetState(TEMPORARY_CHAT_MODEL_STATE_KEY, payload)
+        .catch((cause: unknown) => {
+          lastPersistedRef.current = "";
+          console.error(
+            "[temporary-chat] operation=remember-model status=error code=model-memory-failed",
+            cause,
+          );
+          setError("模型选择保存失败，请重试。");
+        });
+      return true;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (loading) return;
@@ -463,7 +475,8 @@ export function TemporaryChatWindow({ loading }: { loading: boolean }) {
         previous.presentationMode === selection.presentationMode,
       );
       const hadSelection = Boolean(previous?.model);
-      remember(selection);
+      const wrote = remember(selection, undefined, openedOnSavedModelRef.current && !sameSelection);
+      if (wrote) openedOnSavedModelRef.current = true;
       if (engagedRef.current) return;
       // A duplicate event must not retrigger a prepare that is starting, ready, or
       // already failed for this exact selection — that looped forever on failure.

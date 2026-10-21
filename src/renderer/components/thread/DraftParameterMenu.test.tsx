@@ -145,6 +145,44 @@ describe("DraftParameterMenu", () => {
     expect(document.querySelector(".craftstation-composer-menu-surface")).toBeInTheDocument();
   });
 
+  it("keeps compact model choices in the same menu when the pointer moves onto them", async () => {
+    const originalMatchMedia = window.matchMedia.bind(window);
+    window.matchMedia = (query: string) => ({
+      matches: query.includes("max-width: 760px") || query.includes("dark"),
+      media: query,
+      onchange: null,
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      addListener: () => undefined,
+      removeListener: () => undefined,
+      dispatchEvent: () => false,
+    });
+    const control = makeModelControl();
+    try {
+      render(<DraftParameterMenu controls={[control]} />);
+      fireEvent.click(screen.getByRole("button", { name: /ChatGPT-5.6-Sol/ }));
+      expect(
+        document.querySelector('[role="menu"][aria-label="Model list"]'),
+      ).not.toBeInTheDocument();
+      const parentMenu = [...document.querySelectorAll<HTMLElement>('[role="menu"]')].find(
+        (menu) => menu.getAttribute("aria-label") === "Model & run parameters",
+      );
+      expect(parentMenu).toBeTruthy();
+      if (!parentMenu) return;
+      const luna = within(parentMenu).getByRole("menuitem", {
+        name: /ChatGPT-5.6-Luna/,
+      });
+      fireEvent.pointerEnter(luna);
+      expect(within(parentMenu).getByRole("menuitem", { name: /ChatGPT-5.6-Luna/ })).toBe(luna);
+      fireEvent.click(luna);
+      expect(control.kind === "provider-model" ? control.onChange : undefined).toHaveBeenCalledWith(
+        expect.objectContaining({ model: "gpt-5.6-luna" }),
+      );
+    } finally {
+      window.matchMedia = originalMatchMedia;
+    }
+  });
+
   it("删除 Devin 渠道后，已打开的模型菜单立即移除 SWE，重新打开也不恢复", async () => {
     vi.useFakeTimers();
     const codex = installedStatus("codex", "Codex");
