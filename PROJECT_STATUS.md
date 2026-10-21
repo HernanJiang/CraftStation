@@ -3,7 +3,8 @@
 - **用户问题**：1.11.11 之后，临时对话打开仍是 Codex 6.1 Sol。这既不是主窗口当前的模型，也不是在临时对话里点过的模型。另外，鼠标放到「模型列表」上会在上方弹出卡片，再把鼠标移到卡片上时卡片自己关掉，点不到模型。
 - **根因与实现**：临时对话在目录里找不到已保存的模型时，会收成列表第一项并写回 `temporary-chat-model`；全局 `defaultModels` 也会在对不上 Harness 时填进来。窗口里的点选如果草稿还没跟上，`remember()` 会直接放弃。窄窗口把模型列表做成向上弹出的二级菜单，鼠标上移会经过「上下文窗口大小」那一行，焦点一换菜单就关。现已改为：临时对话只使用自己保存的模型与 Harness；目录外的 id 保持原样且不写回；窗口里换过模型后强制记下这次选择（含账号）；760px 及以下把模型列表铺在同一张参数菜单里。
 - **验证**：`pnpm typecheck` 通过。`pnpm lint` 0 警告 0 错误。`DraftParameterMenu.test.tsx`、`ThreadDraftView.test.tsx`、`temporaryChat.test.ts` 共 91 项通过。
-- **发布状态**：验证已通过，正在构建 Windows 双包并发布。
+- **发布状态**：已发布。`main` 已推送（`bc29b313`），tag `v1.11.12` 指向该修复提交。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.12) 已发布为最新稳定版，非草稿、非预发布，4 项附件齐备：NSIS 148697271 字节、blockmap 155301 字节、便携版 127393565 字节、`latest.yml` 367 字节。`latest.yml` 版本为 1.11.12，指向 NSIS 安装包，清单大小与附件一致。双语正文与 `ai_workspace/release-notes-1.11.12.md` 一致。无关 lockfile 与临时资料保留，不纳入发布提交。
+- **本地收尾**：便携版只保留 1.11.12 与 1.11.11。打包中间产物 `win-unpacked/` 与 `builder-debug.yml` 已删除。
 - **数据边界**：本机 `temporary-chat-model` 里现有的值仍是 Codex `gpt-6.1-sol`。安装本版后，需要在临时对话里再点一次想要的模型，这次点选会记住。之后主窗口换成别的模型，也不会改掉它。正在运行的 1.11.11 窗口不会带上这版修复。
 
 ## 1.11.11 临时对话只记住自己的上次模型（2026-10-20）
