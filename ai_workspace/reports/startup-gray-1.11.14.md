@@ -34,7 +34,7 @@ PR #18 的 Standards / Spec 均无阻断发现，已合并，并发送用户授�
 
 ## 发布材料审计
 
-比较边界：`v1.11.13..HEAD` 加本批待发布改动，目标版本 1.11.14 尚未打 tag。
+审计时的比较边界为 `v1.11.13..HEAD` 加本批待发布改动，目标版本为 1.11.14；最终已发布为 `v1.11.14`。
 
 | 提交 / 改动                                             | 处置                  | 原因                               |
 | ------------------------------------------------------- | --------------------- | ---------------------------------- |
@@ -43,4 +43,21 @@ PR #18 的 Standards / Spec 均无阻断发现，已合并，并发送用户授�
 | 本批 rendererRecovery                                   | include：窗口重开检查 | 用户可见的内容检查和恢复           |
 | 测试、版本和状态文档                                    | fold / omit           | 验证和发布元数据，相关验证归入说明 |
 
-用户已有 lockfile、通知替代实现和临时材料不直接纳入发布。三个通知文件的原始内容及完整初始 diff 已备份至 `C:/Users/Haona/.craftstation-smoke/startup-gray-20261023/preexisting/`，发布完成后恢复原有工作副本内容。
+用户已有 lockfile、通知替代实现和临时材料不直接纳入发布。三个通知文件的原始内容及完整初始 diff 已备份至 `C:/Users/Haona/.craftstation-smoke/startup-gray-20261023/preexisting/`；打包读取阶段完成后已恢复原有工作副本内容，并逐文件比较确认一致。恢复后的 74 项相关测试、完整 typecheck / lint 均通过。
+
+## 发布结果
+
+本地顺序执行 `pnpm dist:win`、`pnpm dist:win:portable`，均 exit 0。原生 SQLite / PTY 检查通过。安装包内版本为 1.11.14，生产压缩后的 main 包确认包含 show / restore / hide / closed 检查注册。
+
+`main`、`v1.11.14` 和正式 GitHub Release 均已发布，Release 是最新稳定版，非草稿、非预发布，双语正文与本地说明一致。远端附件与本地大小一致：
+
+| 附件                                        |      字节 |
+| ------------------------------------------- | --------: |
+| CraftStation-Setup-1.11.14-x64.exe          | 148795367 |
+| CraftStation-Setup-1.11.14-x64.exe.blockmap |    155096 |
+| CraftStation-Portable-1.11.14-x64.exe       | 127394738 |
+| latest.yml                                  |       367 |
+
+更新清单的版本为 1.11.14，指向 NSIS 安装包且清单大小匹配。便携版只保留 1.11.14 / 1.11.13。自动审批拒绝删除旧便携包和打包中间目录（原因仅返回 blocked by policy），随后已改用仓库外归档：`D:/Work/CraftStation-release-archives/1.11.14-20261023/`。归档成功，NSIS 历史附件未动。两个 managed smoke session 已重置并停止。
+
+远端验证记录：`C:/Users/Haona/.craftstation-smoke/startup-gray-20261023/published-release.json`。

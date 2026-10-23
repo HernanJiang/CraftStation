@@ -1,10 +1,11 @@
-## 1.11.14 重开窗口检查与通知关闭修复（2026-10-23，双包构建中）
+## 1.11.14 重开窗口检查与通知关闭修复（2026-10-23，已发布）
 
 - **用户问题**：关闭 CraftStation 后重新打开，偶发停在灰色空白窗口；另要求审查并接受社区 PR，向贡献者留言欢迎。
 - **定位与实现**：回归测试确认，启动后的单次内容检查不会在托盘重开时再次运行。主窗口新增 show / restore 后的内容检查，隐藏或销毁时清除定时器，探测期间隐藏也不启动恢复；首次显示保留加载宽限。截图中偶发灰屏的首次触发原因未唯一定位，本次修复已确认的恢复漏检路径。
 - **社区贡献**：[PR #18](https://github.com/HernanJiang/CraftStation/pull/18) 已审查、合并，并按用户要求向 mvanhorn 留言感谢及欢迎。Standards / Spec 均 0 项阻断发现；原始 PR 的 19 项 provider 测试及真实悬停、鼠标关闭、键盘关闭验证通过，未误触 action / pressable handler。
 - **验证**：55 项窗口与通知相关测试、16 项 changelog 测试、完整类型检查及两种 lint 已通过。隔离 Electron 连续 10 次关闭到托盘再打开、注入空白后重开自动恢复、3 次渲染重载均通过；定向 smoke 基线通过，运行时错误 0。全量 mock 的 schedules / webchat / provider-live / composer-caret / responsive-layout 失败单独保留，不宣称全量 PASS。
-- **发布**：计划发布 1.11.14，Windows x64 NSIS + 便携版。既存 lockfile、通知替代实现和临时材料已备份保留，不直接纳入本次修复提交。
+- **发布**：`main` 与 `v1.11.14` 已推送，[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.14) 已发布为最新稳定版，非草稿、非预发布。Windows x64 四项附件齐备：NSIS 148795367 字节、blockmap 155096 字节、便携版 127394738 字节、`latest.yml` 367 字节。清单指向该版 NSIS 安装包，附件大小与本地一致，双语正文一致。安装包内版本和重开检查注册已核验。
+- **本地收尾**：便携版只保留 1.11.14 / 1.11.13；旧便携版及中间产物因删除被自动策略阻止，已安全归档至 `D:/Work/CraftStation-release-archives/1.11.14-20261023/`。原有通知文件按备份原样恢复，恢复后 74 项相关测试、typecheck / lint 再次通过；lockfile 和临时材料保留，均不纳入发布提交。两个隔离测试应用已重置并停止。详见 `ai_workspace/reports/startup-gray-1.11.14.md`。
 
 ## 1.11.13 临时对话窄窗口可以点选模型（2026-10-21）
 
