@@ -96,7 +96,7 @@ export function deriveTurnTiming(
   if (willBeLive) {
     return {
       activeTurnStartedAt: wasLive
-        ? (thread.activeTurnStartedAt ?? thread.updatedAt ?? options.enteredLiveAt)
+        ? (thread.activeTurnStartedAt ?? options.enteredLiveAt)
         : options.enteredLiveAt,
       lastTurnStartedAt: thread.lastTurnStartedAt,
       lastTurnEndedAt: thread.lastTurnEndedAt,
@@ -106,7 +106,7 @@ export function deriveTurnTiming(
   if (wasLive) {
     return {
       activeTurnStartedAt: undefined,
-      lastTurnStartedAt: thread.activeTurnStartedAt ?? thread.updatedAt ?? options.nowIso,
+      lastTurnStartedAt: thread.activeTurnStartedAt,
       lastTurnEndedAt: options.nowIso,
     };
   }

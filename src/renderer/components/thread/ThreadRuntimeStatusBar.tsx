@@ -100,15 +100,21 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
   }, [turnOutput, itemIds, itemsById]);
   if (!thread) return null;
 
-  const startedAt = thread.activeTurnStartedAt ?? thread.lastTurnStartedAt;
+  const startedAt =
+    state === "working"
+      ? thread.activeTurnStartedAt
+      : (thread.lastTurnStartedAt ?? thread.activeTurnStartedAt);
   const endedAt = thread.lastTurnEndedAt;
   const startedMs = startedAt ? Date.parse(startedAt) : NaN;
   const endedMs = endedAt ? Date.parse(endedAt) : NaN;
-  const elapsed = Number.isFinite(startedMs)
-    ? formatDuration(
-        ((state === "working" ? now : Number.isFinite(endedMs) ? endedMs : now) - startedMs) / 1000,
-      )
-    : undefined;
+  const turnEndMs = state === "working" ? now : endedMs;
+  const turnElapsedMs =
+    Number.isFinite(startedMs) && Number.isFinite(turnEndMs) && turnEndMs >= startedMs
+      ? turnEndMs - startedMs
+      : undefined;
+  // A settled turn needs a frozen end. Missing/invalid history is unknown,
+  // never "time since the old start until this window was reopened".
+  const elapsed = turnElapsedMs === undefined ? undefined : formatDuration(turnElapsedMs / 1000);
   const currentTokens = summary?.usedTokens;
   const previousTurn = completedTurns.at(-1);
   // Decode throughput per the deepseek-harness fold: summed per-segment
@@ -132,11 +138,8 @@ export function ThreadRuntimeStatusBar({ threadId }: { threadId: string }) {
   // denominator, and to persisted stream text for the numerator on reopened
   // threads, so every CLI shows a readable throughput (marked 估算).
   const outputTokens = turnOutput !== undefined ? liveOutputTokens : replayedOutputTokens;
-  const turnElapsedMs = Number.isFinite(startedMs)
-    ? Math.max(0, (state === "working" || !Number.isFinite(endedMs) ? now : endedMs) - startedMs)
-    : 0;
   const wholeTurnFallback = decodeMs <= 0 && outputTokens > 0;
-  const effectiveDecodeMs = decodeMs > 0 ? decodeMs : turnElapsedMs;
+  const effectiveDecodeMs = decodeMs > 0 ? decodeMs : (turnElapsedMs ?? 0);
   const tokensPerSecond =
     outputTokens > 0 && effectiveDecodeMs > 0
       ? outputTokens / (effectiveDecodeMs / 1000)

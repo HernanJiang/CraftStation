@@ -908,7 +908,7 @@ export const createThreadSlice: SliceCreator<ThreadSlice> = (set) => ({
               ? (configFromRuntime ?? thread.config)
               : stripPlanMode(configFromRuntime ?? thread.config);
           const nextTurnTiming = deriveTurnTiming(thread, snapshot.status, {
-            enteredLiveAt: thread.activeTurnStartedAt ?? thread.updatedAt ?? nowIso,
+            enteredLiveAt: thread.activeTurnStartedAt ?? nowIso,
             nowIso,
           });
           const slashCommandsChanged = !areAgentSlashCommandsEqual(

@@ -125,7 +125,8 @@ function reopenGuiTurnForLiveRuntimeActivity(
   }
 
   const nowIso = new Date().toISOString();
-  const activeTurnStartedAt = thread.lastTurnStartedAt ?? thread.updatedAt ?? nowIso;
+  const activeTurnStartedAt =
+    thread.activeTurnStartedAt ?? thread.lastTurnStartedAt ?? thread.updatedAt ?? nowIso;
   const startedAt = parseTurnMs(thread.lastTurnStartedAt);
   const endedAt = parseTurnMs(thread.lastTurnEndedAt);
   let nextCompletedTurns = state.runtimeCompletedTurnsByThread;
@@ -245,10 +246,15 @@ function applyRuntimeEventToRuntimeState(
       return {};
 
     case "turn.started": {
-      // Mark the runtime turn open so live activity may (re)open the GUI turn.
-      // Status flows through the thread-state channel; the only state here is
-      // the open flag plus the per-turn output-rate accumulator, which resets
-      // so a finished turn's tok/s never bleeds into the next turn.
+      // A native turn boundary starts a fresh clock even if the previous
+      // thread-state still says working. Reusing that clock across native
+      // turns counts idle time (including time the app was closed).
+      const nowIso = new Date().toISOString();
+      const threads = state.threads.map((thread) =>
+        thread.id === threadId
+          ? { ...thread, activeTurnStartedAt: nowIso, updatedAt: nowIso }
+          : thread,
+      );
       const openPatch =
         state.runtimeOpenTurnByThread[threadId] === true
           ? {}
@@ -264,7 +270,7 @@ function applyRuntimeEventToRuntimeState(
         threadId in state.runtimeTurnOutputByThread
           ? { runtimeTurnOutputByThread: remainingTurnOutput }
           : {};
-      return { ...openPatch, ...outputPatch };
+      return { ...openPatch, ...outputPatch, threads };
     }
 
     case "turn.completed": {

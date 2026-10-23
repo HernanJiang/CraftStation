@@ -23,7 +23,7 @@ function deriveTurnTiming(
 
   if (willBeLive) {
     return {
-      activeTurnStartedAt: wasLive ? (thread.activeTurnStartedAt ?? thread.updatedAt) : nowIso,
+      activeTurnStartedAt: wasLive ? (thread.activeTurnStartedAt ?? nowIso) : nowIso,
       lastTurnStartedAt: thread.lastTurnStartedAt,
       lastTurnEndedAt: thread.lastTurnEndedAt,
     };
@@ -32,7 +32,7 @@ function deriveTurnTiming(
   if (wasLive) {
     return {
       activeTurnStartedAt: undefined,
-      lastTurnStartedAt: thread.activeTurnStartedAt ?? thread.updatedAt ?? nowIso,
+      lastTurnStartedAt: thread.activeTurnStartedAt,
       lastTurnEndedAt: nowIso,
     };
   }
@@ -42,6 +42,17 @@ function deriveTurnTiming(
     lastTurnStartedAt: thread.lastTurnStartedAt,
     lastTurnEndedAt: thread.lastTurnEndedAt,
   };
+}
+
+/** Native turn boundaries remain authoritative when a status transition is missed. */
+export function persistThreadTurnStarted(threadId: string): void {
+  const thread = dbGetThread(threadId);
+  if (!thread) return;
+  const nowIso = new Date().toISOString();
+  dbUpsertThread(
+    { ...thread, activeTurnStartedAt: nowIso, updatedAt: nowIso },
+    sortOrderForThread(dbGetThreads(), threadId),
+  );
 }
 
 /**

@@ -1000,6 +1000,145 @@ describe("appStore runtime config sync", () => {
     expect(useAppStore.getState().threads[0]?.activeTurnStartedAt).toBe("2026-05-02T09:00:00.000Z");
   });
 
+  it("does not invent a completed start from a stale thread update", () => {
+    const project = useAppStore.getState().addProject({ kind: "windows", path: "C:\\repo" });
+    const thread = useAppStore.getState().createThread({
+      projectId: project.id,
+      agentKind: "codex",
+      config: { model: "m" },
+      prompt: "a",
+    });
+    useAppStore.setState((state) => ({
+      threads: state.threads.map((t) =>
+        t.id === thread.id
+          ? {
+              ...t,
+              status: "working",
+              activeTurnStartedAt: undefined,
+              updatedAt: "2026-10-21T10:58:18.458Z",
+            }
+          : t,
+      ),
+    }));
+    useAppStore.getState().updateThreadRuntime(thread.id, {
+      status: "idle",
+      attention: "none",
+      canResumeWithConfig: true,
+    });
+    expect(
+      useAppStore.getState().threads.find((t) => t.id === thread.id)?.lastTurnStartedAt,
+    ).toBeUndefined();
+    expect(useAppStore.getState().runtimeCompletedTurnsByThread[thread.id] ?? []).toEqual([]);
+  });
+
+  it("a native turn start replaces an earlier turn's stale active clock", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-23T09:00:00.000Z"));
+    const project = useAppStore.getState().addProject({ kind: "windows", path: "C:\\repo" });
+    const thread = useAppStore.getState().createThread({
+      projectId: project.id,
+      agentKind: "codex",
+      config: { model: "m" },
+      prompt: "a",
+    });
+    useAppStore.setState((state) => ({
+      threads: state.threads.map((t) =>
+        t.id === thread.id
+          ? { ...t, status: "working", activeTurnStartedAt: "2026-10-21T10:58:18.458Z" }
+          : t,
+      ),
+    }));
+    useAppStore.getState().applyRuntimeEvent(thread.id, {
+      type: "turn.started",
+      threadId: thread.id,
+      turnId: "new-turn",
+    });
+    vi.setSystemTime(new Date("2026-10-23T09:01:00.000Z"));
+    useAppStore.getState().updateThreadRuntime(thread.id, {
+      status: "idle",
+      attention: "none",
+      canResumeWithConfig: true,
+    });
+    expect(useAppStore.getState().threads.find((t) => t.id === thread.id)).toMatchObject({
+      lastTurnStartedAt: "2026-10-23T09:00:00.000Z",
+      lastTurnEndedAt: "2026-10-23T09:01:00.000Z",
+    });
+  });
+
+  it("live output after a native turn start keeps the new clock when reopening idle", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-23T09:00:00.000Z"));
+    const project = useAppStore.getState().addProject({ kind: "windows", path: "C:\\repo" });
+    const thread = useAppStore.getState().createThread({
+      projectId: project.id,
+      agentKind: "codex",
+      config: { model: "m" },
+      prompt: "a",
+    });
+    useAppStore.setState((state) => ({
+      threads: state.threads.map((t) =>
+        t.id === thread.id
+          ? {
+              ...t,
+              presentationMode: "gui",
+              status: "idle",
+              activeTurnStartedAt: undefined,
+              lastTurnStartedAt: "2026-10-21T10:58:18.458Z",
+              lastTurnEndedAt: "2026-10-21T11:00:00.000Z",
+            }
+          : t,
+      ),
+    }));
+    useAppStore.getState().applyRuntimeEvents(thread.id, [
+      { type: "turn.started", threadId: thread.id, turnId: "new-turn" },
+      {
+        type: "item.started",
+        threadId: thread.id,
+        itemId: "new-answer",
+        itemType: "assistant_message",
+      },
+    ]);
+    expect(useAppStore.getState().threads.find((t) => t.id === thread.id)).toMatchObject({
+      status: "working",
+      activeTurnStartedAt: "2026-10-23T09:00:00.000Z",
+    });
+  });
+
+  it("snapshot hydration does not use an old thread update as a new turn start", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-10-23T09:00:00.000Z"));
+    const project = useAppStore.getState().addProject({ kind: "windows", path: "C:\\repo" });
+    const thread = useAppStore.getState().createThread({
+      projectId: project.id,
+      agentKind: "codex",
+      config: { model: "m" },
+      prompt: "a",
+    });
+    useAppStore.setState((state) => ({
+      threads: state.threads.map((t) =>
+        t.id === thread.id
+          ? {
+              ...t,
+              status: "inactive",
+              activeTurnStartedAt: undefined,
+              updatedAt: "2026-10-21T10:58:18.458Z",
+            }
+          : t,
+      ),
+    }));
+    useAppStore.getState().reconcileRuntimeSnapshots([
+      {
+        threadId: thread.id,
+        status: "working",
+        attention: "working",
+        canResumeWithConfig: true,
+      },
+    ]);
+    expect(
+      useAppStore.getState().threads.find((t) => t.id === thread.id)?.activeTurnStartedAt,
+    ).toBe("2026-10-23T09:00:00.000Z");
+  });
+
   it("reconcileRuntimeSnapshots preserves the live turn start across hydration", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-05-02T09:00:00.000Z"));

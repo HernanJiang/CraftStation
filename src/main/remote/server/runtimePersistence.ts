@@ -1,7 +1,7 @@
 import { dbApplyThreadRuntimeEvents, dbReplaceThreadRuntimeSnapshot } from "../../db";
 import { recordUsageSpentFromRuntimeEvents } from "../../profile/usageLedger";
 import type { RemoteBroadcastEvent } from "./context";
-import { persistThreadStateEvent } from "./threadStatePersistence";
+import { persistThreadStateEvent, persistThreadTurnStarted } from "./threadStatePersistence";
 
 /**
  * Single durability entry point for a supervisor broadcast event. Mirrors
@@ -26,15 +26,22 @@ function persistRuntimeEvent(event: RemoteBroadcastEvent): void {
   switch (event.type) {
     case "thread-runtime-event":
       dbApplyThreadRuntimeEvents(event.threadId, [event.event]);
+      if (event.event.type === "turn.started") persistThreadTurnStarted(event.threadId);
       recordUsageSpentFromRuntimeEvents(event.threadId, [event.event]);
       return;
     case "thread-runtime-events":
       dbApplyThreadRuntimeEvents(event.threadId, event.events);
+      for (const runtimeEvent of event.events) {
+        if (runtimeEvent.type === "turn.started") persistThreadTurnStarted(event.threadId);
+      }
       recordUsageSpentFromRuntimeEvents(event.threadId, event.events);
       return;
     case "thread-runtime-events-multi":
       for (const batch of event.batches) {
         dbApplyThreadRuntimeEvents(batch.threadId, batch.events);
+        for (const runtimeEvent of batch.events) {
+          if (runtimeEvent.type === "turn.started") persistThreadTurnStarted(batch.threadId);
+        }
         recordUsageSpentFromRuntimeEvents(batch.threadId, batch.events);
       }
       return;

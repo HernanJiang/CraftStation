@@ -1,5 +1,5 @@
-import { fireEvent, screen } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { act, fireEvent, screen } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Thread } from "@/shared/contracts";
 import { useAppStore } from "@/renderer/state/appStore";
 import { renderWithI18n as render } from "@/renderer/testUtils/i18n";
@@ -57,6 +57,10 @@ function seed(thread: Thread, usage?: { usedTokens: number; maxTokens: number })
 }
 
 describe("ThreadRuntimeStatusBar", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   beforeEach(() => {
     useAppStore.setState({
       threads: [],
@@ -79,6 +83,110 @@ describe("ThreadRuntimeStatusBar", () => {
     expect(chip).not.toHaveTextContent("Context");
     expect(chip.textContent).not.toMatch(/218K/);
     expect(chip.querySelector("span.h-1")).toBeNull();
+  });
+
+  it("does not count time since a reopened completed turn with no end timestamp", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-15T01:35:15.000Z"));
+    seed(
+      makeThread({
+        status: "finished",
+        attention: "none",
+        done: true,
+        activeTurnStartedAt: undefined,
+        lastTurnStartedAt: "2026-09-13T01:34:15.000Z",
+        lastTurnEndedAt: undefined,
+      }),
+    );
+    useAppStore.setState({ runtimeCompletedTurnsByThread: {} });
+
+    render(<ThreadRuntimeStatusBar threadId="thread-1" />);
+
+    expect(screen.getByTestId("thread-runtime-status")).toHaveTextContent("Completed");
+    expect(screen.getByTestId("thread-runtime-status").querySelector(".tabular-nums")).toBeNull();
+  });
+
+  it("uses the finished turn's start instead of an obsolete active clock", () => {
+    seed(
+      makeThread({
+        status: "finished",
+        attention: "none",
+        done: true,
+        activeTurnStartedAt: "2026-09-11T01:05:33.000Z",
+        lastTurnStartedAt: "2026-09-13T01:34:15.000Z",
+        lastTurnEndedAt: "2026-09-13T01:35:15.000Z",
+      }),
+    );
+    render(<ThreadRuntimeStatusBar threadId="thread-1" />);
+    expect(screen.getByTestId("thread-runtime-status")).toHaveTextContent("Completed1m 0s");
+  });
+
+  it.each([undefined, "invalid", "2026-09-13T01:33:15.000Z"])(
+    "does not invent elapsed time or output speed from an invalid finished window (%s)",
+    (endedAt) => {
+      seed(
+        makeThread({
+          status: "finished",
+          attention: "none",
+          done: true,
+          activeTurnStartedAt: undefined,
+          lastTurnStartedAt: "2026-09-13T01:34:15.000Z",
+          lastTurnEndedAt: endedAt,
+        }),
+      );
+      useAppStore.setState({
+        runtimeTurnOutputByThread: {
+          "thread-1": {
+            finalizedTokens: 120,
+            floatingReported: 0,
+            decodeMs: 0,
+            segment: null,
+          },
+        },
+      } as never);
+      render(<ThreadRuntimeStatusBar threadId="thread-1" />);
+      expect(screen.getByTestId("thread-runtime-status").querySelector(".tabular-nums")).toBeNull();
+      fireEvent.mouseEnter(screen.getByTestId("thread-runtime-status"));
+      expect(screen.getByTestId("thread-runtime-status-popover")).not.toHaveTextContent(
+        "Output speed",
+      );
+    },
+  );
+
+  it("keeps a finished duration frozen across a remount days later", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-09-13T01:35:15.000Z"));
+    seed(
+      makeThread({
+        status: "finished",
+        attention: "none",
+        activeTurnStartedAt: undefined,
+        lastTurnStartedAt: "2026-09-13T01:34:15.000Z",
+        lastTurnEndedAt: "2026-09-13T01:35:15.000Z",
+      }),
+    );
+    const first = render(<ThreadRuntimeStatusBar threadId="thread-1" />);
+    expect(screen.getByTestId("thread-runtime-status")).toHaveTextContent("Completed1m 0s");
+    first.unmount();
+    vi.setSystemTime(new Date("2026-09-15T01:35:15.000Z"));
+    render(<ThreadRuntimeStatusBar threadId="thread-1" />);
+    act(() => {
+      vi.advanceTimersByTime(10_000);
+    });
+    expect(screen.getByTestId("thread-runtime-status")).toHaveTextContent("Completed1m 0s");
+  });
+
+  it("does not borrow the previous turn clock while a new live start is unknown", () => {
+    seed(
+      makeThread({
+        activeTurnStartedAt: undefined,
+        lastTurnStartedAt: "2026-09-13T01:34:15.000Z",
+        lastTurnEndedAt: "2026-09-13T01:35:15.000Z",
+      }),
+    );
+    render(<ThreadRuntimeStatusBar threadId="thread-1" />);
+    expect(screen.getByTestId("thread-runtime-status")).toHaveTextContent("Working");
+    expect(screen.getByTestId("thread-runtime-status").querySelector(".tabular-nums")).toBeNull();
   });
 
   it("opens a portal popover with this-turn tokens only", () => {

@@ -1,6 +1,23 @@
 {
   "releases": [
     {
+      "version": "1.11.15",
+      "date": "2026-10-23",
+      "title": "Reliable completed turn durations",
+      "summary": "Completed turn durations stay fixed when you reopen a conversation. New turns start their own clock, keeping idle time out of the elapsed time.",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Conversations",
+          "text": "Each native turn resets its start time in memory and storage, so later turns no longer inherit a clock from days earlier."
+        },
+        {
+          "kind": "fixed",
+          "text": "Completed turns use their saved start and end times; missing or invalid timing no longer counts up to the time you reopen the app or produces a misleading output speed."
+        }
+      ]
+    },
+    {
       "version": "1.11.14",
       "date": "2026-10-23",
       "title": "重开窗口检查与通知关闭修复",
