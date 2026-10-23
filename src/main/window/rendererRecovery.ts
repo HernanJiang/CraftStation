@@ -45,10 +45,7 @@ const lastRecoveryStartedAt = new WeakMap<BrowserWindow, number>();
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-async function waitForMount(
-  window: BrowserWindow,
-  waits: WaitWindows,
-): Promise<boolean> {
+async function waitForMount(window: BrowserWindow, waits: WaitWindows): Promise<boolean> {
   const loadDeadline = Date.now() + waits.reloadLoadMs;
   while (window.webContents.isLoading()) {
     if (window.isDestroyed() || Date.now() > loadDeadline) return false;
@@ -85,9 +82,7 @@ export async function recoverRendererContent(
     const prefix = `[craftstation] ${label} window`;
     const initialHealth = await probeRendererContentHealth(window);
     if (initialHealth === "healthy") return "healthy";
-    console.error(
-      `${prefix} content unhealthy (health=${initialHealth}), reloading renderer`,
-    );
+    console.error(`${prefix} content unhealthy (health=${initialHealth}), reloading renderer`);
 
     if (requestTrackedRendererReload(window)) {
       if (await waitForMount(window, waits)) {
@@ -121,27 +116,52 @@ export async function recoverRendererContent(
 
 export interface ScheduledContentCheckOptions {
   window: BrowserWindow;
-  /** Delay after window creation before the single check runs. */
+  /** Initial mount grace period, also used for the first show. */
   delayMs: number;
   /** Recovery ladder invoked when the check observes unhealthy content. */
   recover: (window: BrowserWindow) => Promise<unknown>;
 }
 
 /**
- * One-shot post-launch content check. A fresh launch that never mounts would
- * otherwise sit black forever — nothing else observes the window again after
- * `ready-to-show`. Skipped when the window is hidden (closed to tray) so the
- * check never steals focus or acts on a window the user is not looking at.
+ * Check initial content and recheck whenever the user reveals the window.
+ * A healthy launch does not guarantee that a renderer hidden to tray will
+ * still have content later. Hidden windows are left alone, including when the
+ * user closes the window while an asynchronous health probe is in flight.
  */
 export function scheduleRendererContentCheck(options: ScheduledContentCheckOptions): void {
   const { window, delayMs, recover } = options;
-  const timer = setTimeout(() => {
-    if (window.isDestroyed() || !window.isVisible()) return;
-    void (async () => {
-      const health = await probeRendererContentHealth(window);
-      if (health === "healthy" || window.isDestroyed()) return;
-      await recover(window);
-    })();
-  }, delayMs);
-  (timer as unknown as { unref?: () => void }).unref?.();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let hasShown = window.isVisible();
+  const clear = () => {
+    if (timer) clearTimeout(timer);
+    timer = undefined;
+  };
+  const schedule = (delay: number) => {
+    clear();
+    timer = setTimeout(() => {
+      timer = undefined;
+      if (window.isDestroyed() || !window.isVisible()) return;
+      void check().catch((error) => {
+        console.error(
+          `[renderer-recovery] phase=window operation=content-check status=failed windowId=${window.id} code=renderer-content-check-failed; inspect renderer load and recovery logs`,
+          error,
+        );
+      });
+    }, delay);
+    (timer as unknown as { unref?: () => void }).unref?.();
+  };
+  const check = async () => {
+    const health = await probeRendererContentHealth(window);
+    if (health === "healthy" || window.isDestroyed() || !window.isVisible()) return;
+    await recover(window);
+  };
+  const onReveal = () => {
+    schedule(hasShown ? 1_000 : delayMs);
+    hasShown = true;
+  };
+  window.on("show", onReveal);
+  window.on("restore", onReveal);
+  window.on("hide", clear);
+  window.on("closed", clear);
+  schedule(delayMs);
 }

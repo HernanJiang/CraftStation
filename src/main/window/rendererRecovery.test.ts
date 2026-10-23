@@ -17,6 +17,10 @@ function createWindowHarness(state: HealthState) {
   const reload = vi.fn<() => void>();
   const window = {
     isDestroyed: vi.fn<() => boolean>(() => false),
+    isVisible: vi.fn<() => boolean>(() => true),
+    on: vi.fn<(event: string, handler: Handler) => void>((event, handler) => {
+      handlers.set(event, handler);
+    }),
     webContents: {
       isDestroyed: vi.fn<() => boolean>(() => false),
       isCrashed: vi.fn<() => boolean>(() => state.crashed),
@@ -151,6 +155,114 @@ describe("recoverRendererContent", () => {
 });
 
 describe("scheduleRendererContentCheck", () => {
+  it("recovers after restoring a blank minimized window", async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = createWindowHarness({
+        probe: { rootChildren: 0, bootSplash: false },
+        crashed: false,
+      });
+      const recover = vi.fn<() => Promise<unknown>>().mockResolvedValue("reloaded");
+      scheduleRendererContentCheck({ window: harness.window, delayMs: 20_000, recover });
+      harness.handlers.get("restore")?.();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(recover).toHaveBeenCalledExactlyOnceWith(harness.window);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("preserves the mount grace period when a cold window is first shown", async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = createWindowHarness({
+        probe: { rootChildren: 0, bootSplash: true },
+        crashed: false,
+      });
+      let visible = false;
+      harness.window.isVisible = () => visible;
+      const recover = vi.fn<() => Promise<unknown>>().mockResolvedValue("reloaded");
+      scheduleRendererContentCheck({ window: harness.window, delayMs: 20_000, recover });
+      await vi.advanceTimersByTimeAsync(20_000);
+      visible = true;
+      harness.handlers.get("show")?.();
+      await vi.advanceTimersByTimeAsync(1_000);
+      expect(recover).not.toHaveBeenCalled();
+      harness.state.probe = { rootChildren: 3, bootSplash: false };
+      await vi.advanceTimersByTimeAsync(19_000);
+      expect(recover).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not recover a window hidden while its health probe is pending", async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = createWindowHarness({
+        probe: { rootChildren: 0, bootSplash: false },
+        crashed: false,
+      });
+      const execute = vi.mocked(harness.window.webContents.executeJavaScript);
+      let finishProbe: (value: unknown) => void = () => {};
+      execute.mockReturnValue(
+        new Promise((resolve) => {
+          finishProbe = resolve;
+        }),
+      );
+      const recover = vi.fn<() => Promise<unknown>>().mockResolvedValue("reloaded");
+      scheduleRendererContentCheck({ window: harness.window, delayMs: 1_000, recover });
+      await vi.advanceTimersByTimeAsync(1_000);
+      harness.window.isVisible = () => false;
+      finishProbe({ rootChildren: 0, bootSplash: false });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(recover).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("clears a pending reveal check when the window closes", async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = createWindowHarness({
+        probe: { rootChildren: 0, bootSplash: false },
+        crashed: false,
+      });
+      const recover = vi.fn<() => Promise<unknown>>().mockResolvedValue("reloaded");
+      scheduleRendererContentCheck({ window: harness.window, delayMs: 20_000, recover });
+      harness.handlers.get("show")?.();
+      harness.handlers.get("closed")?.();
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(harness.window.webContents.executeJavaScript).not.toHaveBeenCalled();
+      expect(recover).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("checks again after a window closed to tray is shown with blank content", async () => {
+    vi.useFakeTimers();
+    try {
+      const harness = createWindowHarness({
+        probe: { rootChildren: 3, bootSplash: false },
+        crashed: false,
+      });
+      const recover = vi.fn<() => Promise<unknown>>().mockResolvedValue("reloaded");
+      scheduleRendererContentCheck({ window: harness.window, delayMs: 20_000, recover });
+      await vi.advanceTimersByTimeAsync(20_000);
+      expect(recover).not.toHaveBeenCalled();
+
+      harness.state.probe = { rootChildren: 0, bootSplash: false };
+      harness.handlers.get("show")?.();
+      await vi.advanceTimersByTimeAsync(20_000);
+
+      expect(recover).toHaveBeenCalledExactlyOnceWith(harness.window);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("runs the recovery ladder once when the check finds stuck content", async () => {
     const harness = createWindowHarness({
       probe: { rootChildren: 0, bootSplash: true },
