@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { toast } from "@heroui/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -216,6 +218,109 @@ describe("AppProvider", () => {
     fireEvent.pointerUp(toastElement!, { pointerId: 3, pointerType: "mouse" });
 
     expect(screen.getByText("Keep test")).toBeInTheDocument();
+  });
+
+  it("dismisses a danger toast from the close control", async () => {
+    render(
+      <AppProvider>
+        <span />
+      </AppProvider>,
+    );
+
+    act(() => {
+      toast.danger("Kimi Code Harness 安装失败", { timeout: 0 });
+    });
+
+    const title = await screen.findByText("Kimi Code Harness 安装失败");
+    const toastElement = title.closest('[data-slot="toast"]');
+    const close = toastElement?.querySelector(".lc-toast__close");
+    expect(close).not.toBeNull();
+    fireEvent.click(close!);
+
+    await waitFor(() => {
+      expect(screen.queryByText("Kimi Code Harness 安装失败")).not.toBeInTheDocument();
+    });
+  });
+
+  it("keeps the close glyph visible on hover", () => {
+    const styles = readFileSync(join(process.cwd(), "src/renderer/styles.css"), "utf8");
+    const rule = styles.match(
+      /\.lc-toast \.lc-toast__close\b[\s\S]*?:hover[\s\S]*?\[data-hovered="true"\][\s\S]*?\{([^}]+)\}/,
+    );
+    expect(rule?.[1]).toContain("opacity: 1");
+    expect(rule?.[1]).toContain("color: var(--foreground)");
+  });
+
+  it("dismisses action and pressable toasts from the close control without their handlers", async () => {
+    render(
+      <AppProvider>
+        <span />
+      </AppProvider>,
+    );
+
+    const retry = vi.fn<() => void>();
+    act(() => {
+      toast.danger("Kimi Code Harness 安装失败", {
+        actionProps: {
+          children: "重试",
+          onPress: retry,
+          variant: "secondary",
+        },
+        timeout: 0,
+      });
+    });
+
+    const dangerTitle = await screen.findByText("Kimi Code Harness 安装失败");
+    const dangerClose = dangerTitle
+      .closest('[data-slot="toast"]')
+      ?.querySelector(".lc-toast__close");
+    expect(dangerClose).not.toBeNull();
+    fireEvent.click(dangerClose!);
+    await waitFor(() => {
+      expect(screen.queryByText("Kimi Code Harness 安装失败")).not.toBeInTheDocument();
+    });
+    expect(retry).not.toHaveBeenCalled();
+
+    const openThread = vi.fn<() => void>();
+    act(() => {
+      toast.success("Thread done", { onPress: openThread, timeout: 0 } as any);
+    });
+
+    const successTitle = await screen.findByText("Thread done");
+    const successToast = successTitle.closest('[data-slot="toast"]');
+    const successClose = successToast?.querySelector(".lc-toast__close");
+    expect(successClose).not.toBeNull();
+    expect(successClose?.closest('[role="button"]')).toBeNull();
+    fireEvent.click(successClose!);
+    await waitFor(() => {
+      expect(screen.queryByText("Thread done")).not.toBeInTheDocument();
+    });
+    expect(openThread).not.toHaveBeenCalled();
+  });
+
+  it("renders the close control for a long danger title and a success toast", async () => {
+    render(
+      <AppProvider>
+        <span />
+      </AppProvider>,
+    );
+
+    const longTitle =
+      "无法打开 executor_a1.md：File not found: " + "D:/work/very/long/path/".repeat(3);
+    act(() => {
+      toast.danger(longTitle, { timeout: 0 });
+      toast.success("Saved", { timeout: 0 });
+    });
+
+    await screen.findByText(longTitle);
+    await screen.findByText("Saved");
+
+    const danger = document.querySelector(".toast--danger");
+    expect(danger?.querySelector(".lc-toast__title")).not.toBeNull();
+    expect(danger?.querySelector(".lc-toast__close")).not.toBeNull();
+    expect(
+      document.querySelector(".toast--success")?.querySelector(".lc-toast__close"),
+    ).not.toBeNull();
   });
 
   it("shows error toast titles in full instead of truncating them", async () => {

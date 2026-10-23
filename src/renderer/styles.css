@@ -778,6 +778,45 @@
     0 24px 64px -8px rgba(0, 0, 0, 0.35);
 }
 
+/* Keep the dismiss glyph painted when the pointer is on the close control.
+   HeroUI fades `.toast__close-button` out and drops its pointer events except
+   while the shell is hovered, then an opaque hover fill covers the ×. Pin the
+   control so rest, hover, press, and focus keep the icon and the press. */
+.lc-toast .lc-toast__close,
+.lc-toast .lc-toast__close:hover,
+.lc-toast .lc-toast__close[data-hovered="true"],
+.lc-toast .lc-toast__close[data-pressed="true"],
+.lc-toast .lc-toast__close[data-focus-visible="true"] {
+  z-index: 2;
+  pointer-events: auto;
+  opacity: 1;
+  visibility: visible;
+  color: var(--foreground);
+  --button-fg: var(--foreground);
+  --button-fg-hover: var(--foreground);
+  --button-fg-pressed: var(--foreground);
+  --button-bg: transparent;
+  background-color: var(--button-bg);
+}
+
+.lc-toast .lc-toast__close:hover,
+.lc-toast .lc-toast__close[data-hovered="true"] {
+  --button-bg-hover: color-mix(in oklab, var(--foreground) 12%, transparent);
+  background-color: var(--button-bg-hover);
+}
+
+.lc-toast .lc-toast__close[data-pressed="true"] {
+  --button-bg-pressed: color-mix(in oklab, var(--foreground) 18%, transparent);
+  background-color: var(--button-bg-pressed);
+}
+
+.lc-toast .lc-toast__close svg {
+  position: relative;
+  z-index: 1;
+  color: inherit;
+  opacity: 1;
+}
+
 .toast__content {
   min-width: 0;
   scrollbar-gutter: stable;
