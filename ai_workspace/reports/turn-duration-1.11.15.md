@@ -15,7 +15,7 @@
 
 覆盖 native start（单事件、批量、多线程批量）、已有 stale active、新回合活动重新打开 GUI、快照恢复、未知开始的完成落库、完成状态未知/非法/倒置 end、跨日重新挂载时冻结耗时。新增未知开始用例先运行失败：main 与 renderer 均返回旧 `2026-10-21T10:58:18.458Z`，去掉 fallback 后通过。
 
-`pnpm typecheck`、`pnpm lint`、`git diff --check` 通过。发布说明测试单独验证。
+`pnpm typecheck`、`pnpm lint`、`git diff --check` 通过；`src/shared/changelog.test.ts` 16 项通过，共 216 项自动测试。
 
 ## 隔离 Electron
 
@@ -36,6 +36,14 @@ Changed scope mock smoke：`artifacts/smoke/smoke-report.json`。welcome-dismiss
 
 ## 发布审计
 
-前一 tag：`v1.11.14`。目标为当前修复及 1.11.15 发布元数据提交，创建 tag 前为未发布边界。
+前一 tag：`v1.11.14`。目标修复及 1.11.15 发布元数据提交为 `7e6fa517`，正式 tag `v1.11.15` 指向该提交。
 
 Commit disposition：`40b86359 docs: 记录 1.11.14 发布与验证结果` -> omit（上一版发布记录，无新产品行为）。当前全部产品 diff -> include，合并为新回合独立计时与已完成固定时间两个 changelog bullet。既有 `pnpm-lock.yaml` 改动和无关临时文件排除。
+
+## 发布结果
+
+- `pnpm dist:win`、`pnpm dist:win:portable` 均退出 0；原生 SQLite 与 PTY 依赖校验通过。包内 package 版本 1.11.15，main/server/renderer bundle 与本次构建逐字节一致。
+- `main` 和 tag 已推送。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.15) 在四附件上传并核验后由草稿发布，最新稳定版，发布时间 `2026-10-23T10:06:13Z`。
+- 四附件大小：NSIS 148795953，blockmap 155158，便携版 127388113，`latest.yml` 367 字节。GitHub 附件 SHA-256 与本地一致；双语正文一致。下载线上 `latest.yml` 与本地逐字节相同，版本 1.11.15、指向 NSIS、SHA-512 与安装包一致。
+- 证据：隔离目录 `artifacts/nsis-verification.json`、`release-local-verification.json`、`release-draft-verification.json`、`release-published-verification.json`、`published/latest.yml`。
+- 测试应用已 `reset` / `stop`，session 状态 stopped、appPid null。便携版只保留 1.11.15 / 1.11.14；1.11.13 便携版及打包中间产物归档到 `D:/Work/CraftStation-release-archives/1.11.15-20261023/`。既有 lockfile 和无关临时资料保持原样。

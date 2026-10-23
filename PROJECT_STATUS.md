@@ -1,9 +1,10 @@
-## 1.11.15 已完成时长恢复修复（2026-10-23，验证通过，打包发布中）
+## 1.11.15 已完成时长恢复修复（2026-10-23，已发布）
 
 - **用户问题**：重开应用或切换会话后，输入框上方「已完成」错误显示数千分钟。
 - **定位与实现**：原生新回合只重置 open 标记和输出统计，未重置回合开始时间，导致复用数天前的 active 时间；完成状态缺少结束时间时又用当前时间继续补算。现同步修复 renderer 和 main/headless 持久化的原生开始边界；恢复快照及结束回合不再借用会话更新时间；完成显示使用已完成时间对并冻结，缺失、非法、倒置时间不生成耗时或整轮速度估算。
-- **验证**：7 个文件 200 项相关测试通过；补充的未知开始时间回归在修复前 renderer/main 各失败 1 项、修复后通过。完整 typecheck / lint 通过。隔离 Electron 的 6 项定向实测通过；changed-scope mock smoke 的 baseline、settings、control-geometry、thread-search、composer-caret 与 4 项 mock gate 通过，控制台/运行时错误 0。真实账号回合及完整跨平台未测。
-- **发布状态**：准备 Windows x64 NSIS + 便携版，测试应用待重置关闭；无关 lockfile 与临时资料保留，不纳入发布。详细证据见 `ai_workspace/reports/turn-duration-1.11.15.md`。
+- **验证**：7 个文件 200 项相关测试和 16 项 changelog 测试通过；补充的未知开始时间回归在修复前 renderer/main 各失败 1 项、修复后通过。完整 typecheck / lint 通过。隔离 Electron 的 6 项定向实测通过；changed-scope mock smoke 的 baseline、settings、control-geometry、thread-search、composer-caret 与 4 项 mock gate 通过，控制台/运行时错误 0。真实账号回合、整应用进程退出重启及完整跨平台未测。
+- **发布状态**：`main` 与 `v1.11.15` 已推送，tag 指向 `7e6fa517`。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.15) 已发布为最新稳定版，非草稿、非预发布；Windows x64 四附件齐备：NSIS 148795953 字节、blockmap 155158 字节、便携版 127388113 字节、`latest.yml` 367 字节。附件大小与 SHA-256、本地双语正文和线上清单均核验一致，清单指向该版 NSIS；两次打包的包内版本与 main/server/renderer bundle 均核验通过。
+- **本地收尾与边界**：测试应用已重置关闭；便携版只保留 1.11.15 / 1.11.14，旧便携版与中间产物归档至 `D:/Work/CraftStation-release-archives/1.11.15-20261023/`。无关 lockfile 与临时资料保留，未纳入发布。已有完整但错误的历史时间对缺少可信原始记录时无法精确重建，本版不猜测改写。详细证据见 `ai_workspace/reports/turn-duration-1.11.15.md`。
 
 ## 1.11.14 重开窗口检查与通知关闭修复（2026-10-23，已发布）
 
