@@ -3,7 +3,7 @@ import { toast } from "@heroui/react";
 import { Trans, useLingui } from "@lingui/react/macro";
 import { FileWarning, FolderOpen } from "lucide-react";
 import { MarkdownPreview } from "../MarkdownPreview";
-import { Editor, type BeforeMount, type Monaco, type OnMount } from "@monaco-editor/react";
+import type { BeforeMount, Monaco, OnMount } from "@monaco-editor/react";
 import type { editor as MonacoEditor } from "monaco-editor";
 import { useFileEditorStore } from "@/renderer/state/fileEditorStore";
 import { macosTrafficLightPadClass } from "@/renderer/components/layout/sidebarChrome";
@@ -42,8 +42,7 @@ import { isRemoteSession, readBridge } from "@/renderer/bridge";
 import { CsvPreview } from "./parts/CsvPreview";
 import { NotebookPreview } from "./parts/NotebookPreview";
 import { OfficePreview } from "./parts/OfficePreview";
-
-export { getLanguageFromPath } from "./parts/langMap";
+import { MonacoEditorSurface } from "./parts/MonacoEditorSurface";
 
 const EDITOR_OPTIONS: MonacoEditor.IStandaloneEditorConstructionOptions = {
   fontSize: 13,
@@ -390,22 +389,16 @@ function EditorBody(props: {
       ) : bufferStatus === "ready" && showPreview && isMarkdown ? (
         <MarkdownPreview content={content ?? ""} />
       ) : bufferStatus === "ready" ? (
-        <Editor
+        <MonacoEditorSurface
           path={modelPath}
           language={getLanguageFromPath(activePath)}
           theme={monacoTheme}
           value={content ?? ""}
-          onChange={(value) => {
-            if (value !== undefined) useFileEditorStore.getState().updateBuffer(activePath, value);
-          }}
+          onChange={(value) => useFileEditorStore.getState().updateBuffer(activePath, value)}
+          onSave={() => props.onSave(activePath)}
           beforeMount={handleBeforeMount}
           onMount={handleEditorMount}
           options={EDITOR_OPTIONS}
-          loading={
-            <div className="flex h-full items-center justify-center text-sm text-muted">
-              <Trans>Loading editor…</Trans>
-            </div>
-          }
         />
       ) : (
         <div className="flex h-full flex-col items-center justify-center gap-2 px-8 text-center text-sm text-muted">
