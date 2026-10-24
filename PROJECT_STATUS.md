@@ -1,9 +1,10 @@
-## 1.11.17 CLI 更新卡片灰色与缩放定位修复（2026-10-25，验证中）
+## 1.11.17 CLI 更新卡片灰色与缩放定位修复（2026-10-25，已发布）
 
 - **用户问题**：右上角 CLI 更新卡片使用过深的默认背景，并在应用缩放下向右错位、溢出窗口。
 - **定位与实现**：`MainTitlebar.tsx` 的更新弹层漏用了其他菜单已有的全应用缩放补偿。现复用 `overlayZoomClasses` 校正外层坐标并保持内层内容缩放，背景改为主题灰色 `--surface-secondary`；保留 `bottom end` 右对齐。
 - **验证**：新增回归在修复前失败、修复后通过；相关 40 项测试、`pnpm typecheck`、`pnpm lint`、格式检查、`pnpm build` 通过。完整 `CRAFTSTATION_WSL_STARTUP_ALLOWED=1 pnpm test` 为 12839 通过、13 失败，失败位于未改动的 ThreadStatusCapsule、ChatPane、SubAgentOverlay、widgetMirror、boundaryGuard、Command Code 与 Windows console 测试，不宣称完整测试全绿。隔离 Electron 在 125% 缩放下实测背景为 `rgb(33, 34, 40)`，弹层与按钮右边缘偏差约 0.6px，无窗口溢出。changed-scope mock smoke 的 welcome、baseline 与 changed-surface gate 通过，控制台/运行时错误 0；既有 `responsive-layout` 场景在空节点 `querySelector` 断言失败，不宣称全量 smoke 通过。截图 `C:/Users/Haona/.craftstation-smoke/debug-1792859588608-56944/cli-update-after-125.png`，smoke 报告 `C:/Users/Haona/.craftstation-smoke/automated-1792860064496-51480/artifacts/smoke-report.json`。
-- **发布状态**：双语说明已写入 `ai_workspace/release-notes-1.11.17.md`，应用 changelog 已加入 1.11.17；Windows 双包构建中。
+- **发布状态**：修复提交 `6a0e161a` 已推送 `main`，tag `v1.11.17` 指向该提交。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.17) 已发布为最新稳定版，非草稿、非预发布。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/40114563030) 全部成功，补丁只构建 Windows。四项附件齐备：NSIS 141414129 字节、blockmap 147148 字节、便携版 120814535 字节、`latest.yml` 367 字节；清单版本与 NSIS 大小正确，双语正文与本地发布说明一致（仅末尾空行差异）。流水线随后把 main 开发版本推进到 1.11.18（`303b2b47`）。
+- **本地收尾**：正式四附件已下载到 `release/`，大小与 GitHub 附件一致。便携版只保留 1.11.17 与 1.11.16；1.11.15 便携版归档至 `D:/Work/CraftStation-release-archives/1.11.17-20261025/`。`win-unpacked/` 与 `builder-debug.yml` 已删除，历史 NSIS 安装包保留。无关 lockfile 与临时资料未纳入发布提交。
 
 ## 1.11.16 模型目录自动更新与 Codex、Step 更新修复（2026-10-24，已发布）
 
