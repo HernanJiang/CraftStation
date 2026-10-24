@@ -18,6 +18,7 @@ import {
 } from "./rendererGlobalErrors";
 import { bootstrapAppThemeFromCache } from "./theme/applyAppTheme";
 import { bootstrapAppLocaleFromCache } from "./i18n/i18n";
+import { isMonacoRuntimeError } from "./monacoFailureIsolation";
 
 function logRendererBootstrap(message: string): void {
   if (import.meta.env.DEV) performance.mark(`craftstation:${message}`);
@@ -147,6 +148,12 @@ window.addEventListener(
       event.stopImmediatePropagation();
       return;
     }
+    // Monaco rethrows worker ErrorEvents on a timer as a different object.
+    // Match that object or its copied message; do not swallow other NetworkErrors.
+    if (isMonacoRuntimeError(event.error) || isMonacoRuntimeError(event.message)) {
+      event.preventDefault();
+      return;
+    }
     // Sentry's Electron renderer integration already captures global errors; this only swaps UI.
     showCrash("uncaught", event.error ?? event.message, buildSource(event), { capture: false });
   },
@@ -154,6 +161,10 @@ window.addEventListener(
 );
 
 window.addEventListener("unhandledrejection", (event) => {
+  if (isMonacoRuntimeError(event.reason)) {
+    event.preventDefault();
+    return;
+  }
   if (isIgnorableRejection(event.reason)) {
     event.preventDefault();
     return;
