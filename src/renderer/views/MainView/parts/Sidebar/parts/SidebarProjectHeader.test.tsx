@@ -197,6 +197,21 @@ describe("SidebarProjectHeader", () => {
     expect(useSidebarUiStore.getState().pinnedProjectAt[project.id]).toBeUndefined();
   });
 
+  it("keeps a single always-visible pin mark for pinned projects", () => {
+    useSidebarUiStore.setState({
+      pinnedProjectIds: [project.id],
+      pinnedProjectAt: { [project.id]: 1 },
+    });
+    renderHeader();
+
+    // The trailing unpin toggle is both indicator and action — it must not be
+    // hover-gated, and no second static pin glyph may sit next to the name.
+    const unpinButton = screen.getByRole("button", { name: `Unpin ${project.name}` });
+    expect(unpinButton.className).not.toContain("opacity-0");
+    expect(screen.queryByLabelText("Pinned")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: `Pin ${project.name}` })).not.toBeInTheDocument();
+  });
+
   it("keeps the pin button while the project group is collapsed", () => {
     render(
       <SidebarProjectHeader
