@@ -15,6 +15,7 @@ import {
 import { Dropdown, Label, toast } from "@heroui/react";
 import { useLingui } from "@lingui/react/macro";
 import { ControlTooltip } from "@/renderer/components/common/ControlTooltip";
+import { overlayZoomClasses, withOverlayClass } from "@/renderer/components/common/overlayZoom";
 import { cycleRecentThread } from "@/renderer/actions/recentThreadCycle";
 import { runCliUpdateBinary } from "@/renderer/actions/runCliUpdate";
 import { readBridge, isRemoteSession } from "@/renderer/bridge";
@@ -97,6 +98,7 @@ export function CliUpdateMenu() {
   const inFlightRef = useRef(0);
   const autoCheckedKeysetRef = useRef<string | null>(null);
   const autoUpdatedRef = useRef<Set<string>>(new Set());
+  const overlayZoom = overlayZoomClasses(useSharedSettings((state) => state.zoomFactor));
   const statuses = useMemo(
     () => collectUpdatableCliStatuses(agentStatuses, wslAgentStatuses),
     [agentStatuses, wslAgentStatuses],
@@ -289,9 +291,16 @@ export function CliUpdateMenu() {
           ) : null}
         </Dropdown.Trigger>
       </ControlTooltip>
-      <Dropdown.Popover placement="bottom end" className="min-w-[280px] rounded-[14px]">
+      <Dropdown.Popover
+        placement="bottom end"
+        className={withOverlayClass(
+          "min-w-[280px] rounded-[14px] bg-[var(--surface-secondary)]",
+          overlayZoom.root,
+        )}
+      >
         <Dropdown.Menu
           aria-label={t`CLI updates`}
+          className={overlayZoom.content}
           onAction={(key) => {
             if (key === "check") void runCheck({ force: true });
             if (key === "app-install") void readBridge().installUpdate();

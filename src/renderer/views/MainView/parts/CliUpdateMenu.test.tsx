@@ -58,7 +58,7 @@ describe("CliUpdateMenu", () => {
     useUpdateStore.setState({ agentUpdates: {}, availableCliUpdates: [] });
     // Auto-update OFF for the existing cases — otherwise the mount auto-check
     // would consume the discovered update before the test can click it.
-    useSharedSettings.setState({ autoUpdateAgentClis: false });
+    useSharedSettings.setState({ autoUpdateAgentClis: false, zoomFactor: 1 });
     bridgeMock.getLatestAgentVersion.mockResolvedValue({ version: "v9.9.9", source: "npm" });
     bridgeMock.refreshAgentStatuses.mockResolvedValue({});
   });
@@ -76,6 +76,18 @@ describe("CliUpdateMenu", () => {
     // state churn mid-open is what tore the popover back down.
     expect(bridgeMock.getLatestAgentVersion).not.toHaveBeenCalled();
     expect(within(menu).getAllByRole("menuitem").length).toBeGreaterThan(0);
+  });
+
+  it("uses the grey surface and compensates for whole-app zoom", async () => {
+    useSharedSettings.setState({ zoomFactor: 1.25 });
+    render(<CliUpdateMenu />);
+
+    fireEvent.click(screen.getByTestId("titlebar-cli-update-button"));
+    const menu = await screen.findByRole("menu");
+    const popover = menu.closest('[data-slot="dropdown-popover"]');
+
+    expect(popover).toHaveClass("bg-[var(--surface-secondary)]", "craftstation-overlay-zoom-root");
+    expect(menu).toHaveClass("craftstation-overlay-zoom-content");
   });
 
   it("runs the update exactly once per click on an update item", async () => {
