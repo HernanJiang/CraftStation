@@ -231,7 +231,8 @@ export const useAgentStatusesStore = create<AgentStatusesStore>()(
     }),
     {
       name: "craftstation-agent-statuses-v1",
-      version: 18,
+      version: 19,
+      // v19 discards stale Kimi names and cross-version fast mappings.
       // v18 invalidates cached Command Code capabilities that predate
       // curated discovery (supervisor STATUS_CACHE_VERSION 22):
       // `defaultHiddenModels` now covers the whole probed aggregator catalog,

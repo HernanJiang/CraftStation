@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentStatus } from "@/shared/contracts";
 import type { SupervisorEvent } from "@/shared/ipc";
 import { encryptSecret } from "@/shared/secretStorage";
@@ -24,6 +24,8 @@ import {
 } from "./agentStatusService";
 
 const tempDirs: string[] = [];
+// These probes use mock adapters; inherited desktop consent must not disable them.
+beforeEach(() => vi.stubEnv("CRAFTSTATION_WSL_STARTUP_ALLOWED", "1"));
 
 function makeTempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), "craftstation-agent-status-"));
@@ -129,6 +131,40 @@ function makeMultiAdapterService(adapters: AgentAdapter[]): {
 }
 
 describe("AgentStatusService", () => {
+  it("keeps both catalogs when different channels refresh concurrently", async () => {
+    let resolveFirst!: (status: AgentStatus) => void;
+    const first = vi.fn<AgentAdapter["detectInstall"]>().mockResolvedValue(makeStatus());
+    const second = vi
+      .fn<AgentAdapter["detectInstall"]>()
+      .mockResolvedValue({ ...makeStatus(), kind: "kimi" });
+    const { service } = makeMultiAdapterService([
+      makeAdapter("codex", "Codex", first),
+      makeAdapter("kimi", "Kimi", second),
+    ]);
+    await service.refreshAgentStatuses({ wslDistros: [] });
+    first.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveFirst = resolve;
+      }),
+    );
+    const pending = service.refreshAgentStatuses({
+      wslDistros: [],
+      scope: { agentKinds: ["codex"] },
+    });
+    second.mockResolvedValue({
+      ...makeStatus(),
+      kind: "kimi",
+      capabilities: { ...capabilities, models: [{ id: "new-kimi", label: "New Kimi" }] },
+    });
+    await service.refreshAgentStatuses({ wslDistros: [], scope: { agentKinds: ["kimi"] } });
+    resolveFirst({
+      ...makeStatus(),
+      capabilities: { ...capabilities, models: [{ id: "new-codex", label: "New Codex" }] },
+    });
+    await pending;
+    expect(service.getCachedCapabilities("kimi")?.models[0]?.id).toBe("new-kimi");
+    expect(service.getCachedCapabilities("codex")?.models[0]?.id).toBe("new-codex");
+  });
   it("parses WSL distro names from the Lxss registry output", () => {
     expect(
       parseWslRegistryDistributionNames(`

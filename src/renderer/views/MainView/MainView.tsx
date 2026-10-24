@@ -15,6 +15,7 @@ import { AppDndProvider } from "@/renderer/dnd";
 
 import { useKeyboardShortcuts } from "@/renderer/hooks/useKeyboardShortcuts";
 import { useGitRefresh } from "@/renderer/hooks/useGitRefresh";
+import { useModelCatalogRefresh } from "@/renderer/hooks/useModelCatalogRefresh";
 import { useRightPanelThreadLock } from "@/renderer/hooks/useRightPanelThreadLock";
 import { useThreadLifecycle } from "@/renderer/hooks/useThreadLifecycle";
 import { useDndHandlers } from "@/renderer/hooks/useDndHandlers";
@@ -50,6 +51,7 @@ export function MainView(props: {
   useThreadLifecycle(storeHydrated && runtimeSnapshotsReady);
   useKeyboardShortcuts();
   useGitRefresh(storeHydrated);
+  useModelCatalogRefresh(storeHydrated && sharedSettingsHydrated && backgroundWorkReleased);
   useRightPanelThreadLock();
   useBrowserSync();
 

@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { ProjectLocation } from "@/shared/contracts";
 import { resolveAgentBinaryPath } from "../binaryResolver";
+import { prepareCodexRuntimeBundle } from "./runtimeBundle";
 
 const WINDOWS_TARGETS = {
   x64: {
@@ -72,5 +73,6 @@ export function resolveCodexNativeExecutableForWindows(
 export function resolveCodexWindowsLaunchBinary(location: ProjectLocation): string | undefined {
   if (location.kind !== "windows") return undefined;
   const resolved = resolveAgentBinaryPath(location, "codex");
-  return resolveCodexNativeExecutableForWindows(resolved) ?? resolved;
+  const native = resolveCodexNativeExecutableForWindows(resolved);
+  return native ? prepareCodexRuntimeBundle(native) : resolved;
 }

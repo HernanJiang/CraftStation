@@ -111,6 +111,25 @@ describe("Kimi managed profile runtime", () => {
     expect(readManagedKimiApiKey(home)).toBeUndefined();
   });
 
+  it("preserves the refreshed official model catalog when spawning an API-key profile", () => {
+    const service = new KimiProfileService({
+      store: new AccountStore(tempRoot("craftstation-kimi-catalog-")),
+    });
+    const account = service.importApiKey({ label: "Kimi", apiKey: "sk-test" });
+    const home = service.managedKimiHome(account.accountId);
+    const configPath = join(home, "config.toml");
+    const refreshed = readFileSync(configPath, "utf8")
+      .replace('display_name = "Kimi For Coding"', 'display_name = "K2.8 Preview"')
+      .concat(
+        '\n[models."kimi-code/new-official-model"]\nprovider = "kimi-code"\nmodel = "new-official-model"\nmax_context_size = 1048576\n',
+      );
+    writeFileSync(configPath, refreshed);
+
+    managedKimiProcessEnvironment(home, {});
+
+    expect(readFileSync(configPath, "utf8")).toBe(refreshed);
+  });
+
   it("repairs a legacy OAuth home on spawn without replacing existing CLI settings", () => {
     const home = tempRoot("craftstation-kimi-oauth-legacy-");
     writeCredential(home, {

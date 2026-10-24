@@ -262,6 +262,45 @@ describe("claudeCapabilitiesFromCliVersion", () => {
 });
 
 describe("claudeCapabilitiesFromSdkModels", () => {
+  it("keeps an upstream rename for an existing model through the full probe", async () => {
+    const query = createProbeQuery();
+    vi.mocked(query.initializationResult).mockResolvedValue({
+      ...(await query.initializationResult()),
+      commands: [],
+      models: [
+        {
+          value: "opus",
+          resolvedModel: "claude-opus-5",
+          displayName: "Opus 5 Updated",
+          description: "",
+        },
+      ],
+    } as Awaited<ReturnType<Query["initializationResult"]>>);
+    mockSdk.query.mockReturnValue(query);
+    const result = await probeClaudeCapabilities({
+      location: { kind: "posix", path: "/tmp" },
+      executablePath: "claude",
+      version: "3.0.0",
+    });
+    expect(result?.models).toContainEqual({ id: "claude-opus-5", label: "Opus 5 Updated" });
+  });
+  it("discovers future models and renamed aliases from the official SDK", () => {
+    const capabilities = claudeCapabilitiesFromSdkModels([
+      {
+        value: "opus",
+        resolvedModel: "claude-opus-future[1m]",
+        displayName: "Opus Future",
+        description: "",
+        supportsEffort: true,
+        supportedEffortLevels: ["low", "high"],
+        supportsFastMode: false,
+      },
+    ]);
+    expect(capabilities).toMatchObject({
+      models: expect.arrayContaining([{ id: "claude-opus-future", label: "Opus Future" }]),
+      modelEfforts: { "claude-opus-future": ["low", "high"] },
+    });
+  });
   it("maps the Claude Code 2.1.219 Opus 5 capability payload", () => {
     const capabilities = claudeCapabilitiesFromSdkModels([
       {

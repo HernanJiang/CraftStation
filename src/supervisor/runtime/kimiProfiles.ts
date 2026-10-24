@@ -12,6 +12,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { parse as parseToml } from "smol-toml";
 import { AccountControlError, type AccountView } from "@/shared/contracts";
 import { liveQuotaWindows, mergeQuotaWindows, shouldPreserveQuotaMark } from "./accountStore";
 import {
@@ -101,6 +102,17 @@ function ensureManagedKimiRuntimeConfig(managedKimiHome: string): void {
   // the provider declaration must survive in config.toml instead.
   const managedApiKey = readManagedKimiApiKey(managedKimiHome);
   if (managedApiKey) {
+    // The official CLI owns model discovery. Re-seeding on every spawn erases
+    // newly discovered models, updated names/limits and user overrides.
+    try {
+      const config = parseToml(readFileSync(join(managedKimiHome, "config.toml"), "utf8"));
+      const provider = (config.providers as Record<string, Record<string, unknown>> | undefined)?.[
+        "kimi-code"
+      ];
+      if (provider?.type === "kimi" && provider.api_key === managedApiKey) return;
+    } catch {
+      // A missing/legacy profile still needs the initial provider declaration.
+    }
     writeFileAtomic(join(managedKimiHome, "config.toml"), kimiApiKeyConfigToml(managedApiKey), {
       encoding: "utf8",
       mode: 0o600,
@@ -597,14 +609,14 @@ function kimiRuntimeConfigToml(apiKey?: string): string {
     'model = "kimi-for-coding"',
     "max_context_size = 262144",
     'capabilities = ["thinking", "always_thinking", "image_in", "video_in", "tool_use"]',
-    'display_name = "K2.7 Coding"',
+    'display_name = "Kimi For Coding"',
     "",
     '[models."kimi-code/kimi-for-coding-highspeed"]',
     `provider = "${provider}"`,
     'model = "kimi-for-coding-highspeed"',
     "max_context_size = 262144",
     'capabilities = ["thinking", "always_thinking", "image_in", "video_in", "tool_use"]',
-    'display_name = "K2.7 Coding Highspeed"',
+    'display_name = "Kimi For Coding Highspeed"',
     "",
     '[models."kimi-code/k3"]',
     `provider = "${provider}"`,

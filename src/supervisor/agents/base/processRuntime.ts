@@ -865,6 +865,44 @@ export async function resolveExecutablePathAsync(command: string): Promise<strin
   return finalPath;
 }
 
+function windowsCommandBasename(command: string): string {
+  const normalized = command.replaceAll("/", "\\");
+  const slash = normalized.lastIndexOf("\\");
+  return (slash >= 0 ? normalized.slice(slash + 1) : normalized).toLowerCase();
+}
+
+/** `powershell.exe` is Windows PowerShell 5.1. `pwsh.exe` is PowerShell 7 and must keep its own modules first. */
+function isWindowsPowerShell51Command(command: string): boolean {
+  const base = windowsCommandBasename(command);
+  return base === "powershell.exe" || base === "powershell";
+}
+
+/**
+ * Child `powershell.exe` inherits this process's PSModulePath. A pwsh-launched
+ * app lists PowerShell 7 module dirs first, so PS 5.1 autoload shadows
+ * Get-FileHash and vendor installers (`stepcode/install.ps1` and the same
+ * pattern for Kimi, Pi, Devin) die with CommandNotFoundException. Re-pin the
+ * 5.1 system dirs only for that executable.
+ */
+function applyWindowsPowerShell51ModulePath(
+  command: string,
+  env: NodeJS.ProcessEnv | undefined,
+): NodeJS.ProcessEnv | undefined {
+  if (process.platform !== "win32" || !isWindowsPowerShell51Command(command)) return env;
+  const source = env ?? process.env;
+  const current = Object.entries(source).find(([key]) => key.toLowerCase() === "psmodulepath")?.[1];
+  const repaired = repairWindowsPowerShellModulePath(
+    typeof current === "string" ? current : undefined,
+  );
+  if (!repaired) return env;
+  const next = toStringEnv(source);
+  for (const key of Object.keys(next)) {
+    if (key.toLowerCase() === "psmodulepath") delete next[key];
+  }
+  next.PSModulePath = repaired;
+  return next;
+}
+
 export async function readCommandOutputAsync(
   command: string,
   args: string[],
@@ -884,13 +922,17 @@ export async function readCommandOutputAsync(
     let stderr = "";
     let settled = false;
     const ownedProcessGroup = process.platform !== "win32";
+    const spawnEnv = applyWindowsPowerShell51ModulePath(
+      command,
+      options?.env ? { ...process.env, ...options.env } : undefined,
+    );
     const child = spawn(command, args, {
       windowsHide: true,
       stdio: ["ignore", "pipe", "pipe"],
       shell: false,
       detached: ownedProcessGroup,
       ...(options?.cwd ? { cwd: options.cwd } : {}),
-      ...(options?.env ? { env: { ...process.env, ...options.env } } : {}),
+      ...(spawnEnv ? { env: spawnEnv } : {}),
     });
 
     const finish = (ok: boolean) => {

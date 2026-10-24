@@ -7,7 +7,7 @@ import type {
   AuthState,
   ProjectLocation,
 } from "@/shared/contracts";
-import { splitFastModelVariants, vendorConventionFastBases } from "@/shared/fastModelVariants";
+import { splitFastModelVariants } from "@/shared/fastModelVariants";
 import { probeAcpCapabilities, type AcpProbeResult } from "../acp";
 import {
   batchWslCommandsAsync,
@@ -21,6 +21,7 @@ import { buildContextSizeCapabilities } from "../contextWindowLabel";
 import { getAgentProbeCwd, resolveProbeSpawnCwd } from "../probeCwd";
 import { kimiThoughtLevelChoices, preferredKimiThoughtTier } from "./thoughtLevels";
 import { ensureKimiWorkspaceTrust } from "./kimiTrust";
+import { refreshKimiModelCatalog } from "../../runtime/kimiModelCatalog";
 import {
   kimiHomeFromOAuthCredentialPath,
   listKimiOAuthCredentialPaths,
@@ -174,18 +175,32 @@ export function buildKimiProbeCapabilities(
   // Kimi's HighSpeed tier is a separate advertised model id
   // (`kimi-code/kimi-for-coding-highspeed`). Fold it into the base row's Fast
   // toggle instead of listing it twice — `config.fast` rewrites the wire id
-  // back to the variant on apply. The `-highspeed` spelling is a fixed vendor
-  // convention, so `kimi-for-coding` offers the toggle even when the probed
-  // catalog omits the sibling row.
+  // back to the variant on apply. Rolling aliases can upgrade independently;
+  // retain the sibling as a separate model when the versions differ.
   const probedModelIds = (probe?.models ?? []).map((model) => model.id);
   const fastCaps = splitFastModelVariants(probedModelIds);
+  for (const [base, variant] of Object.entries(fastCaps.fastVariantByBase)) {
+    const baseVersion = probe?.models
+      ?.find((model) => model.id === base)
+      ?.label.match(/\bk\d+(?:\.\d+)*/i)?.[0];
+    const variantVersion = probe?.models
+      ?.find((model) => model.id === variant)
+      ?.label.match(/\bk\d+(?:\.\d+)*/i)?.[0];
+    if (
+      baseVersion &&
+      variantVersion &&
+      baseVersion.toLowerCase() !== variantVersion.toLowerCase()
+    ) {
+      fastCaps.models.push(variant);
+      fastCaps.fastModels = fastCaps.fastModels.filter((id) => id !== base);
+      delete fastCaps.fastVariantByBase[base];
+    }
+  }
   const models =
     fastCaps.fastModels.length > 0
       ? (probe?.models ?? []).filter((model) => fastCaps.models.includes(model.id))
       : probe?.models;
-  const fastModels = [
-    ...new Set([...fastCaps.fastModels, ...vendorConventionFastBases("kimi", probedModelIds)]),
-  ];
+  const fastModels = fastCaps.fastModels;
 
   return {
     // 0.33.0 carries no model list on `initialize`; models arrive on
@@ -277,6 +292,7 @@ async function probeCapabilities(
   // files (another WSL round trip) alongside the marker write instead of after.
   const credentialState = await readKimiCredentialState(location);
   const probeHome = location.kind === "wsl" ? undefined : credentialState.probeHome;
+  if (probeHome) await refreshKimiModelCatalog(probeHome, signal);
   await ensureKimiWorkspaceTrust(
     location,
     sessionCwd,

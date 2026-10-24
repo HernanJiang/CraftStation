@@ -80,9 +80,10 @@ const execFileAsync = promisify(execFile);
  * Command Code a curated-discovery channel (`defaultHiddenModels` = whole
  * probed catalog): the aggregator list grows on every refresh, and a cache
  * without the field lets newly added upstream models flood the homepage
- * picker until the user re-hides them.
+ * picker until the user re-hides them. v23 refreshes upstream model names and
+ * removes Kimi fast mappings whose rolling aliases now name different versions.
  */
-export const STATUS_CACHE_VERSION = 22;
+export const STATUS_CACHE_VERSION = 23;
 const WSL_AGENT_DETECTION_TIMEOUT_MS = 60_000;
 const NATIVE_AGENT_DETECTION_TIMEOUT_MS = 60_000;
 const WSL_LXSS_REGISTRY_KEY = "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Lxss";
@@ -461,7 +462,10 @@ export class AgentStatusService {
       this.options.emit({ type: "agent-status-updated", status });
     }
 
-    const merged = mergeScopedStatuses(existing.windows, existing.wsl, probed);
+    // Concurrent channel refreshes must merge against the latest committed
+    // cache, otherwise the last responder restores other channels' old models.
+    const latest = this.readCachedStatuses(wslDistros);
+    const merged = mergeScopedStatuses(latest.windows, latest.wsl, probed);
     this.writeDiskCache(merged.windows, merged.wsl);
     return { ...merged, fromCache: false };
   }

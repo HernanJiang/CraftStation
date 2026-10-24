@@ -62,11 +62,14 @@ describe("fastVariantModelId", () => {
     expect(fastVariantModelId("grok-4.7", variants)).toBe("grok-4.7-build-fast");
   });
 
-  it("maps kimi-for-coding to the HighSpeed tier id", () => {
-    expect(fastVariantModelId("kimi-for-coding")).toBe("kimi-for-coding-highspeed");
-    expect(fastVariantModelId("kimi-code/kimi-for-coding")).toBe(
-      "kimi-code/kimi-for-coding-highspeed",
-    );
+  it("requires catalog evidence for Kimi's rolling alias", () => {
+    expect(fastVariantModelId("kimi-for-coding")).toBeNull();
+    expect(fastVariantModelId("kimi-code/kimi-for-coding")).toBeNull();
+    expect(
+      fastVariantModelId("kimi-for-coding", {
+        "kimi-code/kimi-for-coding": "kimi-code/kimi-for-coding-highspeed",
+      }),
+    ).toBe("kimi-code/kimi-for-coding-highspeed");
   });
 
   it("appends -build-fast for versioned Grok ids", () => {
@@ -93,14 +96,14 @@ describe("vendorConventionFastBases", () => {
     expect(vendorConventionFastBases("grok", ["grok-4.7-build-fast"])).toEqual([]);
   });
 
-  it("marks kimi-for-coding with or without the catalog prefix", () => {
+  it("does not guess a fast lane for Kimi's rolling alias", () => {
     expect(
       vendorConventionFastBases("kimi", [
         "kimi-code/k3-256k",
         "kimi-code/kimi-for-coding",
         "kimi-for-coding",
       ]),
-    ).toEqual(["kimi-code/kimi-for-coding", "kimi-for-coding"]);
+    ).toEqual([]);
   });
 
   it("excludes the advertised -highspeed sibling and unknown kimi models", () => {

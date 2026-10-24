@@ -309,6 +309,7 @@ function modelConfigTargetAliases(
       ? [`${modelId}-${config.contextSize}`]
       : [];
   const modelPrefixes = [...contextPrefixes, modelId];
+  const fastVariant = config.fast === true ? fastVariantModelId(modelId, fastVariantByBase) : null;
 
   for (const prefix of modelPrefixes) {
     for (const effort of effortAliases) {
@@ -318,7 +319,7 @@ function modelConfigTargetAliases(
         }
         aliases.add(`${prefix}-${effort}-fast`);
         // Kimi names its fast tier `-highspeed`, not `-fast`.
-        aliases.add(`${prefix}-${effort}-highspeed`);
+        if (fastVariant?.endsWith("-highspeed")) aliases.add(`${prefix}-${effort}-highspeed`);
       }
       if (config.thinking === true) {
         aliases.add(`${prefix}-${effort}-thinking`);
@@ -332,7 +333,7 @@ function modelConfigTargetAliases(
       aliases.add(`${prefix}-fast`);
       // Vendor fast tiers are separate model ids: Kimi's `-highspeed`,
       // Grok's `-build-fast`.
-      aliases.add(`${prefix}-highspeed`);
+      if (fastVariant?.endsWith("-highspeed")) aliases.add(`${prefix}-highspeed`);
       aliases.add(`${prefix}-build-fast`);
     }
     if (config.thinking === true) {

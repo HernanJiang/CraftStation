@@ -2,6 +2,9 @@ import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { buildKimiAcpArgs } from "./argv";
+import { resolveAcpSessionModelId, resolveModelConfigValue } from "../acp/sessionConfig";
+import type { ThreadConfig } from "@/shared/contracts";
 import {
   buildKimiProbeCapabilities,
   hasKimiCredential,
@@ -135,6 +138,45 @@ describe("kimiDetectionSpec", () => {
 });
 
 describe("kimiDefaultCapabilities", () => {
+  it("keeps a highspeed model separate after the base alias upgrades to another version", () => {
+    const capabilities = buildKimiProbeCapabilities(
+      {
+        models: [
+          { id: "kimi-code/kimi-for-coding", label: "K2.8 Preview" },
+          { id: "kimi-code/kimi-for-coding-highspeed", label: "K2.7 Code Highspeed" },
+          { id: "kimi-code/k3.1-pro", label: "K3.1 Pro" },
+          { id: "kimi-code/k3.1-pro-highspeed", label: "K3.1 Pro Highspeed" },
+        ],
+      },
+      { hasAnyCredential: true, hasManagedOAuthCredential: false },
+    );
+    expect(capabilities.models?.map((model) => model.id)).toEqual([
+      "kimi-code/kimi-for-coding",
+      "kimi-code/kimi-for-coding-highspeed",
+      "kimi-code/k3.1-pro",
+    ]);
+    expect(capabilities.fastModels).toEqual(["kimi-code/k3.1-pro"]);
+    const config = { model: "kimi-code/kimi-for-coding", fast: true } as ThreadConfig;
+    expect(buildKimiAcpArgs(config, capabilities.fastModelVariants)).toEqual(["-m", config.model]);
+    expect(resolveAcpSessionModelId(config, capabilities.fastModelVariants)).toBe(config.model);
+    expect(
+      resolveModelConfigValue(
+        config,
+        [
+          {
+            id: "model",
+            category: "model",
+            type: "select",
+            options: [
+              { value: "kimi-code/kimi-for-coding-highspeed", name: "K2.7 Code Highspeed" },
+              { value: "kimi-code/kimi-for-coding", name: "K2.8 Preview" },
+            ],
+          },
+        ],
+        capabilities.fastModelVariants,
+      )?.value,
+    ).toBe(config.model);
+  });
   it("advertises manual/auto/yolo approval policies with an auto bypass posture", () => {
     // Since kimi 0.42 `--yolo` is only Ask When Needed (risky actions,
     // questions and plans still ask); `--auto` is the true Never Ask full
@@ -350,9 +392,7 @@ describe("buildKimiProbeCapabilities", () => {
     expect(buildKimiProbeCapabilities(undefined, noCredentials).models).toBeUndefined();
   });
 
-  it("offers Fast on kimi-for-coding even when the catalog omits -highspeed", () => {
-    // The HighSpeed sibling id is a fixed vendor convention — a probed list
-    // that drops the variant row must not hide the toggle.
+  it("requires an advertised sibling before offering Fast on a rolling alias", () => {
     const capabilities = buildKimiProbeCapabilities(
       {
         models: [
@@ -363,7 +403,7 @@ describe("buildKimiProbeCapabilities", () => {
       noCredentials,
     );
     expect(capabilities.models).toHaveLength(2);
-    expect(capabilities.fastModels).toEqual(["kimi-code/kimi-for-coding"]);
+    expect(capabilities.fastModels).toBeUndefined();
     expect(capabilities.fastModelVariants).toBeUndefined();
   });
 

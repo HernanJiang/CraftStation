@@ -60,6 +60,23 @@ describe("readCommandOutputAsync", () => {
     }
   }, 10_000);
 
+  it("keeps Get-FileHash available when Windows PowerShell inherits a PowerShell 7 module path", async () => {
+    if (process.platform !== "win32") return;
+    const systemRoot = process.env.SystemRoot ?? "C:\\Windows";
+    const powershell = `${systemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
+    const result = await readCommandOutputAsync(
+      powershell,
+      [
+        "-NoProfile",
+        "-Command",
+        "$ErrorActionPreference = 'Stop'; (Get-Command Get-FileHash).Name",
+      ],
+      { timeout: 20_000 },
+    );
+    expect(result.ok).toBe(true);
+    expect(result.stdout).toBe("Get-FileHash");
+  }, 25_000);
+
   it("kills a timed-out Windows command's descendant process", async () => {
     if (process.platform !== "win32") return;
 

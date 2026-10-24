@@ -17,7 +17,7 @@ import { getSettingsInstalledAgents } from "@/shared/agentStatus";
 import { resolveHiddenModelIds } from "@/shared/agentSelection";
 import { expandAgentToVisibilityProviders } from "@/renderer/components/thread/buildModelPickerControls";
 import { providerVisibilityKey } from "@/renderer/components/common/ProviderModelMenu/parts/providerIdentity";
-import { currentWslDistros } from "@/renderer/utils/acpRegistryAuth";
+import { refreshModelCatalog } from "@/renderer/actions/modelCatalogRefresh";
 import { runAgentLoginCommand } from "@/renderer/actions/agentLoginActions";
 import { customModelId, type CustomModel } from "@/renderer/components/thread/customModelCatalog";
 import { CustomModelDialog, type CustomModelDialogValues } from "./CustomModelDialog";
@@ -238,6 +238,9 @@ export function ModelManagementPage(props: {
   }, [channels, selectedKey]);
 
   const selected = channels.find((channel) => channel.key === selectedKey);
+  useEffect(() => {
+    if (selected?.hiddenKey) void refreshModelCatalog(selected.kind).catch(() => undefined);
+  }, [selected?.kind, selected?.hiddenKey]);
   // Built inline (not memoized upstream) so the memo below can list it as a
   // stable-primitive dependency instead of a fresh object identity per render.
   const selectedAgentChannel = useMemo(() => {
@@ -296,9 +299,7 @@ export function ModelManagementPage(props: {
       // chatgpt.com 的模型目录（本机 model/list 会落后，例如缺 gpt-6-sol），
       // 其他渠道走各自的官方探测（agy models、command-code --list-models、
       // opencode provider inventory ……）。
-      const response = await readBridge().refreshAgentStatuses?.(currentWslDistros(), {
-        agentKinds: [kind],
-      });
+      const response = await refreshModelCatalog(kind, true);
       const statuses = [...(response?.windows ?? []), ...(response?.wsl ?? [])].filter(
         (status) => status.kind === kind,
       );

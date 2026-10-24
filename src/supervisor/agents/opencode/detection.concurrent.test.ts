@@ -10,8 +10,15 @@ const probeOpenCodeInventoryViaSdk = vi.hoisted(() =>
 );
 
 vi.mock("./sdkProbe", () => ({ probeOpenCodeInventoryViaSdk }));
+vi.mock("../base", async (importActual) => ({
+  ...(await importActual<typeof import("../base")>()),
+  readAgentCommandOutput: vi
+    .fn<typeof import("../base").readAgentCommandOutput>()
+    .mockResolvedValue({ ok: false, stdout: "", stderr: "" }),
+}));
 
 import { opencodeDetectionSpec } from "./detection";
+import { readAgentCommandOutput } from "../base";
 
 const inventory = { providers: [], connected: [], agents: [] };
 
@@ -26,9 +33,52 @@ function probeContext(location: ProjectLocation, signal: AbortSignal): DetectPro
 
 beforeEach(() => {
   probeOpenCodeInventoryViaSdk.mockReset();
+  vi.mocked(readAgentCommandOutput)
+    .mockReset()
+    .mockResolvedValue({ ok: false, stdout: "", stderr: "" });
 });
 
 describe("OpenCode detection probe sharing", () => {
+  it("refreshes the official catalog and replaces a running server's stale model metadata", async () => {
+    vi.mocked(readAgentCommandOutput).mockResolvedValue({
+      ok: true,
+      stderr: "",
+      stdout: [
+        "openai/renamed",
+        JSON.stringify({
+          name: "Current name",
+          variants: { high: {} },
+          limit: { context: 1000000 },
+        }),
+        "openai/future",
+        JSON.stringify({ name: "Future model" }),
+      ].join("\n"),
+    });
+    probeOpenCodeInventoryViaSdk.mockResolvedValue({
+      providers: [
+        {
+          id: "openai",
+          name: "OpenAI",
+          models: [{ id: "renamed", name: "Old name", variants: [] }],
+        },
+      ],
+      connected: ["openai"],
+      agents: [],
+    });
+    const context = probeContext({ kind: "posix", path: "/refresh" }, new AbortController().signal);
+    const result = await opencodeDetectionSpec.capabilitiesProbe?.(context);
+    expect(readAgentCommandOutput).toHaveBeenCalledWith(
+      context.location,
+      "opencode",
+      ["models", "--refresh", "--verbose"],
+      expect.anything(),
+    );
+    expect(result?.models).toEqual([
+      { id: "openai/renamed", label: "Current name" },
+      { id: "openai/future", label: "Future model" },
+    ]);
+    expect(result?.modelEfforts?.["openai/renamed"]).toEqual(["high"]);
+  });
   it("shares status and capability work only when callers share a cancellation signal", async () => {
     probeOpenCodeInventoryViaSdk.mockResolvedValue(inventory);
     const signal = new AbortController().signal;

@@ -10,7 +10,11 @@ import {
 import { CLAUDE_FAST_MODE_DISABLED_MESSAGE } from "./detection";
 import { resolveFastModeCachePath } from "./fastModeCache";
 import { resolveFastAvailability } from "./fastModeProbe";
-import { claudeCapabilitiesFromCliVersion, claudeCapabilitiesFromSdkModels } from "./models";
+import {
+  CLAUDE_BUILTIN_MODELS,
+  claudeCapabilitiesFromCliVersion,
+  claudeCapabilitiesFromSdkModels,
+} from "./models";
 import { AsyncPromptQueue } from "./promptQueue";
 import { spawnClaudeProbeProcess } from "./sdkProbeProcess";
 
@@ -226,6 +230,7 @@ async function probeClaudeSdkPartialWsl(
 
   try {
     const parsed = JSON.parse(result.stdout) as {
+      models?: AgentCapability["models"];
       slashCommands?: AgentCapability["slashCommands"];
       modelEfforts?: AgentCapability["modelEfforts"];
       fastModels?: AgentCapability["fastModels"];
@@ -244,6 +249,7 @@ async function probeClaudeSdkPartialWsl(
       return undefined;
     }
     return {
+      ...(parsed.models?.length ? { models: parsed.models } : {}),
       ...(parsed.modelEfforts ? { modelEfforts: parsed.modelEfforts } : {}),
       ...(parsed.fastModels ? { fastModels: parsed.fastModels } : {}),
       ...(parsed.slashCommands?.length ? { slashCommands: parsed.slashCommands } : {}),
@@ -276,8 +282,19 @@ export async function probeClaudeCapabilities(
   // controls on these fields, and the supervisor's logout dispatcher uses
   // the adapter's `buildAcpLogoutCommand` to invoke `claude auth logout`.
   return {
-    ...(sdkPartial ?? {}),
     ...(versionPartial ?? {}),
+    ...(sdkPartial ?? {}),
+    ...(sdkPartial?.models?.length
+      ? {
+          models: [
+            ...new Map(
+              [...(versionPartial?.models ?? CLAUDE_BUILTIN_MODELS), ...sdkPartial.models].map(
+                (model) => [model.id, model],
+              ),
+            ).values(),
+          ],
+        }
+      : {}),
     authMethods: [claudeTerminalAuthMethod(options?.env)],
     authLogoutSupported: true,
   };

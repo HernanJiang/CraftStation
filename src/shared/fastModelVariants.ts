@@ -72,7 +72,8 @@ export function fastVariantModelId(
     (base) => base.endsWith(`/${modelId}`) || modelId.endsWith(`/${base}`),
   );
   if (catalogBase) return fastVariantByBase![catalogBase]!;
-  if (/(^|\/)kimi-for-coding$/.test(modelId)) return `${modelId}-highspeed`;
+  // Kimi's rolling alias can upgrade independently of its old Highspeed
+  // sibling. Only an advertised, version-compatible mapping may select it.
   if (/^grok-\d/.test(modelId)) return `${modelId}-build-fast`;
   return null;
 }
@@ -95,8 +96,6 @@ export function vendorConventionFastBases(
   switch (agentKind) {
     case "grok":
       return modelIds.filter((id) => /^grok-\d/.test(id) && !isVariant(id));
-    case "kimi":
-      return modelIds.filter((id) => /(^|\/)kimi-for-coding$/.test(id));
     default:
       return [];
   }

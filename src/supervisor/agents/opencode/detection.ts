@@ -104,6 +104,7 @@ const OPENCODE_MODEL_HEADER_RE = /^[a-z0-9][a-z0-9_-]*\/[a-z0-9][a-z0-9_.-]*$/i;
 
 interface OpenCodeProbedModel {
   id: string;
+  name?: string;
   variants: string[];
   contextLimit?: number;
 }
@@ -185,6 +186,7 @@ export function parseOpenCodeVerboseModels(stdout: string): OpenCodeProbedModel[
     if (!json) return { id, variants: [] };
     try {
       const obj = JSON.parse(json) as {
+        name?: string;
         variants?: Record<string, unknown>;
         limit?: { context?: unknown };
       };
@@ -197,6 +199,7 @@ export function parseOpenCodeVerboseModels(stdout: string): OpenCodeProbedModel[
           : undefined;
       return {
         id,
+        ...(typeof obj.name === "string" && obj.name ? { name: obj.name } : {}),
         variants,
         ...(contextLimit !== undefined ? { contextLimit } : {}),
       };
@@ -211,13 +214,18 @@ async function probeOpenCodeModels(
   executablePath: string,
   signal?: AbortSignal,
 ): Promise<OpenCodeProbedModel[] | undefined> {
-  const result = await readAgentCommandOutput(location, executablePath, ["models", "--verbose"], {
-    // Verbose mode prints a JSON object per model — slower than the bare
-    // `models` listing but still bounded by OpenCode's local cache.
-    timeoutMs: 15_000,
-    posixCwd: getAgentProbeCwd(location),
-    ...(signal ? { signal } : {}),
-  });
+  const result = await readAgentCommandOutput(
+    location,
+    executablePath,
+    ["models", "--refresh", "--verbose"],
+    {
+      // Verbose mode prints a JSON object per model — slower than the bare
+      // `models` listing but still bounded by OpenCode's local cache.
+      timeoutMs: 20_000,
+      posixCwd: getAgentProbeCwd(location),
+      ...(signal ? { signal } : {}),
+    },
+  );
   if (!result.ok || !result.stdout) return undefined;
   const parsed = parseOpenCodeVerboseModels(result.stdout);
   return parsed.length > 0 ? parsed : undefined;
@@ -452,6 +460,8 @@ async function runOpenCodeDetectionProbe(
     return status ? { status } : {};
   }
 
+  // Refresh the official cache before consulting the long-lived SDK server.
+  const probedModels = await probeOpenCodeModels(ctx.location, ctx.executablePath, ctx.signal);
   const sdkInventory = await probeOpenCodeInventoryViaSdk(ctx.location, ctx.signal).catch(
     (cause) => {
       console.warn(
@@ -464,6 +474,22 @@ async function runOpenCodeDetectionProbe(
   );
   ctx.signal?.throwIfAborted();
   if (sdkInventory) {
+    if (probedModels?.length) {
+      // A running server can retain a pre-refresh inventory in memory. Replace
+      // only model metadata, keeping its authoritative connected-provider set.
+      const providers = sdkInventory.providers.map((provider) => ({
+        ...provider,
+        models: probedModels
+          .filter((model) => openCodeModelSubProvider(model.id) === provider.id)
+          .map((model) => ({
+            id: openCodeModelNamePart(model.id),
+            name: model.name ?? humanizeOpenCodeModelId(model.id),
+            variants: model.variants,
+            ...(model.contextLimit ? { contextLimit: model.contextLimit } : {}),
+          })),
+      }));
+      sdkInventory.providers = providers;
+    }
     return {
       capabilities: buildCapabilityPartialFromSdkInventory(sdkInventory),
       status: buildOpenCodeStatusFromSdkInventory(sdkInventory),
@@ -473,7 +499,6 @@ async function runOpenCodeDetectionProbe(
   // OpenCode's CLI and server share a SQLite database. Keep the two fallback
   // commands serial so startup never races `models --verbose` against
   // `providers list` and surfaces a spurious "database is locked" failure.
-  const probedModels = await probeOpenCodeModels(ctx.location, ctx.executablePath, ctx.signal);
   const status = await probeOpenCodeStatusViaCli(ctx);
   return {
     ...(probedModels ? { capabilities: buildCapabilityPartialFromProbedModels(probedModels) } : {}),
@@ -595,7 +620,10 @@ export function buildCapabilityPartialFromProbedModels(
   }
 
   return {
-    models: modelIds.map((id) => ({ id, label: humanizeOpenCodeModelId(id) })),
+    models: probed.map((model) => ({
+      id: model.id,
+      label: model.name ?? humanizeOpenCodeModelId(model.id),
+    })),
     subProviders: subProviderIds.map((id) => ({
       id,
       label: humanizeOpenCodeSubProviderId(id),

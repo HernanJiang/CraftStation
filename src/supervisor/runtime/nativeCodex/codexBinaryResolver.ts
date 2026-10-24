@@ -2,6 +2,7 @@
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { CraftingError } from "@/shared/crafting/errors";
+import { prepareCodexRuntimeBundle } from "../../agents/codex/runtimeBundle";
 
 export interface ResolvedCodexBinary {
   path: string;
@@ -136,6 +137,7 @@ export class CodexBinaryResolver {
         );
       }
     }
+    if (process.platform === "win32") resolved.path = prepareCodexRuntimeBundle(resolved.path);
     return resolved;
   }
 }

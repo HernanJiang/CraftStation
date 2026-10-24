@@ -1,6 +1,37 @@
 {
   "releases": [
     {
+      "version": "1.11.16",
+      "date": "2026-10-24",
+      "title": "模型目录自动更新与 Codex 工具稳定性修复",
+      "summary": "模型列表定期更新，支持上游新型号和改名；Codex 在 Windows 上使用独立的运行文件，避免 CLI 升级影响正在运行的工具进程。",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "模型目录",
+          "text": "已安装且启用的渠道每 15 分钟检查模型列表，回到窗口和打开管理模型页时检查过期目录；手动获取立即刷新，保留用户的显示选择。"
+        },
+        {
+          "kind": "fixed",
+          "text": "Kimi 刷新官方模型名称、上下文与推理能力，保留账号配置和自定义覆盖；K2.8 Preview 与 K2.7 Highspeed 分别显示，旧快速模式不再误切模型版本。"
+        },
+        {
+          "kind": "fixed",
+          "text": "Claude 接纳 SDK 返回的新模型和名称更新；OpenCode 主动刷新官方目录，避免继续读取常驻服务的旧模型信息。"
+        },
+        {
+          "kind": "fixed",
+          "label": "Codex",
+          "text": "Windows 启动时复制整套 Codex 运行文件到独立目录，主进程与工具辅助进程保持同一版本，避免升级覆盖造成文件占用和 IPC 不兼容。"
+        },
+        {
+          "kind": "fixed",
+          "label": "Step Code",
+          "text": "Windows 上走官方安装脚本更新时，先把 PowerShell 5.1 的系统模块放到模块路径前面，避免 Get-FileHash 丢失导致更新失败。内置 step update 若因发布包目录结构失败，会继续用官方脚本完成安装。"
+        }
+      ]
+    },
+    {
       "version": "1.11.15",
       "date": "2026-10-23",
       "title": "Reliable completed turn durations",

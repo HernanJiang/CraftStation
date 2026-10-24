@@ -306,7 +306,10 @@ describe("AcpSessionConfigSync", () => {
         { value: "kimi-code/kimi-for-coding-highspeed", name: "Kimi For Coding HighSpeed" },
       ],
     };
-    const { connection, sync } = makeConfigSync({ configOptions: [modelOption] });
+    const { connection, sync } = makeConfigSync({
+      configOptions: [modelOption],
+      fastVariantByBase: { "kimi-code/kimi-for-coding": "kimi-code/kimi-for-coding-highspeed" },
+    });
 
     await sync.applyTurnConfig(
       "session-1",

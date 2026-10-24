@@ -163,20 +163,24 @@ function craftstationEffortId(effort: string): string {
  */
 export function claudeCapabilitiesFromSdkModels(
   sdkModels: readonly ModelInfo[] | undefined,
-): Pick<AgentCapability, "modelEfforts" | "fastModels"> | undefined {
+): Pick<AgentCapability, "models" | "modelEfforts" | "fastModels"> | undefined {
   if (!sdkModels?.length) return undefined;
-  const knownModelIds = new Set(CLAUDE_BUILTIN_MODELS.map((model) => model.id));
   const modelEfforts = { ...CLAUDE_BUILTIN_MODEL_EFFORTS };
   const fastModels = new Set(CLAUDE_BUILTIN_FAST_MODELS);
   let matched = false;
+  const models = new Map<string, AgentCapability["models"][number]>();
 
   for (const sdkModel of sdkModels) {
-    const modelId = [sdkModel.resolvedModel, sdkModel.value]
-      .filter((value): value is string => Boolean(value))
-      .map((value) => value.replace(/\[[0-9]+[mk]\]$/i, ""))
-      .find((value) => knownModelIds.has(value));
+    const modelId = (sdkModel.resolvedModel || sdkModel.value)?.replace(/\[[0-9]+[mk]\]$/i, "");
     if (!modelId) continue;
     matched = true;
+    const known = CLAUDE_BUILTIN_MODELS.find((model) => model.id === modelId);
+    models.set(modelId, {
+      id: modelId,
+      label: /^default\b/i.test(sdkModel.displayName)
+        ? (known?.label ?? modelId)
+        : sdkModel.displayName || known?.label || modelId,
+    });
 
     if (sdkModel.supportsEffort === false) {
       modelEfforts[modelId] = [];
@@ -194,5 +198,7 @@ export function claudeCapabilitiesFromSdkModels(
     }
   }
 
-  return matched ? { modelEfforts, fastModels: [...fastModels] } : undefined;
+  return matched
+    ? { models: [...models.values()], modelEfforts, fastModels: [...fastModels] }
+    : undefined;
 }
