@@ -1,3 +1,12 @@
+## 1.11.16 模型目录自动更新与 Codex、Step 更新修复（2026-10-24，已发布）
+
+- **用户问题**：已支持的提供商模型列表没有跟随上游更新。Kimi 管理页仍只有 K2.7 Coding、K3-256k、K3。Windows 上更新 Step Code 时，内置更新和官方安装脚本都失败。
+- **定位与实现**：已启用渠道每 15 分钟检查模型目录，回到窗口或打开管理模型页时检查过期目录，手动获取立即刷新并保留已有显示选择。Kimi 接纳官方名称、上下文和推理档，配置不再每次启动重置；K2.8 Preview 与 K2.7 Highspeed 分开，已保存的快速模式不再把 K2.8 改发到 K2.7。Claude 接纳 SDK 新模型与改名，OpenCode 走官方刷新。Windows Codex 为新会话复制完整、独立的运行目录，避免升级替换正在运行的主程序和工具辅助程序。Step 官方安装脚本在 Windows PowerShell 5.1 下先把系统模块放到模块路径前面，避免丢失 `Get-FileHash`；内置 `step update` 因发布包目录结构失败时继续用官方脚本安装。
+- **验证**：模型目录、Kimi、Claude、OpenCode、Codex 快照与 Step 更新相关测试 232 项，更新器与路径测试 77 项，changelog 16 项通过。`pnpm typecheck` 与 `pnpm lint` 通过。隔离应用此前确认 Kimi 页面刷新，以及 Codex 真实回合执行 `Get-Location` 并返回 `CODEX_TOOL_OK`，主进程与 code-mode 辅助进程来自同一快照。本轮发布前没有重跑整应用 smoke。`Get-FileHash` 回归在修复前失败、修复后通过。官方安装脚本在临时目录完成 0.1.6 安装，临时 PATH 已撤回，本机正式 `step.exe` 仍为 0.1.5。
+- **发布状态**：修复提交 `6e0100c3` 已在 `main`。tag `v1.11.16` 指向该提交。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.16) 已发布为最新稳定版，非草稿、非预发布。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/40095024786) 成功，补丁只构建 Windows。四项附件齐备：NSIS 141413898 字节、blockmap 147491 字节、便携版 120815707 字节、`latest.yml` 367 字节。`latest.yml` 版本为 1.11.16，指向该版 NSIS，清单中的安装包大小与附件一致。双语正文与 `ai_workspace/release-notes-1.11.16.md` 一致。流水线随后把 main 开发版本推进到 1.11.17（`e54e269e`）。无关 lockfile 与临时资料未纳入发布提交。
+- **本地收尾**：正式四附件已下载到 `release/`，大小与 GitHub 附件一致。便携版只保留 1.11.16 与 1.11.15；1.11.14 便携版归档至 `D:/Work/CraftStation-release-archives/1.11.16-20261024/`。历史 NSIS 安装包按约定保留。
+- **使用边界**：正在运行的 1.11.15 不会显示 K2.8、K3.1，也不会带上 Step 模块路径修复。安装本版后，在应用内更新 Step。本机 `C:\Users\Haona\.stepcode\bin\step.exe` 仍是 0.1.5。
+
 ## 1.11.15 已完成时长恢复修复（2026-10-23，已发布）
 
 - **用户问题**：重开应用或切换会话后，输入框上方「已完成」错误显示数千分钟。
