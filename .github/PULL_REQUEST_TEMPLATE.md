@@ -18,6 +18,6 @@ Why is this useful or needed?
 
 Add screenshots or screen recordings for UI changes.
 
-# Linked issue
+# Linked issue (optional)
 
-Closes #
+<!-- If this PR resolves an issue, use "Closes #123". Otherwise, remove this section. -->
