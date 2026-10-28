@@ -16,8 +16,7 @@ import { prepareClaudeMergedSettingsFile } from "./mergedSettings";
 export function applyClaudeContextSuffix(model: string, contextSize?: string): string {
   const base = model.replace(/\[[0-9]+[mk]\]$/i, "");
   if (!CLAUDE_CONTEXT_MANAGED_MODEL_IDS.has(base)) return model;
-  if (!contextSize || contextSize === "200k") return base;
-  return `${base}[${contextSize}]`;
+  return contextSize === "1m" ? `${base}[1m]` : base;
 }
 
 export function buildClaudeArgs(

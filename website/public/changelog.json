@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "1.11.18",
+      "date": "2026-10-28",
+      "title": "Claude 上下文窗口兼容修复",
+      "summary": "Claude 会话不再继承其他 Harness 的 272k 上下文值，避免模型被误判为不存在或无访问权限。",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Claude",
+          "text": "带遗留 272k 上下文设置的 Opus 5.5 等 Claude 模型现在使用有效的普通模型 ID；只有选择 1M 时才发送对应后缀，启动、后续回合与重开续接均可正常工作。"
+        }
+      ]
+    },
+    {
       "version": "1.11.17",
       "date": "2026-10-25",
       "title": "CLI 更新卡片颜色与缩放定位修复",

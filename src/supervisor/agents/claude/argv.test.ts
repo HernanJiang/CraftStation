@@ -9,6 +9,11 @@ describe("applyClaudeContextSuffix", () => {
     expect(applyClaudeContextSuffix("claude-opus-4-8")).toBe("claude-opus-4-8");
   });
 
+  it("does not send another harness's context size to Claude", () => {
+    expect(applyClaudeContextSuffix("claude-opus-5-5", "272k")).toBe("claude-opus-5-5");
+    expect(applyClaudeContextSuffix("claude-opus-5-5[272k]", "272k")).toBe("claude-opus-5-5");
+  });
+
   it("strips a stale suffix on built-in models so the chosen contextSize wins", () => {
     expect(applyClaudeContextSuffix("claude-opus-4-8[1m]", "200k")).toBe("claude-opus-4-8");
     expect(applyClaudeContextSuffix("claude-opus-4-8[1m]", "1m")).toBe("claude-opus-4-8[1m]");
