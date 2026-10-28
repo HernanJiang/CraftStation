@@ -1,9 +1,10 @@
-## 1.11.18 Claude 上下文窗口兼容修复（2026-10-28，验证中）
+## 1.11.18 Claude 上下文窗口兼容修复（2026-10-28，已发布）
 
 - **用户问题**：选择 `claude-opus-5-5[272k]` 后提示模型不存在或无访问权限。
 - **定位与实现**：同一 Claude Code 2.1.306 环境下普通 `claude-opus-5-5` 与 `[1m]` 均成功，只有 `[272k]` 复现同一错误。`applyClaudeContextSuffix` 原来会拼接任意 `contextSize`，把其他 Harness 的 272k 遗留值带给 Claude。现只有 `1m` 发送后缀，其余值回退普通模型 ID；第三方模型 ID 保持原样。
-- **验证**：新增回归在修复前失败、修复后通过；Claude 相关 89 项测试、typecheck 与 lint 通过。隔离真实 CraftStation 会话明确设置 `claude-opus-5-5` + `272k` 后，后续回合返回 `CRAFTSTATION_CLAUDE_272K_FOLLOWUP_OK`，没有模型错误；后续消息、停止、替换指令、AskUserQuestion、模型切换和重开续接通过。real-mode changed smoke 通过，控制台/运行时错误 0。截图 `C:/Users/Haona/.craftstation-smoke/debug-1793180155236-2128/claude-272k-followup.png`，报告 `C:/Users/Haona/.craftstation-smoke/debug-1793180155236-2128/artifacts/smoke-report.json`。
-- **发布状态**：双语说明已写入 `ai_workspace/release-notes-1.11.18.md`，应用 changelog 已加入 1.11.18；等待 Windows 双包与正式发布。
+- **验证**：新增回归在修复前失败、修复后通过；Claude 相关 89 项测试、typecheck、lint 与 Windows 双包构建通过。完整测试为 12840 通过、13 失败，失败均位于本次未修改的模块，不宣称全量测试全绿。隔离真实 CraftStation 会话明确设置 `claude-opus-5-5` + `272k` 后，后续回合返回 `CRAFTSTATION_CLAUDE_272K_FOLLOWUP_OK`，没有模型错误；后续消息、停止、替换指令、AskUserQuestion、模型切换和重开续接通过。real-mode changed smoke 通过，控制台/运行时错误 0。截图 `C:/Users/Haona/.craftstation-smoke/debug-1793180155236-2128/claude-272k-followup.png`，报告 `C:/Users/Haona/.craftstation-smoke/debug-1793180155236-2128/artifacts/smoke-report.json`。
+- **发布状态**：修复提交 `a90007b3` 已推送 `main`，tag `v1.11.18` 指向该提交。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.18) 已发布为最新稳定版，非草稿、非预发布。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/40668665536) 全部成功，补丁只构建 Windows。四项附件齐备：NSIS 141428039 字节、blockmap 146837 字节、便携版 120814423 字节、`latest.yml` 367 字节；清单版本与 NSIS 大小正确，双语正文与本地发布说明一致（仅末尾空行差异）。流水线随后把 main 开发版本推进到 1.11.19（`aca5f71b`）。
+- **本地收尾**：正式四附件已下载到 `release/`，大小与 GitHub 附件一致。便携版只保留 1.11.18 与 1.11.17；1.11.16 便携版归档至 `D:/Work/CraftStation-release-archives/1.11.18-20261028/`。`win-unpacked/` 与 `builder-debug.yml` 已删除，历史 NSIS 安装包保留。无关 lockfile 与临时资料未纳入发布提交。
 
 ## 1.11.17 CLI 更新卡片灰色与缩放定位修复（2026-10-25，已发布）
 
