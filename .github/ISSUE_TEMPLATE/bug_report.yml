@@ -60,7 +60,7 @@ body:
     id: logs
     attributes:
       label: Logs or screenshots
-      description: Paste relevant logs, terminal output, screenshots, or screen recordings if you can.
+      description: Paste relevant logs, terminal output, screenshots, or screen recordings if you can. Remove API keys, access tokens, passwords, and other personal or sensitive information before sharing.
       render: shell
     validations:
       required: false
