@@ -1,8 +1,9 @@
-import { readFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { isolateRuntimeMcpEnvironment } from "../testSupport/runtimeEnvironment";
+import * as museForeignEndpoint from "../../agents/muse/foreignEndpoint";
 import type { SessionRuntime } from "../sessionTypes";
 import { StructuredInterruptWatchdog } from "./structuredInterruptWatchdog";
 import type { SessionRef, ThreadConfig } from "@/shared/contracts";
@@ -870,7 +871,12 @@ describe("switchThreadProvider transactional lifecycle", () => {
     );
   });
 
-  it.each(["openai/gpt-5", "gpt-5"])(
+  it.each([
+    "openai/gpt-5",
+    "gpt-5",
+    "opencode/deepseek-v4.1-flash",
+    "openrouter/deepseek/deepseek-v4-pro",
+  ])(
     "binds a third-party account model (%s) to DeepSeek Harness through an isolated DSH_HOME",
     async (model) => {
       const handle = makeHandle();
@@ -909,14 +915,75 @@ describe("switchThreadProvider transactional lifecycle", () => {
       expect(spawnArg?.baseSpawnEnv?.DSH_HOME).toBe(isolationDir);
       expect(spawnArg?.baseSpawnEnv?.DEEPSEEK_BASE_URL).toBe("https://relay.example.com/v1");
       const settings = readFileSync(join(isolationDir, "settings.yaml"), "utf8");
-      const providerId = model.includes("/") ? "openai" : "craftstation";
+      const slash = model.indexOf("/");
+      const providerId = slash >= 0 ? model.slice(0, slash) : "craftstation";
+      const upstreamModel = slash >= 0 ? model.slice(slash + 1) : model;
       expect(spawnArg?.acpModelProviderId).toBe(providerId);
       expect(settings).toContain(`    ${providerId}:`);
-      expect(settings).toContain("'gpt-5'");
+      expect(settings).toContain(`'${upstreamModel}'`);
       expect(settings).toContain("'https://relay.example.com/v1'");
       rmSync(isolationDir, { recursive: true, force: true });
     },
   );
+
+  it("binds a paid OpenCode Zen model to dsh with the Zen credential and endpoint", async () => {
+    const dataHome = mkdtempSync(join(tmpdir(), "dsh-zen-auth-"));
+    const isolationDir = join(tmpdir(), "craftstation-dsh-zen", "t1");
+    vi.stubEnv("XDG_DATA_HOME", dataHome);
+    mkdirSync(join(dataHome, "opencode"), { recursive: true });
+    writeFileSync(
+      join(dataHome, "opencode", "auth.json"),
+      JSON.stringify({
+        opencode: { type: "api", key: "sk-test-zen" },
+        "opencode-go": { type: "api", key: "sk-test-go" },
+      }),
+    );
+    try {
+      const handle = makeHandle();
+      const { pipeline, oldSession, adapter } = makePipeline(handle);
+      await pipeline.switchThreadProvider(oldSession as never, "deepseek", adapter as never, {
+        model: "opencode/deepseek-v4.1-flash",
+        sourceProviderKind: "opencode",
+      });
+      expect(adapter.createStructuredSession).toHaveBeenCalledWith(
+        expect.objectContaining({
+          acpModelProviderId: "opencode",
+          baseSpawnEnv: expect.objectContaining({
+            DSH_HOME: isolationDir,
+            DEEPSEEK_API_KEY: "sk-test-zen",
+            DEEPSEEK_BASE_URL: "https://opencode.ai/inference/openai/v1",
+          }),
+        }),
+      );
+      const settings = readFileSync(join(isolationDir, "settings.yaml"), "utf8");
+      expect(settings).toContain("provider: opencode");
+      expect(settings).toContain("'deepseek-v4.1-flash'");
+      expect(settings).not.toContain("sk-test-zen");
+      expect(settings).not.toContain("opencode-go");
+    } finally {
+      rmSync(dataHome, { recursive: true, force: true });
+      rmSync(isolationDir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails before spawning dsh when the paid Zen model has no Zen credential", async () => {
+    const readZenKey = vi
+      .spyOn(museForeignEndpoint, "readOpenCodeZenApiKey")
+      .mockReturnValue(undefined);
+    try {
+      const { pipeline, oldSession, adapter, oldDispose } = makePipeline(makeHandle());
+      await expect(
+        pipeline.switchThreadProvider(oldSession as never, "deepseek", adapter as never, {
+          model: "opencode/deepseek-v4.1-flash",
+          sourceProviderKind: "opencode",
+        }),
+      ).rejects.toThrow("OpenCode Zen 未登录");
+      expect(adapter.createStructuredSession).not.toHaveBeenCalled();
+      expect(oldDispose).not.toHaveBeenCalled();
+    } finally {
+      readZenKey.mockRestore();
+    }
+  });
 
   it("does not reuse the source native session ref across harnesses", async () => {
     const handle = makeHandle();

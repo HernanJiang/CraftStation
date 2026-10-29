@@ -492,6 +492,25 @@ describe("third-party picker harness", () => {
     });
   });
 
+  it.each([undefined, "openai-compatible:relay"])(
+    "routes only non-free OpenCode DeepSeek picks to dsh (account: %s)",
+    (accountId) => {
+      const pick = {
+        agentKind: "opencode",
+        model: "opencode/deepseek-v4.1-flash",
+        ...(accountId ? { accountId } : {}),
+      };
+      expect(applyThirdPartyPickerSelection(pick, ["opencode", "deepseek"])).toEqual({
+        ...pick,
+        agentKind: "deepseek",
+        sourceProviderKind: "opencode",
+      });
+      const freePick = { ...pick, model: `${pick.model}-free` };
+      expect(applyThirdPartyPickerSelection(freePick, ["opencode", "deepseek"])).toEqual(freePick);
+      expect(applyThirdPartyPickerSelection(pick, ["opencode"])).toEqual(pick);
+    },
+  );
+
   it("keeps a Command Code DeepSeek catalog pick on Command Code when dsh is missing", () => {
     expect(
       applyThirdPartyPickerSelection(

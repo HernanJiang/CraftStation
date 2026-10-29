@@ -62,10 +62,10 @@ function openCodeDataDirs(): string[] {
 }
 
 /**
- * Read the OpenCode Go API key from the official CLI auth.json. Never log the
+ * Read a channel API key from the official CLI auth.json. Never log the
  * value. Missing/malformed files degrade to undefined.
  */
-export function readOpenCodeGoApiKey(): string | undefined {
+function readOpenCodeApiKey(providerId: string): string | undefined {
   for (const dir of openCodeDataDirs()) {
     const authPath = join(dir, "auth.json");
     let parsed: unknown;
@@ -76,12 +76,20 @@ export function readOpenCodeGoApiKey(): string | undefined {
       continue;
     }
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
-    const entry = (parsed as Record<string, unknown>)[OPENCODE_GO_PROVIDER];
+    const entry = (parsed as Record<string, unknown>)[providerId];
     if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
     const key = (entry as { key?: unknown }).key;
     if (typeof key === "string" && key.trim().length > 0) return key.trim();
   }
   return undefined;
+}
+
+export function readOpenCodeGoApiKey(): string | undefined {
+  return readOpenCodeApiKey(OPENCODE_GO_PROVIDER);
+}
+
+export function readOpenCodeZenApiKey(): string | undefined {
+  return readOpenCodeApiKey("opencode");
 }
 
 export function museForeignSettingsJson(

@@ -43,6 +43,7 @@ import { modelProviderPrefix, stripModelProviderPrefix } from "@/shared/harnessC
 import {
   dshForeignCompatEnv,
   OPENCODE_GO_DSH_PROVIDER_ID,
+  OPENCODE_ZEN_DSH_BASE_URL,
   openCodeGoDshCompatEnv,
   writeDshForeignProviderHome,
   writeOpenCodeGoDshHome,
@@ -114,6 +115,7 @@ import {
   museForeignSettingsJson,
   museForeignWslBootstrap,
   readOpenCodeGoApiKey,
+  readOpenCodeZenApiKey,
 } from "../../agents/muse/foreignEndpoint";
 import { startMuseForeignGateway } from "../../agents/muse/foreignGateway";
 import { resolveWindowsMuseLaunchLocation } from "../../agents/muse/wslFallback";
@@ -2008,6 +2010,33 @@ export class SpawnPipeline {
       return {
         env: dshForeignCompatEnv(apiKey, isolationDir, baseUrl),
         modelProviderId: providerId,
+      };
+    }
+    if (modelProviderPrefix(model) === "opencode") {
+      const apiKey = readOpenCodeZenApiKey();
+      if (!apiKey) {
+        throw new AccountControlError(
+          "ACCOUNT_NOT_FOUND",
+          "OpenCode Zen 未登录，无法把付费 DeepSeek 模型接到 DeepSeek Harness。请先在「模型与用量」登录 OpenCode。",
+          { provider: "opencode" },
+        );
+      }
+      const isolationDir = input.threadId
+        ? join(tmpdir(), "craftstation-dsh-zen", input.threadId)
+        : undefined;
+      if (isolationDir) {
+        writeDshForeignProviderHome({
+          isolationDir,
+          providerId: "opencode",
+          displayName: "OpenCode Zen",
+          apiKey,
+          baseUrl: OPENCODE_ZEN_DSH_BASE_URL,
+          modelId: stripModelProviderPrefix(model),
+        });
+      }
+      return {
+        env: dshForeignCompatEnv(apiKey, isolationDir, OPENCODE_ZEN_DSH_BASE_URL),
+        modelProviderId: "opencode",
       };
     }
     const source =

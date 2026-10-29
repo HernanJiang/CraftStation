@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "1.11.21",
+      "date": "2026-10-29",
+      "title": "DeepSeek 仅免费模型保留原通道",
+      "summary": "Auto 恢复把非 free 的 DeepSeek 模型交给 dsh；免费模型继续使用原通道。",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "DeepSeek Harness",
+          "text": "opencode/ 等渠道的非 free DeepSeek 模型现在可由 dsh 运行，OpenCode Zen 付费模型会带入对应密钥和地址；带 -free 或 :free 后缀的模型继续使用 OpenCode。"
+        }
+      ]
+    },
+    {
       "version": "1.11.20",
       "date": "2026-10-29",
       "title": "中文加粗、金额与 HTML 渲染修复",

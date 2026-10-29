@@ -1,11 +1,19 @@
-## 1.11.20 中文加粗、金额与 HTML 渲染修复 + DSH 渠道改派修复（2026-10-29，发布中）
+## 1.11.21 DeepSeek 仅排除 free 模型的 dsh 分流修复（2026-10-29，发布中）
+
+- **用户要求**：只有 free 模型不接到 dsh，`opencode/` 等渠道的其他 DeepSeek 模型仍应改派到 dsh。
+- **定位与实现**：上一版按渠道前缀白名单过滤，误拦付费模型。现移除该白名单，按 `-free` / `:free` 等免费后缀排除；同时覆盖绑定第三方账号的 Auto 入口。识别 `openrouter/deepseek/…` 的 DeepSeek 家族，保留原模型 ID 和账号。OpenCode Zen 付费模型使用独立 `DSH_HOME`，从 CLI 的 `opencode` 登录项读取密钥，使用目录中的 `https://opencode.ai/inference/openai/v1` 地址；显式第三方账号仍优先使用绑定账号的配置。Zen 未登录时提前失败，不启动默认官方模型。
+- **验证**：修复前回归测试复现 6 项失败；修复后相关 8 个文件、174 项测试通过，`pnpm typecheck`、`pnpm lint`、格式检查通过。changed-scope mock 冒烟所有场景与 gate 通过，控制台/运行时错误 0。真实 Electron 中 free/付费分流通过；Zen 与 Go 的付费模型均完成 ACP session 创建及正确模型绑定，随后服务端返回 `401 api_key_expired`，外部回复受本机已有凭据过期阻塞，不宣称模型回复成功。单次启动没有模型绑定错误；额外的绑定失败来自测试脚本对同一线程重复启动，修正脚本后排除。证据见 `ai_workspace/reports/deepseek-routing-1.11.21.md`。
+- **发布状态**：Windows x64 NSIS（157235069 字节）、blockmap（162974 字节）与便携版（136251764 字节）构建通过；包内版本与 Zen 配置、`latest.yml` 的版本/安装包路径/大小均已核验。四项附件已上传至草稿，待推送 main 后正式发布。
+- **本地收尾**：`release/` 便携版仅保留 1.11.21 / 1.11.20。旧便携版与中间产物因删除被自动策略阻止，已归档到 `D:/Work/CraftStation-release-archives/1.11.21-20261029-dsh/`，原有 NSIS 安装包保留。
+
+## 1.11.20 中文加粗、金额与 HTML 渲染修复 + DSH 渠道改派修复（2026-10-29，已发布）
 
 - **用户问题**：继续检查与下划线类似的渲染问题并修复；同时切换到 `opencode/deepseek-v4.1-flash-free` 时报 `DSH model binding failed`，dsh 只提供 `deepseek-official` 模型。
 - **定位与实现**：
   - 渲染：CommonMark 强调符号的左右侧判定对中文标点不友好，`**注意：**正文` 会原样露出星号，现接入 `remark-cjk-friendly` 2.3.3（聊天与 Markdown 文件预览）。micromark-extension-math 会把任意两个 `$` 配成公式，新增 `escapeCurrencyDollars` 按 Pandoc 规则只保留真正的公式。原始 HTML 预处理现放行 `kbd / abbr / q / samp / var / tt / hr`、带 `href` 的 `<a>`、带 `src` 的 `<img>`，以及成对出现的 `<details>/<summary>`（按出现顺序栈式配对，正文里提到的 `<details>` 仍按文本显示）。sanitizer 增补 `abbr`，`kbd` 增加按键样式。
   - DSH：Auto 把所有 DeepSeek 系模型改派到 dsh，但 `prepareDeepseekForeignLaunch` 只有官方 / Command Code / OpenCode Go / 第三方账号这几条通道，Zen 的 `opencode/` 前缀没有对应通道，于是 dsh 用默认配置启动后被严格模型绑定拒绝。现 `shouldAutoRemapToDeepseekHarness` 只在渠道前缀属于 dsh 可服务集合时改派，其余模型留在原 Harness。绑定失败的报错改为 `provider/model` 可读格式。Zen 免费模型直连 API 返回 `FreeUsageLimitError`，只能在 OpenCode 客户端里使用，因此不为 dsh 新增 Zen 通道。
 - **验证**：相关 13 个测试文件、267 项测试通过，typecheck、lint、格式检查通过。完整测试 12828 通过、54 失败（24 个文件）；撤回本次改动后同样是这 24 个文件、54 项失败，均位于未修改的模块，不宣称全量测试全绿。隔离真实 Electron 中注入 assistant 消息，DOM 断言全部通过（截图 `C:/Users/Haona/.craftstation-smoke/render-1120-1793276743/render-real4.png`）。changed-scope mock smoke 全场景与全部 mock gate 通过，控制台/运行时错误 0（报告 `C:/Users/Haona/.craftstation-smoke/automated-1793277502752-24328/artifacts/smoke-report.json`）。
-- **发布状态**：双语说明已写入 `ai_workspace/release-notes-1.11.20.md`，应用 changelog 已加入 1.11.20；等待 Windows 稳定版流水线与正式发布。
+- **发布状态**：双语说明位于 `ai_workspace/release-notes-1.11.20.md`。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.20) 已发布，非草稿、非预发布；[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/40877636029) 成功，main 开发版本已推进至 1.11.21。
 
 ## 1.11.19 Markdown 内联格式渲染修复（2026-10-29，已发布）
 

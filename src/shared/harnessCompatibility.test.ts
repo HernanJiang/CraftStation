@@ -117,16 +117,32 @@ describe("harnessCompatibility", () => {
       ).toBe(true);
     });
 
-    it("keeps DeepSeek rows from channels dsh cannot serve on their own Harness", () => {
+    it.each([
+      "opencode/deepseek-v4.1-flash-free",
+      "opencode-go/deepseek-v4-flash-free",
+      "deepseek/deepseek-v4-flash-free",
+      "openrouter/deepseek/deepseek-v4-pro:free",
+      " OPENCODE/DEEPSEEK-V4-FLASH-FREE ",
+    ])("keeps free DeepSeek model %s on its catalog Harness", (modelId) => {
+      expect(shouldAutoRemapToDeepseekHarness({ agentKind: "opencode", modelId })).toBe(false);
+      expect(
+        applyAutoDeepseekHarnessLaunch({ agentKind: "opencode", model: modelId }, true),
+      ).toEqual({ agentKind: "opencode", model: modelId });
+    });
+
+    it("remaps non-free DeepSeek models regardless of their catalog channel", () => {
       for (const modelId of [
-        "opencode/deepseek-v4.1-flash-free",
+        "opencode/deepseek-v4.1-flash",
         "opencode/deepseek-v4-flash",
         "openrouter/deepseek/deepseek-v4-pro",
+        "relay/deepseek-v4-flash",
+        "free-relay/deepseek-v4-flash",
+        "deepseek-v4-freeform",
       ]) {
-        expect(shouldAutoRemapToDeepseekHarness({ agentKind: "opencode", modelId })).toBe(false);
+        expect(shouldAutoRemapToDeepseekHarness({ agentKind: "opencode", modelId })).toBe(true);
         expect(
           applyAutoDeepseekHarnessLaunch({ agentKind: "opencode", model: modelId }, true),
-        ).toEqual({ agentKind: "opencode", model: modelId });
+        ).toEqual({ agentKind: "deepseek", model: modelId });
       }
     });
 

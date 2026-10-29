@@ -1,5 +1,6 @@
 import {
   applyAutoDeepseekHarnessLaunch,
+  isFreeDeepseekModel,
   modelProviderPrefix,
   preferredHarnessForCompatibilityFamily,
   resolveCompatibilityFamily,
@@ -109,6 +110,7 @@ export function resolveThirdPartyHarnessForModel(
 ): CompatibilityHarnessId {
   const fallback = sanitizeCompatFallbackHarness(compatFallback);
   const family = resolveCompatibilityFamily(modelId);
+  if (isFreeDeepseekModel(modelId)) return "opencode";
   const preferred = preferredHarnessForCompatibilityFamily(family);
   if (preferred === "antigravity") return fallback;
   // Step Code speaks Chat Completions only — a channel already proven

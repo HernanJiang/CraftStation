@@ -20,6 +20,8 @@ export const OPENCODE_GO_DSH_PROVIDER_ID = "opencode-go";
  * carry `x-opencode-session` or the edge answers `MissingSessionID` 400s.
  */
 export const OPENCODE_GO_DSH_BASE_URL = "https://opencode.ai/zen/go/v1";
+/** OpenCode Zen's paid Chat Completions endpoint from the OpenCode catalog. */
+export const OPENCODE_ZEN_DSH_BASE_URL = "https://opencode.ai/inference/openai/v1";
 
 function yamlSingleQuoted(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
