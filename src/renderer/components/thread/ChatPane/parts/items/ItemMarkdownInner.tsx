@@ -19,6 +19,7 @@ import {
   type Components as StreamdownComponents,
   type UrlTransform,
 } from "streamdown";
+import remarkCjkFriendly from "remark-cjk-friendly";
 import remarkGfm from "remark-gfm";
 import { createMathPlugin } from "@streamdown/math";
 import { createMermaidPlugin } from "@streamdown/mermaid";
@@ -46,6 +47,7 @@ import { InlineFolderPathChip } from "./InlineFolderPathChip";
 import { LC_SELECTOR_LANG, tryParseSelectorPayload } from "./SelectorBadge";
 import {
   escapeBareAngleTags,
+  escapeCurrencyDollars,
   normalizeDisplayMathClosers,
   normalizeGfmTableSeparators,
   normalizeLatexMathDelimiters,
@@ -172,6 +174,9 @@ export default function ItemMarkdownInner({ text }: ItemMarkdownInnerProps) {
   const remarkPlugins = useMemo<RemarkPlugins>(
     () => [
       remarkGfm,
+      // CommonMark flanking rules leave `**注意：**正文` as literal asterisks
+      // (closing `**` after CJK punctuation, before a CJK letter).
+      remarkCjkFriendly,
       [
         remarkAutolinkProjectPaths,
         {
@@ -201,10 +206,12 @@ export default function ItemMarkdownInner({ text }: ItemMarkdownInnerProps) {
         normalizeGfmTableSeparators(
           protectMathSpans(
             repairMathSyntax(
-              normalizeLatexMathDelimiters(
-                normalizeMathDollarRuns(
-                  normalizeDisplayMathClosers(
-                    normalizeShortCodeFenceClosers(escapeBareAngleTags(text)),
+              escapeCurrencyDollars(
+                normalizeLatexMathDelimiters(
+                  normalizeMathDollarRuns(
+                    normalizeDisplayMathClosers(
+                      normalizeShortCodeFenceClosers(escapeBareAngleTags(text)),
+                    ),
                   ),
                 ),
               ),
@@ -438,7 +445,7 @@ function allowMarkdownHtml(plugin: RehypePlugins[number]): RehypePlugins[number]
     transformer,
     {
       ...schema,
-      tagNames: [...(schema.tagNames ?? []), "u", "mark", "small"],
+      tagNames: [...(schema.tagNames ?? []), "u", "mark", "small", "abbr"],
       protocols: {
         ...protocols,
         src: [...(protocols.src ?? []), "craftstation-local"],

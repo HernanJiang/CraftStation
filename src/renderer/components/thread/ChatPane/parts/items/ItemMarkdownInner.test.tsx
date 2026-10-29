@@ -1227,6 +1227,50 @@ flowchart TD
     expect(container).not.toHaveTextContent(`<${tag}>`);
   });
 
+  it.each(["**注意：**正文", "**（重点）**后面", "这是**“引用”**文字", "结果**很好。**然后"])(
+    "renders CJK-punctuation bold %s without leaking asterisks",
+    (text) => {
+      const { container } = render(
+        <AppProvider>
+          <ItemMarkdownInner text={text} />
+        </AppProvider>,
+      );
+      expect(container.querySelector('[data-streamdown="strong"]')).not.toBeNull();
+      expect(container).not.toHaveTextContent("**");
+    },
+  );
+
+  it("renders currency dollars as text instead of a formula", () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={"价格 $5 到 $10 之间，公式 $x^2$"} />
+      </AppProvider>,
+    );
+    expect(container).toHaveTextContent("价格 $5 到 $10 之间");
+    expect(container.querySelectorAll(".katex")).toHaveLength(1);
+  });
+
+  it("renders kbd, abbr, hr, HTML links and collapsible details", () => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner
+          text={
+            '<kbd>Ctrl</kbd> <abbr title="t">T</abbr> <a href="https://example.com">site</a>\n\n<hr>\n\n<details>\n<summary>展开</summary>\n\n隐藏内容\n\n</details>\n\n提到 <details> 时这句可见'
+          }
+        />
+      </AppProvider>,
+    );
+    expect(container.querySelector("kbd")).toHaveTextContent("Ctrl");
+    expect(container.querySelector("abbr")).toHaveAttribute("title", "t");
+    expect(container.querySelector('a[href="https://example.com"]')).toHaveTextContent("site");
+    expect(container.querySelector("hr")).not.toBeNull();
+    expect(container.querySelector("details summary")).toHaveTextContent("展开");
+    expect(container.querySelector("details")).toHaveTextContent("隐藏内容");
+    expect(container.querySelectorAll("details")).toHaveLength(1);
+    expect(container).toHaveTextContent("提到 <details> 时这句可见");
+    expect(container).not.toHaveTextContent("<kbd>");
+  });
+
   it("keeps bare pseudo-XML tags visible instead of letting sanitize eat them", () => {
     const { container } = render(
       <AppProvider>

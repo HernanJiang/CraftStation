@@ -108,6 +108,28 @@ describe("harnessCompatibility", () => {
       ).toEqual({ agentKind: "deepseek", model: "deepseek/deepseek-v4.1-flash" });
     });
 
+    it("remaps OpenCode Go DeepSeek onto dsh (isolated Go home lane)", () => {
+      expect(
+        shouldAutoRemapToDeepseekHarness({
+          agentKind: "opencode",
+          modelId: "opencode-go/deepseek-v4.1-flash",
+        }),
+      ).toBe(true);
+    });
+
+    it("keeps DeepSeek rows from channels dsh cannot serve on their own Harness", () => {
+      for (const modelId of [
+        "opencode/deepseek-v4.1-flash-free",
+        "opencode/deepseek-v4-flash",
+        "openrouter/deepseek/deepseek-v4-pro",
+      ]) {
+        expect(shouldAutoRemapToDeepseekHarness({ agentKind: "opencode", modelId })).toBe(false);
+        expect(
+          applyAutoDeepseekHarnessLaunch({ agentKind: "opencode", model: modelId }, true),
+        ).toEqual({ agentKind: "opencode", model: modelId });
+      }
+    });
+
     it("does not remap a native DeepSeek launch", () => {
       expect(
         shouldAutoRemapToDeepseekHarness({

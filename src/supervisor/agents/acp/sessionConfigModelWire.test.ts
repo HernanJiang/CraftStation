@@ -214,7 +214,7 @@ describe("AcpSessionConfigSync strict model binding", () => {
     const { connection, sync } = makeStrictSync([DSH_MODEL_OPTION]);
     const next = config("deepseek-v4.1-pro");
     await expect(sync.applyTurnConfig("session-1", next, previousConfig)).rejects.toThrow(
-      /deepseek-v4\.1-pro/,
+      /deepseek-v4\.1-pro.*advertised: deepseek-official\/deepseek-flash/,
     );
     // Never silently continue on the runtime default model.
     expect(connection.setSessionConfigOption).not.toHaveBeenCalled();

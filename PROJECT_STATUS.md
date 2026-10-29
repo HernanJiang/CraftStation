@@ -1,9 +1,19 @@
-## 1.11.19 Markdown 内联格式渲染修复（2026-10-29，验证中）
+## 1.11.20 中文加粗、金额与 HTML 渲染修复 + DSH 渠道改派修复（2026-10-29，发布中）
+
+- **用户问题**：继续检查与下划线类似的渲染问题并修复；同时切换到 `opencode/deepseek-v4.1-flash-free` 时报 `DSH model binding failed`，dsh 只提供 `deepseek-official` 模型。
+- **定位与实现**：
+  - 渲染：CommonMark 强调符号的左右侧判定对中文标点不友好，`**注意：**正文` 会原样露出星号，现接入 `remark-cjk-friendly` 2.3.3（聊天与 Markdown 文件预览）。micromark-extension-math 会把任意两个 `$` 配成公式，新增 `escapeCurrencyDollars` 按 Pandoc 规则只保留真正的公式。原始 HTML 预处理现放行 `kbd / abbr / q / samp / var / tt / hr`、带 `href` 的 `<a>`、带 `src` 的 `<img>`，以及成对出现的 `<details>/<summary>`（按出现顺序栈式配对，正文里提到的 `<details>` 仍按文本显示）。sanitizer 增补 `abbr`，`kbd` 增加按键样式。
+  - DSH：Auto 把所有 DeepSeek 系模型改派到 dsh，但 `prepareDeepseekForeignLaunch` 只有官方 / Command Code / OpenCode Go / 第三方账号这几条通道，Zen 的 `opencode/` 前缀没有对应通道，于是 dsh 用默认配置启动后被严格模型绑定拒绝。现 `shouldAutoRemapToDeepseekHarness` 只在渠道前缀属于 dsh 可服务集合时改派，其余模型留在原 Harness。绑定失败的报错改为 `provider/model` 可读格式。Zen 免费模型直连 API 返回 `FreeUsageLimitError`，只能在 OpenCode 客户端里使用，因此不为 dsh 新增 Zen 通道。
+- **验证**：相关 13 个测试文件、267 项测试通过，typecheck、lint、格式检查通过。完整测试 12828 通过、54 失败（24 个文件）；撤回本次改动后同样是这 24 个文件、54 项失败，均位于未修改的模块，不宣称全量测试全绿。隔离真实 Electron 中注入 assistant 消息，DOM 断言全部通过（截图 `C:/Users/Haona/.craftstation-smoke/render-1120-1793276743/render-real4.png`）。changed-scope mock smoke 全场景与全部 mock gate 通过，控制台/运行时错误 0（报告 `C:/Users/Haona/.craftstation-smoke/automated-1793277502752-24328/artifacts/smoke-report.json`）。
+- **发布状态**：双语说明已写入 `ai_workspace/release-notes-1.11.20.md`，应用 changelog 已加入 1.11.20；等待 Windows 稳定版流水线与正式发布。
+
+## 1.11.19 Markdown 内联格式渲染修复（2026-10-29，已发布）
 
 - **用户问题**：消息中的 `<u>下划线</u>` 等内联 HTML 被原样输出，要求同时检查类似渲染问题。
 - **定位与实现**：原始 HTML 预处理把除 `<br>` 外的标签全部转义，sanitizer 又单独删除 `u`、`mark`、`small`。现只放行常见安全内联格式标签并补齐 sanitizer schema，其他伪 XML 继续转义；`u / ins / del / mark / sub / sup` 与 `b / strong / i / em / s / strike / small / code` 均可正确渲染。
 - **验证**：新增回归在修复前失败、修复后通过；Markdown 相关 127 项测试、changelog 16 项、typecheck 与 lint 通过。真实 Electron 消息中确认各标签生成正确元素，未泄露原始标签；`<strong>` 渲染为 Streamdown 语义化粗体 `span`。changed-scope mock smoke 全场景与全部 mock gate 通过，控制台/运行时错误 0。截图 `C:/Users/Haona/.craftstation-smoke/debug-1793272606274-53572/artifacts/inline-html.png`，报告 `C:/Users/Haona/.craftstation-smoke/debug-1793272606274-53572/artifacts/smoke-report.json`。
-- **发布状态**：双语说明已写入 `ai_workspace/release-notes-1.11.19.md`，应用 changelog 已加入 1.11.19；等待 Windows 双包与正式发布。
+- **发布状态**：修复提交 `56a042eb` 已推送 `main`，tag `v1.11.19` 指向该提交。[GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.19) 已发布，非草稿、非预发布。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/40865885199) 成功，补丁只构建 Windows。四项附件齐备：NSIS 141269299 字节、blockmap 146919 字节、便携版 120884455 字节、`latest.yml` 367 字节。流水线随后把 main 开发版本推进到 1.11.20（`c7b23e49`）。
+- **本地收尾**：并入 1.11.20 收尾一起处理（上次本地 `dist:win` 只留下 1.11.19 NSIS 与中间产物，便携版未生成）。
 
 ## 1.11.18 Claude 上下文窗口兼容修复（2026-10-28，已发布）
 

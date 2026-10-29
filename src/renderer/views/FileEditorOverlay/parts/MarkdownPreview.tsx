@@ -2,9 +2,11 @@ import { createMathPlugin } from "@streamdown/math";
 import "katex/dist/katex.min.css";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
+import remarkCjkFriendly from "remark-cjk-friendly";
 import remarkGfm from "remark-gfm";
 import type { AnchorHTMLAttributes } from "react";
 import {
+  escapeCurrencyDollars,
   normalizeLatexMathDelimiters,
   protectMathSpans,
 } from "@/renderer/components/thread/ChatPane/parts/items/ItemMarkdown";
@@ -14,7 +16,7 @@ import {
 // math to `\lt` so micromark doesn't take it as an HTML tag. Bare tags in
 // the file stay raw — this preview opts into rehype-raw, unlike chat.
 const markdownMathPlugin = createMathPlugin({ singleDollarTextMath: true });
-const remarkPlugins = [remarkGfm, markdownMathPlugin.remarkPlugin];
+const remarkPlugins = [remarkGfm, remarkCjkFriendly, markdownMathPlugin.remarkPlugin];
 const rehypePlugins = [markdownMathPlugin.rehypePlugin, rehypeRaw];
 
 const components = {
@@ -51,7 +53,9 @@ export function MarkdownPreview(props: { content: string; compact?: boolean }) {
 }
 
 function prepareMarkdownPreviewSource(content: string): string {
-  return promoteStandaloneDisplayMath(protectMathSpans(normalizeLatexMathDelimiters(content)));
+  return promoteStandaloneDisplayMath(
+    protectMathSpans(escapeCurrencyDollars(normalizeLatexMathDelimiters(content))),
+  );
 }
 
 /**

@@ -4203,6 +4203,18 @@ html[data-platform="darwin"] .craftstation-sidebar-project-nudge {
 .lc-chat-markdown > :last-child > :last-child {
   margin-bottom: 0;
 }
+/* `<kbd>` keys read as keycaps, not plain monospace text. */
+.lc-chat-markdown kbd {
+  padding: 0.05em 0.4em;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--foreground) 8%, var(--background));
+  font-size: 0.85em;
+}
+.lc-chat-markdown summary {
+  cursor: pointer;
+}
 
 /* Diagram / architecture / fenced blocks must read as gray cards, not the
    same fill as the chat pane. Streamdown mermaid also paints `bg-background`

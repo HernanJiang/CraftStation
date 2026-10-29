@@ -1,6 +1,7 @@
 import type { ClientSideConnection, SessionUpdate } from "@agentclientprotocol/sdk";
 import { isThreadConfigEqual, type ThreadConfig } from "@/shared/contracts";
 import { toErrorMessage } from "@/shared/errorMessage";
+import { parseDshAcpModelWireValue } from "../deepseek/modelIds";
 import { normalizeAcpModeId } from "./probe";
 import {
   applyAcpModeUpdateToConfig,
@@ -220,10 +221,16 @@ export class AcpSessionConfigSync {
       } else if (this.options.strictModelResolution) {
         // The runtime advertises a model selector but not the requested model.
         // Continuing would silently run the runtime default model — fail closed.
+        // dsh wire values are JSON `[provider, model]` tuples; show them as
+        // `provider/model` so the message stays readable in the GUI.
+        const advertised = listSelectConfigOptionValues(this.currentConfigOptions, "model").map(
+          (value) => {
+            const wire = parseDshAcpModelWireValue(value);
+            return wire ? `${wire.provider}/${wire.model}` : value;
+          },
+        );
         throw new Error(
-          `DSH model binding failed: requested model ${JSON.stringify(nextConfig.model)} is not offered by the DeepSeek Harness runtime (advertised: ${JSON.stringify(
-            listSelectConfigOptionValues(this.currentConfigOptions, "model"),
-          )})`,
+          `DSH model binding failed: requested model ${JSON.stringify(nextConfig.model)} is not offered by the DeepSeek Harness runtime (advertised: ${advertised.join(", ") || "none"})`,
         );
       } else {
         try {

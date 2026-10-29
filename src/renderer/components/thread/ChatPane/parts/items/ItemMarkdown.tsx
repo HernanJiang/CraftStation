@@ -673,13 +673,63 @@ export function normalizeShortCodeFenceClosers(text: string): string {
  */
 export function escapeBareAngleTags(text: string): string {
   let changed = false;
+  const pairing = pairBlockTags(text);
   const converted = splitSegmentsOutsideFences(text).map((segment) => {
     if (segment.inFence) return segment.text;
-    const next = escapeBareAngleTagsOutsideInlineCode(segment.text);
+    const next = escapeBareAngleTagsOutsideInlineCode(segment.text, pairing);
     if (next !== segment.text) changed = true;
     return next;
   });
   return changed ? converted.join("") : text;
+}
+
+const PAIRED_BLOCK_TAG_RE = /<(\/?)(details|summary)(?:\s[^<>]*)?>/giu;
+
+/**
+ * Collapsibles render only as matched pairs: a bare `<details>` mentioned in
+ * prose would otherwise fold away everything after it, even when the same
+ * message also holds a real `<details>…</details>` block. Pairs are matched
+ * stack-wise in prose order (fences/code/math excluded, as in the escape
+ * pass); keys are `[/]tag:ordinal` so the escape pass can look each tag up as
+ * it meets them in the same order.
+ */
+interface BlockTagPairing {
+  paired: Set<string>;
+  seen: Map<string, number>;
+}
+
+function pairBlockTags(text: string): BlockTagPairing {
+  const paired = new Set<string>();
+  const counts = new Map<string, number>();
+  const stacks = new Map<string, number[]>();
+  for (const segment of splitSegmentsOutsideFences(text)) {
+    if (segment.inFence || !segment.text.includes("<")) continue;
+    segment.text.split(INLINE_CODE_OR_MATH_SPAN_RE).forEach((part, index) => {
+      if (index % 2 === 1 && (part.startsWith("`") || isProtectedMathSpan(part))) return;
+      for (const match of part.matchAll(PAIRED_BLOCK_TAG_RE)) {
+        const tag = match[2]!.toLowerCase();
+        const key = `${match[1]}${tag}`;
+        const ordinal = counts.get(key) ?? 0;
+        counts.set(key, ordinal + 1);
+        const stack = stacks.get(tag) ?? [];
+        stacks.set(tag, stack);
+        if (!match[1]) {
+          stack.push(ordinal);
+        } else if (stack.length > 0) {
+          paired.add(`${tag}:${stack.pop()}`);
+          paired.add(`${key}:${ordinal}`);
+        }
+      }
+    });
+  }
+  return { paired, seen: new Map() };
+}
+
+function isPairedBlockTag(pairing: BlockTagPairing, closing: string, tag: string): boolean {
+  const key = `${closing}${tag.toLowerCase()}`;
+  const ordinal = pairing.seen.get(key) ?? 0;
+  pairing.seen.set(key, ordinal + 1);
+  return pairing.paired.has(`${key}:${ordinal}`);
 }
 
 /**
@@ -704,17 +754,96 @@ function isProtectedMathSpan(part: string): boolean {
   return false;
 }
 
-function escapeBareAngleTagsOutsideInlineCode(text: string): string {
+function escapeBareAngleTagsOutsideInlineCode(text: string, pairing: BlockTagPairing): string {
   if (!text.includes("<")) return text;
   const parts = text.split(INLINE_CODE_OR_MATH_SPAN_RE);
   let changed = false;
   const converted = parts.map((part, index) => {
     if (index % 2 === 1 && (part.startsWith("`") || isProtectedMathSpan(part))) return part;
-    const next = escapeBareTagOpens(part);
+    const next = escapeBareTagOpens(part, pairing);
     if (next !== part) changed = true;
     return next;
   });
   return changed ? converted.join("") : text;
+}
+
+/**
+ * Currency guard for single-dollar math. micromark-extension-math pairs any
+ * two `$`, so `价格 $5 到 $10` renders `5 到 ` as a formula. Apply Pandoc's
+ * rule instead: a `$…$` span is math only when its body neither starts nor
+ * ends with whitespace and the closing `$` is not followed by a digit.
+ * Failing openers (and digit-led `$` with no closer) become `\$`, which
+ * renders as a literal dollar. `$$` runs, inline code, and fences are left
+ * alone.
+ */
+export function escapeCurrencyDollars(text: string): string {
+  if (!text.includes("$")) return text;
+  let changed = false;
+  const converted = splitSegmentsOutsideFences(text).map((segment) => {
+    if (segment.inFence || !segment.text.includes("$")) return segment.text;
+    const next = segment.text
+      .split(/(`[^`\n]*`)/)
+      .map((part, index) => (index % 2 === 1 ? part : escapeCurrencyDollarsInProse(part)))
+      .join("");
+    if (next !== segment.text) changed = true;
+    return next;
+  });
+  return changed ? converted.join("") : text;
+}
+
+function escapeCurrencyDollarsInProse(text: string): string {
+  if (!text.includes("$")) return text;
+  let out = "";
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i]!;
+    if (ch === "\\") {
+      out += text.slice(i, i + 2);
+      i += 2;
+      continue;
+    }
+    if (ch !== "$") {
+      out += ch;
+      i += 1;
+      continue;
+    }
+    if (text[i + 1] === "$") {
+      const close = text.indexOf("$$", i + 2);
+      const end = close < 0 ? text.length : close + 2;
+      out += text.slice(i, end);
+      i = end;
+      continue;
+    }
+    const close = findSingleDollarCloser(text, i + 1);
+    if (close < 0) {
+      out += /\d/u.test(text[i + 1] ?? "") ? "\\$" : "$";
+      i += 1;
+      continue;
+    }
+    const body = text.slice(i + 1, close);
+    if (/^\s|\s$/u.test(body) || /\d/u.test(text[close + 1] ?? "")) {
+      out += "\\$";
+      i += 1;
+      continue;
+    }
+    out += text.slice(i, close + 1);
+    i = close + 1;
+  }
+  return out;
+}
+
+/** Next unescaped single `$` before a blank line, or -1. */
+function findSingleDollarCloser(text: string, from: number): number {
+  for (let j = from; j < text.length; j += 1) {
+    const ch = text[j];
+    if (ch === "\\") {
+      j += 1;
+      continue;
+    }
+    if (ch === "\n" && /^\r?\n/u.test(text.slice(j + 1, j + 3))) return -1;
+    if (ch === "$") return text[j + 1] === "$" ? -1 : j;
+  }
+  return -1;
 }
 
 const MATH_ENTITY_MAP: Record<string, string> = { lt: "<", gt: ">", amp: "&" };
@@ -755,17 +884,26 @@ export function protectMathSpans(text: string): string {
   return changed ? converted.join("") : text;
 }
 
-function escapeBareTagOpens(text: string): string {
+function escapeBareTagOpens(text: string, pairing: BlockTagPairing): string {
   return text.replace(/<(?=[A-Za-z/!?])/g, (match, offset: number) => {
     const rest = text.slice(offset);
     // `<br>`/`<br/>` is real inline HTML (models emit it constantly inside
     // table cells); escaping it would leak literal `&lt;br>` text, while
     // leaving it lets micromark + rehype-raw render an actual line break.
-    if (/^<br\s*\/?>/iu.test(rest)) return match;
+    // `<hr>` is the same kind of void tag.
+    if (/^<(?:br|hr)\s*\/?>/iu.test(rest)) return match;
     if (
-      /^<\/?(?:u|ins|del|mark|sub|sup|b|strong|i|em|s|strike|small|code)(?:\s[^<>]*)?>/iu.test(rest)
+      /^<\/?(?:u|ins|del|mark|sub|sup|b|strong|i|em|s|strike|small|code|kbd|abbr|q|samp|var|tt)(?:\s[^<>]*)?>/iu.test(
+        rest,
+      )
     )
       return match;
+    // HTML links/images only with their payload attribute; a bare `<a>` or
+    // `<img>` in prose stays visible text.
+    if (/^<(?:a\s[^<>]*\bhref\s*=|img\s[^<>]*\bsrc\s*=)[^<>]*>|^<\/a\s*>/iu.test(rest))
+      return match;
+    const block = /^<(\/?)(details|summary)(?:\s[^<>]*)?>/iu.exec(rest);
+    if (block) return isPairedBlockTag(pairing, block[1]!, block[2]!) ? match : "&lt;";
     // Genuine autolinks survive: `<scheme:…>` (no spaces) and `<user@host>`.
     const autolink = /^<[a-zA-Z][a-zA-Z0-9+.-]*:[^<>\s]*>/.exec(rest);
     if (autolink) return match;

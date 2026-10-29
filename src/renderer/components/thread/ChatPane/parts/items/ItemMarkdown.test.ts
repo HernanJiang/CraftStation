@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   escapeBareAngleTags,
+  escapeCurrencyDollars,
   normalizeDisplayMathClosers,
   normalizeGfmTableSeparators,
   normalizeLatexMathDelimiters,
@@ -241,6 +242,62 @@ describe("escapeBareAngleTags", () => {
     expect(escapeBareAngleTags("a<br/>b<br />c")).toBe("a<br/>b<br />c");
     // A look-alike pseudo-tag still escapes.
     expect(escapeBareAngleTags("<break>x")).toBe("&lt;break>x");
+  });
+
+  it("preserves GitHub-safe inline HTML (kbd, abbr, q, samp, var, tt, hr)", () => {
+    const input =
+      '<kbd>Ctrl</kbd> <abbr title="t">T</abbr> <q>q</q> <samp>s</samp> <var>v</var> <tt>tt</tt>\n\n<hr>';
+    expect(escapeBareAngleTags(input)).toBe(input);
+  });
+
+  it("keeps HTML links and images only when they carry href / src", () => {
+    const html =
+      '<a href="https://example.com">x</a> <img src="https://example.com/a.png" alt="a">';
+    expect(escapeBareAngleTags(html)).toBe(html);
+    expect(escapeBareAngleTags("use the <a> tag or <img>")).toBe("use the &lt;a> tag or &lt;img>");
+  });
+
+  it("keeps <details>/<summary> only when the message closes them, even past a fence", () => {
+    const block = "<details>\n<summary>more</summary>\n\n```js\nconst a = 1;\n```\n\n</details>\n";
+    expect(escapeBareAngleTags(block)).toBe(block);
+    expect(escapeBareAngleTags("the <details> element folds")).toBe(
+      "the &lt;details> element folds",
+    );
+    // A prose mention next to a real block still stays text, before or after it.
+    expect(escapeBareAngleTags(`${block}\nthe <details> element`)).toBe(
+      `${block}\nthe &lt;details> element`,
+    );
+    expect(escapeBareAngleTags(`the <details> element\n\n${block}`)).toBe(
+      `the &lt;details> element\n\n${block}`,
+    );
+  });
+});
+
+describe("escapeCurrencyDollars", () => {
+  it("escapes currency pairs that would otherwise render as math", () => {
+    expect(escapeCurrencyDollars("价格 $5 到 $10 之间")).toBe("价格 \\$5 到 \\$10 之间");
+    expect(escapeCurrencyDollars("成本$5，收入$8，利润 $3")).toBe("成本\\$5，收入\\$8，利润 \\$3");
+    expect(escapeCurrencyDollars("costs $5-$10")).toBe("costs \\$5-\\$10");
+  });
+
+  it("leaves real inline and display math alone", () => {
+    for (const text of [
+      "公式 $x^2$ 成立",
+      "$\\alpha + \\beta$ and $E=mc^2$",
+      "$$\na^2 + b^2\n$$",
+      "inline $$x$$ display",
+      "escaped \\$5 stays",
+    ]) {
+      expect(escapeCurrencyDollars(text)).toBe(text);
+    }
+    expect(escapeCurrencyDollars("花费 $20，而 $E=mc^2$ 是公式")).toBe(
+      "花费 \\$20，而 $E=mc^2$ 是公式",
+    );
+  });
+
+  it("skips inline code and fenced code", () => {
+    const text = "`echo $5 $10`\n\n```sh\nprice=$5 total=$10\n```\n";
+    expect(escapeCurrencyDollars(text)).toBe(text);
   });
 });
 

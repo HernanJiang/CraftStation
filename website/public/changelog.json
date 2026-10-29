@@ -1,6 +1,29 @@
 {
   "releases": [
     {
+      "version": "1.11.20",
+      "date": "2026-10-29",
+      "title": "中文加粗、金额与 HTML 渲染修复",
+      "summary": "中文标点旁的加粗、$ 金额和 kbd、details 等常用 HTML 现在正确渲染；Auto 不再把 dsh 无法接入的 DeepSeek 模型改派到 DeepSeek Harness。",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "消息渲染",
+          "text": "「**注意：**正文」这类中文标点旁的加粗不再露出星号；「$5 到 $10」等金额不再被当成公式，真正的公式照常渲染。"
+        },
+        {
+          "kind": "fixed",
+          "label": "HTML 标签",
+          "text": "kbd、abbr、q、hr、details 折叠块以及带地址的 a 链接和 img 图片可正确渲染；正文里提到的 <details> 仍按文本显示，不会折叠后文。"
+        },
+        {
+          "kind": "fixed",
+          "label": "DeepSeek Harness",
+          "text": "OpenCode Zen、OpenRouter 等 dsh 没有接入通道的 DeepSeek 模型留在原 Harness 运行，不再切换失败；模型绑定报错改为可读的模型列表。"
+        }
+      ]
+    },
+    {
       "version": "1.11.19",
       "date": "2026-10-29",
       "title": "Markdown 内联格式渲染修复",

@@ -126,6 +126,21 @@ export function resolveCompatibilityFamily(modelId: string): CompatibilityModelF
 }
 
 /**
+ * Catalog channels DeepSeek Harness has a launch lane for (see
+ * `prepareDeepseekForeignLaunch`): official / Command Code `deepseek/…` ids,
+ * `commandcode/…` rows, and the isolated OpenCode Go home. Any other channel
+ * (OpenCode Zen `opencode/…`, OpenRouter, …) would boot dsh on its default
+ * `deepseek-official` route and fail strict model binding, so it stays on the
+ * catalog's own Harness. Zen `*-free` rows are additionally OpenCode-client
+ * only (`FreeUsageLimitError` elsewhere).
+ */
+const DSH_SERVABLE_CATALOG_PREFIXES: ReadonlySet<string> = new Set([
+  "deepseek",
+  "commandcode",
+  "opencode-go",
+]);
+
+/**
  * Auto mode (not 合成台) sends third-party DeepSeek-family catalog picks onto
  * DeepSeek Harness. Command Code CLI tokens talk to `/alpha/generate` through
  * CraftStation's local gateway — not `/provider/v1`.
@@ -135,6 +150,8 @@ export function shouldAutoRemapToDeepseekHarness(input: {
   modelId: string;
 }): boolean {
   if (input.agentKind === "deepseek") return false;
+  const prefix = modelProviderPrefix(input.modelId)?.trim().toLowerCase();
+  if (prefix && !DSH_SERVABLE_CATALOG_PREFIXES.has(prefix)) return false;
   return resolveCompatibilityFamily(input.modelId) === "deepseek";
 }
 
