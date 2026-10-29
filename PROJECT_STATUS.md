@@ -1,10 +1,10 @@
-## 1.11.21 DeepSeek 仅排除 free 模型的 dsh 分流修复（2026-10-29，发布中）
+## 1.11.21 DeepSeek 仅排除 free 模型的 dsh 分流修复（2026-10-29，已发布）
 
 - **用户要求**：只有 free 模型不接到 dsh，`opencode/` 等渠道的其他 DeepSeek 模型仍应改派到 dsh。
 - **定位与实现**：上一版按渠道前缀白名单过滤，误拦付费模型。现移除该白名单，按 `-free` / `:free` 等免费后缀排除；同时覆盖绑定第三方账号的 Auto 入口。识别 `openrouter/deepseek/…` 的 DeepSeek 家族，保留原模型 ID 和账号。OpenCode Zen 付费模型使用独立 `DSH_HOME`，从 CLI 的 `opencode` 登录项读取密钥，使用目录中的 `https://opencode.ai/inference/openai/v1` 地址；显式第三方账号仍优先使用绑定账号的配置。Zen 未登录时提前失败，不启动默认官方模型。
 - **验证**：修复前回归测试复现 6 项失败；修复后相关 8 个文件、174 项测试通过，`pnpm typecheck`、`pnpm lint`、格式检查通过。changed-scope mock 冒烟所有场景与 gate 通过，控制台/运行时错误 0。真实 Electron 中 free/付费分流通过；Zen 与 Go 的付费模型均完成 ACP session 创建及正确模型绑定，随后服务端返回 `401 api_key_expired`，外部回复受本机已有凭据过期阻塞，不宣称模型回复成功。单次启动没有模型绑定错误；额外的绑定失败来自测试脚本对同一线程重复启动，修正脚本后排除。证据见 `ai_workspace/reports/deepseek-routing-1.11.21.md`。
-- **发布状态**：Windows x64 NSIS（157235069 字节）、blockmap（162974 字节）与便携版（136251764 字节）构建通过；包内版本与 Zen 配置、`latest.yml` 的版本/安装包路径/大小均已核验。四项附件已上传至草稿，待推送 main 后正式发布。
-- **本地收尾**：`release/` 便携版仅保留 1.11.21 / 1.11.20。旧便携版与中间产物因删除被自动策略阻止，已归档到 `D:/Work/CraftStation-release-archives/1.11.21-20261029-dsh/`，原有 NSIS 安装包保留。
+- **发布状态**：main 已推送，`v1.11.21` 与 [GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.21) 已发布为最新稳定版，非草稿、非预发布。Windows x64 NSIS（157235069 字节）、blockmap（162974 字节）、便携版（136251764 字节）与 `latest.yml`（367 字节）四项附件齐备；包内版本与 Zen 配置、清单版本/安装包路径/大小均已核验，远端附件大小与本地一致，双语正文一致。
+- **本地收尾**：`release/` 便携版仅保留 1.11.21 / 1.11.20。旧便携版与中间产物因删除被自动策略阻止，已归档到 `D:/Work/CraftStation-release-archives/1.11.21-20261029-dsh/`，原有 NSIS 安装包保留。补充真实验证应用已 reset 并经托管 stop 确认停止；无关临时材料保留，未纳入发布提交。
 
 ## 1.11.20 中文加粗、金额与 HTML 渲染修复 + DSH 渠道改派修复（2026-10-29，已发布）
 
