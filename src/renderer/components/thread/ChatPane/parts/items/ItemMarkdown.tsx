@@ -762,6 +762,10 @@ function escapeBareTagOpens(text: string): string {
     // table cells); escaping it would leak literal `&lt;br>` text, while
     // leaving it lets micromark + rehype-raw render an actual line break.
     if (/^<br\s*\/?>/iu.test(rest)) return match;
+    if (
+      /^<\/?(?:u|ins|del|mark|sub|sup|b|strong|i|em|s|strike|small|code)(?:\s[^<>]*)?>/iu.test(rest)
+    )
+      return match;
     // Genuine autolinks survive: `<scheme:…>` (no spaces) and `<user@host>`.
     const autolink = /^<[a-zA-Z][a-zA-Z0-9+.-]*:[^<>\s]*>/.exec(rest);
     if (autolink) return match;

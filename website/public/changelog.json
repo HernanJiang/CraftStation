@@ -1,6 +1,19 @@
 {
   "releases": [
     {
+      "version": "1.11.19",
+      "date": "2026-10-29",
+      "title": "Markdown 内联格式渲染修复",
+      "summary": "消息中的下划线、插入、删除、高亮等内联 HTML 现在正确显示格式，不再泄露原始标签。",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "消息渲染",
+          "text": "u、ins、del、mark、sub、sup 以及 b、strong、i、em、s、strike、small、code 标签可正确渲染；伪 XML 占位符仍按纯文本显示，代码和公式渲染保持不变。"
+        }
+      ]
+    },
+    {
       "version": "1.11.18",
       "date": "2026-10-28",
       "title": "Claude 上下文窗口兼容修复",

@@ -1,3 +1,10 @@
+## 1.11.19 Markdown 内联格式渲染修复（2026-10-29，验证中）
+
+- **用户问题**：消息中的 `<u>下划线</u>` 等内联 HTML 被原样输出，要求同时检查类似渲染问题。
+- **定位与实现**：原始 HTML 预处理把除 `<br>` 外的标签全部转义，sanitizer 又单独删除 `u`、`mark`、`small`。现只放行常见安全内联格式标签并补齐 sanitizer schema，其他伪 XML 继续转义；`u / ins / del / mark / sub / sup` 与 `b / strong / i / em / s / strike / small / code` 均可正确渲染。
+- **验证**：新增回归在修复前失败、修复后通过；Markdown 相关 127 项测试、changelog 16 项、typecheck 与 lint 通过。真实 Electron 消息中确认各标签生成正确元素，未泄露原始标签；`<strong>` 渲染为 Streamdown 语义化粗体 `span`。changed-scope mock smoke 全场景与全部 mock gate 通过，控制台/运行时错误 0。截图 `C:/Users/Haona/.craftstation-smoke/debug-1793272606274-53572/artifacts/inline-html.png`，报告 `C:/Users/Haona/.craftstation-smoke/debug-1793272606274-53572/artifacts/smoke-report.json`。
+- **发布状态**：双语说明已写入 `ai_workspace/release-notes-1.11.19.md`，应用 changelog 已加入 1.11.19；等待 Windows 双包与正式发布。
+
 ## 1.11.18 Claude 上下文窗口兼容修复（2026-10-28，已发布）
 
 - **用户问题**：选择 `claude-opus-5-5[272k]` 后提示模型不存在或无访问权限。

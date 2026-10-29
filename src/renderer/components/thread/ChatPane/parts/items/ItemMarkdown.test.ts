@@ -228,6 +228,13 @@ describe("escapeBareAngleTags", () => {
     expect(escapeBareAngleTags("\\(x<t\\)")).toBe("\\(x&lt;t\\)");
   });
 
+  it("preserves safe inline formatting HTML while escaping look-alike pseudo-tags", () => {
+    const input =
+      "<u>u</u> <ins>ins</ins> <del>del</del> <mark>mark</mark> <sub>sub</sub> <sup>sup</sup> <b>b</b> <strong>strong</strong> <i>i</i> <em>em</em> <s>s</s> <strike>strike</strike> <small>small</small> <code>code</code>";
+    expect(escapeBareAngleTags(input)).toBe(input);
+    expect(escapeBareAngleTags("<update>x</update>")).toBe("&lt;update>x&lt;/update>");
+  });
+
   it("keeps <br> as real inline HTML so table cells render a line break", () => {
     const cell = "对角线、相似度 1<br>金毛图 vs. 金毛文";
     expect(escapeBareAngleTags(cell)).toBe(cell);

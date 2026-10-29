@@ -143,7 +143,7 @@ function buildRehypePlugins(remoteLocalImageUrl?: (url: string) => string): Rehy
     .filter(([key]) => key !== "harden")
     .flatMap(([key, plugin]) =>
       key === "sanitize"
-        ? [[rehypeLocalImageUrls, { remoteLocalImageUrl }], allowLocalImageProtocol(plugin)]
+        ? [[rehypeLocalImageUrls, { remoteLocalImageUrl }], allowMarkdownHtml(plugin)]
         : [plugin],
     ) as RehypePlugins;
 }
@@ -426,10 +426,11 @@ function rewriteLocalImageUrls(
   node.children?.forEach((child) => rewriteLocalImageUrls(child, remoteLocalImageUrl));
 }
 
-function allowLocalImageProtocol(plugin: RehypePlugins[number]): RehypePlugins[number] {
+function allowMarkdownHtml(plugin: RehypePlugins[number]): RehypePlugins[number] {
   if (!Array.isArray(plugin)) return plugin;
   const [transformer, rawSchema] = plugin;
   const schema = rawSchema as {
+    tagNames?: readonly string[];
     protocols?: Record<string, readonly string[] | null | undefined>;
   };
   const protocols = schema.protocols ?? {};
@@ -437,6 +438,7 @@ function allowLocalImageProtocol(plugin: RehypePlugins[number]): RehypePlugins[n
     transformer,
     {
       ...schema,
+      tagNames: [...(schema.tagNames ?? []), "u", "mark", "small"],
       protocols: {
         ...protocols,
         src: [...(protocols.src ?? []), "craftstation-local"],

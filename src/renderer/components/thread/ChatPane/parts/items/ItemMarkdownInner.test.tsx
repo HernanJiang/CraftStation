@@ -1197,6 +1197,36 @@ flowchart TD
     expect(screen.queryByText(/\[blocked\]/)).not.toBeInTheDocument();
   });
 
+  it.each([
+    "u",
+    "ins",
+    "del",
+    "mark",
+    "sub",
+    "sup",
+    "b",
+    "strong",
+    "i",
+    "em",
+    "s",
+    "strike",
+    "small",
+    "code",
+  ] as const)("renders inline formatting HTML <%s> instead of leaking its source", (tag) => {
+    const { container } = render(
+      <AppProvider>
+        <ItemMarkdownInner text={`Before <${tag}>rendered-${tag}</${tag}> after`} />
+      </AppProvider>,
+    );
+
+    const element =
+      tag === "strong"
+        ? container.querySelector('[data-streamdown="strong"]')
+        : container.querySelector(tag);
+    expect(element).toHaveTextContent(`rendered-${tag}`);
+    expect(container).not.toHaveTextContent(`<${tag}>`);
+  });
+
   it("keeps bare pseudo-XML tags visible instead of letting sanitize eat them", () => {
     const { container } = render(
       <AppProvider>
