@@ -1,4 +1,4 @@
-## 1.11.22 Claude Code 工具权限与会话内切换修复（2026-11-10，打包中）
+## 1.11.22 Claude Code 工具权限与会话内切换修复（2026-11-10，已发布）
 
 - **用户问题**：Codex 工具正常，Claude Code 的工具与 Bash 受阻。
 - **定位**：应用默认权限为 `full-access`，Claude 的 capability 却把完全访问声明为 `auto`，真实选择链路复现 `CLAUDE_FULL_ACCESS_MISMATCH`；三个现有 Claude 对话也都保存为 `auto`。Auto 的分类器仍会审核和阻止部分工具调用，并不等同于 `bypassPermissions`。隔离新会话显式使用正确模式时，PowerShell / Read / MCP 已可正常调用。
@@ -7,7 +7,8 @@
 - **真实验证**：Claude Code 2.1.316，Opus 5.5 / Sonnet 5.5；PowerShell、原生 Bash `printf`、Read 和 MCP 均取得实际工具输出。请求批准→拒绝、AskUserQuestion→提交、Auto→完全访问、Auto 首次启动后同一原生 session 切换完全访问、模型切换、Steer、Stop、重开续接均通过。续接后执行 Bash 成功，用户消息从 2 条增加至 3 条，无历史重复。测试驱动最初仅接受 `idle` 而漏掉合法 `finished`，以实际工具输出和消息计数确认续接通过，未据此修改产品行为。
 - **应用回归**：real-mode changed-scope 的 welcome / baseline / thread-search / composer-caret 与实际 IPC、provider、runtime request gate 通过，控制台 / 运行时异常 0。报告：`C:/Users/Haona/.craftstation-smoke/claude-tools-20261110/artifacts/smoke-report.json`；截图同目录 `claude-approval.png`、`claude-question.png`、`claude-bash-resume.png`。托管测试应用已 reset / stop。
 - **现有数据**：保留现有对话显式保存的 Auto；更新后可在旧 Claude 对话的权限菜单选择「完全访问权限」，新对话遵循已修复的应用默认配置。
-- **发布状态**：目标 1.11.22，Windows x64 NSIS 构建中，随后构建便携版并发布。
+- **发布状态**：main、`v1.11.22` 与 [GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.22) 已发布，确认为最新稳定版、非草稿、非预发布。本地打包因缺少 Visual Studio C++ 工具链而失败，改由既有 [Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/42752510101) 完成，全部发布步骤成功。四项附件齐备：NSIS 141423895 字节、blockmap 146738 字节、便携版 120985607 字节、`latest.yml` 367 字节；本地下载大小、双语正文与清单版本 / 安装包路径 / 大小核对通过。流水线已将 main 开发版本推进到 1.11.23，并已快进同步。
+- **本地收尾**：`release/` 便携版仅保留 1.11.22 / 1.11.21，1.11.20 归档到 `D:/Work/CraftStation-release-archives/1.11.22-20261110/`；原有 NSIS 安装包保留。未重启用户正在工作的应用，原有临时材料保留且未纳入发布提交。
 
 ## 1.11.21 DeepSeek 仅排除 free 模型的 dsh 分流修复（2026-10-29，已发布）
 
