@@ -20,7 +20,7 @@ describe("resolveUnrestrictedPermissionConfig", () => {
     ).toEqual({ approvalPolicy: "auto" });
   });
 
-  it("prefers the declared bypass posture even when a stronger-sounding id is advertised (claude)", () => {
+  it("prefers the declared bypass posture even when a stronger-sounding id is advertised", () => {
     expect(
       resolveUnrestrictedPermissionConfig({
         approvalPolicies: [

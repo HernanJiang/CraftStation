@@ -309,8 +309,15 @@ export class ClaudeSdkSession implements StructuredSessionHandle {
       try {
         await query.setPermissionMode(permissionMode);
         this.appliedPermissionMode = permissionMode;
-      } catch {
-        // Same best-effort rule as model updates.
+      } catch (cause) {
+        const reason = cause instanceof Error ? cause.message : String(cause);
+        console.warn(
+          `[claude-sdk-session] phase=permission operation=set-mode status=error threadId=${this.input.threadId} code=CLAUDE_PERMISSION_MODE_UPDATE_FAILED requested=${permissionMode} applied=${this.appliedPermissionMode} reason=${reason}`,
+        );
+        throw new Error(
+          `CLAUDE_PERMISSION_MODE_UPDATE_FAILED: Could not apply Claude permission mode "${permissionMode}". Retry or restart the session. ${reason}`,
+          { cause },
+        );
       }
     }
 
@@ -728,9 +735,10 @@ export class ClaudeSdkSession implements StructuredSessionHandle {
         systemPrompt: { type: "preset", preset: "claude_code" },
         settingSources: ["user", "project", "local"],
         permissionMode,
-        ...(permissionMode === "bypassPermissions"
-          ? { allowDangerouslySkipPermissions: true }
-          : {}),
+        // Permit a later user-selected switch to Full access, as the PTY lane
+        // does with --allow-dangerously-skip-permissions. The active mode above
+        // still controls approvals until the user changes it.
+        allowDangerouslySkipPermissions: true,
         ...(resumeSessionId ? { resume: resumeSessionId } : {}),
         ...(resumeSessionAt ? { resumeSessionAt } : {}),
         ...(!resumeSessionId && this.sessionId ? { sessionId: this.sessionId } : {}),

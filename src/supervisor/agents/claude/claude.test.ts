@@ -5,6 +5,18 @@ import { createClaudeAdapter, createClaudeProfileAdapter } from "./index";
 import { claudeCapabilities, parseClaudeAuthStatusJson } from "./detection";
 import type { OscNotification, OscTitle } from "@/shared/osc";
 import type { ProjectLocation, ThreadConfig } from "@/shared/contracts";
+import { applyPermissionMode } from "@/shared/agents/defaultPermissions";
+
+describe("Claude app permission defaults", () => {
+  it("maps Full access to bypassPermissions while Ask keeps approval prompts", () => {
+    expect(
+      applyPermissionMode(claudeCapabilities, { model: "claude-opus-5-5" }, "full-access"),
+    ).toMatchObject({ approvalPolicy: "bypassPermissions" });
+    expect(
+      applyPermissionMode(claudeCapabilities, { model: "claude-opus-5-5" }, "ask"),
+    ).toMatchObject({ approvalPolicy: "default" });
+  });
+});
 
 function oscTitle(text: string, code: 0 | 1 | 2 = 0): OscTitle {
   return { code, text };

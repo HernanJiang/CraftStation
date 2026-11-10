@@ -72,6 +72,12 @@ vi.mock("@/shared/processTree", () => ({
   terminateChildProcessTree: mockProcessTree.terminateChildProcessTree,
 }));
 
+// These tests replace process spawning; no real WSL process is launched.
+vi.mock("../../wsl/startupAccess", async () => ({
+  ...(await vi.importActual<typeof import("../../wsl/startupAccess")>("../../wsl/startupAccess")),
+  assertWslStartupAllowed: vi.fn<() => void>(),
+}));
+
 // Real spawned objects are Node ChildProcess instances; ClaudeSdkSession
 // registers an `exit` listener on them to track the process for teardown.
 function makeFakeSpawnedChild(pid: number): SpawnedProcess {
@@ -372,6 +378,60 @@ describe("ClaudeSdkSession", () => {
     expect(mockProcessTree.terminateChildProcessTree).toHaveBeenCalledWith(
       expect.objectContaining({ pid: 4242 }),
     );
+  });
+
+  it("can switch an Auto session to the user's Full access choice", async () => {
+    const fake = createFakeQuery();
+    mockSdk.query.mockReturnValue(fake.runtime);
+    const autoConfig: ThreadConfig = { model: "sonnet", mode: "agent", approvalPolicy: "auto" };
+    const session = await ClaudeSdkSession.create({
+      threadId: "thread-claude-full-access",
+      projectLocation,
+      config: autoConfig,
+      presentationMode: "gui",
+    });
+    await session.openThread(autoConfig);
+    const queryInput = mockSdk.query.mock.calls[0]?.[0] as {
+      options?: { permissionMode?: PermissionMode; allowDangerouslySkipPermissions?: boolean };
+    };
+    let appliedMode = queryInput.options?.permissionMode;
+    fake.setPermissionMode.mockImplementation(async (mode) => {
+      if (mode === "bypassPermissions" && !queryInput.options?.allowDangerouslySkipPermissions) {
+        throw new Error("bypassPermissions requires allowDangerouslySkipPermissions at startup");
+      }
+      appliedMode = mode;
+    });
+    try {
+      await session.startTurn("run the read-only tool check", {
+        ...autoConfig,
+        approvalPolicy: "bypassPermissions",
+      });
+      expect(appliedMode).toBe("bypassPermissions");
+      expect(queryInput.options?.permissionMode).toBe("auto");
+    } finally {
+      await session.dispose();
+    }
+  });
+
+  it("reports a rejected permission change before submitting another prompt", async () => {
+    const fake = createFakeQuery();
+    mockSdk.query.mockReturnValue(fake.runtime);
+    const fullAccessConfig: ThreadConfig = { model: "sonnet", approvalPolicy: "bypassPermissions" };
+    const session = await ClaudeSdkSession.create({
+      threadId: "thread-claude-permission-failure",
+      projectLocation,
+      config: fullAccessConfig,
+      presentationMode: "gui",
+    });
+    await session.openThread(fullAccessConfig);
+    fake.setPermissionMode.mockRejectedValue(new Error("permission policy unavailable"));
+    try {
+      await expect(
+        session.startTurn("read-only check", { ...fullAccessConfig, approvalPolicy: "default" }),
+      ).rejects.toThrow("CLAUDE_PERMISSION_MODE_UPDATE_FAILED");
+    } finally {
+      await session.dispose();
+    }
   });
 
   it("switches the SDK permission mode for plan turns instead of changing the base policy", async () => {

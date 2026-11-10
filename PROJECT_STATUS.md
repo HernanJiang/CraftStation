@@ -1,3 +1,14 @@
+## 1.11.22 Claude Code 工具权限与会话内切换修复（2026-11-10，打包中）
+
+- **用户问题**：Codex 工具正常，Claude Code 的工具与 Bash 受阻。
+- **定位**：应用默认权限为 `full-access`，Claude 的 capability 却把完全访问声明为 `auto`，真实选择链路复现 `CLAUDE_FULL_ACCESS_MISMATCH`；三个现有 Claude 对话也都保存为 `auto`。Auto 的分类器仍会审核和阻止部分工具调用，并不等同于 `bypassPermissions`。隔离新会话显式使用正确模式时，PowerShell / Read / MCP 已可正常调用。
+- **修复**：完全访问映射到 `bypassPermissions`，保留显式 Auto 选项；SDK 启动时声明允许后续切换，实际权限仍由所选模式控制。权限更新失败不再静默忽略，使用 `CLAUDE_PERMISSION_MODE_UPDATE_FAILED` 并保留原始异常、线程及模式信息。
+- **自动验证**：三个新增回归修复前均失败、修复后通过；相关 9 个文件 / 139 项测试与 changelog 16 项（合计 10 文件 / 155 项）、`pnpm typecheck`、`pnpm lint`、格式检查通过。SDK 单测补齐模拟 WSL 启动的同意门控 mock，避免继承宿主禁止启动 WSL 的状态；未启动真实 WSL。
+- **真实验证**：Claude Code 2.1.316，Opus 5.5 / Sonnet 5.5；PowerShell、原生 Bash `printf`、Read 和 MCP 均取得实际工具输出。请求批准→拒绝、AskUserQuestion→提交、Auto→完全访问、Auto 首次启动后同一原生 session 切换完全访问、模型切换、Steer、Stop、重开续接均通过。续接后执行 Bash 成功，用户消息从 2 条增加至 3 条，无历史重复。测试驱动最初仅接受 `idle` 而漏掉合法 `finished`，以实际工具输出和消息计数确认续接通过，未据此修改产品行为。
+- **应用回归**：real-mode changed-scope 的 welcome / baseline / thread-search / composer-caret 与实际 IPC、provider、runtime request gate 通过，控制台 / 运行时异常 0。报告：`C:/Users/Haona/.craftstation-smoke/claude-tools-20261110/artifacts/smoke-report.json`；截图同目录 `claude-approval.png`、`claude-question.png`、`claude-bash-resume.png`。托管测试应用已 reset / stop。
+- **现有数据**：保留现有对话显式保存的 Auto；更新后可在旧 Claude 对话的权限菜单选择「完全访问权限」，新对话遵循已修复的应用默认配置。
+- **发布状态**：目标 1.11.22，Windows x64 NSIS 构建中，随后构建便携版并发布。
+
 ## 1.11.21 DeepSeek 仅排除 free 模型的 dsh 分流修复（2026-10-29，已发布）
 
 - **用户要求**：只有 free 模型不接到 dsh，`opencode/` 等渠道的其他 DeepSeek 模型仍应改派到 dsh。

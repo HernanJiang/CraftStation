@@ -17,8 +17,7 @@ export interface UnrestrictedPermissionConfig {
  * declared bypass posture (`capabilities.bypassPermissions`) wins over the
  * conventional-id guesses: providers whose strongest policy is NOT the
  * conventional one name it explicitly (kimi ≥0.42: `yolo` is only
- * ask-when-needed, `auto` is the true never-ask; claude: `auto` is the app's
- * full-access id, not `bypassPermissions`). The preferred-id list remains the
+ * ask-when-needed, `auto` is the true never-ask). The preferred-id list remains the
  * fallback for providers that declare no bypass posture. Shared by the draft
  * default (设置 → 默认权限), the subagent lane, and scheduled/automation runs.
  */

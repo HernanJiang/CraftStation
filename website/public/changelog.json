@@ -1,6 +1,24 @@
 {
   "releases": [
     {
+      "version": "1.11.22",
+      "date": "2026-11-10",
+      "title": "Claude 工具权限与会话切换修复",
+      "summary": "Claude Code 的「完全访问权限」现在使用正确的权限模式，修复工具调用被 Auto 模式拦截及会话内切换权限未生效的问题。",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Claude Code",
+          "text": "选择完全访问权限时，Bash、PowerShell 与 MCP 等工具不再因错误地沿用 Auto 模式而受到其分类器拦截。"
+        },
+        {
+          "kind": "fixed",
+          "label": "权限切换",
+          "text": "已有 Claude 会话可以切换到完全访问权限；如果运行时拒绝权限变更，会显示具体错误并停止提交该回合。"
+        }
+      ]
+    },
+    {
       "version": "1.11.21",
       "date": "2026-10-29",
       "title": "DeepSeek 仅免费模型保留原通道",
