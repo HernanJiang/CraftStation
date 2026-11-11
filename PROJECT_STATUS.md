@@ -1,9 +1,10 @@
-## 1.11.23 对话导航条自动收起（2026-11-12，发布中）
+## 1.11.23 对话导航条自动收起（2026-11-12，已发布）
 
 - **用户要求**：左侧对话导航刻度影响阅读，鼠标不在时向左收起。
 - **实现**：`ChatNavRail` 默认向左平移并隐藏，左缘保留 8px 感应区，悬停后以 150ms 动画展开。使用独立 CSS group，避免祖先悬停误触；隐藏时不截获聊天区域点击。键盘焦点可展开；鼠标点击留下的普通焦点不阻止收起，焦点离开整个导航后关闭预览卡片。
 - **验证**：现有导航组件 8 项与 changelog 16 项测试（共 24 项）、typecheck、lint 通过。隔离真实 Electron 中以 60 轮消息验证默认隐藏、感应区外保持隐藏、边缘悬停展开、预览、点击跳转（scrollTop 7961→1783）、点击后移出收起、键盘展开和失焦关闭。changed-scope mock 冒烟的全部场景及 mock gate 通过，控制台 / 运行时异常 0。证据目录：`C:/Users/Haona/.craftstation-smoke/chat-nav-hover-20261112/artifacts/`；测试实例已 reset / stop。
-- **发布**：修复已推送 main，目标版本 1.11.23；[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/43057233030) 已启动，将构建 x64 NSIS + 便携版并自动发布。本机 Visual Studio C++ 构建工具实例仍为 0，沿用该既有流水线。发布结果、附件清单和本地备份收尾由同线程定时检查继续完成，不在当前回合轮询等待。
+- **发布**：main、`v1.11.23` 与 [GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.23) 已发布，确认为最新稳定版、非草稿、非预发布。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/43057233030) 全部成功。本机缺少 C++ 构建工具，沿用该既有流水线完成 x64 双包。四项附件齐备：NSIS 141422581 字节、blockmap 146846 字节、便携版 120983929 字节、`latest.yml` 367 字节；附件已下载，远端 / 本地大小、双语正文与清单版本 / NSIS 路径 / 大小核对通过，未额外计算 SHA。main 已快进同步到流水线推进的 1.11.24 开发版本。
+- **本地收尾**：`release/` 便携版仅保留 1.11.23 / 1.11.22，旧 1.11.21 已安全归档到 `D:/Work/CraftStation-release-archives/1.11.23-20261112/`；历史 NSIS / blockmap 保留。验证材料与原有未跟踪文件未纳入提交，未重启用户应用。
 
 ## 1.11.22 Claude Code 工具权限与会话内切换修复（2026-11-10，已发布）
 
