@@ -81,8 +81,8 @@ export function tickToneClassByDistance(distance: number, isScrollCurrent: boole
 
 /**
  * Slim vertical quick-navigation rail hugging the left edge of the chat
- * content. At rest it is a faint column of short grey ticks (the scroll
- * position node is a touch brighter). Hovering or clicking a tick elongates
+ * content. At rest the ticks slide off the left edge, leaving a narrow hover
+ * target. Hovering the edge or focusing a tick reveals the rail. Hovering or clicking a tick elongates
  * only that dash, with neighbours stepping down by distance, and pops an
  * independent preview card (prompt + reply摘要) to the tick's right.
  * Clicking a tick scrolls the conversation to that turn.
@@ -170,11 +170,18 @@ export function ChatNavRail(props: {
     <div
       data-testid="chat-nav-rail"
       data-focused-index={focusIndex ?? -1}
-      className={`group pointer-events-none absolute inset-y-0 left-0 z-20 w-10 ${className ?? ""}`}
+      className={`group/chat-nav pointer-events-none absolute inset-y-0 left-0 z-20 w-10 ${className ?? ""}`}
       onMouseLeave={clearFocus}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget)) clearFocus();
+      }}
       aria-label={t`Conversation quick navigation`}
     >
-      <div className="relative flex h-full min-h-0 w-full flex-col justify-center py-2 pl-1.5">
+      <div aria-hidden="true" className="pointer-events-auto absolute inset-y-0 left-0 w-2" />
+      <div
+        data-testid="chat-nav-track"
+        className="pointer-events-none relative flex h-full min-h-0 w-full -translate-x-full flex-col justify-center py-2 pl-1.5 opacity-0 transition-[translate,opacity] duration-150 ease-out group-hover/chat-nav:pointer-events-auto group-hover/chat-nav:translate-x-0 group-hover/chat-nav:opacity-100 group-has-[:focus-visible]/chat-nav:pointer-events-auto group-has-[:focus-visible]/chat-nav:translate-x-0 group-has-[:focus-visible]/chat-nav:opacity-100 motion-reduce:transition-none"
+      >
         {nodes.map((node, index) => {
           const isCurrent = index === currentIndex;
           const distance =
@@ -196,7 +203,7 @@ export function ChatNavRail(props: {
                 focusNode(index, event.currentTarget);
                 scrollToIndex(node.entryIndex, { align: "start" });
               }}
-              className="pointer-events-auto flex min-h-0 max-h-5 flex-1 items-center rounded-sm px-0.5 text-left outline-none focus-visible:bg-white/5"
+              className="pointer-events-none flex min-h-0 max-h-5 flex-1 items-center rounded-sm px-0.5 text-left outline-none group-hover/chat-nav:pointer-events-auto group-has-[:focus-visible]/chat-nav:pointer-events-auto focus-visible:bg-white/5"
             >
               <span
                 className={`h-[3px] max-h-full shrink-0 rounded-full transition-all duration-150 ${focusIndex === null ? "w-1.5" : tickWidthClassByDistance(distance)} ${
