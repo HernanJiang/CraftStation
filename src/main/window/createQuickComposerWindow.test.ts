@@ -18,6 +18,7 @@ const electronMock = vi.hoisted(() => {
       .fn<() => { x: number; y: number; width: number; height: number }>()
       .mockReturnValue({ x: 120, y: 80, width: 560, height: 470 }),
     setBounds: vi.fn<(bounds: unknown, animate: boolean) => void>(),
+    setMinimumSize: vi.fn<(width: number, height: number) => void>(),
     isMinimized: vi.fn<() => boolean>().mockReturnValue(false),
     isVisible: vi.fn<() => boolean>().mockReturnValue(false),
     show: vi.fn<() => void>(),
@@ -72,6 +73,55 @@ describe("quick composer window", () => {
       width: 560,
       height: 470,
     });
+  });
+
+  it.each([
+    { x: 0, y: 0, width: 1920, height: 1040 },
+    { x: 0, y: 0, width: 640, height: 480 },
+    { x: -800, y: 40, width: 800, height: 560 },
+  ])("keeps temporary chat compact and entirely inside $width × $height", (workArea) => {
+    const bounds = resolveQuickComposerBounds(workArea, "temporaryChat");
+    expect(bounds.width).toBeLessThanOrEqual(520);
+    expect(bounds.height).toBeLessThanOrEqual(560);
+    expect(bounds.width).toBeLessThanOrEqual(workArea.width * 0.8);
+    expect(bounds.height).toBeLessThanOrEqual(workArea.height * 0.8);
+    expect(bounds.x).toBeGreaterThan(workArea.x);
+    expect(bounds.y).toBeGreaterThan(workArea.y);
+    expect(bounds.x + bounds.width).toBeLessThan(workArea.x + workArea.width);
+    expect(bounds.y + bounds.height).toBeLessThan(workArea.y + workArea.height);
+  });
+
+  it("shrinks a temporary chat that no longer fits after switching screens", () => {
+    electronMock.screen.getAllDisplays.mockReturnValueOnce([
+      { workArea: { x: 0, y: 0, width: 640, height: 480 } },
+    ]);
+    electronMock.screen.getDisplayNearestPoint.mockReturnValueOnce({
+      workArea: { x: 0, y: 0, width: 640, height: 480 },
+    });
+    electronMock.window.getBounds.mockReturnValue({ x: 20, y: 20, width: 560, height: 640 });
+
+    showQuickComposerWindow(electronMock.window as never, "temporaryChat");
+
+    expect(electronMock.window.setBounds).toHaveBeenCalledWith(
+      { x: 64, y: 48, width: 512, height: 384 },
+      false,
+    );
+    expect(electronMock.window.setMinimumSize).toHaveBeenCalledWith(400, 360);
+  });
+
+  it("allows temporary chat to shrink below its usual minimum on a short display", () => {
+    const workArea = { x: 0, y: 0, width: 640, height: 400 };
+    electronMock.screen.getAllDisplays.mockReturnValueOnce([{ workArea }]);
+    electronMock.screen.getDisplayNearestPoint.mockReturnValueOnce({ workArea });
+    electronMock.window.getBounds.mockReturnValue({ x: 20, y: 20, width: 560, height: 640 });
+
+    showQuickComposerWindow(electronMock.window as never, "temporaryChat");
+
+    expect(electronMock.window.setMinimumSize).toHaveBeenCalledWith(400, 320);
+    expect(electronMock.window.setBounds).toHaveBeenCalledWith(
+      { x: 64, y: 40, width: 512, height: 320 },
+      false,
+    );
   });
 
   it("keeps a user-dragged position and only recenters an offscreen window", () => {

@@ -690,7 +690,7 @@ function toggleTemporaryChatWindow(): void {
   if (temporaryChatWindow && !temporaryChatWindow.isDestroyed()) {
     if (temporaryChatWindow.isVisible() && temporaryChatWindow.isFocused())
       temporaryChatWindow.hide();
-    else showQuickComposerWindow(temporaryChatWindow);
+    else showQuickComposerWindow(temporaryChatWindow, "temporaryChat");
     return;
   }
   createTemporaryChatWindow(true);

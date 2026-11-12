@@ -40,7 +40,21 @@ export interface CreateQuickComposerWindowOptions {
   devServerUrl?: string;
 }
 
-export function resolveQuickComposerBounds(workArea: Rectangle): Rectangle {
+export function resolveQuickComposerBounds(
+  workArea: Rectangle,
+  windowKind: "quickComposer" | "temporaryChat" = "quickComposer",
+): Rectangle {
+  if (windowKind === "temporaryChat") {
+    // Electron work areas are in DIP, so this also fits high-DPI displays.
+    const width = Math.min(520, Math.floor(workArea.width * 0.8));
+    const height = Math.min(560, Math.floor(workArea.height * 0.8));
+    return {
+      x: Math.round(workArea.x + (workArea.width - width) / 2),
+      y: Math.round(workArea.y + (workArea.height - height) / 2),
+      width,
+      height,
+    };
+  }
   const width = Math.min(QUICK_COMPOSER_WIDTH, workArea.width);
   const height = Math.min(QUICK_COMPOSER_HEIGHT, workArea.height);
   const bottomGap = Math.max(72, Math.round(workArea.height * 0.18));
@@ -52,9 +66,16 @@ export function resolveQuickComposerBounds(workArea: Rectangle): Rectangle {
   };
 }
 
-export function positionQuickComposerWindow(window: BrowserWindow): void {
+export function positionQuickComposerWindow(
+  window: BrowserWindow,
+  windowKind: "quickComposer" | "temporaryChat" = "quickComposer",
+): void {
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
-  window.setBounds(resolveQuickComposerBounds(display.workArea), false);
+  const bounds = resolveQuickComposerBounds(display.workArea, windowKind);
+  if (windowKind === "temporaryChat") {
+    window.setMinimumSize(Math.min(400, bounds.width), Math.min(360, bounds.height));
+  }
+  window.setBounds(bounds, false);
 }
 
 export function isQuickComposerBoundsVisible(
@@ -64,15 +85,25 @@ export function isQuickComposerBoundsVisible(
   return workAreas.some((workArea) => rectOverlapsWorkArea(bounds, workArea));
 }
 
-export function showQuickComposerWindow(window: BrowserWindow): void {
+export function showQuickComposerWindow(
+  window: BrowserWindow,
+  windowKind: "quickComposer" | "temporaryChat" = "quickComposer",
+): void {
   if (window.isDestroyed()) return;
-  if (
-    !isQuickComposerBoundsVisible(
-      window.getBounds(),
-      screen.getAllDisplays().map((display) => display.workArea),
-    )
-  ) {
-    positionQuickComposerWindow(window);
+  const bounds = window.getBounds();
+  const workAreas = screen.getAllDisplays().map((display) => display.workArea);
+  const visible =
+    windowKind === "temporaryChat"
+      ? workAreas.some(
+          (area) =>
+            bounds.x >= area.x &&
+            bounds.y >= area.y &&
+            bounds.x + bounds.width <= area.x + area.width &&
+            bounds.y + bounds.height <= area.y + area.height,
+        )
+      : isQuickComposerBoundsVisible(bounds, workAreas);
+  if (!visible) {
+    positionQuickComposerWindow(window, windowKind);
   }
   showAndFocusWindow(window);
 }
@@ -82,25 +113,18 @@ export function createQuickComposerWindow(
 ): BrowserWindow {
   const bounds = resolveQuickComposerBounds(
     screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea,
+    options.windowKind,
   );
   const temporary = options.windowKind === "temporaryChat";
-  if (temporary) {
-    bounds.height = Math.min(
-      640,
-      screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea.height,
-    );
-    bounds.y = Math.max(
-      screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).workArea.y,
-      bounds.y - 85,
-    );
-  }
   const window = new BrowserWindow({
     title: `${options.title} ${temporary ? "临时对话" : "Quick Composer"}`,
     show: false,
     frame: false,
     transparent: true,
     resizable: temporary,
-    ...(temporary ? { minWidth: 400, minHeight: 440 } : {}),
+    ...(temporary
+      ? { minWidth: Math.min(400, bounds.width), minHeight: Math.min(360, bounds.height) }
+      : {}),
     movable: true,
     minimizable: false,
     maximizable: false,
@@ -147,7 +171,7 @@ export function createQuickComposerWindow(
   });
 
   if (!options.initiallyHidden) {
-    window.once("ready-to-show", () => showQuickComposerWindow(window));
+    window.once("ready-to-show", () => showQuickComposerWindow(window, options.windowKind));
   }
 
   const loadRenderer = () => {
