@@ -15,6 +15,8 @@
   ·
   <a href="https://github.com/HernanJiang/CraftStation/releases/latest">Download</a>
   ·
+  <a href="./.github/CONTRIBUTING.md">Contributing</a>
+  ·
   <a href="./LICENSE">Apache 2.0</a>
 </p>
 
