@@ -45,6 +45,25 @@ export function SidebarProjectHeader(props: {
   const isPinned = useSidebarUiStore((s) => s.pinnedProjectIds.includes(project.id));
   const quickButtonClass =
     "flex size-6 shrink-0 items-center justify-center rounded-lg text-muted opacity-0 transition-all hover:bg-[var(--row-active)] hover:text-foreground group-hover:opacity-100 focus-visible:opacity-100";
+  const pinnedQuickButtonClass =
+    "flex size-6 shrink-0 items-center justify-center rounded-lg text-foreground transition-all hover:bg-[var(--row-active)]";
+  // A pinned row's only pin mark: a persistent toggle at the trailing edge —
+  // indicator + unpin affordance in one, the same suffix recipe thread rows
+  // use. It stays visible even while the project is unavailable, so pinned
+  // archived/remote rows keep their marker and can still be unpinned.
+  const unpinToggle = isPinned ? (
+    <button
+      type="button"
+      className={pinnedQuickButtonClass}
+      aria-label={t`Unpin ${project.name}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        useSidebarUiStore.getState().toggleProjectPinned(project.id);
+      }}
+    >
+      <Pin className="size-3.5 fill-current" />
+    </button>
+  ) : null;
 
   return (
     <ContextMenu items={projectMenu.items} onAction={projectMenu.onAction}>
@@ -71,9 +90,6 @@ export function SidebarProjectHeader(props: {
             ) : (
               <span className="truncate text-xs font-semibold text-foreground">{project.name}</span>
             )}
-            {isPinned ? (
-              <Pin className="size-3 shrink-0 fill-current text-muted" aria-label={t`Pinned`} />
-            ) : null}
             <ProjectRemoteServerIcon info={remote} />
             {/* Keep the host marker; the removed controls are the project-level
                 Files and CLI actions, not the location/status metadata. */}
@@ -103,23 +119,34 @@ export function SidebarProjectHeader(props: {
         }}
         isDragging={isDragging}
         suffix={
-          isUnavailable ? null : (
+          isUnavailable ? (
+            unpinToggle
+          ) : (
             <>
+              {unpinToggle}
               {/* Collapsed to zero width by default so the project name gets the
                   full row; expands on hover/focus (or while the dropdown is
                   open) and the label truncates to make room. */}
-              <span className="flex w-0 items-center gap-[3px] overflow-hidden transition-[width] group-hover:w-[78px] group-focus-within:w-[78px] has-[[aria-expanded='true']]:w-[78px]">
-                <button
-                  type="button"
-                  className={`${quickButtonClass}${isPinned ? " text-foreground" : ""}`}
-                  aria-label={isPinned ? t`Unpin ${project.name}` : t`Pin ${project.name}`}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    useSidebarUiStore.getState().toggleProjectPinned(project.id);
-                  }}
-                >
-                  <Pin className={`size-3.5${isPinned ? " fill-current" : ""}`} />
-                </button>
+              <span
+                className={`flex w-0 items-center gap-[3px] overflow-hidden transition-[width] ${
+                  isPinned
+                    ? "group-hover:w-[51px] group-focus-within:w-[51px] has-[[aria-expanded='true']]:w-[51px]"
+                    : "group-hover:w-[78px] group-focus-within:w-[78px] has-[[aria-expanded='true']]:w-[78px]"
+                }`}
+              >
+                {isPinned ? null : (
+                  <button
+                    type="button"
+                    className={quickButtonClass}
+                    aria-label={t`Pin ${project.name}`}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      useSidebarUiStore.getState().toggleProjectPinned(project.id);
+                    }}
+                  >
+                    <Pin className="size-3.5" />
+                  </button>
+                )}
                 <button
                   type="button"
                   className={quickButtonClass}
