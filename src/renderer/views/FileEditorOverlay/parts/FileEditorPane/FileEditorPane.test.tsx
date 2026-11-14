@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { I18nProvider } from "@lingui/react";
 import { i18n } from "@/renderer/i18n/i18n";
@@ -16,6 +16,10 @@ const bridge = vi.hoisted(() => ({
 }));
 
 const isRemoteSession = vi.hoisted(() => vi.fn<() => boolean>(() => false));
+const monacoEditorState = vi.hoisted(() => ({ shouldThrow: false }));
+const reportMonacoRuntimeFailure = vi.hoisted(() =>
+  vi.fn<(error: unknown, context: { phase: string }) => void>(),
+);
 
 vi.mock("@/renderer/bridge", () => ({
   readBridge: () => bridge,
@@ -23,11 +27,21 @@ vi.mock("@/renderer/bridge", () => ({
 }));
 
 vi.mock("@monaco-editor/react", () => ({
-  Editor: (props: { value: string; language: string; path: string }) => (
-    <div data-testid="monaco-editor" data-language={props.language}>
-      {props.value}
-    </div>
-  ),
+  Editor: (props: { value: string; language: string; path: string }) =>
+    monacoEditorState.shouldThrow ? (
+      (() => {
+        throw new Error("editor mount failed");
+      })()
+    ) : (
+      <div data-testid="monaco-editor" data-language={props.language}>
+        {props.value}
+      </div>
+    ),
+}));
+
+vi.mock("./parts/monacoRuntime", () => ({
+  initializeMonaco: () => Promise.resolve({}),
+  reportMonacoRuntimeFailure,
 }));
 
 const projectA: Project = {
@@ -54,6 +68,7 @@ function makeBuffer(partial: Partial<FileEditorBuffer> & { path: string }): File
 describe("FileEditorPane", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    monacoEditorState.shouldThrow = false;
     useFileEditorStore.setState({
       rootContext: {
         projectId: projectA.id,
@@ -347,13 +362,17 @@ describe("FileEditorPane", () => {
     expect(screen.getByRole("button", { name: "Reveal in File Explorer" })).toBeInTheDocument();
   });
 
-  it("renders code editor for source files", () => {
+  it.each([
+    ["notes.txt", "plaintext"],
+    ["settings.json", "json"],
+    ["src/index.ts", "typescript"],
+  ])("renders the local code editor for %s", async (path, language) => {
     useFileEditorStore.setState({
-      activePath: "src/index.ts",
-      tabs: ["src/index.ts"],
+      activePath: path,
+      tabs: [path],
       buffers: {
-        "src/index.ts": makeBuffer({
-          path: "src/index.ts",
+        [path]: makeBuffer({
+          path,
           status: "ready",
           content: "console.log('hello');",
         }),
@@ -366,7 +385,36 @@ describe("FileEditorPane", () => {
       </I18nProvider>,
     );
 
-    expect(screen.getByTestId("monaco-editor")).toBeInTheDocument();
+    expect(await screen.findByTestId("monaco-editor")).toHaveAttribute("data-language", language);
     expect(screen.getByText("console.log('hello');")).toBeInTheDocument();
+  });
+
+  it("keeps file editing local when Monaco throws during mount", async () => {
+    const path = "notes.txt";
+    monacoEditorState.shouldThrow = true;
+    useFileEditorStore.setState({
+      activePath: path,
+      tabs: [path],
+      buffers: {
+        [path]: makeBuffer({ path, content: "preserved content" }),
+      },
+    });
+
+    render(
+      <I18nProvider i18n={i18n}>
+        <FileEditorPane showTabs={false} />
+      </I18nProvider>,
+    );
+
+    const fallback = await screen.findByRole("textbox", { name: "Plain text editor fallback" });
+    expect(screen.getByTestId("monaco-fallback-editor")).toBeInTheDocument();
+    expect(fallback).toHaveValue("preserved content");
+
+    fireEvent.change(fallback, { target: { value: "still editable" } });
+
+    expect(useFileEditorStore.getState().buffers[path]?.content).toBe("still editable");
+    expect(reportMonacoRuntimeFailure).toHaveBeenCalledWith(expect.any(Error), {
+      phase: "editor",
+    });
   });
 });
