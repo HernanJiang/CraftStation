@@ -275,6 +275,8 @@ import { OpenCodeNativeServerPool } from "./runtime/openCodeNative/serverPool";
 import { ensureThreadWorkspace } from "./runtime/threadWorkspace";
 import { resolveCraftedRequest, type CraftedRequest } from "./runtime/craftedRequestResolution";
 import { probeCodexCapabilities } from "./agents/codex/probe";
+import { resolveAgentBinaryPath } from "./agents/binaryResolver";
+import { resolveCodexNativeExecutableForWindows } from "./agents/codex/windowsExecutable";
 import type {
   RequestSessionSwitchPayload,
   SessionSwitchResult,
@@ -2204,7 +2206,16 @@ export class SupervisorRuntime {
       );
     }
     const codexHome = this.codexProfileService.managedCodexHome(payload.accountId);
-    const script = buildCodexLoginScript(hostShellKind, payload.completionToken);
+    // Hand the login shell the executable the app itself resolved. The shell's
+    // PATH can miss an npm global or the OpenAI desktop install, and PowerShell
+    // then reports that the bare name `codex` is not a command. Prefer the
+    // native exe behind an npm shim so login does not depend on `node` either.
+    const detectedCodex = resolveAgentBinaryPath(payload.projectLocation, "codex");
+    const script = buildCodexLoginScript(
+      hostShellKind,
+      payload.completionToken,
+      resolveCodexNativeExecutableForWindows(detectedCodex) ?? detectedCodex,
+    );
     try {
       await this.threadSessionManager.startShellWithEnvironment(
         {

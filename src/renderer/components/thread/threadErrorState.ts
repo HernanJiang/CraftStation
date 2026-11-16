@@ -1,4 +1,9 @@
-import type { AuthState, ErrorItemPayload, MessageItemPayload } from "@/shared/contracts";
+import type {
+  AuthState,
+  ErrorItemPayload,
+  MessageItemPayload,
+  ModelSwitchItemPayload,
+} from "@/shared/contracts";
 import type { AppStoreState } from "@/renderer/state/slices/shared";
 import {
   getRuntimeItemPayload,
@@ -18,25 +23,27 @@ const errorDockStatesCache = new Map<
   string,
   {
     itemIds: readonly string[] | undefined;
+    version: number;
     result: ThreadErrorDockState[];
   }
 >();
 
 const errorDockStateByItem = new WeakMap<RuntimeChatItem, ThreadErrorDockState>();
 
-/** Errors since the latest user message, oldest → newest (composer order). */
+/** Errors for the current turn and session, oldest → newest (composer order). */
 export function selectThreadErrorDockStates(
   state: AppStoreState,
   threadId: string,
 ): ThreadErrorDockState[] {
   const itemIds = state.runtimeItemIdsByThread[threadId];
+  const version = state.runtimeStructuralVersionByThread?.[threadId] ?? 0;
   const cached = errorDockStatesCache.get(threadId);
-  if (cached && cached.itemIds === itemIds) {
+  if (cached && cached.itemIds === itemIds && cached.version === version) {
     return cached.result;
   }
 
   if (!itemIds?.length) {
-    errorDockStatesCache.set(threadId, { itemIds, result: EMPTY_ERROR_DOCK_STATES });
+    errorDockStatesCache.set(threadId, { itemIds, version, result: EMPTY_ERROR_DOCK_STATES });
     return EMPTY_ERROR_DOCK_STATES;
   }
 
@@ -55,6 +62,11 @@ export function selectThreadErrorDockStates(
     const item = itemsById?.[itemIds[index]!];
     if (!item) continue;
     if (item.type === "user_message") break;
+    if (item.type === "model_switch" && item.state === "completed") {
+      const change = getRuntimeItemPayload<ModelSwitchItemPayload>(item, "model_switch");
+      // Older, persisted switch markers predate the phase field and denote success.
+      if (change && (change.phase === "done" || change.phase === undefined)) break;
+    }
     if (item.type === "assistant_message" && !recovered) {
       recovered = hasAssistantAnswer(item);
       continue;
@@ -68,7 +80,7 @@ export function selectThreadErrorDockStates(
     sinceLastUser.push(dock);
   }
   const result = sinceLastUser.length === 0 ? EMPTY_ERROR_DOCK_STATES : sinceLastUser.reverse();
-  errorDockStatesCache.set(threadId, { itemIds, result });
+  errorDockStatesCache.set(threadId, { itemIds, version, result });
   return result;
 }
 
@@ -162,8 +174,7 @@ export function resolveThreadAuthState(input: {
     isThirdPartyAccountId(input.accountId) ||
     isForeignCatalogModelForHarness(input.model, input.agentKind);
   return {
-    authRequired:
-      !foreignChannel && (input.authState === "missing" || hasRuntimeAuthError),
+    authRequired: !foreignChannel && (input.authState === "missing" || hasRuntimeAuthError),
     hasRuntimeAuthError,
   };
 }

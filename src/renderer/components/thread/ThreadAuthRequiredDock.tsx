@@ -53,13 +53,19 @@ export function ThreadAuthRequiredDock(props: { agentStatus: AgentStatus; projec
   const hasDirectLogin = canUseAgentAuth || canUseTerminalLogin;
   const preferTerminalLogin = shouldPreferTerminalLogin(agentStatus);
   const useTerminalLogin = canUseTerminalLogin && (preferTerminalLogin || !canUseAgentAuth);
-  const description = isRemote
-    ? t`Sign in on the paired desktop, then refresh this status.`
-    : useTerminalLogin
-      ? t`Run ${agentStatus.loginCommand} before this thread can run.`
-      : agentAuthMethod
-        ? t`Complete ${agentAuthMethod.name} sign-in before this thread can run.`
-        : t`Add credentials before this thread can run.`;
+  // A CLI that cannot be found reports `authState: "missing"` too. Offering
+  // `<cli> login` there only opens a terminal that fails with "not recognized",
+  // so name the real problem and point at Settings instead.
+  const notInstalled = !agentStatus.installed;
+  const description = notInstalled
+    ? t`This agent is not installed.`
+    : isRemote
+      ? t`Sign in on the paired desktop, then refresh this status.`
+      : useTerminalLogin
+        ? t`Run ${agentStatus.loginCommand} before this thread can run.`
+        : agentAuthMethod
+          ? t`Complete ${agentAuthMethod.name} sign-in before this thread can run.`
+          : t`Add credentials before this thread can run.`;
 
   async function handleLogin() {
     if (pendingAction) return;
@@ -69,6 +75,12 @@ export function ThreadAuthRequiredDock(props: { agentStatus: AgentStatus; projec
       const opened = runAgentLoginCommand({
         label: agentStatus.label,
         command: agentStatus.loginCommand,
+        ...(agentStatus.kind === "codex" && /^codex\s/.test(agentStatus.loginCommand)
+          ? {
+              agentKind: agentStatus.kind,
+              ...(agentStatus.executablePath ? { executablePath: agentStatus.executablePath } : {}),
+            }
+          : {}),
         ...(terminalAuthMethod?.env ? { env: terminalAuthMethod.env } : {}),
         ...(project ? { project } : {}),
         onCommandComplete: (exitCode) => {
@@ -139,10 +151,10 @@ export function ThreadAuthRequiredDock(props: { agentStatus: AgentStatus; projec
       <ThreadDockHeader
         icon={KeyRound}
         iconClassName="text-warning"
-        title={t`Sign in required`}
+        title={notInstalled ? t`Not installed` : t`Sign in required`}
         actions={
           <div className="flex shrink-0 items-center gap-1">
-            {!isRemote && hasDirectLogin ? (
+            {!isRemote && hasDirectLogin && !notInstalled ? (
               <Button
                 size="sm"
                 variant="ghost"

@@ -318,7 +318,9 @@ export interface CreateStructuredSessionInput {
 export type AcpEmptyResponseErrorResolver = (input: {
   stopReason: string;
   stderr: readonly string[];
-}) => Error | undefined;
+  sessionId: string;
+  promptStartedAt: number;
+}) => Error | undefined | Promise<Error | undefined>;
 
 export type AcpSessionUpdateTransform = (
   notification: import("@agentclientprotocol/sdk").SessionNotification,

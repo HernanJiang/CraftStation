@@ -2,6 +2,8 @@ import { toast } from "@heroui/react";
 import { msg, msg as linguiMsg } from "@lingui/core/macro";
 import type { Project, ProjectLocation } from "@/shared/contracts";
 import { stripAnsi } from "@/shared/ansi";
+import { getProjectAgentStatuses } from "@/shared/agentStatus";
+import { windowsLoginCommand } from "@/shared/windowsLoginCommand";
 import { readBridge } from "@/renderer/bridge";
 import { i18n } from "@/renderer/i18n/i18n";
 import { useAppStore } from "@/renderer/state/appStore";
@@ -55,6 +57,7 @@ export function runAgentLoginCommand(input: {
   command: string;
   /** Agent kind used to resolve the detected absolute binary path. */
   agentKind?: string;
+  executablePath?: string;
   env?: Record<string, string>;
   /** Overlay subtitle override (e.g. keepalive sessions like Antigravity). */
   subtitle?: string;
@@ -91,7 +94,13 @@ export function runAgentLoginCommand(input: {
   // overlay a clean canvas so the user only sees the agent's own UI.
   const loginCommand = buildTerminalCommand({
     command: input.agentKind
-      ? resolveLoginBinaryCommand(input.command, input.agentKind, project.location.kind)
+      ? resolveLoginBinaryCommand(
+          input.command,
+          input.agentKind,
+          project.location,
+          input.executablePath,
+          !!project.remoteServerId,
+        )
       : input.command,
     env: suppressWslBrowser
       ? {
@@ -873,17 +882,21 @@ function quotePowerShellArg(value: string): string {
 function resolveLoginBinaryCommand(
   template: string,
   agentKind: string,
-  locationKind: ProjectLocation["kind"],
+  location: ProjectLocation,
+  detectedPath: string | undefined,
+  remote: boolean,
 ): string {
   const { agentStatuses, wslAgentStatuses } = useAgentStatusesStore.getState();
-  const pool = locationKind === "wsl" ? wslAgentStatuses : agentStatuses;
-  const executablePath = pool.find(
-    (status) => status.kind === agentKind && status.installed,
-  )?.executablePath;
+  const executablePath =
+    detectedPath ??
+    (!remote &&
+      getProjectAgentStatuses(location, agentStatuses, wslAgentStatuses).find(
+        (status) => status.kind === agentKind && status.installed,
+      )?.executablePath);
   if (!executablePath) return template;
   const args = template.trim().split(/\s+/u).slice(1);
   const binary =
-    locationKind === "windows"
+    location.kind === "windows"
       ? `& ${quotePowerShellArg(executablePath)}`
       : quotePosixShellArg(executablePath);
   return [binary, ...args].join(" ");
@@ -1040,7 +1053,7 @@ function completionMarker(token: string): string {
 
 function appendCompletionSignal(command: string, project: Project, token: string): string {
   if (project.location.kind === "windows") {
-    return `${command}; $lcExit = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } else { 0 }; Write-Host "$([char]27)]777;craftstation-login-complete=${token}:$lcExit$([char]7)" -NoNewline`;
+    return windowsLoginCommand(command, token);
   }
   const bashCommand = `${command}; __lc_exit=$?; printf '\\033]777;craftstation-login-complete=${token}:%s\\007' "$__lc_exit"`;
   return `command bash -lc ${quotePosixShellArg(bashCommand)}`;

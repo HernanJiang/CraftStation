@@ -724,6 +724,8 @@ describe("ACP empty-response provider guard", () => {
     expect(resolver).toHaveBeenCalledWith({
       stopReason: "end_turn",
       stderr: ["EPERM rename kimi-code.json"],
+      sessionId: "session-1",
+      promptStartedAt: expect.any(Number),
     });
     expect(listener.onUpdate).toHaveBeenLastCalledWith({
       status: "error",

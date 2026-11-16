@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -240,6 +241,47 @@ describe("CodexProfileService", () => {
     );
     expect(posixScript).toContain(`craftstation-login-complete=${token}`);
   });
+
+  it("launches the detected Codex executable instead of the bare name", () => {
+    const winScript = buildCodexLoginScript(
+      "windows",
+      "lc_test",
+      "C:\\Users\\O'Neil\\AppData\\Roaming\\npm\\codex.cmd",
+    );
+    expect(winScript).toContain(
+      "& 'C:\\Users\\O''Neil\\AppData\\Roaming\\npm\\codex.cmd' -c model_provider=openai -c sandbox_mode=danger-full-access login",
+    );
+    expect(winScript).not.toContain("; codex -c");
+
+    const posixScript = buildCodexLoginScript("posix", "lc_test", "/opt/codex/bin/codex");
+    expect(posixScript).toContain(
+      "'\\''/opt/codex/bin/codex'\\'' -c model_provider=openai -c sandbox_mode=danger-full-access login",
+    );
+  });
+
+  it.skipIf(process.platform !== "win32")(
+    "reports a failed login when the executable disappeared",
+    () => {
+      const root = mkdtempSync(join(tmpdir(), "craftstation-login-"));
+      roots.push(root);
+      const script = buildCodexLoginScript("windows", "lc_missing", join(root, "missing.exe"));
+      const output = execFileSync(
+        "powershell.exe",
+        [
+          "-NoProfile",
+          "-NonInteractive",
+          "-EncodedCommand",
+          Buffer.from(script, "utf16le").toString("base64"),
+        ],
+        {
+          encoding: "utf8",
+          env: { ...process.env, CODEX_HOME: root },
+          stdio: ["ignore", "pipe", "pipe"],
+        },
+      );
+      expect(output).toMatch(/craftstation-login-complete=lc_missing:[1-9]\d*/);
+    },
+  );
 });
 
 describe("managedCodexProcessEnvironment", () => {

@@ -437,7 +437,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   );
   const filteredCommands = filterSlashCommands(availableCommands, slashQuery);
   const showCommandPanel = filteredCommands.length > 0;
-  const { authRequired, hasRuntimeAuthError } = resolveThreadAuthState({
+  const liveAuth = resolveThreadAuthState({
     authState: effectiveAgentStatus?.authState,
     errorDockStates,
     sourceProviderKind: thread.config.sourceProviderKind,
@@ -493,11 +493,6 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     goalDockState !== null &&
     usesTerminalPresentation &&
     usesRemoteTransport;
-  const showErrorInComposer =
-    !hideInfoDocks &&
-    (!usesTerminalPresentation || usesRemoteTransport) &&
-    errorDockStates.length > 0 &&
-    !hasRuntimeAuthError;
   // Sub-agent details surface only in the top-right status capsule on GUI
   // surfaces (single step entry, same as plans). Keep the legacy
   // above-composer tile only for remote terminal surfaces, where the capsule
@@ -526,11 +521,15 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   );
   const agentStatuses = useAgentStatusesStore((state) => state.agentStatuses);
   const wslAgentStatuses = useAgentStatusesStore((state) => state.wslAgentStatuses);
-  const launchableHarnesses = getLaunchableAgentStatuses(
+  const remoteStatuses = useRemoteServersStore((state) =>
+    remoteDesktopId ? state.runtime[remoteDesktopId]?.agentStatuses : undefined,
+  );
+  const projectStatuses = getLaunchableAgentStatuses(
     projectLocation,
-    agentStatuses,
-    wslAgentStatuses,
-  )
+    remoteDesktopId ? (remoteStatuses?.windows ?? []) : agentStatuses,
+    remoteDesktopId ? (remoteStatuses?.wsl ?? []) : wslAgentStatuses,
+  );
+  const launchableHarnesses = projectStatuses
     .filter((entry) => entry.installed)
     .map((entry) => entry.kind);
   // Step Code needs a Chat Completions surface on the channel. Only when the
@@ -627,16 +626,17 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
   );
   const pendingAgentStatus =
     isStagingSwitch && pendingSwitch
-      ? (agentStatuses.find((entry) => entry.kind === pendingSwitch.agentKind) ??
-        wslAgentStatuses.find((entry) => entry.kind === pendingSwitch.agentKind))
+      ? (projectStatuses.find(
+          (entry) => entry.kind === pendingSwitch.agentKind && entry.installed,
+        ) ?? projectStatuses.find((entry) => entry.kind === pendingSwitch.agentKind))
       : undefined;
-  const displayAgentStatus =
-    isStagingSwitch && pendingAgentStatus
-      ? agentStatusForPresentation(
-          pendingAgentStatus,
-          pendingSwitch?.presentationMode ?? presentationMode,
-        )
-      : effectiveAgentStatus;
+  const stagedAgentStatus = pendingAgentStatus
+    ? agentStatusForPresentation(
+        pendingAgentStatus,
+        pendingSwitch?.presentationMode ?? presentationMode,
+      )
+    : undefined;
+  const displayAgentStatus = stagedAgentStatus ?? effectiveAgentStatus;
   const displayConfig = (() => {
     const base = {
       ...thread.config,
@@ -665,7 +665,33 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
           config: displayConfig,
         }
       : thread;
-  const displayAccountId = pendingSwitch?.accountId ?? liveAccountId;
+  const displayAccountId = pendingSwitch ? pendingSwitch.accountId : liveAccountId;
+  // Auth gating follows the staged pick. A switch only commits on send and
+  // `authRequired` disables send, so judging the live agent here would leave
+  // "Sign in required" stuck forever after picking a model on another harness.
+  // Runtime auth errors belong to the live session: they only carry over when
+  // the pick stays on the same harness and account.
+  const authRequired =
+    isStagingSwitch && pendingSwitch
+      ? resolveThreadAuthState({
+          authState: stagedAgentStatus?.authState,
+          errorDockStates:
+            pendingSwitch.agentKind === thread.agentKind &&
+            pendingSwitch.accountId === liveAccountId
+              ? errorDockStates
+              : [],
+          accountId: pendingSwitch.accountId,
+          agentKind: pendingSwitch.agentKind,
+          model: pendingSwitch.model,
+        }).authRequired
+      : liveAuth.authRequired;
+  const authAgentStatus = isStagingSwitch ? stagedAgentStatus : effectiveAgentStatus;
+  const showErrorInComposer =
+    !isStagingSwitch &&
+    !hideInfoDocks &&
+    canShowRuntimeChrome &&
+    errorDockStates.length > 0 &&
+    !liveAuth.hasRuntimeAuthError;
   const controls = buildControls(
     displayThread,
     displayAgentStatus,
@@ -673,8 +699,8 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
     shownModelIds,
     (config) => {
       if (isStagingSwitch && pendingSwitch) {
-        const { model: _model, ...configPatch } = config;
-        setPendingSwitch({ ...pendingSwitch, configPatch });
+        const { model, ...configPatch } = config;
+        setPendingSwitch({ ...pendingSwitch, model, configPatch });
         return;
       }
       changeThreadConfig(thread.id, config);
@@ -1324,6 +1350,7 @@ function ThreadComposerSectionInner(props: ThreadComposerSectionProps & { thread
                           worktreePath={thread.worktreePath}
                           branchName={branchName}
                           agentStatus={effectiveAgentStatus}
+                          authAgentStatus={authAgentStatus}
                           project={project}
                           contextSummary={contextSummary}
                           errorDockStates={errorDockStates}

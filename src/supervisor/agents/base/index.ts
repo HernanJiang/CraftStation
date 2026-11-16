@@ -557,7 +557,12 @@ async function resolveDetectedBinary(
     primeAgentBinaryPath(ctx.wslDistro, binary, path);
     return path;
   }
-  return resolveExecutablePathAsync(binary);
+  const resolved = await resolveExecutablePathAsync(binary);
+  // Launch-time resolution caches per process, misses included. Re-prime it on
+  // every detection pass so a CLI installed or repaired while the app is
+  // running is launched from its real path instead of a stale miss.
+  if (process.platform === "win32") primeAgentBinaryPath("windows", binary, resolved);
+  return resolved;
 }
 
 export function extractSemverFromVersionOutput(raw: string | undefined): string | undefined {

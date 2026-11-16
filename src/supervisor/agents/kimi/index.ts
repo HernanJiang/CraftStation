@@ -16,6 +16,7 @@ import { buildKimiAcpArgs, buildKimiArgs, buildKimiContinueArgs } from "./argv";
 import { createKimiBackgroundBridge, resolveKimiBackgroundTaskTimeoutMs } from "./backgroundBridge";
 import { buildKimiCommand, kimiDefaultCapabilities, kimiDetectionSpec } from "./detection";
 import { buildKimiLogoutCommand } from "./kimiLogout";
+import { readKimiTurnQuotaError } from "./turnQuota";
 import { ensureKimiWorkspaceTrust } from "./kimiTrust";
 import {
   makeKimiDiscoverSessionRef,
@@ -183,7 +184,13 @@ export function createKimiAdapter(): AgentAdapter {
         ...(capabilities.fastModelVariants
           ? { acpFastVariantByBase: capabilities.fastModelVariants }
           : {}),
-        acpEmptyResponseErrorResolver: resolveKimiEmptyResponseError,
+        acpEmptyResponseErrorResolver: async (failure) =>
+          (await readKimiTurnQuotaError(
+            input.projectLocation,
+            failure.sessionId,
+            failure.promptStartedAt,
+            kimiHome,
+          )) ?? resolveKimiEmptyResponseError(failure),
         acpSessionUpdateTransform: createKimiAcpSessionUpdateTransform({
           subagents,
           onBackgroundLaunch: backgroundBridge.onBackgroundLaunch,

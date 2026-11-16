@@ -31,6 +31,38 @@ function assistantItem(id: string, text: string): RuntimeChatItem {
 }
 
 describe("threadErrorState", () => {
+  it("retires the previous session's errors only once a model switch succeeds", () => {
+    const threadId = "switched";
+    const oldError = errorItem("old", "Not logged in");
+    const newError = errorItem("new", "Kimi Code ended the turn without returning a response.");
+    const ids = [oldError.id, "switch", newError.id];
+    const snapshot = (phase: "handover" | "done" | "failed", version: number) =>
+      ({
+        runtimeItemIdsByThread: { [threadId]: ids },
+        runtimeStructuralVersionByThread: { [threadId]: version },
+        runtimeItemsByIdByThread: {
+          [threadId]: {
+            old: oldError,
+            switch: {
+              id: "switch",
+              type: "model_switch",
+              state: phase === "handover" ? "in_progress" : "completed",
+              payload: { phase, fromProvider: "codex", toProvider: "kimi" },
+              streams: {},
+            },
+            new: newError,
+          },
+        },
+      }) as unknown as AppStoreState;
+    const phases = ["handover", "failed", "done"] as const;
+    for (const [version, phase] of phases.entries()) {
+      const state = snapshot(phase, version);
+      expect(selectThreadErrorDockStates(state, threadId).map((dock) => dock.sourceItemId)).toEqual(
+        phase === "done" ? ["new"] : ["old", "new"],
+      );
+    }
+  });
+
   it("suppresses abort-only composer errors", () => {
     expect(getThreadErrorDockStateForItem(errorItem("err-1", "Aborted"))).toBeNull();
     expect(getThreadErrorDockStateForItem(errorItem("err-2", "AbortError: aborted"))).toBeNull();

@@ -1,5 +1,6 @@
 import { existsSync, lstatSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
 import { writeFileAtomic } from "@/shared/atomicFile";
+import { windowsLoginCommand } from "@/shared/windowsLoginCommand";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { parseCodexAuth, resolveCodexToken, sanitizeCodexAuthJson } from "./codexCredentials";
@@ -248,13 +249,22 @@ export function managedCodexLoginCwd(managedCodexHome: string): string {
 export function buildCodexLoginScript(
   shellKind: "windows" | "posix",
   completionToken: string,
+  /** Detected absolute Codex executable. The login shell's PATH can miss an
+   * install the app itself resolves, so prefer it over the bare name. */
+  executablePath?: string,
 ): string {
   // `codex login` parses provider configuration before opening the browser.
   // The host app may legitimately use a Codex-Router model catalog in its own
   // ~/.codex/config.toml, but that catalog is unrelated to a managed ChatGPT
   // account and may target a different Codex schema. Pin the official provider
   // at the CLI boundary so profile login cannot be poisoned by host defaults.
-  const loginCommand = "codex -c model_provider=openai -c sandbox_mode=danger-full-access login";
+  const loginArgs = "-c model_provider=openai -c sandbox_mode=danger-full-access login";
+  const binary = !executablePath
+    ? "codex"
+    : shellKind === "windows"
+      ? `& '${executablePath.replaceAll("'", "''")}'`
+      : `'${executablePath.replaceAll("'", "'\\''")}'`;
+  const loginCommand = `${binary} ${loginArgs}`;
   if (shellKind === "windows") {
     return [
       "Clear-Host",
@@ -262,9 +272,7 @@ export function buildCodexLoginScript(
       "if (-not $env:CODEX_HOME) { throw 'CODEX_HOME is missing from the isolated login shell.' }",
       "Write-Host ('CraftStation CODEX_HOME=' + $env:CODEX_HOME)",
       "Write-Host ('CraftStation login cwd=' + (Get-Location).Path)",
-      loginCommand,
-      "$lcExit = if ($LASTEXITCODE -ne $null) { $LASTEXITCODE } else { 0 }",
-      `Write-Host "$([char]27)]777;craftstation-login-complete=${completionToken}:$lcExit$([char]7)" -NoNewline`,
+      windowsLoginCommand(loginCommand, completionToken),
     ].join("; ");
   }
   const bashCommand = [

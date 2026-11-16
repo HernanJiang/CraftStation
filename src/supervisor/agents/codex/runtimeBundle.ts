@@ -36,6 +36,8 @@ export function prepareCodexRuntimeBundle(
   executable: string,
   cacheRoot = join(resolveCraftStationBaseDir(), "cache", "codex-runtime"),
 ): string {
+  // Packaged Store installs are immutable and cannot be recursively copied.
+  if (/[/\\]WindowsApps[/\\]/i.test(executable)) return executable;
   if (!existsSync(join(dirname(executable), "codex-code-mode-host.exe"))) return executable;
   cacheRoot = resolve(cacheRoot);
   const source =

@@ -1,6 +1,34 @@
 {
   "releases": [
     {
+      "version": "1.11.25",
+      "date": "2026-11-16",
+      "title": "Codex 登录与对话模型切换",
+      "summary": "Windows 登录终端现在会使用 CraftStation 检测到的 Codex。对话中改选已登录的渠道后，可以直接发送下一条消息。",
+      "changes": [
+        {
+          "kind": "fixed",
+          "label": "Codex",
+          "text": "从设置添加 Codex 账号时，即使 PowerShell 的 PATH 中没有 codex，也能使用已检测到的程序打开登录流程。"
+        },
+        {
+          "kind": "fixed",
+          "label": "登录",
+          "text": "无法启动登录程序时，Windows 终端会显示失败；对话中缺少 CLI 时会提示未安装。"
+        },
+        {
+          "kind": "fixed",
+          "label": "对话",
+          "text": "切换渠道时，输入框按所选渠道判断是否需要登录，交接成功后只显示新会话的错误。"
+        },
+        {
+          "kind": "fixed",
+          "label": "Kimi Code",
+          "text": "Kimi 因套餐额度耗尽而只返回空回复时，CraftStation 会读取该轮的额度错误，并按现有账号池配置处理。"
+        }
+      ]
+    },
+    {
       "version": "1.11.24",
       "date": "2026-11-12",
       "title": "临时对话窗口更紧凑",

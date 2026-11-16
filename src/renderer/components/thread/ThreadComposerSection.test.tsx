@@ -7,6 +7,7 @@ import type { AgentStatus, GitStatusResult, Thread } from "@/shared/contracts";
 import "@/renderer/components/providers/bootstrap";
 import { useAppStore } from "@/renderer/state/appStore";
 import { useGitStore } from "@/renderer/state/gitStore";
+import { useAgentStatusesStore } from "@/renderer/state/agentStatusesStore";
 import {
   useComposerInputInbox,
   worktreeComposerInboxKey,
@@ -101,6 +102,7 @@ vi.mock("./ThreadComposer", () => ({
       kind?: string;
       label?: string;
       currentModel?: string;
+      onChange?: (pick: { agentKind: string; model: string }) => void;
       effortValue?: string;
     }>;
     fixedContent?: ReactNode;
@@ -135,13 +137,25 @@ vi.mock("./ThreadComposer", () => ({
       <output data-testid="control-kinds">
         {props.controls?.map((control) => control.kind ?? control.label ?? "").join(",") ?? ""}
       </output>
+      {props.controls?.find((control) => control.kind === "provider-model") ? (
+        <button
+          type="button"
+          onClick={() =>
+            props.controls
+              ?.find((control) => control.kind === "provider-model")
+              ?.onChange?.({ agentKind: "kimi", model: "kimi-for-coding" })
+          }
+        >
+          Pick Kimi
+        </button>
+      ) : null}
       <output data-testid="attach-files-enabled">{props.onAttachFiles ? "yes" : "no"}</output>
       {props.onStop && props.submitDisabled ? (
         <button type="button" aria-label="Stop response" onClick={props.onStop}>
           stop
         </button>
       ) : null}
-      <button type="button" onClick={props.onSubmit}>
+      <button type="button" data-submit-disabled={props.submitDisabled} onClick={props.onSubmit}>
         send
       </button>
     </div>
@@ -1473,6 +1487,28 @@ describe("ThreadComposerSection", () => {
     fireEvent.click(screen.getByText("send"));
 
     expect(onSubmitInput).not.toHaveBeenCalled();
+  });
+
+  it("unblocks a signed-in Kimi pick before sending from a signed-out Codex thread", async () => {
+    const codex = { ...codexGuiStatus, authState: "missing" as const, loginCommand: "codex login" };
+    const kimi = { ...codexGuiStatus, kind: "kimi", label: "Kimi Code" };
+    const previous = useAgentStatusesStore.getState().agentStatuses;
+    useAgentStatusesStore.setState({ agentStatuses: [codex, kimi] });
+    try {
+      renderComposer({
+        agentStatus: codex,
+        errorDockStates: [{ sourceItemId: "old", message: "Not logged in" }],
+      });
+      typeComposerText(screen.getByRole("textbox"), "continue");
+      expect(screen.getByText("Sign in required")).toBeInTheDocument();
+      expect(screen.getByText("send")).toHaveAttribute("data-submit-disabled", "true");
+      fireEvent.click(screen.getByRole("button", { name: "Pick Kimi" }));
+      expect(screen.queryByText("Sign in required")).toBeNull();
+      expect(screen.queryByText("Not logged in")).toBeNull();
+      expect(screen.getByText("send")).toHaveAttribute("data-submit-disabled", "false");
+    } finally {
+      await act(() => useAgentStatusesStore.setState({ agentStatuses: previous }));
+    }
   });
 
   it("keeps remote auth docks actionable without desktop-only login controls", async () => {

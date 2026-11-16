@@ -2903,9 +2903,7 @@ describe("SupervisorRuntime Codex profile login", () => {
     });
     expect(spawnOptions.cwd?.replaceAll("\\", "/")).toMatch(/CraftStation\/.local\/codex-login$/i);
     expect(spawnOptions.env?.CODEX_HOME).toBe(managedHome);
-    expect(script).toContain(
-      "codex -c model_provider=openai -c sandbox_mode=danger-full-access login",
-    );
+    expect(script).toContain("-c model_provider=openai -c sandbox_mode=danger-full-access login");
     expect(script).not.toContain("model_catalog_json");
     expect(script).toContain("craftstation-login-complete=lc_supervisor_test");
     expect(script).not.toContain(managedHome);
@@ -2925,9 +2923,7 @@ describe("SupervisorRuntime Codex profile login", () => {
     expect(spawnOptions.cwd?.replaceAll("\\", "/")).toMatch(/CraftStation\/.local\/codex-login$/i);
     expect(spawnOptions.env?.CODEX_HOME).toBe(managedHome);
     expect(script).toMatch(/^command bash -lc '/u);
-    expect(script).toContain(
-      "codex -c model_provider=openai -c sandbox_mode=danger-full-access login",
-    );
+    expect(script).toContain("-c model_provider=openai -c sandbox_mode=danger-full-access login");
     expect(script).not.toContain("model_catalog_json");
     expect(script).toContain("craftstation-login-complete=lc_supervisor_test");
     expect(script).not.toContain(managedHome);

@@ -1,5 +1,5 @@
 import { execFile, spawn, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 import { promisify } from "node:util";
@@ -261,11 +261,66 @@ export function findPosixExecutableInWellKnownDirs(binary: string): string | und
   return undefined;
 }
 
+/**
+ * Last-resort Windows lookup when `where.exe` cannot see the CLI.
+ *
+ * Packaged apps often inherit a PATH snapshot that omits the user npm bin,
+ * and a failed registry read leaves that snapshot in place. npm globals land
+ * in `%APPDATA%\\npm\\<name>.cmd`. The OpenAI desktop install keeps `codex.exe`
+ * under `%LOCALAPPDATA%\\OpenAI\\Codex\\bin\\<build>` and may never be on PATH.
+ * Prefer the npm `.cmd` so a later shim reader can still reach the native exe.
+ */
+export function findWindowsWellKnownExecutable(command: string): string | undefined {
+  if (process.platform !== "win32") return undefined;
+  const appData = getWindowsEnvValue("APPDATA");
+  const localAppData = getWindowsEnvValue("LOCALAPPDATA");
+  const home = homedir();
+  const candidates = [
+    ...(appData
+      ? [join(appData, "npm", `${command}.cmd`), join(appData, "npm", `${command}.exe`)]
+      : []),
+    join(home, ".local", "bin", `${command}.exe`),
+    join(home, ".local", "bin", `${command}.cmd`),
+  ];
+  for (const candidate of candidates) {
+    if (existsSync(candidate)) return candidate;
+  }
+  if (command === "codex" && localAppData) {
+    return findNewestOpenAiCodexExecutable(localAppData);
+  }
+  return undefined;
+}
+
+function findNewestOpenAiCodexExecutable(localAppData: string): string | undefined {
+  const binRoot = join(localAppData, "OpenAI", "Codex", "bin");
+  let entries: string[];
+  try {
+    entries = readdirSync(binRoot);
+  } catch {
+    return undefined;
+  }
+  let best: { path: string; mtimeMs: number } | undefined;
+  for (const entry of entries) {
+    const candidate = join(binRoot, entry, "codex.exe");
+    try {
+      const stats = statSync(candidate);
+      if (!stats.isFile()) continue;
+      if (!best || stats.mtimeMs >= best.mtimeMs) {
+        best = { path: candidate, mtimeMs: stats.mtimeMs };
+      }
+    } catch {
+      // A build directory without codex.exe is not a candidate.
+    }
+  }
+  return best?.path;
+}
+
 export function resolveExecutablePath(command: string): string | undefined {
   if (process.platform === "win32") {
     return (
       resolveWindowsExecutablePath(command) ??
-      resolveWindowsExecutablePath(command, buildWindowsPathOverride())
+      resolveWindowsExecutablePath(command, buildWindowsPathOverride()) ??
+      findWindowsWellKnownExecutable(command)
     );
   }
 
@@ -860,7 +915,10 @@ export async function resolveExecutablePathAsync(command: string): Promise<strin
   } catch {
     resolved = undefined;
   }
-  const finalPath = resolved ?? findPosixExecutableInWellKnownDirs(command);
+  const finalPath =
+    resolved ??
+    findPosixExecutableInWellKnownDirs(command) ??
+    findWindowsWellKnownExecutable(command);
   execPathCache.set(command, { path: finalPath, ts: Date.now() });
   return finalPath;
 }

@@ -9,6 +9,23 @@ afterEach(() => {
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
 });
 
+it("launches the versioned Windows Store bundle in place", () => {
+  const root = mkdtempSync(join(tmpdir(), "codex-store-test-"));
+  roots.push(root);
+  const source = join(
+    root,
+    "WindowsApps",
+    "OpenAI.Codex_26.1111.2228.0_x64__2p2nqsd0c76g0",
+    "app",
+    "resources",
+  );
+  mkdirSync(source, { recursive: true });
+  const executable = join(source, "codex.exe");
+  writeFileSync(executable, "store-binary");
+  writeFileSync(join(source, "codex-code-mode-host.exe"), "store-helper");
+  expect(prepareCodexRuntimeBundle(executable, join(root, "cache"))).toBe(executable);
+});
+
 it("keeps a running server's helper protocol stable across an in-place npm update", () => {
   const root = mkdtempSync(join(tmpdir(), "codex-bundle-test-"));
   roots.push(root);

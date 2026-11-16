@@ -1225,8 +1225,10 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         this.pendingPromptInterrupt = false;
         await this.connection.cancel({ sessionId: this.sessionId });
       }
+      const promptSessionId = this.sessionId;
+      const promptStartedAt = Date.now();
       const result = await this.connection.prompt({
-        sessionId: this.sessionId,
+        sessionId: promptSessionId,
         prompt: contentBlocks,
       });
       // ACP-standard bridges expose PromptResponse.usage. Native providers
@@ -1260,11 +1262,13 @@ export class AcpStructuredSession implements StructuredSessionHandle {
         !this.currentTurnInterruptRequested &&
         !this.currentTurnHadAgentActivity
       ) {
-        const emptyResponseError = this.emptyResponseErrorResolver?.({
+        const emptyResponseError = await this.emptyResponseErrorResolver?.({
           stopReason: result.stopReason,
           stderr: this.stderrChunks,
+          sessionId: promptSessionId,
+          promptStartedAt,
         });
-        if (emptyResponseError) throw emptyResponseError;
+        if (emptyResponseError && !this.currentTurnInterruptRequested) throw emptyResponseError;
       }
       const mapperState = this.ensureMapperState();
       if (

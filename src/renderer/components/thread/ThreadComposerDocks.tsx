@@ -42,6 +42,9 @@ type ThreadComposerDocksProps = {
   worktreePath: string | undefined;
   branchName: string | undefined;
   agentStatus: AgentStatus | undefined;
+  /** Agent the auth dock speaks for: the staged pick's harness while a model
+   * switch is pending, otherwise the live one. Defaults to `agentStatus`. */
+  authAgentStatus?: AgentStatus | undefined;
   project: Project | undefined;
   contextSummary: ThreadContextUsageSummary;
   errorDockStates: ThreadErrorDockState[];
@@ -88,6 +91,7 @@ export function ThreadComposerDocks(props: ThreadComposerDocksProps) {
     worktreePath,
     branchName,
     agentStatus,
+    authAgentStatus = agentStatus,
     project,
     contextSummary,
     errorDockStates,
@@ -142,8 +146,8 @@ export function ThreadComposerDocks(props: ThreadComposerDocksProps) {
           onRetire={() => onTodoDockRetire?.()}
         />
       ) : null}
-      {authRequired && agentStatus ? (
-        <ThreadAuthRequiredDock agentStatus={agentStatus} {...(project ? { project } : {})} />
+      {authRequired && authAgentStatus ? (
+        <ThreadAuthRequiredDock agentStatus={authAgentStatus} {...(project ? { project } : {})} />
       ) : null}
       {pendingSteer ? (
         <ThreadPendingSteerStrip pending={pendingSteer} onCancel={onCancelPendingSteer} />

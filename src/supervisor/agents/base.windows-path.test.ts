@@ -1,6 +1,6 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const spawnSyncMock = vi.hoisted(() => vi.fn<(...args: unknown[]) => unknown>());
@@ -113,6 +113,50 @@ describe.skipIf(process.platform !== "win32")("Windows executable path fallback"
         }),
       }),
     );
+  });
+
+  it("finds an npm global shim when PATH and the registry lookup miss", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-npm-global-"));
+    tempDirs.push(root);
+    const cmdPath = join(root, "npm", "codex.cmd");
+    mkdirSync(dirname(cmdPath), { recursive: true });
+    writeFileSync(cmdPath, "@ECHO off\r\n", "utf8");
+    const originalAppData = process.env.APPDATA;
+    const originalLocalAppData = process.env.LOCALAPPDATA;
+    process.env.APPDATA = root;
+    process.env.LOCALAPPDATA = join(root, "local");
+    spawnSyncMock.mockReturnValue({ error: undefined, status: 1, stdout: "", stderr: "" });
+
+    try {
+      expect(resolveExecutablePath("codex")).toBe(cmdPath);
+    } finally {
+      if (originalAppData === undefined) delete process.env.APPDATA;
+      else process.env.APPDATA = originalAppData;
+      if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA;
+      else process.env.LOCALAPPDATA = originalLocalAppData;
+    }
+  });
+
+  it("finds the OpenAI desktop codex.exe when no npm shim exists", () => {
+    const root = mkdtempSync(join(tmpdir(), "craftstation-openai-codex-"));
+    tempDirs.push(root);
+    const exePath = join(root, "OpenAI", "Codex", "bin", "build-a", "codex.exe");
+    mkdirSync(dirname(exePath), { recursive: true });
+    writeFileSync(exePath, "", "utf8");
+    const originalAppData = process.env.APPDATA;
+    const originalLocalAppData = process.env.LOCALAPPDATA;
+    process.env.APPDATA = join(root, "roaming");
+    process.env.LOCALAPPDATA = root;
+    spawnSyncMock.mockReturnValue({ error: undefined, status: 1, stdout: "", stderr: "" });
+
+    try {
+      expect(resolveExecutablePath("codex")).toBe(exePath);
+    } finally {
+      if (originalAppData === undefined) delete process.env.APPDATA;
+      else process.env.APPDATA = originalAppData;
+      if (originalLocalAppData === undefined) delete process.env.LOCALAPPDATA;
+      else process.env.LOCALAPPDATA = originalLocalAppData;
+    }
   });
 
   it("prefers npm .cmd shims over extensionless POSIX shims", () => {
