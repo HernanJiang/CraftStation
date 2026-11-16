@@ -1,9 +1,11 @@
-## 1.11.25 Codex 登录与切换模型后登录提示修复（2026-11-16，发布中）
+## 1.11.25 Codex 登录与切换模型后登录提示修复（2026-11-16，已发布）
 
 - **用户问题**：Codex 鉴权与登录失败；Codex 显示「需要登录」后，换成其他模型提示仍一直存在，无法发送。
 - **定位**：打包应用和登录 PowerShell 的 PATH 不含用户 npm 目录，登录脚本执行裸命令 `codex` 报「无法识别」；检测不到 CLI 时状态退化为未登录。输入框的鉴权门禁按当前会话的 Harness 判断，而模型切换要在发送时才提交，发送又被门禁禁用，形成死锁；切换成功后旧会话的「Not logged in」错误还会继续触发门禁。
 - **实现**：Codex 查找增加 npm 全局、`~/.local/bin`、OpenAI 桌面版目录兜底，每轮检测刷新启动路径缓存；登录脚本使用检测到的原生 `codex.exe`，找不到命令时如实报失败。鉴权门禁跟随待提交的模型切换，错误列表在成功的模型切换标记处截止；CLI 缺失时提示「未安装此代理」。附带 Kimi 空回复时读取该轮额度错误。
 - **验证**：相关 9 个文件 403 项测试（1 项按平台跳过）、typecheck、lint、格式检查通过。本机在不含 npm 目录的 PATH 下：旧脚本「无法将 codex 项识别为 cmdlet」退出码 1，新脚本经检测路径执行只读 `login status` 输出 `Logged in using ChatGPT`、退出码 0。changed-scope mock 冒烟 7 个自动场景与 5 个 mock 关卡通过，控制台 / 运行时错误 0（报告 `C:/Users/Haona/.craftstation-smoke/automated-1794840289085-39748/artifacts/smoke-report.json`）。未在真实应用走完浏览器登录。
+- **发布**：修复提交 `d71e65ad`、main、`v1.11.25` 与 [GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.25) 已发布，确认为最新稳定版、非草稿、非预发布。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/43889858873) 全部成功。四项附件齐备且本地 / 远端大小一致：NSIS 141475610 字节、blockmap 146629 字节、Portable 121011947 字节、`latest.yml` 367 字节；清单版本为 1.11.25，NSIS 路径和 size 匹配，双语正文与本地发布说明一致，未额外计算 SHA。
+- **本地收尾**：main 已快进同步到流水线推进的 1.11.26 开发版本（`2b6cc8ef`）。`release/` 便携版仅保留 1.11.25 / 1.11.24；旧 1.11.23 已移动归档到 `D:/Work/CraftStation-release-archives/1.11.25-20261116/`，历史 NSIS / blockmap 保留。隔离冒烟应用由一键 runner 自动拆除，未重启用户应用；原有未跟踪材料保留且不纳入提交。
 - **主题**：极简昼夜主题方案草案见 `ai_workspace/theme-proposals-minimal.html`（夜间 N1–N3 / 日间 D1–D3），等待用户选择，未接入应用。
 
 ## 1.11.24 临时对话窗口尺寸适配（2026-11-12，已发布）
