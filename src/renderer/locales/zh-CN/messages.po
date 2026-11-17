@@ -16955,3 +16955,11 @@ msgstr "选择对话后，在其右侧打开当前网页。"
 
 msgid "暂无可用的本地对话"
 msgstr "暂无可用的本地对话"
+
+#: src/renderer/views/SettingsOverlay/parts/ThemeGallery.tsx
+msgid "Editor themes"
+msgstr "编辑器主题"
+
+#: src/renderer/views/SettingsOverlay/parts/ThemeGallery.tsx
+msgid "Minimal"
+msgstr "极简"

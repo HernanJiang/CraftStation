@@ -16952,3 +16952,11 @@ msgstr "Choose a conversation to open this webpage beside it."
 
 msgid "暂无可用的本地对话"
 msgstr "No local conversations available"
+
+#: src/renderer/views/SettingsOverlay/parts/ThemeGallery.tsx
+msgid "Editor themes"
+msgstr "Editor themes"
+
+#: src/renderer/views/SettingsOverlay/parts/ThemeGallery.tsx
+msgid "Minimal"
+msgstr "Minimal"

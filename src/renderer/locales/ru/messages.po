@@ -16702,3 +16702,11 @@ msgstr "Открыть в папке"
 #: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
 msgid "Open with default app"
 msgstr "Открыть в приложении по умолчанию"
+
+#: src/renderer/views/SettingsOverlay/parts/ThemeGallery.tsx
+msgid "Editor themes"
+msgstr "Темы редакторов"
+
+#: src/renderer/views/SettingsOverlay/parts/ThemeGallery.tsx
+msgid "Minimal"
+msgstr "Минималистичные"

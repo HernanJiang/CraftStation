@@ -1,8 +1,13 @@
 import { startTransition, type CSSProperties } from "react";
 import { Check } from "lucide-react";
+import { useLingui } from "@lingui/react/macro";
 import { useSharedSettings } from "@/renderer/state/sharedSettingsStore";
 import { useResolvedAppearance } from "@/renderer/components/ui/provider";
-import { APP_THEME_PRESETS, type AppThemePreset } from "@/renderer/theme/themePresets";
+import {
+  APP_THEME_PRESETS,
+  type AppThemeGroup,
+  type AppThemePreset,
+} from "@/renderer/theme/themePresets";
 
 /**
  * Compact theme swatch: a sidebar strip + content area with an accent dot,
@@ -39,25 +44,44 @@ export function ThemeSwatch(props: { vars: CSSProperties; className?: string }) 
  * what the app will look like after selection.
  */
 export function ThemeGallery() {
+  const { t } = useLingui();
   const themePreset = useSharedSettings((state) => state.themePreset);
   const setThemePreset = useSharedSettings((state) => state.setThemePreset);
   const appearance = useResolvedAppearance();
+  const groups: { id: AppThemeGroup; title: string }[] = [
+    { id: "base", title: "CraftStation" },
+    { id: "minimal", title: t`Minimal` },
+    { id: "editor", title: t`Editor themes` },
+  ];
 
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-      {APP_THEME_PRESETS.map((preset) => (
-        <ThemeCard
-          key={preset.id}
-          preset={preset}
-          appearance={appearance}
-          selected={preset.id === themePreset}
-          onSelect={() => {
-            startTransition(() => {
-              setThemePreset(preset.id);
-            });
-          }}
-        />
-      ))}
+    <div className="space-y-4">
+      {groups.map((group) => {
+        const presets = APP_THEME_PRESETS.filter((preset) => preset.group === group.id);
+        if (presets.length === 0) return null;
+        return (
+          <section key={group.id} aria-label={group.title} className="space-y-2">
+            <h3 className="px-0.5 text-[11px] font-medium tracking-wide text-muted uppercase">
+              {group.title}
+            </h3>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {presets.map((preset) => (
+                <ThemeCard
+                  key={preset.id}
+                  preset={preset}
+                  appearance={appearance}
+                  selected={preset.id === themePreset}
+                  onSelect={() => {
+                    startTransition(() => {
+                      setThemePreset(preset.id);
+                    });
+                  }}
+                />
+              ))}
+            </div>
+          </section>
+        );
+      })}
     </div>
   );
 }

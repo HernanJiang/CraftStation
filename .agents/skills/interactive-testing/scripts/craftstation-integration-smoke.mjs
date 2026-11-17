@@ -2472,7 +2472,19 @@ async function runMockGate(client, gate, fixture) {
         client,
         `(() => ({
           unlabeled: [...document.querySelectorAll("button,input,textarea")].filter((el) => {
-            const label = el.getAttribute("aria-label") || el.getAttribute("title") || el.getAttribute("placeholder") || el.textContent?.trim();
+            // aria-labelledby names a control from other elements (React Aria
+            // sliders point at their labelled group); resolve it like the
+            // accessible-name algorithm instead of reporting a false miss.
+            const labelledBy = (el.getAttribute("aria-labelledby") || "")
+              .split(/\\s+/)
+              .filter(Boolean)
+              .map((id) => {
+                const target = document.getElementById(id);
+                return target ? target.getAttribute("aria-label") || target.textContent?.trim() || "" : "";
+              })
+              .join(" ")
+              .trim();
+            const label = el.getAttribute("aria-label") || labelledBy || el.getAttribute("title") || el.getAttribute("placeholder") || el.textContent?.trim();
             return !label;
           }).length,
           dark: document.documentElement.classList.contains("dark"),

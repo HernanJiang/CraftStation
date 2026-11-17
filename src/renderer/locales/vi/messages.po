@@ -16702,3 +16702,11 @@ msgstr "Mở trong thư mục"
 #: src/renderer/components/thread/ChatPane/parts/items/InlineFolderPathChip.tsx
 msgid "Open with default app"
 msgstr "Mở bằng ứng dụng mặc định"
+
+#: src/renderer/views/SettingsOverlay/parts/ThemeGallery.tsx
+msgid "Editor themes"
+msgstr "Chủ đề trình soạn thảo"
+
+#: src/renderer/views/SettingsOverlay/parts/ThemeGallery.tsx
+msgid "Minimal"
+msgstr "Tối giản"

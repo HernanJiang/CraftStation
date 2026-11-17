@@ -82,7 +82,7 @@ export function SidebarCodexNav() {
               ) : null}
             </Dropdown.Trigger>
           </ControlTooltip>
-          <Dropdown.Popover placement="bottom end" className="min-w-[280px] rounded-none">
+          <Dropdown.Popover placement="bottom end" className="min-w-[280px]">
             <Dropdown.Menu
               aria-label={t`Notifications`}
               onAction={(key) => {
@@ -97,19 +97,14 @@ export function SidebarCodexNav() {
               }}
             >
               {notifications.length === 0 ? (
-                <Dropdown.Item id="empty" textValue={t`No notifications`} className="rounded-none">
+                <Dropdown.Item id="empty" textValue={t`No notifications`}>
                   <span className="min-w-0 flex-1 whitespace-normal break-words text-[11px] text-muted">
                     {t`No notifications`}
                   </span>
                 </Dropdown.Item>
               ) : (
                 notifications.map((item) => (
-                  <Dropdown.Item
-                    key={item.id}
-                    id={item.id}
-                    textValue={item.title}
-                    className="rounded-none"
-                  >
+                  <Dropdown.Item key={item.id} id={item.id} textValue={item.title}>
                     <span
                       aria-hidden="true"
                       className={`size-1.5 shrink-0 rounded-full ${TONE_DOT_CLASS[item.tone]}`}
@@ -162,7 +157,7 @@ export function SidebarCodexNav() {
             </ControlTooltip>
             <Dropdown.Popover
               placement="bottom start"
-              className="craftstation-composer-menu-surface min-w-[250px] rounded-none"
+              className="craftstation-composer-menu-surface min-w-[250px]"
             >
               <Dropdown.Menu
                 aria-label={t`New chat / project`}
@@ -171,7 +166,7 @@ export function SidebarCodexNav() {
                   if (key === "project") usePanelStore.getState().openCreateProjectModal();
                 }}
               >
-                <Dropdown.Item id="thread" textValue={t`New chat`} className="rounded-none">
+                <Dropdown.Item id="thread" textValue={t`New chat`}>
                   <MessageSquarePlus className="size-4 text-muted" />
                   <Label>{t`New chat`}</Label>
                 </Dropdown.Item>
@@ -192,7 +187,7 @@ export function SidebarCodexNav() {
                     </Dropdown.Popover>
                   </Dropdown.SubmenuTrigger>
                 )}
-                <Dropdown.Item id="project" textValue={t`New project`} className="rounded-none">
+                <Dropdown.Item id="project" textValue={t`New project`}>
                   <Plus className="size-4 text-muted" />
                   <Label>{t`New project`}</Label>
                 </Dropdown.Item>

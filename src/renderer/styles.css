@@ -26,7 +26,9 @@
 }
 
 :root {
-  --craftstation-modal-radius: 0.7rem;
+  /* Dialogs share the menu/popover radius (0.875rem) so every floating surface
+     reads as one family; rows inside use the concentric 0.5rem. */
+  --craftstation-modal-radius: 0.875rem;
   /* Whole-app UI zoom factor (Ctrl +/-). Mirrored from the persisted
      `zoomFactor` setting by AppProvider, which also sets
      `document.documentElement.style.zoom` to the same value. */
@@ -55,6 +57,20 @@
 .craftstation-image-lightbox {
   -webkit-app-region: no-drag;
   app-region: no-drag;
+}
+
+/* A whisper of blur behind dialogs keeps them focal with a lighter scrim. */
+.modal__backdrop--opaque,
+.alert-dialog__backdrop--opaque {
+  backdrop-filter: blur(3px) saturate(115%);
+  -webkit-backdrop-filter: blur(3px) saturate(115%);
+}
+@media (prefers-reduced-transparency: reduce) {
+  .modal__backdrop--opaque,
+  .alert-dialog__backdrop--opaque {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
 }
 
 .modal__dialog:not(.modal__dialog--cover):not(.modal__dialog--full),
@@ -1019,8 +1035,14 @@
   padding: 0.375rem;
 }
 
+/* One radius for every floating surface. HeroUI's select / combo-box /
+   autocomplete popovers otherwise fall back to min(32px, --radius-3xl) and read
+   as pills next to the 0.875rem menus. */
 .popover__dialog,
 .dropdown__popover,
+.select__popover,
+.combo-box__popover,
+.autocomplete__popover,
 .modal__dialog,
 [data-slot="popover"] {
   border-radius: 0.875rem;
@@ -1033,11 +1055,12 @@
   background: var(--composer-surface);
 }
 
+/* Concentric with the 0.875rem surface and its ~0.375rem inset. */
 .craftstation-menu .list-box-item,
 .craftstation-menu-item,
 .list-box-item,
 .menu-item {
-  border-radius: 0.625rem;
+  border-radius: 0.5rem;
 }
 
 /* Section header (HeroUI <Header>) preceding a craftstation-menu
@@ -1219,6 +1242,14 @@
     --segment: oklch(0.975 0.002 286);
     --border: oklch(0.84 0.006 286 / 0.7);
     --separator: oklch(0.88 0.004 286 / 0.9);
+    /* Floating surfaces (menus, popovers, dialogs): a hairline ring for the
+       edge, a tight contact shadow, and a soft long drop. Reads crisp on white
+       pages where a single wide blur looked smudged. */
+    --overlay-shadow:
+      0 0 0 1px color-mix(in oklab, var(--foreground) 7%, transparent),
+      0 2px 6px -1px rgb(0 0 0 / 0.06), 0 16px 40px -8px rgb(0 0 0 / 0.16);
+    /* Lighter scrim so the page stays legible behind a dialog. */
+    --backdrop: rgb(12 12 16 / 0.28);
 
     /* App-specific */
     --sidebar-background: oklch(0.945 0.004 286);
@@ -1272,6 +1303,12 @@
     --segment: #343538;
     --border: oklch(0.32 0 0 / 0.9);
     --separator: oklch(0.3 0 0 / 0.85);
+    /* Dark overlays sit only a step above the page, so the edge comes from a
+       faint light hairline; the drop shadow is deeper to lift them. */
+    --overlay-shadow:
+      0 0 0 1px color-mix(in oklab, var(--foreground) 8%, transparent),
+      0 4px 12px -2px rgb(0 0 0 / 0.4), 0 24px 56px -12px rgb(0 0 0 / 0.6);
+    --backdrop: rgb(0 0 0 / 0.5);
     /* Brighter selected-row wash on dark so the active thread/list item reads
        as a clearer, whiter highlight, well separated from the dimmed idle
        rows (base is 11%). */
@@ -3722,10 +3759,10 @@ html[data-app-unfocused] .craftstation-provider-icon--finished {
 .craftstation-mention-popover {
   width: 30rem;
   max-height: 20rem;
-  border: 1px solid var(--border);
-  border-radius: 0.75rem;
+  border-radius: 0.875rem;
   background: var(--overlay);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  /* Same edge + drop as every other floating surface. */
+  box-shadow: var(--overlay-shadow);
   overflow: hidden;
 }
 
@@ -4471,13 +4508,15 @@ html[data-craftstation-drag-active="true"] [data-craftstation-chat-scroller="tru
   line-height: 1.25;
   word-break: normal;
   overflow-wrap: break-word;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 0.375rem;
-  background: rgba(34, 35, 41, 0.96);
-  color: rgb(245 245 245);
+  /* Neutral ink chip in every theme: no blue cast, a finer edge and a
+     shallower shadow than a floating panel. */
+  border: 1px solid rgb(255 255 255 / 0.08);
+  border-radius: 0.5rem;
+  background: rgb(24 24 27 / 0.96);
+  color: rgb(244 244 245);
   box-shadow:
-    0 10px 30px rgb(0 0 0 / 0.35),
-    0 2px 8px rgb(0 0 0 / 0.28);
+    0 6px 20px rgb(0 0 0 / 0.24),
+    0 1px 3px rgb(0 0 0 / 0.2);
 }
 
 .craftstation-control-tooltip {

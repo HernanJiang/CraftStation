@@ -37,7 +37,9 @@ const FOCUS_RETAINS_ESCAPE = ".xterm, .monaco-editor, .craftstation-mention-inpu
 function onKeyDown(event: KeyboardEvent): void {
   if (event.key !== "Escape") return;
 
-  const target = event.target as HTMLElement | null;
+  // The target can be `document` or `window` (no `closest`) when the key event
+  // is dispatched there directly; treat that as "no focused element".
+  const target = event.target instanceof Element ? event.target : null;
   if (target?.closest(FOCUS_RETAINS_ESCAPE)) return;
 
   const handler = stack[stack.length - 1];

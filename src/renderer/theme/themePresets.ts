@@ -11,14 +11,19 @@
  * consumed by the contrast test); `APP_THEME_PRESETS` is the derived token set.
  * Secondary ("muted") text is derived from fg→bg rather than each theme's
  * comment color so contrast stays readable everywhere (see `themeTokens`). To
- * add a theme, append one `THEME_SPECS` entry.
+ * add a theme, append one `THEME_SPECS` entry; `group` picks its gallery
+ * section.
  */
 
 import { buildVariant, type ThemeSpec, type ThemeVariantVars } from "./themeTokens";
 
+/** Gallery section a preset is listed under. */
+export type AppThemeGroup = "base" | "minimal" | "editor";
+
 export interface AppThemeSpec {
   id: string;
   label: string;
+  group: AppThemeGroup;
   light: ThemeSpec;
   dark: ThemeSpec;
 }
@@ -26,6 +31,7 @@ export interface AppThemeSpec {
 export interface AppThemePreset {
   id: string;
   label: string;
+  group: AppThemeGroup;
   light: ThemeVariantVars;
   dark: ThemeVariantVars;
 }
@@ -39,6 +45,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
   {
     id: DEFAULT_THEME_ID,
     label: "CraftStation",
+    group: "base",
     // sRGB hex of the styles.css oklch values (anchors must be hex so muted can
     // be contrast-derived). Preview-only — runtime clears overrides for default.
     light: {
@@ -68,6 +75,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
   {
     id: "craftstation-legacy",
     label: "CraftStation Legacy",
+    group: "base",
     light: {
       bg: "#f1f1f4",
       surface: "#fafafb",
@@ -90,10 +98,186 @@ export const THEME_SPECS: AppThemeSpec[] = [
     },
   },
 
+  // ── Minimal collection ──────────────────────────────────────────────
+  // Black and white in six temperaments. The neutral trio differs only in
+  // depth (Onyx → Graphite → Ash); the tinted trio keeps a whisper of hue
+  // (Slate cool, Linen warm, Sage green). Accents stay restrained: monochrome
+  // on the neutrals, one low-chroma tone on the tinted pairs. Light variants
+  // pin `overlay` so menus and dialogs stay as bright as the page.
+
+  // Onyx — true black / pure white, monochrome accent. Highest contrast.
+  {
+    id: "onyx",
+    label: "Onyx",
+    group: "minimal",
+    light: {
+      bg: "#ffffff",
+      surface: "#ffffff",
+      fg: "#0a0a0a",
+      accent: "#111111",
+      accentFg: "#ffffff",
+      border: "#e5e5e5",
+      sidebar: "#fafafa",
+      content: "#ffffff",
+      overlay: "#ffffff",
+    },
+    dark: {
+      bg: "#000000",
+      surface: "#111111",
+      fg: "#ededed",
+      accent: "#f5f5f5",
+      accentFg: "#0a0a0a",
+      border: "#242424",
+      sidebar: "#000000",
+      content: "#080808",
+    },
+  },
+
+  // Graphite — soft neutral grey-black / paper white, monochrome accent.
+  {
+    id: "graphite",
+    label: "Graphite",
+    group: "minimal",
+    light: {
+      bg: "#f7f7f8",
+      surface: "#ffffff",
+      fg: "#1a1a1d",
+      accent: "#27272a",
+      accentFg: "#ffffff",
+      border: "#e3e3e6",
+      sidebar: "#f3f3f4",
+      content: "#ffffff",
+      overlay: "#ffffff",
+    },
+    dark: {
+      bg: "#151517",
+      surface: "#1e1e21",
+      fg: "#ededee",
+      accent: "#e4e4e7",
+      accentFg: "#151517",
+      border: "#2c2c2f",
+      sidebar: "#111113",
+      content: "#18181a",
+    },
+  },
+
+  // Ash — dimmed charcoal / soft grey-white. Lowest glare in both modes.
+  {
+    id: "ash",
+    label: "Ash",
+    group: "minimal",
+    light: {
+      bg: "#ececee",
+      surface: "#fafafa",
+      fg: "#26262a",
+      accent: "#3f3f46",
+      accentFg: "#ffffff",
+      border: "#d4d4d8",
+      sidebar: "#e6e6e9",
+      content: "#f4f4f5",
+      overlay: "#fafafa",
+    },
+    dark: {
+      bg: "#1f2023",
+      surface: "#292a2e",
+      fg: "#e6e6e8",
+      accent: "#d4d4d8",
+      accentFg: "#1f2023",
+      border: "#37383d",
+      sidebar: "#1b1c1f",
+      content: "#232427",
+    },
+  },
+
+  // Slate — cool blue-black / mist white, steel-blue accent.
+  {
+    id: "slate",
+    label: "Slate",
+    group: "minimal",
+    light: {
+      bg: "#f6f8fa",
+      surface: "#ffffff",
+      fg: "#1f2328",
+      accent: "#3b6ea5",
+      accentFg: "#ffffff",
+      border: "#d5dbe1",
+      sidebar: "#f0f3f6",
+      content: "#ffffff",
+      overlay: "#ffffff",
+    },
+    dark: {
+      bg: "#14171b",
+      surface: "#1c2026",
+      fg: "#e3e7ec",
+      accent: "#8fa9c8",
+      accentFg: "#0f1216",
+      border: "#2b3138",
+      sidebar: "#101317",
+      content: "#171a1f",
+    },
+  },
+
+  // Linen — warm charcoal / linen white, sand accent.
+  {
+    id: "linen",
+    label: "Linen",
+    group: "minimal",
+    light: {
+      bg: "#f7f5f1",
+      surface: "#fffdf9",
+      fg: "#24211d",
+      accent: "#6b5a45",
+      accentFg: "#fffdf9",
+      border: "#e2ddd4",
+      sidebar: "#f0ede7",
+      content: "#fbfaf7",
+      overlay: "#fffdf9",
+    },
+    dark: {
+      bg: "#181716",
+      surface: "#211f1d",
+      fg: "#ece8e2",
+      accent: "#cbb89a",
+      accentFg: "#181716",
+      border: "#312e2b",
+      sidebar: "#131211",
+      content: "#1b1a18",
+    },
+  },
+
+  // Sage — green-black / celadon white, sage accent.
+  {
+    id: "sage",
+    label: "Sage",
+    group: "minimal",
+    light: {
+      bg: "#f4f7f4",
+      surface: "#ffffff",
+      fg: "#1d231f",
+      accent: "#46705a",
+      accentFg: "#ffffff",
+      border: "#d8dfd9",
+      sidebar: "#edf1ed",
+      content: "#fbfcfb",
+      overlay: "#ffffff",
+    },
+    dark: {
+      bg: "#141715",
+      surface: "#1c201d",
+      fg: "#e4e9e5",
+      accent: "#9dbba6",
+      accentFg: "#101311",
+      border: "#2a302c",
+      sidebar: "#101311",
+      content: "#171a18",
+    },
+  },
+
   // Catppuccin — Latte / Mocha.
   {
     id: "catppuccin",
     label: "Catppuccin",
+    group: "editor",
     light: {
       bg: "#eff1f5",
       surface: "#ffffff",
@@ -120,6 +304,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
   {
     id: "github",
     label: "GitHub",
+    group: "editor",
     light: {
       bg: "#ffffff",
       surface: "#f6f8fa",
@@ -145,6 +330,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
   {
     id: "one",
     label: "One",
+    group: "editor",
     light: {
       bg: "#fafafa",
       surface: "#ffffff",
@@ -170,6 +356,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
   {
     id: "dracula",
     label: "Dracula",
+    group: "editor",
     light: {
       bg: "#fffbeb",
       surface: "#ffffff",
@@ -194,6 +381,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
   {
     id: "nord",
     label: "Nord",
+    group: "editor",
     light: {
       bg: "#eceff4",
       surface: "#ffffff",
@@ -219,6 +407,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
   {
     id: "tokyo-night",
     label: "Tokyo Night",
+    group: "editor",
     light: {
       bg: "#e1e2e7",
       surface: "#ffffff",
@@ -245,6 +434,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
   {
     id: "gruvbox",
     label: "Gruvbox",
+    group: "editor",
     light: {
       bg: "#fbf1c7",
       surface: "#f9f5d7",
@@ -272,6 +462,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
   {
     id: "solarized",
     label: "Solarized",
+    group: "editor",
     light: {
       bg: "#fdf6e3",
       surface: "#eee8d5",
@@ -296,6 +487,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
   {
     id: "rose-pine",
     label: "Rosé Pine",
+    group: "editor",
     light: {
       bg: "#faf4ed",
       surface: "#fffaf3",
@@ -321,6 +513,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
   {
     id: "everforest",
     label: "Everforest",
+    group: "editor",
     light: {
       bg: "#fdf6e3",
       surface: "#f4f0d9",
@@ -350,6 +543,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
   {
     id: "monokai",
     label: "Monokai",
+    group: "editor",
     light: {
       bg: "#fbfbf8",
       surface: "#ffffff",
@@ -374,6 +568,7 @@ export const THEME_SPECS: AppThemeSpec[] = [
 export const APP_THEME_PRESETS: AppThemePreset[] = THEME_SPECS.map((spec) => ({
   id: spec.id,
   label: spec.label,
+  group: spec.group,
   light: buildVariant(spec.light, "light"),
   dark: buildVariant(spec.dark, "dark"),
 }));

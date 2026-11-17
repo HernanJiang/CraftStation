@@ -35,6 +35,10 @@ export interface ThemeSpec {
   sidebar?: string;
   /** Optional explicit content-area background. Defaults to `bg`. */
   content?: string;
+  /** Optional explicit floating-chrome background (menus, popovers, dialogs).
+   * Defaults to a step derived from `surface`. Near-white palettes pin it so
+   * overlays stay as bright as the page and separate by hairline + shadow. */
+  overlay?: string;
 }
 
 /**
@@ -126,7 +130,7 @@ export function buildVariant(spec: ThemeSpec, mode: "light" | "dark"): ThemeVari
     // just above the surface so fields (mixed toward fg, below) read as raised
     // cards on it; in light themes it dims below the surface, where the
     // barely-lighter field fill already reads as a card.
-    "--overlay": mode === "light" ? mix(surface, 93, fg) : mix(surface, 98, fg),
+    "--overlay": spec.overlay ?? (mode === "light" ? mix(surface, 93, fg) : mix(surface, 98, fg)),
     "--muted": muted.hex,
     "--scrollbar": fade(muted.hex, 60),
     // Neutral fill for secondary/tertiary buttons, selects, chips, toggle and
