@@ -366,6 +366,10 @@ export default defineConfig(({ mode }) => ({
   resolve: {
     tsconfigPaths: true,
     alias: {
+      // @monaco-editor/react defaults to an AMD loader backed by jsDelivr.
+      // Replace that dependency with a fail-closed local ESM loader so a missed
+      // initialization can never become a network fallback.
+      "@monaco-editor/loader": resolve(__dirname, "src/renderer/localMonacoLoader.ts"),
       "~file-icons": MATERIAL_ICON_DIR,
     },
   },
@@ -428,9 +432,13 @@ export default defineConfig(({ mode }) => ({
               priority: 45,
             },
             {
+              // Keep Monaco off the startup graph. Recursive dependencies would
+              // pull Vite's shared preload helper into this chunk, and every
+              // dynamic import would then statically import the editor.
               name: "monaco",
               test: /[\\/]node_modules[\\/](@monaco-editor|monaco-editor)[\\/]/,
               priority: 40,
+              includeDependenciesRecursively: false,
             },
             {
               // Shiki engine + bundle-full glue, BUT not its grammars/themes.

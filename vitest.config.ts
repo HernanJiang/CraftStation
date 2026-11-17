@@ -36,6 +36,10 @@ export default defineConfig({
         resolve: {
           alias: {
             "@": resolve(import.meta.dirname, "src"),
+            "@monaco-editor/loader": resolve(
+              import.meta.dirname,
+              "src/renderer/localMonacoLoader.ts",
+            ),
             "~file-icons": resolve(import.meta.dirname, "node_modules/material-icon-theme/icons"),
           },
         },
