@@ -1,10 +1,12 @@
-## 1.11.26 极简主题与浮层细节（2026-11-17，发布中）
+## 1.11.26 极简主题与浮层细节（2026-11-17，已发布）
 
 - **用户要求**：在先前 3 夜间 + 3 日间方案基础上再做 3 + 3 套，以黑 / 白变体为主、简约高级；同时微调弹窗颜色、位置、大小等整体 UI 细节，并发布。
 - **主题**：新增「极简」分组 6 个预设，每个含夜间 + 日间：Onyx（纯黑 / 纯白）、Graphite（石墨 / 纸白）、Ash（烟灰 / 柔灰白）、Slate（冷岩 / 雾白）、Linen（暖炭 / 亚麻白）、Sage（灰绿黑 / 青瓷白），共 6 夜 + 6 日。`ThemeSpec` 新增可选 `overlay`，极简日间主题菜单 / 弹窗与页面同亮；预设新增 `group`，设置页分「CraftStation / 极简 / 编辑器主题」三组，标题补齐 13 种语言。
 - **UI 微调**：下拉框 / 组合框 / 自动补全浮层由 HeroUI 默认的 32px 胶囊圆角统一为 0.875rem，弹窗圆角 0.7rem → 0.875rem，菜单条目 0.625rem → 0.5rem（同心）；`--overlay-shadow` 按明暗模式改为发丝描边 + 贴近阴影 + 远阴影；遮罩变轻（日间 0.28 / 夜间 0.5）并加 3px 模糊，尊重减少透明度；提示气泡改中性深色、细边浅阴影；文件提及面板使用统一浮层阴影；侧栏「新建」与通知菜单去掉混用的直角。侧栏行与按钮的直角是全局设计，保留。弹窗位置保持居中（上移会挤压高弹窗的可用高度，未改）。
 - **附带修复**：检查中发现 Esc 事件派发到 `document` 时 `overlayEscapeStack` 调用 `closest` 崩溃，改为只对 Element 目标判断，补回归测试（修复前失败、修复后通过）。
 - **验证**：新主题通过既有对比度测试；主题 / 设置 / 侧栏 / Esc 相关 55 个文件 499 项、changelog 16 项、typecheck、lint、格式检查通过。隔离真实 Electron 截图检查 Onyx 日夜、Graphite 夜间的设置页、下拉框、「新建」菜单、弹窗（`C:/Users/Haona/.craftstation-smoke/theme-polish-20261117/artifacts/`）。changed-scope mock 冒烟首轮 `visual-a11y` 误报 1 个缺标签控件：实为外观页「Sidebar frosting」与 Git 页「Default PR automation」两个既有滑块，经 `aria-labelledby` 指向带 `aria-label` 的分组，名称正确；修正冒烟脚本按 `aria-labelledby` 解析后重跑，8 个自动场景与 3 个 mock 关卡通过、控制台 / 运行时错误 0（`C:/Users/Haona/.craftstation-smoke/automated-1794922205609-43784/artifacts/smoke-report.json`）。另一线程遗留的 `codex-auth-preview-20261116` 调试会话仍在运行，未处理。
+- **发布**：功能提交 `b5937364`、main、`v1.11.26` 与 [GitHub Release](https://github.com/HernanJiang/CraftStation/releases/tag/v1.11.26) 已发布，确认为最新稳定版、非草稿、非预发布。[Windows 稳定版流水线](https://github.com/HernanJiang/CraftStation/actions/runs/44094357390) 全部成功。远端四项附件齐备：NSIS 141502939 字节、blockmap 147341 字节、Portable 121043823 字节、`latest.yml` 367 字节；本地 `latest.yml` 版本为 1.11.26，NSIS 路径与 size 匹配，blockmap 大小一致，双语正文与本地发布说明一致，未额外计算 SHA。
+- **本地收尾（未完成）**：main 已快进同步到流水线推进的 1.11.27 开发版本（`299932ea`）。本地下载经代理 `127.0.0.1:7897` 多次被断开：`gh release download` 30 分钟后中止，`curl -C -` 续传在 36879057 字节处卡住并用满 2 小时上限后中止。未完成的文件已改名为 `release/CraftStation-Portable-1.11.26-x64.exe.partial`（36879057 字节）与 `release/CraftStation-Setup-1.11.26-x64.exe.partial`（1934336 字节），可用 `curl -L -C -` 续传后去掉后缀。因 1.11.26 本地副本未完整，便携版暂保留 1.11.25 / 1.11.24，未归档 1.11.24。
 
 ## 1.11.25 Codex 登录与切换模型后登录提示修复（2026-11-16，已发布）
 
